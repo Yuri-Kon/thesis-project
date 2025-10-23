@@ -1,0 +1,55 @@
+# 需要忽略的文件
+
+# 1. Latex编译生成文件
+
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.brf
+*.idx 
+*.ilg
+*.ind
+*.ist
+*.lof
+*.lot
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex
+*.run.xml
+*.xdv
+*.nav
+*.snm
+*.log
+*.pdfsync
+
+# 2. 输出目录
+
+docs/**/output/
+output/
+
+# 3. 临时文件 & 备份文件
+
+*.bak
+*.backup
+*.tmp
+*.swp
+*.swo
+*.lock
+*.DS_Store
+Thumbs.db
+
+# 4. vscode工作环境
+
+.vscode/
+*.code-workspace
+
+# 5. 参考与大文件
+shared/others-papers
+resources/papers/
+resources/data/
+resources/raw/
+resources/tmp/
