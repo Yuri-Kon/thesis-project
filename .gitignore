@@ -47,9 +47,19 @@ Thumbs.db
 .vscode/
 *.code-workspace
 
-# 5. 参考与大文件
-shared/others-papers
+# 5. 转化得到的文件
+
+*.pdf
+*.doc
+*.docx
+
+# 6. 参考与大文件
+shared/
 resources/papers/
 resources/data/
 resources/raw/
-resources/tmp/
+iresources/tmp/
+
+# 7. Latex目录
+
+docs/proposal/

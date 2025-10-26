@@ -1,0 +1,6 @@
+# 用odt2txt将odt转化为纯文本后再做diff
+
+*.odt diff=odt
+*.ods diff=odt
+*.odp diff=odt
+
