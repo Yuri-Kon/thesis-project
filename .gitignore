@@ -30,6 +30,7 @@
 
 docs/**/output/
 output/
+ppt/
 
 # 3. 临时文件 & 备份文件
 
