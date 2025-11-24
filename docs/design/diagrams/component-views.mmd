@@ -1,0 +1,61 @@
+graph LR
+subgraph "Interface & Core"
+  TA["TaskAPI\n(CLI)"]
+  WF[Workflow]
+  DC["DataContract\n(ProteinDesignTask / DesignResult)"]
+end
+
+subgraph "Agents"
+  PL[PlannerAgent]
+  EX[ExecutorAgent]
+  SA[SafetyAgent]
+  SU[SummarizerAgent]
+end
+
+subgraph "Tool Adapters"
+  MPN[ProteinMPNNAdapter]
+  ESM[ESMFoldAdapter]
+  RDK[RDKitPropsAdapter]
+end
+
+subgraph "Knowledge"
+  KG["ProteinToolKG\n(json → later Neo4j)"]
+end
+
+subgraph "Storage"
+  REP["output/reports/*.json | *.md"]
+  ART["output/{pdb, metrics, artifacts}"]
+  LOG["data/logs/*.jsonl"]
+  INP["data/inputs"]
+end
+
+TA --> WF
+WF --> PL
+WF --> EX
+WF --> SA
+WF --> SU
+
+PL --> KG
+PL --> EX
+
+EX --> MPN
+EX --> ESM
+EX --> RDK
+
+SU --> REP
+EX --> ART
+EX --> LOG
+TA --> INP
+
+classDef core fill:#E0E7FF,stroke:#6366F1,stroke-width:1.2px,color:#111827;
+classDef agent fill:#DCFCE7,stroke:#16A34A,stroke-width:1.2px,color:#052e16;
+classDef adapter fill:#FFE4E6,stroke:#DC2626,stroke-width:1.2px,color:#450a0a;
+classDef knowledge fill:#E0F2FE,stroke:#0284C7,stroke-width:1.2px,color:#0c4a6e;
+classDef storage fill:#F1F5F9,stroke:#334155,stroke-width:1.2px,color:#0f172a;
+
+class TA,WF,DC core;
+class PL,EX,SA,SU agent;
+class MPN,ESM,RDK adapter;
+class KG knowledge;
+class REP,ART,LOG,INP storage;
+

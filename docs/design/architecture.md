@@ -47,95 +47,68 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 - **ProteinToolKG**: 工具节点与兼容关系
 - **Storage**: `output/`、`data/logs`、`data/inputs`
 
-```mermaid
-graph LR
-subgraph "Interface & Core"
-  TA["TaskAPI\n(CLI)"]
-  WF[Workflow]
-  DC["DataContract\n(ProteinDesignTask / DesignResult)"]
-end
-
-subgraph "Agents"
-  PL[PlannerAgent]
-  EX[ExecutorAgent]
-  SA[SafetyAgent]
-  SU[SummarizerAgent]
-end
-
-subgraph "Tool Adapters"
-  MPN[ProteinMPNNAdapter]
-  ESM[ESMFoldAdapter]
-  RDK[RDKitPropsAdapter]
-end
-
-subgraph "Knowledge"
-  KG["ProteinToolKG\n(json → later Neo4j)"]
-end
-
-subgraph "Storage"
-  REP["output/reports/*.json | *.md"]
-  ART["output/{pdb, metrics, artifacts}"]
-  LOG["data/logs/*.jsonl"]
-  INP["data/inputs"]
-end
-
-TA --> WF
-WF --> PL
-WF --> EX
-WF --> SA
-WF --> SU
-
-PL --> KG
-PL --> EX
-
-EX --> MPN
-EX --> ESM
-EX --> RDK
-
-SU --> REP
-EX --> ART
-EX --> LOG
-TA --> INP
-
-classDef core fill:#E0E7FF,stroke:#6366F1,stroke-width:1.2px,color:#111827;
-classDef agent fill:#DCFCE7,stroke:#16A34A,stroke-width:1.2px,color:#052e16;
-classDef adapter fill:#FFE4E6,stroke:#DC2626,stroke-width:1.2px,color:#450a0a;
-classDef knowledge fill:#E0F2FE,stroke:#0284C7,stroke-width:1.2px,color:#0c4a6e;
-classDef storage fill:#F1F5F9,stroke:#334155,stroke-width:1.2px,color:#0f172a;
-
-class TA,WF,DC core;
-class PL,EX,SA,SU agent;
-class MPN,ESM,RDK adapter;
-class KG knowledge;
-class REP,ART,LOG,INP storage;
-
-```
+![系统构建图](./diagrams/component-views.svg)
 
 ## 运行视图与时序图
 
 端到端LLM调控闭环
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant U as User/CLI
-  participant T as TaskAPI
-  participant P as PlannerAgent(LLM)
-  participant KG as ProteinToolKG
-  participant E as ExecutorAgent
-  participant A1 as Tool: ProteinMPNN
-  participant A2 as Tool: ESMFold
-  participant A3 as Tool: RDKitProps
-  participant S as SafetyAgent
-  participant R as SummarizerAgent
-  participant D as DataStore(Logs/Artifacts)
+![系统时序图](./diagrams/total-sequence.svg)
 
-  Note over U,T: 用户给出“目标+约束”(自然语言/结构化)
-  U->>T: create_task(goal, constraints)
-  T->>P: ProteinDesignTask
+**单步骤微循环**
 
-  Note over P,KG: LLM读取KG的工具语义/I-O兼容/安全级
-  P->>KG: query(capability, io, safety, cost)
-  KG-->>P: candidate_tools + constraints
-  P-->>T: Plan JSON(steps S1...Sn, deps, safety=S1)
+![单步骤时序图](./diagrams/single-step-sequence.svg)
+
+## 数据流与控制流
+
+**数据流**
+
+- 输入契约：`ProteinDesignTask{task_id, goal, constraints{length_rande, organism, structure_template_pdb...`}}
+- 计划契约：`Plan{task_id, steps[{id, tool, inputs{...}}], constraints{max_runtime_min, safety_level}}`
+- 输出契约：`DesignResult{task_id, sequence, structure_pdb_path, scores{},risk_flags{}}`
+- 中间产物：`output/pdb*.pdb`, `output/metrics/*.csv`, `data/logs/*.jsonl`
+
+**控制流**
+
+- Workflow驱动Agent顺序；Executor负责步骤级重试/失败终止；safety贯穿检查；summarizer终结输出。
+
+## 计划契约(Plan JSON, Planner输出)
+
+```json
+{
+  "task_id": "demo_001",
+  "steps": [
+    {"id":"S1","tool":"protein_mpnn","inputs:"{"goal":"thermostable enzyme","length_range":[80,150]}},
+    {"id":"S2","tool":"esmfold","inputs":{"sequence":"S1.sequence"}},
+    {"id":"S3","tool":"rdkit_props","inputs":{"sequence":"S1.sequence","pdb_path":"S2.pdb_path"}}
+  ],
+  "constraints":{"max_runtime_min":60,"safety_level":"S1"}
+}
 ```
+
+- 引用语义：`"Sx.key"`表示“取步骤Sx的输出字段key”
+- 执行要求：Executor必须解析依赖、校验必须字段存在与类型正确
+- 安全级别：`S0=严格限制`/`S1=默认安全`
+
+## ProteinToolKG概要
+
+**工具节点**
+
+```json
+{
+  "id":"esmfold",
+  "name":"ESMFold",
+  "capability":["structure_prediction"],
+  "io": { "inputs":{"sequence":"str"}, "outputs":{"pdb_path":"path","plddt":"float"} },
+  "compat": {"from":["protein_mpnn.sequence"]},
+  "cost":"medium",
+  "safety_level":"S1",
+  "version":"1.0.0"
+}
+```
+
+**规划规则**
+
+- R1 I/O匹配：前一步输出键名必须覆盖下一步`io.inputs`
+- R2 安全匹配：`tool.safety_level <= plan.constraints.safety_level`
+- R3 成本优先：同能力工具按照`cost`升序优先
