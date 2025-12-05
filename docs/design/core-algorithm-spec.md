@@ -1,119 +1,278 @@
-# 核心算法文件
+# 核心算法规约
 
-## 算法要解决的问题
+1. 静态规划：基于工具知识图谱，利用前向启发式搜索生成满足任务能力需求、I/O类型一致、安全等级符合要求的初始Plan
+2. 运行时动态调整：在任务执行过程中，根据StepResult与SafetyAgent的审查结果，执行在线再规划(replan)与局部补丁(patch)，实现计划的动态修复与继续执行。
 
-### 输入
+## 任务建模
 
-#### `ProteinDesignTask taks`
+任务输入被解析为结构化对象`TaskSpec`
 
-- `goal.capabilities`: 需要完成的设计子任务集合（如`["de_novo_sequence", "structure_prediction", "property_eval"]`）
-- `constrains`: `safety_level`, `max_cost`, `max_steps`
-- `initial_artifacts`: 任务一开始就已经有的数据（比如给定结构、模板、序列等）
+```json
+TaskSpec:
+  goal_capabilities : set[str]  # 需要完成的能力，如 sequence_design
+  initial_artifacts : set[str]  # 初始可用 JSON key，如 {"input_sequence"}
+  constraints:
+      safety_level : int  # 可接受的最大安全等级
+      max_cost     : float  # 最大累计成本
+      max_steps    : int  # 最大步骤数量
+```
 
-#### `ProteinToolKG G`
+## 工具知识图
 
-- 节点：工具`t`，包含：
-  - `t.capabilities`: 比如`["sequence_generation"]`
-  - `t.io.inputs`/`t.io.outputs`: 输入、输出JSON key类型
-  - `t.safety_level`: 工具安全等级
-  - `t.cost`: 抽象成本
+每个工具被设计为：
 
-### 输出
+```json
+Tool:
+  id              : string
+  capabilities    : set[str]  # 工具提供的能力
+  io.inputs       : set[str]  # 需要的 JSON key
+  io.outputs      : set[str]  # 产生的 JSON key
+  cost            : float  # 资源/时间成本
+  safety_level    : int  # 安全等级
+```
 
-- 一个结构化的`Plan`:
-  - `steps = [s1, s2, ..., sl]`
-  - 每个 `si`指定：使用哪个工具、输入从哪一步来、输出写到哪些key.
-  - 满足：
-    - 所有中间步骤 I/O 兼容
-    - 所有用到的工具 安全等级 <= task.safety_level(R2)
-    - 在满足goal的情况下，令cost足够小
+工具图G=(T,E)构建规则是：
 
-## 核心算法框架
+- 当`tool_j.io.inputs` $\subseteq$ `tool_i.io.outputs`时可以形成i->j的联通边
+- 从虚拟起点START指向所有满足输入工具的节点
 
-框架采取：前向搜索 + 约束剪枝 + 成本排序
+## 静态规划算法
 
-### 阶段0: 任务解析(Task Analysis)
+静态规划算法负责生成任务的初始Plan,是动态规划的前提
 
-由 `PlannerAgent` 完成。
+### 搜索状态定义
 
-1. 从自然语言/结构化输入中抽取：
-   - `goal_capabilities`(比如需要"序列生成+结构预测+性能评估")
-   - 安全约束`safety_level`
-   - 资源约束`max_cost`、`max_steps`
-2. 归一化为一个内部表示对象`TaskSpec`，供下面的算法使用
+静态规划算法采用前向启发式搜索，其中的状态结构是：
 
-### 阶段1: 构建候选工具图(Tool Graph Construction)
+```text
+SearchState:
+    path : list[Tool]  # 当前已经选择工具序列
+    available_io : set[str]  # 当前可用的JSON key
+    capabilities : set[str]  # 当前已经覆盖的能力
+    cost : float  # 累计成本
+```
 
-1. 按能力召回候选工具
-   - 对每个 `cap in goal_capacilities`:
-     - 从 `ProteinToolKG` 里查找 `tools_cap[cap] = {t | cap in t.capabilities}`
-   - 加上少量辅助工具，形成候选工具集合`T_cand`
-2. 应用安全过滤
-   - 丢弃所有 `t.safety_level > task.safety_level`的工具
-3. 构建I/O兼容图
-   - 图的定点是工具 $t \in T_{cand}$, 再加上一个虚拟起点 `START` 
-   - 边规则：
-     - 从 `START` 到 `t`：当 $t.io.inputs \subset initial_{artifacts}$ 连边
-     - 从 `t1` 到 `tj`：当 `ti.io.outputs`覆盖 `tj.io.inputs`时连边
-   - 每条边的权重可以简单设置为 `cost(tj)`, 整体cost就是沿path的工具cost之和
+初始状态是：
 
-### 阶段2：在工具图上做有约束的最优路径搜索
+```text
+path = []
+available_io = task.initial_artifacts
+capabilities = 空
+cost = 0
+```
 
-核心算法：在上面的图上，找到一条/若干条路径，使得：
+### 状态扩展规则
 
-- 沿路径用到的工具集合 `U capabilities` 覆盖 `goal_capabilities`
-- 满足 `steps <= max_steps`, `total_cost <= max_cost`
-- `total_cost` 最小
+从状态S扩展工具t需要同时满足：
 
-目前选择的算法是：前向启发式搜索(best-first search) + 状态包含当前已获得能力集合
+1. I/O兼容性(R1)：`t.io.inputs` $\subseteq$ `S.available_io`
+2. 安全约束(R2): `t.safety_level <= task.constraints.safety_level`
+3. 资源/步数约束: `S.cost + t.cost <= max.cost`  `len(S.path) + 1 <= max_steps`
 
-**状态定义**：  
-每个搜索状态 `S` 包含：
+扩展后的新状态是：
 
-- `S.path`: 已经选择的工具序列 `[t1, t2, t3, ..., tk]`
-- `S.avaliable_io`: 目前可用的所有JSON Key(initial_artifacts $\cup$ 各工具 outputs)
-- `S.capabilities`: 沿 path 积累获得的 `cap` 集合
-- `S.cost`: 积累成本
+```text
+S'.path = S.path + [t]
+S'.available_io = S.available_io ∪ t.io.outputs
+S'.capabilities = S.capabilities ∪ t.capabilities
+S'.cost = S.cost + t.cost
+```
 
-初始状态：
+### 搜索策略
 
-- `path = []`
-- `available_io = initial_artifacts`
-- $capabilities = \emptyset$
-- `cost = 0`
+使用有优先队列，定义估计函数为：
 
-**扩展规则**：  
-从状态 `S` 扩展：
+```cmd
+f(S) = S.cost + λ * h(S)
+```
 
-- 遍历所有候选工具 $t \in T_{cand}$
-  - (R2) `t.safety_level <= task.safety_level`
-  - (R1) `t.io.inputs` $\subset$ `s.available_io`
-  - 步数/成本约束：`len(S.path) + 1 <= max_steps` 且 `S.cost + t.cost <= max_cost`
-- 对每个满足条件的 `t`:
-  - `S' = S`的复制：
-    - `S'.path = S.path + [t]`
-    - `S'.available_io += t.io.outputs`
-    - `S'.capabilities += t.capabilities`
-    - `S'.cost = S.cost + t.cost`
+其中启发式函数h(S)设计为：
 
-**目标判定**:  
+```bash
+h(S) = |goal_capabilities - S.capabilities|
+```
 
-- 当 `goal_capabilities` $\subset$ `S.capabilities` 时，认为 `S` 是一个可行计划终点
+即：
 
-可以选择：  
+- cost优先
+- 其次优先减少未完成能力的数量
 
-- 找到第一条符合条件的(贪心/启发式)
-- 或者搜索若干条件候选路径，再做一次后处理排序(结合实际情况指标)
+伪代码初步设计为：
 
-**搜索策略**:  
-为了表达R3成本优先，使用一个优先队列(小顶堆)，按照如下的score来选择下一个扩展状态：
+```python
+PQ.push(initial_state)
 
-$score(S) = S.cost + \lambda * h(s)$
+while PQ not empty:
+    S = PQ.pop_min_f()
 
-其中`h(S)`是一个简单的启发式函数，例如：
+    if goal_capabilities ⊆ S.capabilities:
+        return build_plan_from(S.path)
 
-- `h(S) = 未满足的 cap 数 = |goal_capabilities \ S.capabilities|`
-- 或者给不同能力加权，比如结构预测重要度更高
+    for t in T_cand:
+        if can_expand(S, t):
+            S_new = expand(S, t)
+            PQ.push(S_new)
 
-$\lambda$是一个权重，用来平衡“立刻满足越多能力”和“保持低成本”的权衡  
-这样就有了一个**成本+目标完成度**双重考虑的**best-first**搜索。
+return failure
+```
+
+## 动态调整算法
+
+动态调整发生在Plan执行过程中，包括两个核心模块：
+
+1. Replan(带前缀的在线再规划)
+2. Patch(局部最小修改的工具替换/插入补丁)
+
+## 单步执行微循环
+
+这个过程由Executor驱动，过程如：
+
+1. 对Sk调用SafetyAgent进行预先审查
+2. 若通过则执行工具
+3. 若失败，则进入：retry->patch->fail的流程
+
+伪代码如下：
+
+```python
+for k in range(len(plan.steps)):
+    step = plan.steps[k]
+
+    if not SafetyAgent.precheck(step):
+        return request_replan()
+
+    for attempt in range(MAX_RETRY):
+        result = execute(step)
+        if result.success:
+            continue main_loop
+        # 否则重试
+
+    # 重试失败
+    patch = Planner.patch(step)
+    apply_patch(plan, patch)
+
+    # 再次执行 patched step
+    result = execute(step)
+    if result.success:
+        continue main_loop
+
+    # patch 仍失败 → 触发 replan
+    new_plan = Planner.replan(current_context)
+    plan = new_plan
+```
+
+## Replan：带前缀锁定的在线再规划
+
+这个过程是从Safety/Executor发起的"request_replan"，用于重新生成未完成的子计划
+
+### ReplanRequest输入
+
+```json
+ReplanRequest:
+  original_plan      : Plan
+  step_results       : dict[step_id -> StepResult]
+  safety_events      : list[SafetyEvent]
+  failed_steps       : list[int]
+```
+
+### 前缀锁定
+
+
+找到已经成功的前缀
+
+```json
+prefix = [s1, s2, ..., sk] where all results = success
+```
+
+### 剩余任务的重新定义
+
+```json
+remaining_capabilities = goal_capabilities - capabilities(prefix)
+```
+
+构建新的TaskSpec':
+
+```json
+TaskSpec':
+  goal_capabilities = remaining_capabilities
+  initial_artifacts = new_initial_io
+  constraints: 剩余 cost/steps
+  banned_tools = failed_steps ∪ tools_in(safety_block)
+```
+
+### 使用静态规划算法重新搜索子计划
+
+调用同一套的前向启发搜索：
+
+```json
+suffix_path = search(TaskSpec')
+new_plan = prefix + suffix_path
+```
+
+## 局部补丁：Patch
+
+Patch是在某一步骤Sk执行失败后，由Executor调用Planner的局部修复窗口。一般只修改1～2个步骤，不改变整体计划结构
+
+### PatchREquest
+
+```json
+PatchRequest:
+  original_plan
+  failed_step_index = k
+  context_io        # Sk 前后的可用 JSON keys
+  error_pattern     # 执行失败类型，如 input-too-long
+  safety_events
+```
+
+### 候选替代工具
+
+从KG中检索满足一下条件的工具：
+
+```python
+cand = {
+  t for t in KG.tools
+  if required_capability ∈ t.capabilities
+     and t.id != tool(Sk).id
+     and t.io.inputs ⊆ available_io_before_Sk
+     and t.safety_level ≤ task.safety_level
+}
+```
+
+### 候选评分
+
+```json
+score(t) =
+    α * normalized_cost(t)
+  + β * safety_penalty(t.safety_level)
+  + γ * error_similarity(t, error_pattern)
+```
+
+其中，
+
+- cost等级越低越好
+- 安全等级越高惩罚越大
+- 与失败工具相似度越高惩罚越大
+
+### 生成PlanPatch
+
+包括替换和插入过滤两种
+
+#### 替换步骤
+
+```json
+{
+  "op": "replace_step",
+  "target": "Sk",
+  "step": { "tool": "t_new", "inputs": ... }
+}
+```
+
+#### 插入过滤步骤+替换
+
+```json
+[
+  { "op": "insert_step_before", "target": "Sk", "step": FilterStep },
+  { "op": "replace_step",       "target": "Sk", "step": NewStep     }
+]
+```
+
+Executor在接受patch后在本地应用，然后继续微循环执行。
