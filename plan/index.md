@@ -4,11 +4,11 @@
 
 |时间|主要任务|具体工作内容|输出成果|
 |:--|:--------|:-----------|:-------|
-|Day1-2|数据契约完善|- 完成核心JSON Schema<br/>- 对图例所有实体写清字段、类型、说明|`data-constract`.md|
+|Day1-2|数据契约完善|- 完成核心JSON Schema<br/>- 对图例所有实体写清字段、类型、说明<br/>确定核心算法问题&命名|`data-constract`.md|
 |Day3|Agent接口固化|- 为四个Agent智能体写出正式的方法签名<br/>- 不要求实现逻辑|`agent-design.md`更新，包含接口|
 |Day4-5|代码骨架搭建|- 创建项目结构<br/>- 写类与方法定义<br/>- 写一个最小的workflow.run流程|第一版可运行的骨架|
 |Day6-7|工具适配器原型|- 选ESMFold或ProteinMPNN的其中一个<br/>- 写Adapter类<br/>- 完成一次完整调用<br/>- 对结果存储为StepResult JSON|`esmfold_adapter.py`|
-|Day8-9|Planner最小可工作原型|- 使用非常简单的规则实现`_make_plan()`: 例如用户输入包含"Structure"->调用ESMFold<br/>- 输出一个包含1-2步骤的Plan JSON|一个可运行的最小Planner|
+|Day8-9|Planner最小可工作原型|Planner算法核心实现：<br/>- 实现`_query_tools/_validate_io_chain/_fliter_by_safety/_rank_by_cost`的第一版逻辑<br/>- 从ProteinToolKG JSON读取工具节点，按照R1/R2/R3的方式选出一条链路<br/>- 是出的Plan JSON中的Steps是推理出来的|`planner_core_v0.py`和一个`Plan`样例|
 |Day10|Executor单步执行逻辑|- 让Executor能执行PlanStep调用正确的Adapter<br/>- 输出StepResult|"单步任务"测试通过|
 |Day11|Summarizer 最小原型|- 汇总StepResult<br/>- 输出一个最小报告|`summarizer.py`可输出|
 |Day12|ProteinToolKG 原型|- 写一个JSON版的KG<br/>- 包括inputs/outputs/capability/safety_level|`protein_tool_kg.json`|
