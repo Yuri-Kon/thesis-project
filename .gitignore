@@ -68,3 +68,32 @@ docs/proposal/
 # 8. ppt
 
 ppt
+
+# 9. Python编译产物
+
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# 10. 虚拟环境
+
+.venv/
+venv/
+.env
+.env.*
+*.egg-info/
+
+# 11. 日志与中间数据 
+
+data/logs/
+data/outputs/
+output/
+data/inputs/tmp/
+*.log
+
+#  12. Nextflow / workflow 相关中间文件
+.nextflow/
+.nextflow.log
+nf/work/
+nf/.nextflow/
