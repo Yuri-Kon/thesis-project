@@ -1,3 +1,5 @@
+# design 分支专用
+
 # 需要忽略的文件
 
 # 1. Latex编译生成文件
@@ -68,3 +70,8 @@ docs/proposal/
 # 8. ppt
 
 ppt
+
+# 9. 不需要上传到design的文件
+
+src/
+draft/
