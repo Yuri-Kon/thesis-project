@@ -99,10 +99,14 @@ class DesignResult:
 
 ```python
 @dataclass
-class RsikFlag:
-  level: str # "warn" | "block"
-  type: str
-  detail: str
+class RiskFlag:
+  level: "ok" | "warn" | "block" # "warn" | "block"
+  code : string
+  message: string
+  scope: "input" | "step" | "output" | "task"
+  step_id: optional
+  details: dict
+  
 
 @dataclass
 class SafetyResult:
