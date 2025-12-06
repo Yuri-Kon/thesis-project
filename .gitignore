@@ -1,3 +1,5 @@
+# dev 分支专用
+
 # 需要忽略的文件
 
 # 1. Latex编译生成文件
@@ -44,9 +46,16 @@ ppt/
 Thumbs.db
 
 # 4. vscode工作环境
+output/
+data/outputs/
+data/logs/
+data/raw/
+__pycache__/
+models/
+weights/
+.nextflow/
+.nextflow.log
 
-.vscode/
-*.code-workspace
 
 # 5. 转化得到的文件
 
@@ -97,3 +106,15 @@ data/inputs/tmp/
 .nextflow.log
 nf/work/
 nf/.nextflow/
+weights/
+models/
+
+# 13. 其他内容
+output/
+plan/
+docs/
+drafts/
+ppt/
+resources/papers/
+data/outputs/
+data/logs/
