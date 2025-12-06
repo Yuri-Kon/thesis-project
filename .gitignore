@@ -1,3 +1,5 @@
+# Master 分支专用
+
 # 需要忽略的文件
 
 # 1. Latex编译生成文件
@@ -97,3 +99,9 @@ data/inputs/tmp/
 .nextflow.log
 nf/work/
 nf/.nextflow/
+
+# 13. 不需要上传到master的文件
+docs/
+plan/
+shared/
+drafts/

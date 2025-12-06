@@ -158,6 +158,10 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
     - 把new_subplan中的相关步骤执行一遍
     - 然后再次交给SafetyAgent, 确认新结果是否安全
 
+Safety Agent 内部采用规则插件化机制，将不同安全策略建模为独立的 SafetyRule，并在输入、
+执行与输出三个阶段分别加载合适规则，对任务进行多层次安全治理（具体设计见系统实现
+设计文档中的 SafetyAgent 部分）。
+
 ---
 
 #### 4. Summarizer写报告
@@ -166,7 +170,7 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
     Summarizer读DataStore:
     - 拿到最终`DesignResult`
     - 拿到Plan+其版本/重规划记录
-    - 拿到Safety的风险报告
+    - 拿到SafetyAgent的风险报告
     其会生成：
     - 供阅读的Markdown报告
     - 对开发者/系统的经验总结
@@ -235,20 +239,20 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 
 ---
 
-#### 3. 局部修复：Planner协助更换工具
+#### 3. 局部修复：PlannerAgent协助更换工具
 
-当Executor发现某一步总是无法通过，或者每次运行结果总被Safety判block的结果
+当ExecutorAgent发现某一步总是无法通过，或者每次运行结果总被SafetyAgent判block的结果
 
-Executor就会启动一个小对话：
+ExecutorAgent就会启动一个小对话：
 
-1. Executor->Planner: 请求局部修复：  
+1. ExecutorAgent->PlannerAgent: 请求局部修复：  
    请求里会包括：  
    - 当前任务和步骤编号
    - 原始Plan里对这个步骤的描述
    - 这一步的输入
    - 错误类型
    - 已经尝试过的工具/参数
-2. Planner+ProteinToolKG做局部搜索：  
+2. PlannerAgent+ProteinToolKG做局部搜索：  
    - Planner这时做的事情类似于小规模搜索
    - 在ToolKG里找到同能力的其他工具
    - 或者找到可以对输入做预处理/过滤的辅助工具
@@ -256,14 +260,14 @@ Executor就会启动一个小对话：
    输出结果可能是：  
    - 换一个工具X；
    - 在X前/后插入一个Y作为预/后处理
-3. Executor应用新的局部Plan  
+3. ExecutorAgent应用新的局部Plan  
    - 如果只是换工具/调参数，但上下文不变，Executor直接在当前单步里就切换：
      - 记录一个`REPLACE_TOOL`或`PARAM_TWEAK`事件到DataStore
      - 用新配置再次执行S_K
    - 如果Planner判断这一步的变动会影响前后几步
      - 就会把一整段字串`S_k-1...S_k+1`用一个新的子计划替换
      - Executor需要重新跑这段子链
-4. Safety再次审查
+4. SafetyAgent再次审查
    - 执行完毕后，再进行一次Safety
    - 如果通过，则这一步视为"修复成功"
 

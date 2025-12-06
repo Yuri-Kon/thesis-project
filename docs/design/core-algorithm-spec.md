@@ -19,22 +19,8 @@ TaskSpec:
 
 ## 工具知识图
 
-每个工具被设计为：
-
-```json
-Tool:
-  id              : string
-  capabilities    : set[str]  # 工具提供的能力
-  io.inputs       : set[str]  # 需要的 JSON key
-  io.outputs      : set[str]  # 产生的 JSON key
-  cost            : float  # 资源/时间成本
-  safety_level    : int  # 安全等级
-```
-
-工具图G=(T,E)构建规则是：
-
-- 当`tool_j.io.inputs` $\subseteq$ `tool_i.io.outputs`时可以形成i->j的联通边
-- 从虚拟起点START指向所有满足输入工具的节点
+每个工具的设计参见[系统实现设计](system-implementation-design.md#Tool-节点-Schema)  
+图的添加规则也参见[系统实现设计](system-implementation-design.md#KG-图结构与边构建规则(供Planner使用))
 
 ## 静态规划算法
 
@@ -123,42 +109,129 @@ return failure
 1. Replan(带前缀的在线再规划)
 2. Patch(局部最小修改的工具替换/插入补丁)
 
-## 单步执行微循环
+## 动态执行算法
 
-这个过程由Executor驱动，过程如：
 
-1. 对Sk调用SafetyAgent进行预先审查
-2. 若通过则执行工具
-3. 若失败，则进入：retry->patch->fail的流程
+为提高可读性与可维护性，本系统将原本耦合在一起的“重试 → 补丁 → 再规划”流程拆分为
+三个层级的执行器：
 
-伪代码如下：
+1. **Step Runner(步骤执行器)**: 负责一次工具调用与结果封装
+2. **Patch Runner(补丁执行器)**: 负责在单步失败时控制重试与局部Patch
+3. **Plan Runner(计划执行器)**: 负责按顺序或拓扑执行 Plan,并在必要时出发Replan
+
+### Step Runner: 单次工具调用
+
+Step Runner对应一个最小执行单元，其伪代码如下：
 
 ```python
-for k in range(len(plan.steps)):
-    step = plan.steps[k]
-
-    if not SafetyAgent.precheck(step):
-        return request_replan()
-
-    for attempt in range(MAX_RETRY):
-        result = execute(step)
-        if result.success:
-            continue main_loop
-        # 否则重试
-
-    # 重试失败
-    patch = Planner.patch(step)
-    apply_patch(plan, patch)
-
-    # 再次执行 patched step
-    result = execute(step)
-    if result.success:
-        continue main_loop
-
-    # patch 仍失败 → 触发 replan
-    new_plan = Planner.replan(current_context)
-    plan = new_plan
+def run_step(step: PlanStep, context: WorkflowContext) -> StepResult:
+    """
+    - 解析 step.inputs 中的引用（如 "S1.sequence"）为实际值；
+    - 根据 step.tool 选择对应 ToolAdapter；
+    - 调用底层执行引擎（例如 Nextflow 或本地 Python 工具）；
+    - 捕获异常并统一封装为 StepResult，status ∈ {"success", "failed"}。
+    """
+    resolved_inputs = resolve_inputs(step.inputs, context.step_results)
+    adapter = select_adapter(step.tool)
+    try:
+        raw_outputs, metrics = adapter.run(resolved_inputs)
+        return StepResult(
+            task_id=context.task.task_id,
+            step_id=step.id,
+            tool=step.tool,
+            status="success",
+            outputs=raw_outputs,
+            metrics=metrics,
+            ...
+        )
+    except Exception as e:
+        return StepResult(
+            task_id=context.task.task_id,
+            step_id=step.id,
+            tool=step.tool,
+            status="failed",
+            outputs={},
+            metrics={"error": str(e)},
+            ...
+        )
 ```
+
+### Patch Runner: 重试与局部修复
+
+Patch Runner封装重试→Patch的决策逻辑，之对单步负责：
+
+```python
+def run_step_with_patch(plan: Plan, step_index: int, context: WorkflowContext -> tuple[Plan, StepResult]):
+  # 1. 安全预检
+    safety_result = SafetyAgent.precheck_step(step, context)
+    if safety_result.action == "block":
+        # 由上层 Plan Runner 决定是否触发 Replan
+        return plan, build_blocked_step_result(step, safety_result)
+
+    # 2. 重试循环
+    for attempt in range(MAX_RETRY):
+        result = run_step(step, context)
+        if result.status == "success":
+            return plan, result
+
+    # 3. 重试失败 → 请求局部 Patch
+    patch_request = build_patch_request(plan, step_index, context)
+    patch = PlannerAgent.patch(patch_request)  # 生成 PlanPatch
+
+    # 4. 在本地应用 PlanPatch（例如替换工具或插入过滤步骤）
+    new_plan = apply_patch(plan, patch)
+    patched_step = new_plan.steps[step_index]
+
+    # 5. 对 patched_step 再执行一次 Step Runner
+    patched_result = run_step(patched_step, context)
+    return new_plan, patched_result
+```
+
+Patch Runner的输出可能是 原Plan+成功结果 , 也可能是 "更新后的Plan+失败后结果"  
+由上层Plan Runner决定是否继续
+
+### Plan Runner: 完整计划执行与Replan触发
+
+Plan Runner负责按照顺序或依赖拓扑执行整个Plan,并在Patch仍无法修复时触发Replan:
+
+```python
+def run_plan(plan: Plan, context: WorkflowContext) -> Plan:
+    k = 0
+    while k < len(plan.steps):
+        plan, step_result = run_step_with_patch(plan, k, context)
+        context.step_results[step_result.step_id] = step_result
+
+        # 安全后置检查
+        safety_result = SafetyAgent.postcheck_step(step_result, context)
+        context.safety_events.append(safety_result)
+
+        if step_result.status != "success" or safety_result.action == "block":
+            # 构造 ReplanRequest，锁定已成功的前缀
+            replan_request = build_replan_request(plan, context, failed_step_index=k)
+            new_plan = PlannerAgent.replan(replan_request)
+
+            if new_plan is None:
+                # 无可行新计划 → 交由上层工作流置任务为 FAILED
+                break
+
+            plan = new_plan
+            k = find_first_unfinished_step_index(plan, context)
+            continue
+
+        k += 1
+
+    return plan
+```
+
+通过上述三层分离，实现：
+
+- Step Runner专注于如何执行每一步工具
+- Patch Runner专注于在局部范围内如何自我修复
+- Plan Runner专注于整体计划的推进与何时需要Replan
+
+这使得动态调整算法能在实现层面更易于测试与扩展，也更清晰对应了Planner/Executor/Safety三类Agent的协同职责。
+
+---
 
 ## Replan：带前缀锁定的在线再规划
 
@@ -175,7 +248,6 @@ ReplanRequest:
 ```
 
 ### 前缀锁定
-
 
 找到已经成功的前缀
 
