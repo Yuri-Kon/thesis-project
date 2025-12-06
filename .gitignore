@@ -63,9 +63,13 @@ resources/data/
 resources/raw/
 iresources/tmp/
 
-# 7. Latex目录
+# 7. 论文目录
 
 docs/proposal/
+docs/midterm/
+docs/proposal-fix/
+docs/thesis/
+docs/toSchool/
 
 # 8. ppt
 
@@ -74,5 +78,5 @@ ppt
 # 9. 不需要上传到design的文件
 
 src/
-draft/
+drafts/
 shared/
