@@ -1,30 +1,59 @@
-# 进度规划 2025-11-24
+# 进度规划 2025-12-08 
 
-## 11.24 -- 12.08
+## 进度明细
 
-|时间|主要任务|具体工作内容|输出成果|
-|:--|:--------|:-----------|:-------|
-|Day1-2|数据契约完善|- 完成核心JSON Schema<br/>- 对图例所有实体写清字段、类型、说明<br/>确定核心算法问题&命名|`data-constract`.md|
-|Day3|Agent接口固化|- 为四个Agent智能体写出正式的方法签名<br/>- 不要求实现逻辑|`agent-design.md`更新，包含接口|
-|Day4-5|代码骨架搭建|- 创建项目结构<br/>- 写类与方法定义<br/>- 写一个最小的workflow.run流程|第一版可运行的骨架|
-|Day6-7|工具适配器原型|- 选ESMFold或ProteinMPNN的其中一个<br/>- 写Adapter类<br/>- 完成一次完整调用<br/>- 对结果存储为StepResult JSON|`esmfold_adapter.py`|
-|Day8-9|Planner最小可工作原型|Planner算法核心实现：<br/>- 实现`_query_tools/_validate_io_chain/_fliter_by_safety/_rank_by_cost`的第一版逻辑<br/>- 从ProteinToolKG JSON读取工具节点，按照R1/R2/R3的方式选出一条链路<br/>- 是出的Plan JSON中的Steps是推理出来的|`planner_core_v0.py`和一个`Plan`样例|
-|Day10|Executor单步执行逻辑|- 让Executor能执行PlanStep调用正确的Adapter<br/>- 输出StepResult|"单步任务"测试通过|
-|Day11|Summarizer 最小原型|- 汇总StepResult<br/>- 输出一个最小报告|`summarizer.py`可输出|
-|Day12|ProteinToolKG 原型|- 写一个JSON版的KG<br/>- 包括inputs/outputs/capability/safety_level|`protein_tool_kg.json`|
-|Day13-14|模块整合|- 完成一个端到端mini pipeline<br/>- 输出一个可运行原型0.1|可展示的最小运行链|
+### 已完成内容(截至12.08)
 
-## 之后的规划
+| 模块                    | 工作内容                                                                                                        | 完成情况 | 备注                                  |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- | ---- | ----------------------------------- |
+| 数据契约 Models           | ProteinDesignTask, Plan, PlanStep, StepResult, SafetyResult, DesignResult, WorkflowContext, Replan/Patch 契约 | ✔ 完成 | 字段、类型完全对齐设计文档                       |
+| 时间戳工具                 | now_iso() 修复弃用 utcnow                                                                                       | ✔ 完成 | 使用 timezone-aware 时间 ISO8601        |
+| 任务状态机                 | TaskStatus（CREATED → DONE，全 FSM）                                                                            | ✔ 完成 | 与 system-implementation-design 完全一致 |
+| TaskRecord/StepRecord | 全局任务记录结构                                                                                                    | ✔ 完成 | 为 API/DB 提供统一结构                     |
+| Agent 框架（接口）          | Planner / Executor / Safety / Summarizer 接口定义                                                               | ✔ 完成 | 后续将补充真实逻辑                           |
+| Agent 最小实现            | Planner（dummy 计划）、Executor（dummy 执行）、Summarizer（dummy 汇总）                                                   | ✔ 完成 | 可完整跑通 demo                          |
+| workflow              | run_task_sync 串联所有 Agent                                                                                    | ✔ 完成 | 可生成 DesignResult + 文件报表             |
+| TaskAPI               | POST /tasks, GET /tasks/{task_id}                                                                           | ✔ 完成 | 可通过 Swagger UI 调试                   |
+| 最小Demo                | 成功执行任务、生成报告文件                                                                                               | ✔ 完成 | 项目首次可执行的 pipeline                   |
 
+---
 
-| 时间范围 | 阶段目标 | 主要任务（概括版） | 关键可交付物 |
-|---------|----------|----------------------|----------------|
-| **第 3–4 周（12 月中旬）** | 系统设计收尾 | 完成全部数据契约<br/>完成所有 Agent 接口定义<br/>完善工具适配器规范<br/>初步整合 ProteinToolKG | 系统设计文档（终稿）<br/>KG 原型（JSON/概念图） |
-| **第 5–6 周（12 月底至 1 月上旬）** | 工具模块集成 | 添加更多工具适配器（ProteinMPNN、RDKit）<br/>实现结构预测与功能评估调用流程<br/>完善 Executor 调度逻辑 | 工具链调用原型<br/>Executor v1 |
-| **第 7–8 周（1 月中旬）** | Planner/Executor 协同完善 | Planner 实现多步骤任务链生成<br/>Executor 支持顺序执行与容错<br/>接入简单安全规则 | 多步骤 Plan → 执行链路 MVP |
-| **第 9–10 周（1 月底）** | Multi-Agent 基础闭环 | 实现 Planner → Executor → Summarizer 完整闭环<br/>实现 Safety 基本检查逻辑<br/>端到端测试 | 多 Agent 闭环原型 v1 |
-| **第 11–12 周（2 月上旬）** | 系统增强与扩展 | 扩展工具链：更多 AI 模型/筛选模块<br/>增强任务链逻辑（分支/回退）<br/>扩展 ProteinToolKG 内容 | 系统增强版 v1.5 |
-| **第 13–14 周（2 月中旬）** | 典型任务场景落地 | 选择酶设计或抗原设计作为测试场景<br/>运行完整 pipeline<br/>记录全流程实验数据 | 典型任务实验结果 |
-| **第 15–16 周（2 月底至 3 月上旬）** | 系统原型定稿 | 性能优化<br/>修复运行错误<br/>准备最终入口（界面或 CLI） | 系统原型 v2（正式版） |
-| **第 17 周（3 月中旬）** | 论文实验部分完成 | 运行全套实验：结构预测、序列生成、风险分析<br/>整理评估指标<br/>与基线方法对比 | 实验数据<br/>实验图表 |
-| **第 18–20 周（3 月底至 4 月初）** | 论文撰写与答辩准备 | 完成论文正文（方法/系统设计/实验/讨论）<br/>绘制所有系统图、流程图<br/>准备答辩 PPT 与要点 | 论文终稿<br/>答辩 PPT |
+## 后续阶段计划(12.09之后)
+
+以下是未来三周的任务安排
+
+### Week 3（12.09 – 12.15）—— Adapter 层 & 工具知识图谱（KG）建设
+
+| 日期        | 目标模块                | 详细任务内容                                                                  | 预期产出                   | 备注                        |
+| --------- | ------------------- | ----------------------------------------------------------------------- | ---------------------- | ------------------------- |
+| **12.09** | Adapter 基类          | 定义 `BaseToolAdapter` 接口：`resolve_inputs`、`run_local`、`run_container`    | `src/adapters/base.py` | 作为所有工具适配器父类               |
+| **12.10** | Adapter 注册机制        | 实现 `ADAPTER_REGISTRY`（工具发现机制），提供 `register_adapter()` & `get_adapter()` | 适配器注册系统完成              | Planner / Executor 用它查找工具 |
+| **12.11** | ESMFoldAdapter Mock | 实现 `esmfold_adapter.py`（mock）：输出假 pdb / 假 metrics                       | 可运行的 mock 工具           | 可在 Demo 中替换 dummy tool    |
+| **12.12** | ProteinToolKG       | 编写 `protein_tool_kg.json`（包含 esmfold / mpnn / rfdiffusion 模型描述）         | 完整工具知识图谱               | Adapter 层和 Planner 均依赖    |
+| **12.13** | KGClient            | 实现 `kg_client.py`：加载 KG、按 capability 查询工具                               | KG 查询接口完成              | Planner 可根据 KG 选择工具       |
+| **12.14** | Executor v2         | 将 Executor 修改为“通过 Adapter 调用工具”而不是 dummy execution                      | 真正框架化执行                | run_local 执行 mock ESMFold |
+| **12.15** | Demo v2 测试          | E2E 测试：“任务 → Planner → Adapter → Executor → Summarizer”                 | Demo v2（真正工具调用链）       | 可汇报给导师（12月中旬版本）           |
+
+### Week 4（12.16 – 12.22）—— Planner v2、多步骤 Plan、SafetyAgent
+
+| 日期        | 目标模块                 | 详细任务内容                                               | 预期产出                        |
+| --------- | -------------------- | ---------------------------------------------------- | --------------------------- |
+| **12.16** | Planner v2           | Planner 改为从 KG 自动选择工具（capabilities 匹配）               | 最小智能规划器                     |
+| **12.17** | 多步骤支持                | 支持生成包含多个步骤的 Plan（示例：序列生成 → 结构预测 → 评估）                | Plan v2                     |
+| **12.18** | 输入引用机制               | 实现 PlanStep 输入引用：`"S1.sequence"` → 自动从 StepResult 取值 | Executor + Adapter 支持动态输入引用 |
+| **12.19** | SafetyAgent 初版       | 实现 S1/S2 安全检查（输入/输出检查）                               | 蛋白质设计安全层                    |
+| **12.20** | 整合 Safety → Executor | Executor 在每次 run_step 前后调用 SafetyAgent               | 完整安全机制接入                    |
+| **12.21** | TaskAPI 扩展           | GET /tasks/{id} 输出 step_summary（含 metrics、risk、工具信息） | API 更适合导师展示                 |
+| **12.22** | Demo v3 测试           | 运行多步骤 pipeline（如：MPNN → ESMFold → RDKit props）       | Demo v3（增强版）                |
+
+### Week 5（12.23 – 12.29）—— 接入真实工具、Nextflow、日志与稳定性
+
+| 日期        | 模块                   | 详细工作内容                                       | 产出                |
+| --------- | -------------------- | -------------------------------------------- | ----------------- |
+| **12.23** | ESMFold 实例化          | 实现 ESMFoldAdapter 真正的本地推理（或容器推理）版本           | 结构预测可真实执行         |
+| **12.24** | ProteinMPNN Adapter  | 序列设计工具适配器（本地 / 容器）                           | 具备完整序列→结构能力       |
+| **12.25** | RFdiffusion Adapter  | 第一个复杂工具（可先做 mock，然后接容器）                      | 可插拔复杂 pipeline 工具 |
+| **12.26** | NextflowAdapter      | 编写 NextflowAdapter：Executor 可以调用 NF pipeline | 与真正生信 Pipeline 对接 |
+| **12.27** | FileStore & LogStore | 统一文件输出（pdb、json、metrics）、日志目录结构              | 后续论文截图素材          |
+| **12.28** | 性能优化与错误处理            | 处理工具调用失败、重试策略、错误日志                           | 系统稳定性提升           |
+| **12.29** | Demo v4（真实工具版）       | 运行一个“真实设计任务”的完整 pipeline                     | 可作为中期检查视频/demo    |
