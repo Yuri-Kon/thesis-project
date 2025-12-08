@@ -1,0 +1,150 @@
+"""API端点测试"""
+import pytest
+from fastapi.testclient import TestClient
+from src.api.main import app
+from src.models.db import TaskStatus
+
+
+@pytest.mark.api
+class TestAPIEndpoints:
+    """API端点测试类"""
+
+    @pytest.fixture
+    def client(self):
+        """创建测试客户端"""
+        return TestClient(app)
+
+    def test_create_task_endpoint(self, client: TestClient):
+        """测试创建任务端点"""
+        response = client.post(
+            "/tasks",
+            json={
+                "goal": "设计一个测试蛋白质",
+                "constraints": {"sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"},
+                "metadata": {"test": True},
+            },
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert "id" in data
+        assert data["goal"] == "设计一个测试蛋白质"
+        assert data["status"] == TaskStatus.DONE.value
+
+    def test_create_task_with_minimal_data(self, client: TestClient):
+        """测试使用最少数据创建任务"""
+        response = client.post(
+            "/tasks",
+            json={"goal": "最小任务"},
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["goal"] == "最小任务"
+        assert "id" in data
+
+    def test_create_task_with_custom_constraints(self, client: TestClient):
+        """测试使用自定义约束创建任务"""
+        response = client.post(
+            "/tasks",
+            json={
+                "goal": "自定义约束任务",
+                "constraints": {
+                    "length_range": [40, 60],
+                    "sequence": "ACDEFGHIKLMNPQRSTVWY",
+                },
+                "metadata": {"priority": "high"},
+            },
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data["constraints"]["length_range"] == [40, 60]
+        assert data["metadata"]["priority"] == "high"
+
+    def test_get_task_endpoint_success(self, client: TestClient):
+        """测试获取任务端点成功"""
+        # 先创建一个任务
+        create_response = client.post(
+            "/tasks",
+            json={"goal": "测试获取任务"},
+        )
+        assert create_response.status_code == 200
+        task_id = create_response.json()["id"]
+        
+        # 获取任务
+        get_response = client.get(f"/tasks/{task_id}")
+        
+        assert get_response.status_code == 200
+        data = get_response.json()
+        assert data["id"] == task_id
+        assert data["goal"] == "测试获取任务"
+
+    def test_get_task_endpoint_not_found(self, client: TestClient):
+        """测试获取不存在的任务"""
+        response = client.get("/tasks/nonexistent_task_id")
+        
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_create_task_generates_unique_ids(self, client: TestClient):
+        """测试创建任务生成唯一ID"""
+        response1 = client.post("/tasks", json={"goal": "任务1"})
+        response2 = client.post("/tasks", json={"goal": "任务2"})
+        
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+        
+        task_id1 = response1.json()["id"]
+        task_id2 = response2.json()["id"]
+        
+        assert task_id1 != task_id2
+
+    def test_create_task_returns_complete_record(self, client: TestClient):
+        """测试创建任务返回完整记录"""
+        response = client.post(
+            "/tasks",
+            json={
+                "goal": "完整记录测试",
+                "constraints": {"test": "value"},
+                "metadata": {"meta": "data"},
+            },
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # 验证所有必需字段存在
+        assert "id" in data
+        assert "status" in data
+        assert "created_at" in data
+        assert "updated_at" in data
+        assert "goal" in data
+        assert "constraints" in data
+        assert "metadata" in data
+        assert "plan" in data
+        assert "design_result" in data
+
+    def test_get_task_returns_same_data_as_create(self, client: TestClient):
+        """测试获取任务返回与创建时相同的数据"""
+        create_data = {
+            "goal": "一致性测试",
+            "constraints": {"key": "value"},
+            "metadata": {"test": True},
+        }
+        
+        create_response = client.post("/tasks", json=create_data)
+        assert create_response.status_code == 200
+        task_id = create_response.json()["id"]
+        
+        get_response = client.get(f"/tasks/{task_id}")
+        assert get_response.status_code == 200
+        
+        created = create_response.json()
+        retrieved = get_response.json()
+        
+        # 验证关键字段一致
+        assert created["id"] == retrieved["id"]
+        assert created["goal"] == retrieved["goal"]
+        assert created["constraints"] == retrieved["constraints"]
+        assert created["metadata"] == retrieved["metadata"]

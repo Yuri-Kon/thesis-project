@@ -2,17 +2,31 @@ from __future__ import annotations
 
 from typing import Dict
 
-from src.models.contracts import Plan, WorkflowContext, StepResult, RiskFlag, now_iso
+from src.models.contracts import Plan, WorkflowContext, StepResult, now_iso
 
 
 class ExecutorAgent:
-    """最小可用 ExecutorAgent：顺序执行 Plan，每一步生成一个假的 StepResult."""
+    """最小可用 ExecutorAgent：顺序执行 Plan，每一步生成一个假的 StepResult
+    
+    当前实现：使用 dummy 执行逻辑，不调用真实工具
+    后续将通过 Adapter 调用真实工具（ESMFold、ProteinMPNN等）
+    """
 
     def run_step(self, step_id: str, context: WorkflowContext) -> StepResult:
-        assert context.plan is not None
+        """执行单个步骤
+        
+        Args:
+            step_id: 步骤ID
+            context: 工作流上下文
+            
+        Returns:
+            StepResult: 步骤执行结果
+        """
+        assert context.plan is not None, "Plan must be set in context"
         step = next(s for s in context.plan.steps if s.id == step_id)
 
-        # 假执行逻辑：根据输入生成一点“输出”，不调用任何外部模型
+        # 假执行逻辑：根据输入生成一点"输出"，不调用任何外部模型
+        # 后续将通过 Adapter 调用真实工具
         sequence = step.inputs.get("sequence", "")
         outputs: Dict = {
             "note": f"dummy execution for step {step.id} with tool {step.tool}",
@@ -39,7 +53,15 @@ class ExecutorAgent:
         return result
 
     def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
-        # 顺序执行所有 step，目前不做重试/patch/replan
+        """执行完整计划
+        
+        Args:
+            plan: 执行计划
+            context: 工作流上下文
+            
+        Returns:
+            Plan: 执行后的计划（当前实现不做修改）
+        """
         context.plan = plan
         for step in plan.steps:
             self.run_step(step.id, context)
