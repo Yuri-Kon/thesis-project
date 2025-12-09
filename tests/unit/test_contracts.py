@@ -13,8 +13,8 @@ from src.models.contracts import (
 )
 
 
-@pytest.mark.unit
-class TestProteinDesignTask:
+@pytest.mark.unit  # pytest标记：这是单元测试
+class TestProteinDesignTask:  # 测试类：测试ProteinDesignTask模型
     """ProteinDesignTask测试类"""
 
     def test_task_creation_with_required_fields(self):
@@ -26,20 +26,21 @@ class TestProteinDesignTask:
             metadata={},
         )
         
-        assert task.task_id == "test_001"
-        assert task.goal == "测试目标"
-        assert isinstance(task.constraints, dict)
-        assert isinstance(task.metadata, dict)
+        assert task.task_id == "test_001"  # 验证task_id能够正确设置
+        assert task.goal == "测试目标"  # 验证goal能够正确设置
+        assert isinstance(task.constraints, dict)  # 验证constraints是字典类型
+        assert isinstance(task.metadata, dict)  # 验证metadata是字典类型
 
     def test_task_default_constraints_and_metadata(self):
         """测试任务默认约束和元数据"""
         task = ProteinDesignTask(
             task_id="test_002",
             goal="测试",
+            # 这里没有提供 constraints 和 metadata，应该使用默认值
         )
         
-        assert task.constraints == {}
-        assert task.metadata == {}
+        assert task.constraints == {}  # 验证默认值是 空字典
+        assert task.metadata == {}  # 验证默认值是 空字典
 
 
 @pytest.mark.unit
