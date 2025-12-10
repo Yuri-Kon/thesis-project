@@ -44,7 +44,7 @@ class TestExecutorAgent:
     def test_run_step_includes_sequence_length_in_outputs(
         self, sample_plan: Plan, sample_workflow_context: WorkflowContext
     ):
-        """测试步骤输出包含序列长度"""
+        """测试步骤输出包含标准化的输出格式（使用 StepRunner）"""
         executor = ExecutorAgent()
         context = sample_workflow_context
         context.plan = sample_plan
@@ -54,20 +54,25 @@ class TestExecutorAgent:
         
         result = executor.run_step("S1", context)
         
-        assert "sequence_length" in result.outputs
-        assert result.outputs["sequence_length"] == len("MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR")
+        # StepRunner 返回标准化的输出格式
+        assert "dummy_output" in result.outputs
+        assert "inputs" in result.outputs
+        # 输入的序列应该在解析后的 inputs 中
+        assert result.outputs["inputs"]["sequence"] == "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"
 
     def test_run_step_includes_metrics(self, sample_plan: Plan, sample_workflow_context: WorkflowContext):
-        """测试步骤结果包含指标"""
+        """测试步骤结果包含标准化的指标（使用 StepRunner）"""
         executor = ExecutorAgent()
         context = sample_workflow_context
         context.plan = sample_plan
         
         result = executor.run_step("S1", context)
         
-        assert "runtime_ms" in result.metrics
-        assert "backend" in result.metrics
-        assert result.metrics["backend"] == "dummy_executor"
+        # StepRunner 返回标准化的指标格式
+        assert "exec_type" in result.metrics
+        assert result.metrics["exec_type"] == "dummy"
+        assert "duration_ms" in result.metrics
+        assert isinstance(result.metrics["duration_ms"], int)
 
     def test_run_plan_executes_all_steps(self, sample_plan: Plan, sample_workflow_context: WorkflowContext):
         """测试执行计划运行所有步骤"""
