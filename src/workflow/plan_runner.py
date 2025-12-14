@@ -4,6 +4,7 @@ from src.models.contracts import Plan, StepResult
 from src.models.db import TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepResult, StepRunner
+from src.agents.safety import SafetyAgent
 
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口，用于依赖注入和单元测试"""
@@ -25,6 +26,9 @@ class PlanRunner:
         step_runner(StepRunner):
             通过构造函数注入的步骤执行器，需实现
             ``run_step(step, context) -> StepResult``
+        safety_agent(SafetyAgent):
+            通过构造函数注入的安全检查器，用于执行安全检查
+            A4 阶段：已接入，执行 task_input 和 final_result 检查
     
     Version:
         v2(A3扩展): 在 v1 基础上增加 TaskStatus 状态管理
@@ -71,14 +75,23 @@ class PlanRunner:
         - 输出:
             - 返回原始 ``plan`` 对象(为未来支持 Patch/Replan 留接口)
         
+        A4 扩展:
+            - 接入 SafetyAgent，在执行前检查 task_input，执行后检查 final_result
+            - SafetyResult 写入 context.safety_events
+        
         Future Work:
-            - SafetyAgent: 将在 A4 中加入 step pre/post 检查并写入 SafetyResult
             - 失败类型区分与 Patch/Replan: 将在 Week4 基于核心算法规约接入完整的 Plan Runner 逻辑
             - 状态回滚: 未来可能需要在异常时支持状态回滚机制
     """
-    def __init__(self, step_runner: StepRunnerLike | None = None)-> None:
+    def __init__(
+        self,
+        step_runner: StepRunnerLike | None = None,
+        safety_agent: SafetyAgent | None = None,
+    ) -> None:
         # 默认使用真实 StepRunner, 便于生产代码
         self._step_runner: StepRunnerLike = step_runner or StepRunner()
+        # A4: 默认使用真实 SafetyAgent, 便于生产代码
+        self._safety_agent: SafetyAgent = safety_agent or SafetyAgent()
     
     def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
         """执行给定的 Plan, 顺序遍历 plan.steps, 调用 StepRunner 并写入 WorkflowContext
@@ -111,6 +124,16 @@ class PlanRunner:
                 f"does not match Plan.task_id ({plan.task_id})"
             )
         
+        # A4: 安全检查 - 任务输入阶段
+        input_safety_result = self._safety_agent.check_task_input(
+            context.task, plan
+        )
+        # 兼容两种 WorkflowContext 类型
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(input_safety_result)
+        else:
+            context.safety_events.append(input_safety_result)
+        
         # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
         if context.status == TaskStatus.PLANNED:
             context.status = TaskStatus.RUNNING
@@ -123,6 +146,16 @@ class PlanRunner:
         for step in plan.steps:
             step_result = self._step_runner.run_step(step, context)
             context.step_results[step_result.step_id] = step_result
+        
+        # A4: 安全检查 - 最终结果阶段
+        final_safety_result = self._safety_agent.check_final_result(
+            context, context.design_result
+        )
+        # 兼容两种 WorkflowContext 类型
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(final_safety_result)
+        else:
+            context.safety_events.append(final_safety_result)
         
         # A3: 执行完成后，状态保持为 RUNNING
         # （SUMMARIZING 和 DONE/FAILED 由 SummarizerAgent 或上层逻辑负责）

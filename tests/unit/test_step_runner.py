@@ -205,3 +205,81 @@ def test_run_step_invalid_reference_raises_value_error(dummy_task):
 
     with pytest.raises(ValueError):
         runner.run_step(step, context)
+
+
+# A4: Safety Pipeline 集成测试
+
+def test_run_step_calls_safety_pre_and_post_check(empty_context):
+    """测试：StepRunner 在执行前后调用 SafetyAgent"""
+    from src.agents.safety import SafetyAgent
+    
+    class MockSafetyAgent(SafetyAgent):
+        def __init__(self):
+            self.pre_called = False
+            self.post_called = False
+            self.pre_step_arg = None
+            self.post_step_args = None
+        
+        def check_pre_step(self, step, context):
+            self.pre_called = True
+            self.pre_step_arg = step.id
+            return super().check_pre_step(step, context)
+        
+        def check_post_step(self, step, step_result, context):
+            self.post_called = True
+            self.post_step_args = (step.id, step_result.step_id)
+            return super().check_post_step(step, step_result, context)
+    
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+    
+    mock_safety = MockSafetyAgent()
+    runner = StepRunner(safety_agent=mock_safety)
+    
+    # 初始时 safety_events 应为空
+    assert len(empty_context.safety_events) == 0
+    
+    result = runner.run_step(step, empty_context)
+    
+    # 应该调用了 pre_step 和 post_step
+    assert mock_safety.pre_called
+    assert mock_safety.post_called
+    assert mock_safety.pre_step_arg == "S1"
+    assert mock_safety.post_step_args[0] == "S1"
+    assert mock_safety.post_step_args[1] == "S1"
+    
+    # safety_events 应该包含 pre_step 和 post_step 的检查结果
+    assert len(empty_context.safety_events) == 2
+    assert empty_context.safety_events[0].phase == "step"
+    assert empty_context.safety_events[0].scope == "step:S1"
+    assert empty_context.safety_events[1].phase == "step"
+    assert empty_context.safety_events[1].scope == "step:S1"
+    
+    # StepResult 的 risk_flags 应该来自 post_step 的检查结果
+    assert isinstance(result.risk_flags, list)
+
+
+def test_run_step_safety_events_added_to_context(empty_context):
+    """测试：StepRunner 将 SafetyResult 添加到 context.safety_events"""
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+    
+    initial_safety_events_count = len(empty_context.safety_events)
+    runner = StepRunner()
+    
+    result = runner.run_step(step, empty_context)
+    
+    # safety_events 应该增加了 2 个（pre_step 和 post_step）
+    assert len(empty_context.safety_events) == initial_safety_events_count + 2
+    
+    # 最后两个应该是 step 阶段的检查
+    assert empty_context.safety_events[-2].phase == "step"
+    assert empty_context.safety_events[-1].phase == "step"

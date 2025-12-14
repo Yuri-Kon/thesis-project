@@ -23,6 +23,7 @@ from typing import Any, Dict
 
 from src.models.contracts import PlanStep, StepResult
 from src.workflow.context import WorkflowContext
+from src.agents.safety import SafetyAgent
 
 __all__ = ["StepRunner"]
 
@@ -63,11 +64,26 @@ class StepRunner:
                     - "exec_type": "dummy"
                     - "duration_ms": int
             - risk_flags:
-                - A1阶段为空列表[], 真实安全检查由 SafetyAgent完成
+                - A4阶段：从 SafetyAgent.post_step 检查结果中提取
             - logs_path:
                 - A1 阶段可以为 None
             - timestamp: ISO 8601 时间字符串
+    
+    A4 扩展:
+        - 接入 SafetyAgent，在执行前检查 pre_step，执行后检查 post_step
+        - SafetyResult 写入 context.safety_events
+        - 从 post_step 的 SafetyResult 中提取 risk_flags 写入 StepResult
     """
+    
+    def __init__(self, safety_agent: SafetyAgent | None = None) -> None:
+        """初始化 StepRunner
+        
+        Args:
+            safety_agent: 可选，安全检查器。如果为 None，则使用默认的 SafetyAgent 实例
+        """
+        # A4: 默认使用真实 SafetyAgent, 便于生产代码
+        from src.agents.safety import SafetyAgent as DefaultSafetyAgent
+        self._safety_agent: SafetyAgent = safety_agent or DefaultSafetyAgent()
 
     def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
         """执行单个 PlanStep, 返回标准化的 StepResult
@@ -80,6 +96,14 @@ class StepRunner:
         Raises:
             ValueError: 当 step.inputs 中存在无法解析的引用时
         """
+        # A4: 安全检查 - 步骤执行前
+        pre_safety_result = self._safety_agent.check_pre_step(step, context)
+        # 兼容两种 WorkflowContext 类型
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(pre_safety_result)
+        else:
+            context.safety_events.append(pre_safety_result)
+        
         # 记录开始时间，用于 duration_ms
         t0 = perf_counter()
 
@@ -96,8 +120,9 @@ class StepRunner:
         # 生成 ISO 8601 时间戳
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # 构造 StepResult
-        result = StepResult(
+        # A4: 安全检查 - 步骤执行后
+        # 先构造一个临时的 StepResult 用于安全检查
+        temp_result = StepResult(
             task_id=context.task.task_id,
             step_id=step.id,
             tool=step.tool,
@@ -111,6 +136,37 @@ class StepRunner:
                 "duration_ms": duration_ms,
             },
             risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso,
+        )
+        
+        post_safety_result = self._safety_agent.check_post_step(
+            step, temp_result, context
+        )
+        # 兼容两种 WorkflowContext 类型
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(post_safety_result)
+        else:
+            context.safety_events.append(post_safety_result)
+        
+        # 从 post_safety_result 中提取 risk_flags
+        risk_flags = post_safety_result.risk_flags
+
+        # 构造最终的 StepResult，包含安全检查结果
+        result = StepResult(
+            task_id=context.task.task_id,
+            step_id=step.id,
+            tool=step.tool,
+            status="success",
+            outputs={
+                "dummy_output": dummy_output,
+                "inputs": resolved_inputs,
+            },
+            metrics={
+                "exec_type": "dummy",
+                "duration_ms": duration_ms,
+            },
+            risk_flags=risk_flags,
             logs_path=None,
             timestamp=now_iso,
         )

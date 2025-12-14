@@ -11,6 +11,7 @@ from src.models.db import TaskStatus
 
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
+from src.agents.safety import SafetyAgent
 
 class DummyStepRunner(StepRunnerLike):
     """用于测试简单的 StepRunner, 记录调用顺序并返回可控的 StepResult"""
@@ -67,8 +68,8 @@ def single_step_plan(dummy_task: ProteinDesignTask) -> Plan:
 def multi_step_plan(dummy_task: ProteinDesignTask) -> Plan:
     steps = [
         PlanStep(id="S1", tool="tool_a", inputs={"x": 1}, metadata={}),
-        PlanStep(id="S2", tool="tool_b", inputs={"y": "S1.dummy"}, metadata={}),
-        PlanStep(id="S3", tool="tool_c", inputs={"z": "S2.dummy"}, metadata={}),
+        PlanStep(id="S2", tool="tool_b", inputs={"y": "S1.dummy_output"}, metadata={}),
+        PlanStep(id="S3", tool="tool_c", inputs={"z": "S2.dummy_output"}, metadata={}),
     ]
     return Plan(
         task_id=dummy_task.task_id,
@@ -505,3 +506,145 @@ def test_run_plan_complete_state_flow_created_to_running(
     # 但步骤应该已执行
     assert "S1" in fresh_context.step_results
     assert fresh_context.plan is single_step_plan
+
+
+# A4: Safety Pipeline 集成测试
+
+class MockSafetyAgent:
+    """用于测试的 Mock SafetyAgent，记录调用情况"""
+    
+    def __init__(self):
+        self.check_task_input_called = False
+        self.check_pre_step_called = False
+        self.check_post_step_called = False
+        self.check_final_result_called = False
+        self.check_task_input_args = None
+        self.check_final_result_args = None
+    
+    def check_task_input(self, task, plan=None):
+        self.check_task_input_called = True
+        self.check_task_input_args = (task, plan)
+        from src.models.contracts import SafetyResult, now_iso
+        return SafetyResult(
+            task_id=task.task_id,
+            phase="input",
+            scope="task",
+            risk_flags=[],
+            action="allow",
+            timestamp=now_iso(),
+        )
+    
+    def check_pre_step(self, step, context):
+        self.check_pre_step_called = True
+        from src.models.contracts import SafetyResult, now_iso
+        return SafetyResult(
+            task_id=context.task.task_id,
+            phase="step",
+            scope=f"step:{step.id}",
+            risk_flags=[],
+            action="allow",
+            timestamp=now_iso(),
+        )
+    
+    def check_post_step(self, step, step_result, context):
+        self.check_post_step_called = True
+        from src.models.contracts import SafetyResult, now_iso
+        return SafetyResult(
+            task_id=context.task.task_id,
+            phase="step",
+            scope=f"step:{step.id}",
+            risk_flags=[],
+            action="allow",
+            timestamp=now_iso(),
+        )
+    
+    def check_final_result(self, context, design_result=None):
+        self.check_final_result_called = True
+        self.check_final_result_args = (context, design_result)
+        from src.models.contracts import SafetyResult, now_iso
+        return SafetyResult(
+            task_id=context.task.task_id,
+            phase="output",
+            scope="result",
+            risk_flags=[],
+            action="allow",
+            timestamp=now_iso(),
+        )
+
+
+def test_plan_runner_calls_safety_check_task_input(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+):
+    """测试：PlanRunner 在执行前调用 SafetyAgent.check_task_input"""
+    runner = DummyStepRunner()
+    mock_safety = MockSafetyAgent()
+    plan_runner = PlanRunner(step_runner=runner, safety_agent=mock_safety)
+    
+    # 初始时 safety_events 应为空
+    assert len(planned_context.safety_events) == 0
+    
+    plan_runner.run_plan(single_step_plan, planned_context)
+    
+    # 应该调用了 check_task_input
+    assert mock_safety.check_task_input_called
+    assert mock_safety.check_task_input_args[0] == planned_context.task
+    assert mock_safety.check_task_input_args[1] == single_step_plan
+    
+    # safety_events 应该包含 task_input 的检查结果
+    assert len(planned_context.safety_events) >= 1
+    input_safety = planned_context.safety_events[0]
+    assert input_safety.phase == "input"
+    assert input_safety.scope == "task"
+
+
+def test_plan_runner_calls_safety_check_final_result(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+):
+    """测试：PlanRunner 在执行后调用 SafetyAgent.check_final_result"""
+    runner = DummyStepRunner()
+    mock_safety = MockSafetyAgent()
+    plan_runner = PlanRunner(step_runner=runner, safety_agent=mock_safety)
+    
+    plan_runner.run_plan(single_step_plan, planned_context)
+    
+    # 应该调用了 check_final_result
+    assert mock_safety.check_final_result_called
+    assert mock_safety.check_final_result_args[0] == planned_context
+    
+    # safety_events 应该包含 final_result 的检查结果
+    assert len(planned_context.safety_events) >= 2
+    final_safety = planned_context.safety_events[-1]
+    assert final_safety.phase == "output"
+    assert final_safety.scope == "result"
+
+
+def test_plan_runner_safety_events_order(
+    multi_step_plan: Plan,
+    planned_context: WorkflowContext,
+):
+    """测试：PlanRunner 的 safety_events 顺序正确（task_input 在前，final_result 在后）"""
+    # 使用真实的 StepRunner，它会调用 SafetyAgent
+    from src.workflow.step_runner import StepRunner
+    step_runner = StepRunner()
+    plan_runner = PlanRunner(step_runner=step_runner)
+    
+    plan_runner.run_plan(multi_step_plan, planned_context)
+    
+    # 至少应该有 task_input 和 final_result
+    assert len(planned_context.safety_events) >= 2
+    
+    # 第一个应该是 task_input
+    assert planned_context.safety_events[0].phase == "input"
+    
+    # 最后一个应该是 final_result
+    assert planned_context.safety_events[-1].phase == "output"
+    
+    # 中间应该有步骤的 pre_step 和 post_step（由 StepRunner 添加）
+    # 每个步骤会有 pre_step 和 post_step，所以中间应该有 2 * len(steps) 个 step 阶段的检查
+    step_safety_events = [
+        e for e in planned_context.safety_events[1:-1]
+        if e.phase == "step"
+    ]
+    assert len(step_safety_events) == 2 * len(multi_step_plan.steps)
