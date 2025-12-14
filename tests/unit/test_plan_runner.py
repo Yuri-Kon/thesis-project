@@ -11,6 +11,7 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
+from src.models.db import TaskStatus
 
 from src.workflow import plan_runner
 from src.workflow.context import WorkflowContext
@@ -99,6 +100,19 @@ def fresh_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
+        status=TaskStatus.CREATED,
+    )
+
+@pytest.fixture
+def planned_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 PLANNED，表示计划已生成"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.PLANNED,
     )
 
 # 核心行为测试
@@ -198,3 +212,98 @@ def test_run_plan_propagates_exceptions_from_step_runner(
 
     # 发生异常时，PlanRunner 不吞掉异常，不写入 step_results
     assert fresh_context.step_results == {}
+
+
+# A3: TaskStatus 状态机测试
+
+def test_run_plan_updates_status_from_planned_to_running(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 为 PLANNED 时，PlanRunner 应将其更新为 RUNNING"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态应为 PLANNED
+    assert planned_context.status == TaskStatus.PLANNED
+    
+    plan_runner.run_plan(single_step_plan, planned_context)
+    
+    # 执行后状态应为 RUNNING
+    assert planned_context.status == TaskStatus.RUNNING
+    # 确保步骤已执行
+    assert "S1" in planned_context.step_results
+
+
+def test_run_plan_does_not_change_status_if_not_planned(
+    single_step_plan: Plan,
+    fresh_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 不是 PLANNED 时，PlanRunner 不改变状态"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 CREATED
+    assert fresh_context.status == TaskStatus.CREATED
+    
+    plan_runner.run_plan(single_step_plan, fresh_context)
+    
+    # 状态应保持为 CREATED（不自动更新为 RUNNING）
+    assert fresh_context.status == TaskStatus.CREATED
+    # 但步骤应该已执行
+    assert "S1" in fresh_context.step_results
+
+
+def test_run_plan_keeps_running_status_after_completion(
+    multi_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：执行完成后，状态保持为 RUNNING"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    plan_runner.run_plan(multi_step_plan, planned_context)
+    
+    # 执行后状态应为 RUNNING（不是 SUMMARIZING 或 DONE）
+    assert planned_context.status == TaskStatus.RUNNING
+    # 确保所有步骤已执行
+    assert len(planned_context.step_results) == 3
+
+
+def test_run_plan_maintains_status_on_exception(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：异常发生时，状态保持为 RUNNING（状态更新在步骤执行之前）"""
+    failing_runner = FailingStepRunner()
+    plan_runner = PlanRunner(step_runner=failing_runner)
+    
+    # 初始状态为 PLANNED
+    assert planned_context.status == TaskStatus.PLANNED
+    
+    # 执行会抛出异常
+    with pytest.raises(RuntimeError):
+        plan_runner.run_plan(single_step_plan, planned_context)
+    
+    # 根据实现，状态更新在步骤执行之前
+    # 所以即使步骤执行失败，状态也应该已经更新为 RUNNING
+    assert planned_context.status == TaskStatus.RUNNING
+    # 确保没有步骤结果被写入
+    assert planned_context.step_results == {}
+
+
+def test_run_plan_with_empty_steps_updates_status(
+    empty_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：即使步骤为空，状态也应该从 PLANNED 更新为 RUNNING"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    plan_runner.run_plan(empty_plan, planned_context)
+    
+    # 状态应更新为 RUNNING
+    assert planned_context.status == TaskStatus.RUNNING
+    # 没有步骤执行
+    assert runner.called_steps == []
+    assert planned_context.step_results == {}

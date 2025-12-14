@@ -21,6 +21,7 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
+from src.models.db import TaskStatus
 
 __all__ = ["WorkflowContext"]
 
@@ -55,6 +56,11 @@ class WorkflowContext(BaseModel):
         design_result: Optional[DesignResult]
             SummarizerAgent 在 SUMMARIZING 阶段生成的最终设计成果
             在任务未完成前，此字段为 None数据契约
+            
+        status: TaskStatus
+            任务的当前执行状态
+            初始值为 TaskStatus.CREATED
+            在任务执行过程中由各个 Agent 更新
     """
 
     task: ProteinDesignTask
@@ -62,6 +68,7 @@ class WorkflowContext(BaseModel):
     step_results: Dict[str, StepResult] = Field(default_factory=dict)
     safety_events: List[SafetyResult] = Field(default_factory=list)
     design_result: Optional[DesignResult] = None
+    status: TaskStatus = TaskStatus.CREATED
 
     class Config:
         arbitrary_types_allowed = True

@@ -92,6 +92,12 @@ class WorkflowContext(BaseModel):
     - step_results: 已完成步骤的结果map
     - safety_results: 所有安全检查记录
     - design_result: 最终输出
+    - status: 任务当前执行状态（字符串形式，实际类型见 workflow/context.py）
+    
+    Note:
+        本模块中的 WorkflowContext 是基础数据契约定义。
+        workflow/context.py 中提供了增强版本，包含 status 字段（使用 TaskStatus 枚举）
+        和辅助方法。
     """
 
     task: ProteinDesignTask
