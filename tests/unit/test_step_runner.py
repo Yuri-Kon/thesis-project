@@ -14,6 +14,7 @@ from src.workflow import context
 from src.workflow.step_runner import StepRunner
 from src.models.contracts import ProteinDesignTask, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
+from src.models.db import TaskStatus
 
 def _isoformat_utc(s: str) -> bool:
     """简单校验一个字符串是否看起来像 UTC ISO-8601 时间
@@ -54,6 +55,7 @@ def empty_context(dummy_task) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
+        status=TaskStatus.CREATED,
     )
 
 def test_run_step_returns_steppresult_instance(empty_context):

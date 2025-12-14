@@ -2,7 +2,8 @@
 import pytest
 from pathlib import Path
 from src.agents.summarizer import SummarizerAgent
-from src.models.contracts import WorkflowContext, DesignResult, StepResult
+from src.workflow.context import WorkflowContext
+from src.models.contracts import DesignResult, StepResult
 
 
 @pytest.mark.unit

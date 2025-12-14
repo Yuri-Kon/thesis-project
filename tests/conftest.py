@@ -10,11 +10,11 @@ from src.models.contracts import (
     ProteinDesignTask,
     Plan,
     PlanStep,
-    WorkflowContext,
     StepResult,
     DesignResult,
     now_iso,
 )
+from src.workflow.context import WorkflowContext
 from src.models.db import TaskStatus
 
 
@@ -59,6 +59,7 @@ def sample_workflow_context(sample_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
+        status=TaskStatus.CREATED,
     )
 
 

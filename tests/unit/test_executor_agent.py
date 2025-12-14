@@ -1,7 +1,8 @@
 """ExecutorAgent单元测试"""
 import pytest
 from src.agents.executor import ExecutorAgent
-from src.models.contracts import Plan, WorkflowContext, StepResult
+from src.workflow.context import WorkflowContext
+from src.models.contracts import Plan, StepResult
 
 
 @pytest.mark.unit

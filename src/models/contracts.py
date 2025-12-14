@@ -82,29 +82,8 @@ class DesignResult(BaseModel):
     report_path: str
     metadata: Dict = Field(default_factory=dict)
 
-class WorkflowContext(BaseModel):
-    """在一次任务生命周期内，各 Agent 共享的上下文对象
-    
-    对齐agent-design中的 WorkflowContext 结构:
-    
-    - task: 原始任务
-    - plan: 当前正在使用的 Plan(可能经历多次replan)
-    - step_results: 已完成步骤的结果map
-    - safety_results: 所有安全检查记录
-    - design_result: 最终输出
-    - status: 任务当前执行状态（字符串形式，实际类型见 workflow/context.py）
-    
-    Note:
-        本模块中的 WorkflowContext 是基础数据契约定义。
-        workflow/context.py 中提供了增强版本，包含 status 字段（使用 TaskStatus 枚举）
-        和辅助方法。
-    """
-
-    task: ProteinDesignTask
-    plan: Optional[Plan] = None
-    step_results: Dict[str, StepResult] = Field(default_factory=dict)
-    safety_events: List[SafetyResult] = Field(default_factory=list)
-    design_result: Optional[DesignResult] = None
+# WorkflowContext 已移至 src.workflow.context
+# 请使用 src.workflow.context.WorkflowContext（包含 status 字段和辅助方法）
 
 class ReplanRequest(BaseModel):
     """ExecutorAgent / SafetyAgent 在运行期触发再规划时发送PlannerAgent的请求"""
