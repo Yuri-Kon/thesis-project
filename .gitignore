@@ -119,3 +119,5 @@ ppt/
 resources/papers/
 data/outputs/
 data/logs/
+.coverage
+htmlcov/
