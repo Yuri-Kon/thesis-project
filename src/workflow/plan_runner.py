@@ -3,7 +3,7 @@ from typing import Protocol
 from src.models.contracts import Plan, StepResult
 from src.models.db import TaskStatus
 from src.workflow.context import WorkflowContext
-from src.workflow.step_runner import StepResult, StepRunner
+from src.workflow.step_runner import StepRunner
 from src.agents.safety import SafetyAgent
 
 class StepRunnerLike(Protocol):

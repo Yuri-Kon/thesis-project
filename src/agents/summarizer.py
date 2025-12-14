@@ -1,7 +1,8 @@
 from __future__ import annotations
 from pathlib import Path
 
-from src.models.contracts import WorkflowContext, DesignResult, now_iso
+from src.models.contracts import DesignResult, now_iso
+from src.workflow.context import WorkflowContext
 
 
 class SummarizerAgent:
@@ -11,7 +12,7 @@ class SummarizerAgent:
     后续将支持更丰富的报告格式（Markdown、HTML等）
     """
 
-    def summarizer(self, context: WorkflowContext) -> DesignResult:
+    def summarize(self, context: WorkflowContext) -> DesignResult:
         """汇总工作流结果，生成最终设计结果
         
         Args:

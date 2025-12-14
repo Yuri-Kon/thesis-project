@@ -1,19 +1,29 @@
 from __future__ import annotations
 
-from src.models.contracts import Plan, WorkflowContext, StepResult
+from src.models.contracts import Plan, StepResult
+from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
+from src.workflow.plan_runner import PlanRunner
 
 
 class ExecutorAgent:
-    """最小可用 ExecutorAgent：顺序执行 Plan，每一步生成一个假的 StepResult
+    """计划执行者与调度器，负责执行 Plan 并调用工具适配器
     
-    当前实现：使用 StepRunner 执行步骤，支持输入解析（包括引用语义）
+    当前实现：
+    - 使用 StepRunner 执行单个步骤，支持输入解析（包括引用语义）
+    - 使用 PlanRunner 执行完整计划，包含安全检查、状态管理等功能
     后续将通过 Adapter 调用真实工具（ESMFold、ProteinMPNN等）
     """
 
-    def __init__(self):
-        """初始化 ExecutorAgent，创建 StepRunner 实例"""
+    def __init__(self, plan_runner: PlanRunner | None = None):
+        """初始化 ExecutorAgent
+        
+        Args:
+            plan_runner: 可选的 PlanRunner 实例。如果为 None，则创建默认实例。
+        """
         self.step_runner = StepRunner()
+        # 使用 PlanRunner 来执行完整计划，它包含安全检查、状态管理等功能
+        self.plan_runner = plan_runner or PlanRunner(step_runner=self.step_runner)
 
     def run_step(self, step_id: str, context: WorkflowContext) -> StepResult:
         """执行单个步骤
@@ -39,14 +49,18 @@ class ExecutorAgent:
         result = self.step_runner.run_step(step, context)
         
         # 将结果添加到上下文中
-        # 注意：如果 context 是 src.workflow.context.WorkflowContext，可以使用 add_step_result
-        # 但为了兼容 src.models.contracts.WorkflowContext，直接操作字典
-        context.step_results[step.id] = result
+        # 使用增强版 WorkflowContext 的 add_step_result 方法（如果可用），否则直接操作字典
+        if hasattr(context, 'add_step_result'):
+            context.add_step_result(result)
+        else:
+            context.step_results[step.id] = result
         
         return result
 
     def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
         """执行完整计划
+        
+        使用 PlanRunner 来执行计划，它包含安全检查、状态管理等功能。
         
         Args:
             plan: 执行计划
@@ -55,7 +69,5 @@ class ExecutorAgent:
         Returns:
             Plan: 执行后的计划（当前实现不做修改）
         """
-        context.plan = plan
-        for step in plan.steps:
-            self.run_step(step.id, context)
-        return plan
+        # 使用 PlanRunner 执行计划，它包含安全检查、状态管理等功能
+        return self.plan_runner.run_plan(plan, context)

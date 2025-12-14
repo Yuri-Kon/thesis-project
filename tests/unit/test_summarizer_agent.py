@@ -21,7 +21,7 @@ class TestSummarizerAgent:
         report_dir = tmp_path / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         assert isinstance(result, DesignResult)
         assert result.task_id == context.task.task_id
@@ -37,7 +37,7 @@ class TestSummarizerAgent:
         report_dir = tmp_path / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         assert "sequence_length" in result.scores
         assert result.scores["sequence_length"] == sample_step_result.outputs["sequence_length"]
@@ -50,7 +50,7 @@ class TestSummarizerAgent:
         context = sample_workflow_context
         context.step_results["S1"] = sample_step_result
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         # 验证报告路径已设置
         assert result.report_path is not None
@@ -72,7 +72,7 @@ class TestSummarizerAgent:
         report_dir = tmp_path / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         assert "step_ids" in result.metadata
         assert "S1" in result.metadata["step_ids"]
@@ -87,7 +87,7 @@ class TestSummarizerAgent:
         report_dir = tmp_path / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         assert isinstance(result, DesignResult)
         assert result.scores == {}
@@ -107,6 +107,6 @@ class TestSummarizerAgent:
         report_dir = tmp_path / "reports"
         report_dir.mkdir(parents=True, exist_ok=True)
         
-        result = summarizer.summarizer(context)
+        result = summarizer.summarize(context)
         
         assert result.sequence == expected_sequence

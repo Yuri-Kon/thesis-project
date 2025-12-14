@@ -1,10 +1,9 @@
 from __future__ import annotations
-from src.models.contracts import ProteinDesignTask
+from src.models.contracts import ProteinDesignTask, now_iso
 from src.models.db import TaskRecord, TaskStatus, derive_task_status
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
-from src.models.contracts import now_iso
 from src.workflow.context import WorkflowContext
 
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
@@ -59,7 +58,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     record.status = TaskStatus.SUMMARIZING
     ctx.status = TaskStatus.SUMMARIZING
     record.updated_at = now_iso()
-    design = summarizer.summarizer(ctx)
+    design = summarizer.summarize(ctx)
     ctx.design_result = design
     record.design_result = design
 

@@ -127,5 +127,5 @@ def mock_planner():
 def mock_summarizer():
     """创建模拟的SummarizerAgent"""
     summarizer = Mock()
-    summarizer.summarizer = Mock(return_value=Mock(spec=DesignResult))
+    summarizer.summarize = Mock(return_value=Mock(spec=DesignResult))
     return summarizer
