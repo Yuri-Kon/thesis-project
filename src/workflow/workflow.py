@@ -1,10 +1,11 @@
 from __future__ import annotations
-from src.models.contracts import ProteinDesignTask, WorkflowContext
+from src.models.contracts import ProteinDesignTask
 from src.models.db import TaskRecord, TaskStatus, derive_task_status
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
 from src.models.contracts import now_iso
+from src.workflow.context import WorkflowContext
 
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     """同步执行一次完整任务"""
@@ -33,24 +34,30 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         step_results={},
         safety_events=[],
         design_result=None,
+        status=TaskStatus.CREATED,
     )
 
     # 1. 规划
     record.status = TaskStatus.PLANNING
+    ctx.status = TaskStatus.PLANNING
     record.updated_at = now_iso()
     plan = planner.plan(task)
     ctx.plan = plan
     record.plan = plan
     record.status = TaskStatus.PLANNED
+    ctx.status = TaskStatus.PLANNED
     record.updated_at = now_iso()
 
     # 2. 执行
+    # 注意：PlanRunner 会将状态从 PLANNED 更新为 RUNNING
     record.status = TaskStatus.RUNNING
+    ctx.status = TaskStatus.RUNNING
     record.updated_at = now_iso()
     executor.run_plan(plan, ctx)
 
     # 3. 汇总
     record.status = TaskStatus.SUMMARIZING
+    ctx.status = TaskStatus.SUMMARIZING
     record.updated_at = now_iso()
     design = summarizer.summarizer(ctx)
     ctx.design_result = design
