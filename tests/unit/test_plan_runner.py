@@ -1,7 +1,3 @@
-from asyncio import taskgroups
-import datetime
-from unittest import result
-from _pytest import runner
 import pytest
 
 from src.models.contracts import (
@@ -13,7 +9,6 @@ from src.models.contracts import (
 )
 from src.models.db import TaskStatus
 
-from src.workflow import plan_runner
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
 
@@ -307,3 +302,206 @@ def test_run_plan_with_empty_steps_updates_status(
     # 没有步骤执行
     assert runner.called_steps == []
     assert planned_context.step_results == {}
+
+# A3: 完整状态机测试 - 覆盖所有状态转换场景
+
+@pytest.fixture
+def planning_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 PLANNING，表示正在规划"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.PLANNING,
+    )
+
+
+@pytest.fixture
+def running_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 RUNNING，表示正在执行"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.RUNNING,
+    )
+
+
+@pytest.fixture
+def summarizing_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 SUMMARIZING，表示正在汇总"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.SUMMARIZING,
+    )
+
+
+@pytest.fixture
+def done_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 DONE，表示任务已完成"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.DONE,
+    )
+
+
+@pytest.fixture
+def failed_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
+    """WorkflowContext 的状态为 FAILED，表示任务已失败"""
+    return WorkflowContext(
+        task=dummy_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=TaskStatus.FAILED,
+    )
+
+
+def test_run_plan_from_planning_status_does_not_change_status(
+    single_step_plan: Plan,
+    planning_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 为 PLANNING 时，PlanRunner 不改变状态（应由 PlannerAgent 负责）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 PLANNING
+    assert planning_context.status == TaskStatus.PLANNING
+    
+    plan_runner.run_plan(single_step_plan, planning_context)
+    
+    # 状态应保持为 PLANNING（PlanRunner 不负责 PLANNING 状态的管理）
+    assert planning_context.status == TaskStatus.PLANNING
+    # 但步骤应该已执行
+    assert "S1" in planning_context.step_results
+
+
+def test_run_plan_from_running_status_keeps_running(
+    single_step_plan: Plan,
+    running_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 已经是 RUNNING 时，PlanRunner 保持 RUNNING 状态"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 RUNNING
+    assert running_context.status == TaskStatus.RUNNING
+    
+    plan_runner.run_plan(single_step_plan, running_context)
+    
+    # 状态应保持为 RUNNING
+    assert running_context.status == TaskStatus.RUNNING
+    # 确保步骤已执行
+    assert "S1" in running_context.step_results
+
+
+def test_run_plan_from_summarizing_status_does_not_change_status(
+    single_step_plan: Plan,
+    summarizing_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 为 SUMMARIZING 时，PlanRunner 不改变状态（应由 SummarizerAgent 负责）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 SUMMARIZING
+    assert summarizing_context.status == TaskStatus.SUMMARIZING
+    
+    plan_runner.run_plan(single_step_plan, summarizing_context)
+    
+    # 状态应保持为 SUMMARIZING（PlanRunner 不负责 SUMMARIZING 状态的管理）
+    assert summarizing_context.status == TaskStatus.SUMMARIZING
+    # 但步骤应该已执行
+    assert "S1" in summarizing_context.step_results
+
+
+def test_run_plan_from_done_status_does_not_change_status(
+    single_step_plan: Plan,
+    done_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 为 DONE 时，PlanRunner 不改变状态（终端状态）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 DONE
+    assert done_context.status == TaskStatus.DONE
+    
+    plan_runner.run_plan(single_step_plan, done_context)
+    
+    # 状态应保持为 DONE（终端状态不应被改变）
+    assert done_context.status == TaskStatus.DONE
+    # 但步骤应该已执行（允许在终端状态下执行，但状态不变）
+    assert "S1" in done_context.step_results
+
+
+def test_run_plan_from_failed_status_does_not_change_status(
+    single_step_plan: Plan,
+    failed_context: WorkflowContext,
+) -> None:
+    """测试：当 context.status 为 FAILED 时，PlanRunner 不改变状态（终端状态）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 FAILED
+    assert failed_context.status == TaskStatus.FAILED
+    
+    plan_runner.run_plan(single_step_plan, failed_context)
+    
+    # 状态应保持为 FAILED（终端状态不应被改变）
+    assert failed_context.status == TaskStatus.FAILED
+    # 但步骤应该已执行（允许在终端状态下执行，但状态不变）
+    assert "S1" in failed_context.step_results
+
+
+def test_run_plan_state_transition_planned_to_running_is_idempotent(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：PLANNED → RUNNING 状态转换是幂等的（多次调用不会改变状态）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 第一次执行：PLANNED → RUNNING
+    plan_runner.run_plan(single_step_plan, planned_context)
+    assert planned_context.status == TaskStatus.RUNNING
+    
+    # 第二次执行：应该保持 RUNNING
+    plan_runner.run_plan(single_step_plan, planned_context)
+    assert planned_context.status == TaskStatus.RUNNING
+    
+    # 确保步骤被执行了两次
+    assert len(runner.called_steps) == 2
+    assert runner.called_steps == ["S1", "S1"]
+
+
+def test_run_plan_complete_state_flow_created_to_running(
+    single_step_plan: Plan,
+    fresh_context: WorkflowContext,
+) -> None:
+    """测试：完整状态流程 - CREATED 状态下的执行（不改变状态，但允许执行）"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+    
+    # 初始状态为 CREATED
+    assert fresh_context.status == TaskStatus.CREATED
+    
+    # 执行计划（不改变状态，因为不是 PLANNED）
+    plan_runner.run_plan(single_step_plan, fresh_context)
+    
+    # 状态应保持为 CREATED
+    assert fresh_context.status == TaskStatus.CREATED
+    # 但步骤应该已执行
+    assert "S1" in fresh_context.step_results
+    assert fresh_context.plan is single_step_plan
