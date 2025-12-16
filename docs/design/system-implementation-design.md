@@ -18,6 +18,7 @@
 - 使用LangGraph实现LLM多Agent调度;
 - 引入Nextflow作为底层计算工作流引擎；
 - 明确ToolAdapter的容器化执行方式；
+- 引入Fluent进行交互式可视化
 - 设计任务/日志存储、KG访问、API层等
 
 ---
@@ -60,6 +61,10 @@
 #### 文件与实验追踪
 
 - 文件：本地目录，结构参考architecture.pdf
+
+#### 交互式可视化工具
+
+FluentPlot: 系统计划引入一类交互式可视化工具，对蛋白质结构、评估指标以及任务执行过程进行图形化呈现。
 
 #### 生物 & 化学工具
 
@@ -869,6 +874,22 @@ build_tool_graph(task_spec) -> ToolGraph
 ```
 
 以上接口均基于统一的Schema进行查询与过滤
+
+#### ProteinToolKG扩展：Fluent可视化工具
+
+##### FluentPlot Tool
+
+FluentPlot Tool是一类封装好的交互式可视化工具，用于对蛋白质结构、评估指标以及任务执行过程进行图形化呈现。
+
+##### Tool定位
+
+- 类型: 可视化工具
+- 所属层级: Execution Layer
+- 调用方式: 通过 ToolAdapter 由 ExecutorAgent 调用
+- 主要用途：
+  - 结构预测结果可视化
+  - 多候选方案评估对比
+  - 任务执行过程与安全审查结果展示
 
 ---
 
