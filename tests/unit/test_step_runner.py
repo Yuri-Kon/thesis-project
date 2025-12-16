@@ -5,13 +5,13 @@
 
 import re
 from datetime import datetime, timezone
-from unittest import result
 
 import pytest
 
 from src.agents import safety
 from src.workflow import context
 from src.workflow.step_runner import StepRunner
+from src.workflow.errors import FailureType, StepRunError
 from src.models.contracts import ProteinDesignTask, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
 from src.models.db import TaskStatus
@@ -122,6 +122,9 @@ def test_run_step_basic_fields_and_outputs_contract(empty_context, monkeypatch):
     assert isinstance(result.outputs["inputs"], dict)
     assert result.outputs["inputs"]["x"] == 1
     assert result.outputs["inputs"]["y"] == "text"
+    assert result.failure_type is None
+    assert result.error_message is None
+    assert result.error_details == {}
 
     # metrics 约定
     assert isinstance(result.metrics, dict)
@@ -152,6 +155,9 @@ def test_run_step_resolves_reference_inputs(dummy_task):
         step_id="S1",
         tool="prev_tool",
         status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
         outputs={"sequence": "AAAABBBBB"},
         metrics={},
         risk_flags=[],
@@ -185,8 +191,8 @@ def test_run_step_resolves_reference_inputs(dummy_task):
     assert resolved_inputs["seq"] == "AAAABBBBB"
     assert resolved_inputs["k"] == 3
 
-def test_run_step_invalid_reference_raises_value_error(dummy_task):
-    """对于无法解析的引用，抛出 ValueError"""
+def test_run_step_invalid_reference_returns_failed_result(dummy_task):
+    """对于无法解析的引用，返回 failed 的 StepResult，并标记不可重试"""
 
     step = PlanStep(
     id="S2",
@@ -205,8 +211,106 @@ def test_run_step_invalid_reference_raises_value_error(dummy_task):
 
     runner = StepRunner()
 
-    with pytest.raises(ValueError):
-        runner.run_step(step, context)
+    result = runner.run_step(step, context)
+
+    assert isinstance(result, StepResult)
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert result.error_message
+    assert result.metrics.get("exec_type") == "input_resolution"
+
+
+def test_run_step_tool_failure_returns_failed_result(empty_context, monkeypatch):
+    """工具返回已知失败时，标记为 retryable/tool failure"""
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+
+    def fake_exec_tool(step, resolved_inputs):
+        raise StepRunError(
+            failure_type=FailureType.RETRYABLE,
+            message="tool returned non-zero exit",
+            code="TOOL_RUN_FAILED",
+        )
+
+    monkeypatch.setattr(runner, "_execute_tool", fake_exec_tool)
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.RETRYABLE
+    assert "non-zero exit" in result.error_message
+    assert result.metrics.get("exec_type") == "tool_execution"
+
+
+def test_run_step_tool_exception_returns_tool_error(empty_context, monkeypatch):
+    """未预期异常应标记为 TOOL_ERROR"""
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+
+    def crash_exec_tool(step, resolved_inputs):
+        raise RuntimeError("segfault")
+
+    monkeypatch.setattr(runner, "_execute_tool", crash_exec_tool)
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.TOOL_ERROR
+    assert "segfault" in result.error_message
+    assert result.metrics.get("exec_type") == "tool_execution"
+
+
+def test_run_step_missing_required_output_marks_non_retryable(empty_context, monkeypatch):
+    """缺少必需输出字段时，标记为不可重试失败"""
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={"required_outputs": ["result"]},
+    )
+
+    runner = StepRunner()
+    monkeypatch.setattr(runner, "_execute_tool", lambda step, inputs: {"some": "value"})
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert "Missing required output field" in result.error_message
+    assert result.metrics.get("exec_type") == "tool_execution"
+
+
+def test_run_step_output_type_mismatch_marks_non_retryable(empty_context, monkeypatch):
+    """输出类型不符合声明时，标记为不可重试失败"""
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={"required_outputs": ["dummy_output"], "output_types": {"dummy_output": "dict"}},
+    )
+
+    runner = StepRunner()
+    # dummy_output 将是字符串，与期望的 dict 不符
+    monkeypatch.setattr(runner, "_execute_tool", lambda step, inputs: "text")
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert "type mismatch" in result.error_message
+    assert result.metrics.get("exec_type") == "tool_execution"
 
 
 # A4: Safety Pipeline 集成测试
@@ -214,6 +318,7 @@ def test_run_step_invalid_reference_raises_value_error(dummy_task):
 def test_run_step_calls_safety_pre_and_post_check(empty_context):
     """测试：StepRunner 在执行前后调用 SafetyAgent"""
     from src.agents.safety import SafetyAgent
+    from src.models.contracts import SafetyResult, now_iso
     
     class MockSafetyAgent(SafetyAgent):
         def __init__(self):
@@ -225,12 +330,26 @@ def test_run_step_calls_safety_pre_and_post_check(empty_context):
         def check_pre_step(self, step, context):
             self.pre_called = True
             self.pre_step_arg = step.id
-            return super().check_pre_step(step, context)
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                risk_flags=[],
+                action="allow",
+                timestamp=now_iso(),
+            )
         
         def check_post_step(self, step, step_result, context):
             self.post_called = True
             self.post_step_args = (step.id, step_result.step_id)
-            return super().check_post_step(step, step_result, context)
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                risk_flags=[],
+                action="allow",
+                timestamp=now_iso(),
+            )
     
     step = PlanStep(
         id="S1",
@@ -285,3 +404,84 @@ def test_run_step_safety_events_added_to_context(empty_context):
     # 最后两个应该是 step 阶段的检查
     assert empty_context.safety_events[-2].phase == "step"
     assert empty_context.safety_events[-1].phase == "step"
+
+
+def test_run_step_pre_safety_block_raises(empty_context):
+    """pre_step 返回 block 时，应返回 failed StepResult，分类 SAFETY_BLOCK"""
+    from src.agents.safety import SafetyAgent
+    from src.models.contracts import SafetyResult, now_iso
+
+    class BlockingSafety(SafetyAgent):
+        def check_pre_step(self, step, context):
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                risk_flags=[],
+                action="block",
+                timestamp=now_iso(),
+            )
+
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner(safety_agent=BlockingSafety())
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.SAFETY_BLOCK
+    assert result.error_message
+    assert result.metrics.get("exec_type") == "safety_precheck"
+    # block 事件仍然写入 context
+    assert empty_context.safety_events[-1].action == "block"
+
+
+def test_run_step_post_safety_block_raises(empty_context):
+    """post_step 返回 block 时，应返回 failed StepResult，分类 SAFETY_BLOCK"""
+    from src.agents.safety import SafetyAgent
+    from src.models.contracts import SafetyResult, now_iso
+
+    class BlockingAfterSafety(SafetyAgent):
+        def check_pre_step(self, step, context):
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                risk_flags=[],
+                action="allow",
+                timestamp=now_iso(),
+            )
+
+        def check_post_step(self, step, step_result, context):
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                risk_flags=[],
+                action="block",
+                timestamp=now_iso(),
+            )
+
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner(safety_agent=BlockingAfterSafety())
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.SAFETY_BLOCK
+    assert result.error_message
+    assert result.metrics.get("exec_type") == "safety_postcheck"
+    # pre/post 安全事件都应写入
+    assert len(empty_context.safety_events) == 2
+    assert empty_context.safety_events[1].action == "block"

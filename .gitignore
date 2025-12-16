@@ -121,3 +121,5 @@ data/outputs/
 data/logs/
 .coverage
 htmlcov/
+.idea/
+.vscode/

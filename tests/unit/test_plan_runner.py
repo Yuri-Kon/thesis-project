@@ -11,6 +11,7 @@ from src.models.db import TaskStatus
 
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
+from src.workflow.errors import FailureType, PlanRunError, StepRunError
 from src.agents.safety import SafetyAgent
 
 class DummyStepRunner(StepRunnerLike):
@@ -27,6 +28,9 @@ class DummyStepRunner(StepRunnerLike):
             step_id=step.id,
             tool=step.tool,
             status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
             outputs={"dummy": f"output_for_{step.id}"},
             metrics={},
             risk_flags=[],
@@ -38,7 +42,24 @@ class FailingStepRunner(StepRunnerLike):
     """在第一次调用时抛出异常的 StepRunner, 用于验证异常传播"""
 
     def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
-        raise RuntimeError(f"step {step.id} failed in engine")
+        raise StepRunError(
+            failure_type=FailureType.RETRYABLE,
+            message=f"step {step.id} failed in engine",
+            code="STEP_FAIL",
+        )
+
+class TimeoutStepRunner(StepRunnerLike):
+    """模拟超时，可重试"""
+
+    def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+        raise TimeoutError("timeout in tool")
+
+
+class ExplodingStepRunner(StepRunnerLike):
+    """模拟未知工具异常"""
+
+    def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+        raise RuntimeError("unexpected boom")
 
 @pytest.fixture
 def dummy_task() -> ProteinDesignTask:
@@ -158,6 +179,11 @@ def test_run_multiple_steps_sequential_execution(
         result = fresh_context.step_results[step.id]
         assert result.step_id == step.id
         assert result.status == "success"
+        # PlanRunner 会写入失败分类相关的度量（成功时为 None）
+        assert "failure_type" in result.metrics
+        assert result.metrics["failure_type"] is None
+        assert "retryable" in result.metrics
+        assert result.metrics["retryable"] is None
 
 def test_run_plan_does_not_overwrite_existing_plan_in_context(
     single_step_plan: Plan,
@@ -203,11 +229,42 @@ def test_run_plan_propagates_exceptions_from_step_runner(
     failing_runner = FailingStepRunner()
     plan_runner = PlanRunner(step_runner=failing_runner)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(PlanRunError) as excinfo:
         plan_runner.run_plan(single_step_plan, fresh_context)
 
     # 发生异常时，PlanRunner 不吞掉异常，不写入 step_results
     assert fresh_context.step_results == {}
+    assert excinfo.value.failure_type == FailureType.RETRYABLE
+    assert excinfo.value.step_id == "S1"
+    # 此处没有 StepResult，无法验证 metrics 写入
+
+
+def test_run_plan_classifies_timeout_as_retryable(
+    single_step_plan: Plan,
+    fresh_context: WorkflowContext,
+) -> None:
+    runner = TimeoutStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+
+    with pytest.raises(PlanRunError) as excinfo:
+        plan_runner.run_plan(single_step_plan, fresh_context)
+
+    assert excinfo.value.failure_type == FailureType.RETRYABLE
+    assert excinfo.value.step_id == "S1"
+
+
+def test_run_plan_wraps_unknown_exception_as_tool_error(
+    single_step_plan: Plan,
+    fresh_context: WorkflowContext,
+) -> None:
+    runner = ExplodingStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+
+    with pytest.raises(PlanRunError) as excinfo:
+        plan_runner.run_plan(single_step_plan, fresh_context)
+
+    assert excinfo.value.failure_type == FailureType.TOOL_ERROR
+    assert excinfo.value.step_id == "S1"
 
 
 # A3: TaskStatus 状态机测试
@@ -278,7 +335,7 @@ def test_run_plan_maintains_status_on_exception(
     assert planned_context.status == TaskStatus.PLANNED
     
     # 执行会抛出异常
-    with pytest.raises(RuntimeError):
+    with pytest.raises(PlanRunError) as excinfo:
         plan_runner.run_plan(single_step_plan, planned_context)
     
     # 根据实现，状态更新在步骤执行之前
@@ -286,6 +343,8 @@ def test_run_plan_maintains_status_on_exception(
     assert planned_context.status == TaskStatus.RUNNING
     # 确保没有步骤结果被写入
     assert planned_context.step_results == {}
+    assert excinfo.value.failure_type == FailureType.RETRYABLE
+    assert excinfo.value.step_id == "S1"
 
 
 def test_run_plan_with_empty_steps_updates_status(
@@ -648,3 +707,67 @@ def test_plan_runner_safety_events_order(
         if e.phase == "step"
     ]
     assert len(step_safety_events) == 2 * len(multi_step_plan.steps)
+
+
+def test_plan_runner_blocks_when_task_input_safety_blocks(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+):
+    """task_input 返回 block 时，PlanRunner 应抛出 SAFETY_BLOCK"""
+    from src.models.contracts import SafetyResult, now_iso
+
+    class BlockingSafety(SafetyAgent):
+        def check_task_input(self, task, plan=None):
+            return SafetyResult(
+                task_id=task.task_id,
+                phase="input",
+                scope="task",
+                risk_flags=[],
+                action="block",
+                timestamp=now_iso(),
+            )
+
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner, safety_agent=BlockingSafety())
+
+    with pytest.raises(PlanRunError) as excinfo:
+        plan_runner.run_plan(single_step_plan, planned_context)
+
+    assert excinfo.value.failure_type == FailureType.SAFETY_BLOCK
+    # 状态和步骤结果不应被更改
+    assert planned_context.status == TaskStatus.PLANNED
+    assert planned_context.step_results == {}
+    assert planned_context.safety_events[-1].action == "block"
+
+
+def test_plan_runner_blocks_on_final_safety(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+):
+    """最终安全检查 block 时，PlanRunner 应抛出 SAFETY_BLOCK"""
+    from src.models.contracts import SafetyResult, now_iso
+
+    class FinalBlockingSafety(SafetyAgent):
+        def check_task_input(self, task, plan=None):
+            return super().check_task_input(task, plan)
+
+        def check_final_result(self, context, design_result=None):
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="output",
+                scope="result",
+                risk_flags=[],
+                action="block",
+                timestamp=now_iso(),
+            )
+
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner, safety_agent=FinalBlockingSafety())
+
+    with pytest.raises(PlanRunError) as excinfo:
+        plan_runner.run_plan(single_step_plan, planned_context)
+
+    assert excinfo.value.failure_type == FailureType.SAFETY_BLOCK
+    # 步骤已执行，但最终安全阻断
+    assert "S1" in planned_context.step_results
+    assert planned_context.safety_events[-1].action == "block"

@@ -5,11 +5,18 @@ from src.models.db import TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.agents.safety import SafetyAgent
+from src.workflow.errors import (
+    FailureType,
+    PlanRunError,
+    StepRunError,
+    classify_exception,
+    is_retryable_failure,
+)
 
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口，用于依赖注入和单元测试"""
 
-    def run_step(self, step, context: WorkflowContext) -> StepResult:
+    def run_step(self, step, context: WorkflowContext) -> StepResult: # type: ignore
         """执行单个 PlanStep,返回 StepResult
         
         真实实现由 src/workflow/step_runner.StepRunner 提供
@@ -110,7 +117,7 @@ class PlanRunner:
             
         Raises:
             ValueError: 当 context.task.task_id 与 plan.task_id 不一致时
-            RuntimeError: 当 step_runner 执行步骤时抛出异常（直接向上传播）
+            PlanRunError: 当步骤执行/安全阻断/工具异常时，携带统一失败分类
             
         Note:
             - 状态转换遵循完整状态机流程：CREATED → PLANNING → PLANNED → RUNNING → SUMMARIZING → DONE/FAILED
@@ -128,11 +135,13 @@ class PlanRunner:
         input_safety_result = self._safety_agent.check_task_input(
             context.task, plan
         )
-        # 兼容两种 WorkflowContext 类型
-        if hasattr(context, 'add_safety_event'):
-            context.add_safety_event(input_safety_result)
-        else:
-            context.safety_events.append(input_safety_result)
+        self._add_safety_event(context, input_safety_result)
+        if input_safety_result.action == "block":
+            raise PlanRunError(
+                failure_type=FailureType.SAFETY_BLOCK,
+                message="SafetyAgent blocked task input before execution",
+                code="SAFETY_TASK_INPUT_BLOCK",
+            )
         
         # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
         if context.status == TaskStatus.PLANNED:
@@ -144,21 +153,50 @@ class PlanRunner:
         
         # 顺序执行 steps, 并将 StepResult 写回 context.step_results
         for step in plan.steps:
-            step_result = self._step_runner.run_step(step, context)
+            try:
+                step_result = self._step_runner.run_step(step, context)
+            except StepRunError as exc:
+                raise PlanRunError.from_step_error(step.id, exc) from exc
+            except Exception as exc:
+                failure_type = classify_exception(exc)
+                raise PlanRunError(
+                    failure_type=failure_type,
+                    message=f"Unexpected error when executing step {step.id}: {exc}",
+                    step_id=step.id,
+                    code="STEP_EXECUTION_ERROR",
+                    cause=exc,
+                ) from exc
             context.step_results[step_result.step_id] = step_result
+            # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
+            step_result.metrics.setdefault("failure_type", step_result.failure_type)
+            step_result.metrics.setdefault(
+                "retryable",
+                is_retryable_failure(step_result.failure_type)
+                if step_result.failure_type is not None
+                else None,
+            )
         
         # A4: 安全检查 - 最终结果阶段
         final_safety_result = self._safety_agent.check_final_result(
             context, context.design_result
         )
-        # 兼容两种 WorkflowContext 类型
-        if hasattr(context, 'add_safety_event'):
-            context.add_safety_event(final_safety_result)
-        else:
-            context.safety_events.append(final_safety_result)
+        self._add_safety_event(context, final_safety_result)
+        if final_safety_result.action == "block":
+            raise PlanRunError(
+                failure_type=FailureType.SAFETY_BLOCK,
+                message="SafetyAgent blocked final result",
+                code="SAFETY_FINAL_BLOCK",
+            )
         
         # A3: 执行完成后，状态保持为 RUNNING
         # （SUMMARIZING 和 DONE/FAILED 由 SummarizerAgent 或上层逻辑负责）
         
         # 返回原始 plan(为未来支持 Patch/Replan 预留接口)
         return plan
+
+    def _add_safety_event(self, context: WorkflowContext, event) -> None:
+        """安全事件写入上下文，兼容两种 WorkflowContext 形态"""
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(event)
+        else:
+            context.safety_events.append(event)

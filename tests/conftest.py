@@ -71,6 +71,9 @@ def sample_step_result(sample_task: ProteinDesignTask) -> StepResult:
         step_id="S1",
         tool="dummy_tool",
         status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
         outputs={
             "note": "dummy execution",
             "sequence_length": 50,

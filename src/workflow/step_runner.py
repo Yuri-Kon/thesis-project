@@ -24,6 +24,7 @@ from typing import Any, Dict
 from src.models.contracts import PlanStep, StepResult
 from src.workflow.context import WorkflowContext
 from src.agents.safety import SafetyAgent
+from src.workflow.errors import FailureType, StepRunError, classify_exception
 
 __all__ = ["StepRunner"]
 
@@ -45,7 +46,7 @@ class StepRunner:
         - 支持字面量，例如 {"temprature": 0.8}
         - 支持引用语义: 例如 {"sequence": "S1.sequence"}
             - "s1.sequence"表示：使用 WorkflowContext.step_results["S1"].outputs["sequence"]
-            - 若引用格式非法或引用不存在，必须抛出 ValueError
+            - 若引用格式非法或引用不存在，必须抛出 StepRunError 并标记为不可重试
     3. 执行逻辑
         - A1阶段不对接真实工具，仅模拟执行
         - 未来版本会通过 ToolAdapter + WorkflowEngineAdapter 接入 ProteinMPNN/ESMFold等真实工具
@@ -54,7 +55,7 @@ class StepRunner:
             - task_id == context.task.task_id
             - step_id == step.id
             - tool == step.tool
-            - status == "success" (A1 阶段无失败分支)
+            - status == "success"（若输入解析失败则返回 failed）
             - outputs:
                 - 必须至少包含：
                     - "dummy_output": str, 模拟执行的输出内容
@@ -94,25 +95,108 @@ class StepRunner:
         Returns:
             StepResult: 本步骤的执行结果
         Raises:
-            ValueError: 当 step.inputs 中存在无法解析的引用时
+            StepRunError: 当安全阻断/输入解析失败/执行异常时
         """
-        # A4: 安全检查 - 步骤执行前
-        pre_safety_result = self._safety_agent.check_pre_step(step, context)
-        # 兼容两种 WorkflowContext 类型
-        if hasattr(context, 'add_safety_event'):
-            context.add_safety_event(pre_safety_result)
-        else:
-            context.safety_events.append(pre_safety_result)
-        
         # 记录开始时间，用于 duration_ms
         t0 = perf_counter()
 
+        # A4: 安全检查 - 步骤执行前
+        pre_safety_result = self._safety_agent.check_pre_step(step, context)
+        self._add_safety_event(context, pre_safety_result)
+        if pre_safety_result.action == "block":
+            duration_ms = int((perf_counter() - t0) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="failed",
+                failure_type=FailureType.SAFETY_BLOCK,
+                error_message=f"SafetyAgent blocked step {step.id} before execution",
+                error_details={"code": "SAFETY_PRE_BLOCK", "phase": "safety_precheck"},
+                outputs={},
+                metrics={
+                    "exec_type": "safety_precheck",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=pre_safety_result.risk_flags,
+                logs_path=None,
+                timestamp=now_iso,
+            )
+        
         # 解析输入
-        resolved_inputs = self._resolve_inputs(step, context)
+        try:
+            resolved_inputs = self._resolve_inputs(step, context)
+        except ValueError as exc:
+            duration_ms = int((perf_counter() - t0) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="failed",
+                failure_type=FailureType.NON_RETRYABLE,
+                error_message=str(exc),
+                error_details={"phase": "input_resolution"},
+                outputs={},
+                metrics={
+                    "exec_type": "input_resolution",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
 
-        # A1: dummy 执行逻辑
-        # 未来这里会根据 step.tool 调用对应的 ToolAdapter / WorkflowEngineAdapter
-        dummy_output = f"executed {step.tool}"
+        # A1: 执行工具（当前为 dummy，未来接 ToolAdapter / WorkflowEngine）
+        try:
+            dummy_output = self._execute_tool(step, resolved_inputs)
+            outputs_payload = {
+                "dummy_output": dummy_output,
+                "inputs": resolved_inputs,
+            }
+            self._validate_outputs(step, outputs_payload)
+        except StepRunError as exc:
+            duration_ms = int((perf_counter() - t0) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            # 工具失败（可重试/不可重试由 failure_type 决定）
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="failed",
+                failure_type=exc.failure_type,
+                error_message=str(exc),
+                error_details={"code": getattr(exc, "code", None), "phase": "tool_execution"},
+                outputs={},
+                metrics={
+                    "exec_type": "tool_execution",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
+        except Exception as exc:  # 未预期异常 ⇒ 工具异常
+            duration_ms = int((perf_counter() - t0) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="failed",
+                failure_type=FailureType.TOOL_ERROR,
+                error_message=f"Unexpected tool exception: {exc}",
+                error_details={"phase": "tool_execution"},
+                outputs={},
+                metrics={
+                    "exec_type": "tool_execution",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
 
         # 计算执行时间
         duration_ms = int((perf_counter() - t0) * 1000)
@@ -127,6 +211,9 @@ class StepRunner:
             step_id=step.id,
             tool=step.tool,
             status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
             outputs={
                 "dummy_output": dummy_output,
                 "inputs": resolved_inputs,
@@ -143,11 +230,27 @@ class StepRunner:
         post_safety_result = self._safety_agent.check_post_step(
             step, temp_result, context
         )
-        # 兼容两种 WorkflowContext 类型
-        if hasattr(context, 'add_safety_event'):
-            context.add_safety_event(post_safety_result)
-        else:
-            context.safety_events.append(post_safety_result)
+        self._add_safety_event(context, post_safety_result)
+        if post_safety_result.action == "block":
+            duration_ms = int((perf_counter() - t0) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="failed",
+                failure_type=FailureType.SAFETY_BLOCK,
+                error_message=f"SafetyAgent blocked step {step.id} after execution",
+                error_details={"code": "SAFETY_POST_BLOCK", "phase": "safety_postcheck"},
+                outputs=temp_result.outputs,
+                metrics={
+                    "exec_type": "safety_postcheck",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=post_safety_result.risk_flags,
+                logs_path=None,
+                timestamp=now_iso,
+            )
         
         # 从 post_safety_result 中提取 risk_flags
         risk_flags = post_safety_result.risk_flags
@@ -158,6 +261,9 @@ class StepRunner:
             step_id=step.id,
             tool=step.tool,
             status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
             outputs={
                 "dummy_output": dummy_output,
                 "inputs": resolved_inputs,
@@ -172,6 +278,13 @@ class StepRunner:
         )
 
         return result
+
+    def _add_safety_event(self, context: WorkflowContext, event) -> None:
+        """安全事件写入上下文，兼容两种 WorkflowContext 形态"""
+        if hasattr(context, 'add_safety_event'):
+            context.add_safety_event(event)
+        else:
+            context.safety_events.append(event)
 
     def _resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> Dict[str, Any]:
         """解析 step.inputs
@@ -228,3 +341,53 @@ class StepRunner:
 
         # 返回解析后的输入字典
         return resolved
+
+    def _execute_tool(self, step: PlanStep, resolved_inputs: Dict[str, Any]) -> str:
+        """执行工具的占位实现
+
+        未来将替换为 ToolAdapter / WorkflowEngine 调用。
+        返回 dummy 输出字符串；单测可通过 monkeypatch 覆盖以模拟工具失败/异常。
+        """
+        return f"executed {step.tool}"
+
+    def _validate_outputs(self, step: PlanStep, outputs: Dict[str, Any]) -> None:
+        """最小 IO 契约校验：必需字段存在且类型合理"""
+        if not isinstance(outputs, dict):
+            raise StepRunError(
+                failure_type=FailureType.NON_RETRYABLE,
+                message="Tool outputs is not a dict",
+                code="OUTPUT_NOT_DICT",
+            )
+
+        required = step.metadata.get("required_outputs", []) if step.metadata else []
+        for key in required:
+            if key not in outputs:
+                raise StepRunError(
+                    failure_type=FailureType.NON_RETRYABLE,
+                    message=f"Missing required output field '{key}'",
+                    code="OUTPUT_MISSING",
+                )
+
+        type_hints: Dict[str, str] = step.metadata.get("output_types", {}) if step.metadata else {}
+        for key, expected in type_hints.items():
+            if key in outputs and not self._type_matches(outputs[key], expected):
+                raise StepRunError(
+                    failure_type=FailureType.NON_RETRYABLE,
+                    message=f"Output field '{key}' type mismatch, expected {expected}",
+                    code="OUTPUT_TYPE_MISMATCH",
+                )
+
+    def _type_matches(self, value: Any, type_name: str) -> bool:
+        """简易类型匹配，覆盖常见内置类型名称"""
+        mapping = {
+            "str": str,
+            "int": int,
+            "float": float,
+            "dict": dict,
+            "list": list,
+            "bool": bool,
+        }
+        py_type = mapping.get(type_name)
+        if py_type is None:
+            return True  # 未知类型名时不强校验，保持宽松
+        return isinstance(value, py_type)

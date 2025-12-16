@@ -66,6 +66,12 @@ class StepResult(BaseModel):
     step_id: str
     tool: str
     status: Literal["success", "failed", "skipped"]
+    # 失败分类：对齐 FailureType 枚举的字符串值；成功时可为 None
+    failure_type: Optional[str] = None
+    # 简要错误信息，便于 patch/replan 和日志调试；成功时可为 None
+    error_message: Optional[str] = None
+    # 可选错误细节，用于附加上下文（例如 trace_id / 原始异常消息等）
+    error_details: Dict = Field(default_factory=dict)
     outputs: Dict = Field(default_factory=dict)
     metrics: Dict = Field(default_factory=dict)
     risk_flags: List[RiskFlag] = Field(default_factory=list)
