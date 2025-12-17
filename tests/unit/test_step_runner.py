@@ -15,6 +15,7 @@ from src.workflow.errors import FailureType, StepRunError
 from src.models.contracts import ProteinDesignTask, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
 from src.models.db import TaskStatus
+from src.workflow.step_runner import StepRetryPolicy
 
 def _isoformat_utc(s: str) -> bool:
     """简单校验一个字符串是否看起来像 UTC ISO-8601 时间
@@ -311,6 +312,130 @@ def test_run_step_output_type_mismatch_marks_non_retryable(empty_context, monkey
     assert result.failure_type == FailureType.NON_RETRYABLE
     assert "type mismatch" in result.error_message
     assert result.metrics.get("exec_type") == "tool_execution"
+
+
+# Retry 行为测试（不涉及 FSM / Patch / Replan）
+
+def _make_step_result(
+    task_id: str,
+    step_id: str,
+    status: str,
+    *,
+    failure_type: FailureType | None = None,
+    error_message: str | None = None,
+) -> StepResult:
+    """简化构造 StepResult 的助手，便于模拟 _run_once 输出"""
+    return StepResult(
+        task_id=task_id,
+        step_id=step_id,
+        tool="dummy_tool",
+        status=status,
+        failure_type=failure_type,
+        error_message=error_message,
+        error_details={},
+        outputs={"dummy_output": "ok", "inputs": {}},
+        metrics={},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def test_retryable_failure_then_success(empty_context, monkeypatch):
+    """第一次可重试失败，第二次成功，应立即返回成功且不再重试"""
+    step = PlanStep(id="S1", tool="dummy_tool", inputs={}, metadata={})
+    policy = StepRetryPolicy(max_attempts=3, backoff_schedule_ms=())
+    runner = StepRunner(retry_policy=policy)
+
+    attempts = [
+        _make_step_result(empty_context.task.task_id, step.id, "failed", failure_type=FailureType.RETRYABLE, error_message="temp fail"),
+        _make_step_result(empty_context.task.task_id, step.id, "success"),
+    ]
+
+    def fake_run_once(_step, _ctx):
+        return attempts.pop(0)
+
+    monkeypatch.setattr(runner, "_run_once", fake_run_once)
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "success"
+    assert result.metrics.get("attempt") == 2
+    assert result.metrics.get("max_attempts") == 3
+    assert result.metrics.get("attempt_history")[0]["status"] == "failed"
+    assert result.metrics.get("attempt_history")[1]["status"] == "success"
+    # 成功路径不应标记 retried/retry_exhausted
+    assert "retried" not in result.metrics
+    assert "retry_exhausted" not in result.metrics
+
+
+def test_retryable_failure_exhausted(empty_context, monkeypatch):
+    """可重试失败且耗尽次数，最终失败并标记 retry_exhausted"""
+    step = PlanStep(id="S1", tool="dummy_tool", inputs={}, metadata={})
+    policy = StepRetryPolicy(max_attempts=2, backoff_schedule_ms=())
+    runner = StepRunner(retry_policy=policy)
+
+    def always_fail(_step, _ctx):
+        return _make_step_result(
+            empty_context.task.task_id,
+            step.id,
+            "failed",
+            failure_type=FailureType.RETRYABLE,
+            error_message="temp fail",
+        )
+
+    monkeypatch.setattr(runner, "_run_once", always_fail)
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.RETRYABLE
+    assert result.metrics.get("retried") is True
+    assert result.metrics.get("retry_exhausted") is True
+    assert len(result.metrics.get("attempt_history")) == 2
+    assert result.metrics.get("attempt_history")[-1]["attempt"] == 2
+
+
+def test_non_retryable_failure_no_retry(empty_context, monkeypatch):
+    """不可重试失败仅执行一次，不应设置 retried 标记"""
+    step = PlanStep(id="S1", tool="dummy_tool", inputs={}, metadata={})
+    runner = StepRunner(retry_policy=StepRetryPolicy(max_attempts=3, backoff_schedule_ms=()))
+
+    def fail_once(_step, _ctx):
+        return _make_step_result(
+            empty_context.task.task_id,
+            step.id,
+            "failed",
+            failure_type=FailureType.NON_RETRYABLE,
+            error_message="bad input",
+        )
+
+    monkeypatch.setattr(runner, "_run_once", fail_once)
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert result.metrics.get("attempt") == 1
+    assert result.metrics.get("max_attempts") == 3
+    assert result.metrics.get("attempt_history")[0]["status"] == "failed"
+    assert "retried" not in result.metrics
+    assert "retry_exhausted" not in result.metrics
+
+
+def test_success_no_retry(empty_context):
+    """成功路径不应额外重试，attempt_history 仅一条"""
+    step = PlanStep(id="S1", tool="dummy_tool", inputs={}, metadata={})
+    runner = StepRunner(retry_policy=StepRetryPolicy(max_attempts=3, backoff_schedule_ms=()))
+
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "success"
+    assert result.metrics.get("attempt") == 1
+    assert result.metrics.get("max_attempts") == 3
+    assert len(result.metrics.get("attempt_history")) == 1
+    assert "retried" not in result.metrics
+    assert "retry_exhausted" not in result.metrics
 
 
 # A4: Safety Pipeline 集成测试
