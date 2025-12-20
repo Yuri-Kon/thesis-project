@@ -123,3 +123,4 @@ data/logs/
 htmlcov/
 .idea/
 .vscode/
+AGENTS.md
