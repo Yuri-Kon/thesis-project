@@ -11,6 +11,7 @@ from src.models.contracts import (
     PlanPatchOpType,
     PlanStep,
     ProteinDesignTask,
+    ReplanRequest,
     StepResult,
 )
 
@@ -105,6 +106,55 @@ class PlannerAgent:
         )
         return PlanPatch(task_id=request.task_id, operations=[op], metadata={"strategy": "cost_first"})
 
+    # --- B4: 再规划 ---
+    def replan(self, request: ReplanRequest) -> Plan:
+        """基于 ReplanRequest 生成最小再规划 Plan（替换失败步骤）"""
+        _ensure_replan_task_match(request)
+        if not request.original_plan.steps:
+            raise ValueError("Original plan is empty, cannot replan")
+
+        target_step = _locate_replan_target_step(request)
+        target_spec = _find_tool_spec(self._tool_registry, target_step.tool)
+        available_inputs = _collect_available_inputs([], target_step)
+        try:
+            candidate = _select_candidate(
+                registry=self._tool_registry,
+                capability=target_spec.capabilities[0] if target_spec.capabilities else "",
+                available_inputs=available_inputs,
+                exclude_tool=target_step.tool,
+            )
+        except ValueError:
+            fallback_inputs = _collect_registry_inputs(self._tool_registry)
+            candidate = _select_candidate(
+                registry=self._tool_registry,
+                capability=target_spec.capabilities[0] if target_spec.capabilities else "",
+                available_inputs=fallback_inputs,
+                exclude_tool=target_step.tool,
+            )
+        replanned_step = target_step.model_copy(
+            update={
+                "tool": candidate.id,
+                "metadata": {
+                    **(target_step.metadata or {}),
+                    "replanned_from": target_step.tool,
+                },
+            },
+            deep=True,
+        )
+
+        new_steps = [step.model_copy(deep=True) for step in request.original_plan.steps]
+        for idx, step in enumerate(new_steps):
+            if step.id == target_step.id:
+                new_steps[idx] = replanned_step
+                break
+
+        return Plan(
+            task_id=request.task_id,
+            steps=new_steps,
+            constraints=request.original_plan.constraints,
+            metadata={"strategy": "replace_failed_step", "reason": request.reason},
+        )
+
 
 # --- helpers ---
 
@@ -112,6 +162,13 @@ def _ensure_task_match(request: PatchRequest) -> None:
     if request.task_id != request.original_plan.task_id:
         raise ValueError(
             f"PatchRequest.task_id ({request.task_id}) does not match Plan.task_id ({request.original_plan.task_id})"
+        )
+
+
+def _ensure_replan_task_match(request: ReplanRequest) -> None:
+    if request.task_id != request.original_plan.task_id:
+        raise ValueError(
+            f"ReplanRequest.task_id ({request.task_id}) does not match Plan.task_id ({request.original_plan.task_id})"
         )
 
 
@@ -126,11 +183,26 @@ def _locate_target_step(request: PatchRequest) -> PlanStep:
     raise ValueError(f"Target step '{target_id}' not found in original plan")
 
 
+def _locate_replan_target_step(request: ReplanRequest) -> PlanStep:
+    target_id = request.failed_steps[-1] if request.failed_steps else request.original_plan.steps[-1].id
+    for step in request.original_plan.steps:
+        if step.id == target_id:
+            return step
+    raise ValueError(f"Target step '{target_id}' not found in original plan")
+
+
 def _find_tool_spec(registry: Sequence[ToolSpec], tool_id: str) -> ToolSpec:
     for spec in registry:
         if spec.id == tool_id:
             return spec
     raise ValueError(f"Tool '{tool_id}' not found in registry")
+
+
+def _collect_registry_inputs(registry: Sequence[ToolSpec]) -> Set[str]:
+    inputs: Set[str] = set()
+    for spec in registry:
+        inputs.update(spec.inputs)
+    return inputs
 
 
 def _collect_available_inputs(results: Sequence[StepResult], target_step: PlanStep) -> Set[str]:

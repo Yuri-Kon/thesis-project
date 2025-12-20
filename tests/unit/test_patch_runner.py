@@ -88,7 +88,7 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task):
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.CREATED,
+        status=TaskStatus.RUNNING,
     )
 
     step_runner = FakeStepRunner()

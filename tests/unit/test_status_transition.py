@@ -56,3 +56,33 @@ class TestTaskStatusTransition:
 
         with pytest.raises(ValueError):
             transition_task_status(context, record, TaskStatus.PLANNING)
+
+    @pytest.mark.parametrize(
+        "from_status,to_status",
+        [
+            (TaskStatus.CREATED, TaskStatus.PLANNING),
+            (TaskStatus.PLANNING, TaskStatus.PLANNED),
+            (TaskStatus.PLANNING, TaskStatus.FAILED),
+            (TaskStatus.PLANNED, TaskStatus.RUNNING),
+            (TaskStatus.RUNNING, TaskStatus.WAITING_PATCH),
+            (TaskStatus.RUNNING, TaskStatus.WAITING_REPLAN),
+            (TaskStatus.RUNNING, TaskStatus.SUMMARIZING),
+            (TaskStatus.WAITING_PATCH, TaskStatus.PATCHING),
+            (TaskStatus.PATCHING, TaskStatus.RUNNING),
+            (TaskStatus.PATCHING, TaskStatus.WAITING_REPLAN),
+            (TaskStatus.WAITING_REPLAN, TaskStatus.REPLANNING),
+            (TaskStatus.REPLANNING, TaskStatus.RUNNING),
+            (TaskStatus.REPLANNING, TaskStatus.FAILED),
+            (TaskStatus.SUMMARIZING, TaskStatus.DONE),
+        ],
+    )
+    def test_transition_allows_expected_pairs(
+        self, sample_task, from_status: TaskStatus, to_status: TaskStatus
+    ):
+        record = self._make_record(sample_task.task_id, from_status)
+        context = WorkflowContext(task=sample_task, status=from_status)
+
+        transition_task_status(context, record, to_status)
+
+        assert context.status == to_status
+        assert record.status == to_status

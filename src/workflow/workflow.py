@@ -1,6 +1,6 @@
 from __future__ import annotations
 from src.models.contracts import ProteinDesignTask, now_iso
-from src.models.db import TaskRecord, TaskStatus, derive_task_status
+from src.models.db import TaskRecord, TaskStatus, TERMINAL_STATES, derive_task_status
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
@@ -37,23 +37,40 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         status=TaskStatus.CREATED,
     )
 
+    def _mark_failed_if_needed() -> None:
+        if ctx.status in TERMINAL_STATES:
+            return
+        transition_task_status(ctx, record, TaskStatus.FAILED)
+
     # 1. 规划
-    transition_task_status(ctx, record, TaskStatus.PLANNING)
-    plan = planner.plan(task)
-    ctx.plan = plan
-    record.plan = plan
-    transition_task_status(ctx, record, TaskStatus.PLANNED)
+    try:
+        transition_task_status(ctx, record, TaskStatus.PLANNING)
+        plan = planner.plan(task)
+        ctx.plan = plan
+        record.plan = plan
+        transition_task_status(ctx, record, TaskStatus.PLANNED)
+    except Exception:
+        _mark_failed_if_needed()
+        raise
 
     # 2. 执行
-    # 注意：PlanRunner 会将状态从 PLANNED 更新为 RUNNING
-    transition_task_status(ctx, record, TaskStatus.RUNNING)
-    executor.run_plan(plan, ctx)
+    # 注意：先推进到 RUNNING，执行完成由 PlanRunner 推进到 SUMMARIZING
+    try:
+        transition_task_status(ctx, record, TaskStatus.RUNNING)
+        executor.run_plan(plan, ctx, record=record, finalize_status=False)
+    except Exception:
+        _mark_failed_if_needed()
+        raise
 
     # 3. 汇总
-    transition_task_status(ctx, record, TaskStatus.SUMMARIZING)
-    design = summarizer.summarize(ctx)
-    ctx.design_result = design
-    record.design_result = design
+    try:
+        transition_task_status(ctx, record, TaskStatus.SUMMARIZING)
+        design = summarizer.summarize(ctx)
+        ctx.design_result = design
+        record.design_result = design
+    except Exception:
+        _mark_failed_if_needed()
+        raise
 
     # 4. 聚合状态
     final_status = derive_task_status(
