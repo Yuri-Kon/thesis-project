@@ -26,16 +26,27 @@ class TestTaskStatus:
 
     def test_task_status_values(self):
         """测试任务状态值"""
-        assert TaskStatus.CREATED == "CREATED"
-        assert TaskStatus.PLANNED == "PLANNED"
-        assert TaskStatus.DONE == "DONE"
-        assert TaskStatus.FAILED == "FAILED"
+        expected_names = {
+            "CREATED",
+            "PLANNING",
+            "PLANNED",
+            "RUNNING",
+            "WAITING_PATCH",
+            "PATCHING",
+            "WAITING_REPLAN",
+            "REPLANNING",
+            "SUMMARIZING",
+            "DONE",
+            "FAILED",
+        }
+
+        assert set(TaskStatus.__members__.keys()) == expected_names
+        assert {status.value for status in TaskStatus} == expected_names
 
     def test_terminal_states(self):
         """测试终端状态"""
         from src.models.db import TERMINAL_STATES
-        assert TaskStatus.DONE in TERMINAL_STATES
-        assert TaskStatus.FAILED in TERMINAL_STATES
+        assert TERMINAL_STATES == {TaskStatus.DONE, TaskStatus.FAILED}
 
 
 @pytest.mark.unit

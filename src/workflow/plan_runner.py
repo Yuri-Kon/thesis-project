@@ -7,6 +7,7 @@ from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
 from src.agents.safety import SafetyAgent
+from src.workflow.status import transition_task_status
 from src.workflow.errors import (
     FailureType,
     PlanRunError,
@@ -156,7 +157,7 @@ class PlanRunner:
         
         # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
         if context.status == TaskStatus.PLANNED:
-            context.status = TaskStatus.RUNNING
+            transition_task_status(context, None, TaskStatus.RUNNING)
         
         # 若 context.plan 为 None, 则设置为当前 plan
         if context.plan is None:

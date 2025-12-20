@@ -5,6 +5,7 @@ from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
+from src.workflow.status import transition_task_status
 
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     """同步执行一次完整任务"""
@@ -37,33 +38,25 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     )
 
     # 1. 规划
-    record.status = TaskStatus.PLANNING
-    ctx.status = TaskStatus.PLANNING
-    record.updated_at = now_iso()
+    transition_task_status(ctx, record, TaskStatus.PLANNING)
     plan = planner.plan(task)
     ctx.plan = plan
     record.plan = plan
-    record.status = TaskStatus.PLANNED
-    ctx.status = TaskStatus.PLANNED
-    record.updated_at = now_iso()
+    transition_task_status(ctx, record, TaskStatus.PLANNED)
 
     # 2. 执行
     # 注意：PlanRunner 会将状态从 PLANNED 更新为 RUNNING
-    record.status = TaskStatus.RUNNING
-    ctx.status = TaskStatus.RUNNING
-    record.updated_at = now_iso()
+    transition_task_status(ctx, record, TaskStatus.RUNNING)
     executor.run_plan(plan, ctx)
 
     # 3. 汇总
-    record.status = TaskStatus.SUMMARIZING
-    ctx.status = TaskStatus.SUMMARIZING
-    record.updated_at = now_iso()
+    transition_task_status(ctx, record, TaskStatus.SUMMARIZING)
     design = summarizer.summarize(ctx)
     ctx.design_result = design
     record.design_result = design
 
     # 4. 聚合状态
-    record.status = derive_task_status(
+    final_status = derive_task_status(
         ctx.task,
         ctx.plan,
         ctx.step_results,
@@ -71,6 +64,6 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         ctx.design_result,
     )
 
-    record.updated_at = now_iso()
+    transition_task_status(ctx, record, final_status)
 
     return record
