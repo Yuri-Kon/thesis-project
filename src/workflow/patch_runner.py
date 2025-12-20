@@ -5,10 +5,12 @@ from typing import Protocol
 
 from src.agents.planner import PlannerAgent
 from src.models.contracts import Plan, PlanPatch, PlanStep, StepResult
+from src.models.db import TaskRecord, TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
 from src.workflow.step_runner import StepRunner
+from src.workflow.status import transition_task_status
 
 
 class StepRunnerLike(Protocol):
@@ -40,7 +42,7 @@ class PatchRunner:
     - 依赖 StepRunner 执行步骤（含重试）
     - 当重试耗尽仍失败，或失败类型属于可补丁范围时，调用 Planner.patch 生成 PlanPatch
     - 本地 apply_patch 后对目标步骤再执行一次
-    - 不修改 FSM 状态机，交由 PlanRunner/上层管理
+    - 仅在 patch 触发时推进 WAITING_PATCH/PATCHING，其他状态交由 PlanRunner 负责
     """
 
     def __init__(
@@ -52,7 +54,12 @@ class PatchRunner:
         self._planner: PlannerAgent = planner_agent or PlannerAgent()
 
     def run_step_with_patch(
-        self, plan: Plan, step_index: int, context: WorkflowContext
+        self,
+        plan: Plan,
+        step_index: int,
+        context: WorkflowContext,
+        *,
+        record: TaskRecord | None = None,
     ) -> PatchRunOutcome:
         """执行指定 step；必要时进行一次 patch 并重新执行该 step"""
         step = plan.steps[step_index]
@@ -65,18 +72,55 @@ class PatchRunner:
                 next_step_index=step_index + 1,
             )
 
-        patch_request = build_patch_request(
-            plan=plan,
-            failed_step_index=step_index,
-            failed_result=result,
-            context=context,
+        if context.status != TaskStatus.RUNNING:
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[result],
+                next_step_index=step_index + 1,
+            )
+
+        patch_reason = (
+            "retry_exhausted"
+            if result.metrics.get("retry_exhausted")
+            else "patch_required"
         )
-        plan_patch = self._planner.patch(patch_request)
-        patched_plan = apply_patch(plan, plan_patch)
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.WAITING_PATCH,
+            reason=patch_reason,
+        )
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.PATCHING,
+            reason="patch_start",
+        )
+        try:
+            patch_request = build_patch_request(
+                plan=plan,
+                failed_step_index=step_index,
+                failed_result=result,
+                context=context,
+            )
+            plan_patch = self._planner.patch(patch_request)
+            patched_plan = apply_patch(plan, plan_patch)
+        except Exception:
+            transition_task_status(
+                context,
+                record,
+                TaskStatus.WAITING_REPLAN,
+                reason="patch_failed",
+            )
+            raise
 
         # 将最新的 plan 写回 context（如果 task_id 匹配）
         if context.plan is None or context.plan.task_id == patched_plan.task_id:
             context.plan = patched_plan
+        if record is not None and (
+            record.plan is None or record.plan.task_id == patched_plan.task_id
+        ):
+            record.plan = patched_plan
 
         if _has_insert_before_target(plan_patch, step.id):
             pending_patch = PendingPatch(

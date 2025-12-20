@@ -1,7 +1,7 @@
 """PlannerAgent单元测试"""
 import pytest
 from src.agents.planner import PlannerAgent
-from src.models.contracts import ProteinDesignTask, Plan, PlanStep
+from src.models.contracts import ProteinDesignTask, Plan, PlanStep, ReplanRequest
 
 
 @pytest.mark.unit
@@ -66,3 +66,21 @@ class TestPlannerAgent:
         assert step.tool is not None
         assert isinstance(step.inputs, dict)
         assert isinstance(step.metadata, dict)
+
+    def test_replan_replaces_failed_step(self, sample_task: ProteinDesignTask):
+        """测试再规划会替换失败步骤的工具"""
+        planner = PlannerAgent()
+        plan = planner.plan(sample_task)
+
+        request = ReplanRequest(
+            task_id=sample_task.task_id,
+            original_plan=plan,
+            failed_steps=[plan.steps[0].id],
+            safety_events=[],
+            reason="test_replan",
+        )
+
+        replanned_plan = planner.replan(request)
+
+        assert replanned_plan.task_id == sample_task.task_id
+        assert replanned_plan.steps[0].tool != plan.steps[0].tool

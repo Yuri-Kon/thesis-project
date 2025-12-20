@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.models.contracts import Plan, StepResult
+from src.models.db import TaskRecord
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.plan_runner import PlanRunner
@@ -57,7 +58,15 @@ class ExecutorAgent:
         
         return result
 
-    def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
+    def run_plan(
+        self,
+        plan: Plan,
+        context: WorkflowContext,
+        *,
+        record: TaskRecord | None = None,
+        finalize_status: bool = True,
+        max_replans: int = 1,
+    ) -> Plan:
         """执行完整计划
         
         使用 PlanRunner 来执行计划，它包含安全检查、状态管理等功能。
@@ -65,9 +74,18 @@ class ExecutorAgent:
         Args:
             plan: 执行计划
             context: 工作流上下文
+            record: 可选的任务记录，用于同步更新持久化状态
+            finalize_status: 是否在 SUMMARIZING 后自动置为 DONE
+            max_replans: 允许触发再规划的最大次数
             
         Returns:
             Plan: 执行后的计划（当前实现不做修改）
         """
         # 使用 PlanRunner 执行计划，它包含安全检查、状态管理等功能
-        return self.plan_runner.run_plan(plan, context)
+        return self.plan_runner.run_plan(
+            plan,
+            context,
+            record=record,
+            finalize_status=finalize_status,
+            max_replans=max_replans,
+        )

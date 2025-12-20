@@ -273,11 +273,11 @@ def test_run_plan_wraps_unknown_exception_as_tool_error(
 
 # A3: TaskStatus 状态机测试
 
-def test_run_plan_updates_status_from_planned_to_running(
+def test_run_plan_updates_status_from_planned_to_done(
     single_step_plan: Plan,
     planned_context: WorkflowContext,
 ) -> None:
-    """测试：当 context.status 为 PLANNED 时，PlanRunner 应将其更新为 RUNNING"""
+    """测试：当 context.status 为 PLANNED 时，PlanRunner 应将其更新为 DONE"""
     runner = DummyStepRunner()
     plan_runner = PlanRunner(step_runner=runner)
     
@@ -286,8 +286,8 @@ def test_run_plan_updates_status_from_planned_to_running(
     
     plan_runner.run_plan(single_step_plan, planned_context)
     
-    # 执行后状态应为 RUNNING
-    assert planned_context.status == TaskStatus.RUNNING
+    # 执行后状态应为 DONE
+    assert planned_context.status == TaskStatus.DONE
     # 确保步骤已执行
     assert "S1" in planned_context.step_results
 
@@ -311,18 +311,18 @@ def test_run_plan_does_not_change_status_if_not_planned(
     assert "S1" in fresh_context.step_results
 
 
-def test_run_plan_keeps_running_status_after_completion(
+def test_run_plan_updates_status_to_done_after_completion(
     multi_step_plan: Plan,
     planned_context: WorkflowContext,
 ) -> None:
-    """测试：执行完成后，状态保持为 RUNNING"""
+    """测试：执行完成后，状态更新为 DONE"""
     runner = DummyStepRunner()
     plan_runner = PlanRunner(step_runner=runner)
     
     plan_runner.run_plan(multi_step_plan, planned_context)
     
-    # 执行后状态应为 RUNNING（不是 SUMMARIZING 或 DONE）
-    assert planned_context.status == TaskStatus.RUNNING
+    # 执行后状态应为 DONE
+    assert planned_context.status == TaskStatus.DONE
     # 确保所有步骤已执行
     assert len(planned_context.step_results) == 3
 
@@ -331,7 +331,7 @@ def test_run_plan_maintains_status_on_exception(
     single_step_plan: Plan,
     planned_context: WorkflowContext,
 ) -> None:
-    """测试：异常发生时，状态保持为 RUNNING（状态更新在步骤执行之前）"""
+    """测试：异常发生时，状态更新为 FAILED（状态更新在步骤执行之前）"""
     failing_runner = FailingStepRunner()
     plan_runner = PlanRunner(step_runner=failing_runner)
     
@@ -342,9 +342,8 @@ def test_run_plan_maintains_status_on_exception(
     with pytest.raises(PlanRunError) as excinfo:
         plan_runner.run_plan(single_step_plan, planned_context)
     
-    # 根据实现，状态更新在步骤执行之前
-    # 所以即使步骤执行失败，状态也应该已经更新为 RUNNING
-    assert planned_context.status == TaskStatus.RUNNING
+    # 根据实现，失败应将状态置为 FAILED
+    assert planned_context.status == TaskStatus.FAILED
     # 确保没有步骤结果被写入
     assert planned_context.step_results == {}
     assert excinfo.value.failure_type == FailureType.RETRYABLE
@@ -355,17 +354,34 @@ def test_run_plan_with_empty_steps_updates_status(
     empty_plan: Plan,
     planned_context: WorkflowContext,
 ) -> None:
-    """测试：即使步骤为空，状态也应该从 PLANNED 更新为 RUNNING"""
+    """测试：即使步骤为空，状态也应该从 PLANNED 更新为 DONE"""
     runner = DummyStepRunner()
     plan_runner = PlanRunner(step_runner=runner)
     
     plan_runner.run_plan(empty_plan, planned_context)
     
-    # 状态应更新为 RUNNING
-    assert planned_context.status == TaskStatus.RUNNING
+    # 状态应更新为 DONE
+    assert planned_context.status == TaskStatus.DONE
     # 没有步骤执行
     assert runner.called_steps == []
     assert planned_context.step_results == {}
+
+
+def test_run_plan_stops_at_summarizing_when_finalize_false(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """测试：finalize_status=False 时执行完成后停留在 SUMMARIZING"""
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+
+    plan_runner.run_plan(
+        single_step_plan,
+        planned_context,
+        finalize_status=False,
+    )
+
+    assert planned_context.status == TaskStatus.SUMMARIZING
 
 
 def test_run_plan_triggers_patch_after_retry_exhausted(
@@ -613,11 +629,11 @@ def test_run_plan_from_planning_status_does_not_change_status(
     assert "S1" in planning_context.step_results
 
 
-def test_run_plan_from_running_status_keeps_running(
+def test_run_plan_from_running_status_updates_to_done(
     single_step_plan: Plan,
     running_context: WorkflowContext,
 ) -> None:
-    """测试：当 context.status 已经是 RUNNING 时，PlanRunner 保持 RUNNING 状态"""
+    """测试：当 context.status 已经是 RUNNING 时，PlanRunner 更新为 DONE"""
     runner = DummyStepRunner()
     plan_runner = PlanRunner(step_runner=runner)
     
@@ -626,8 +642,8 @@ def test_run_plan_from_running_status_keeps_running(
     
     plan_runner.run_plan(single_step_plan, running_context)
     
-    # 状态应保持为 RUNNING
-    assert running_context.status == TaskStatus.RUNNING
+    # 状态应更新为 DONE
+    assert running_context.status == TaskStatus.DONE
     # 确保步骤已执行
     assert "S1" in running_context.step_results
 
@@ -689,28 +705,28 @@ def test_run_plan_from_failed_status_does_not_change_status(
     assert "S1" in failed_context.step_results
 
 
-def test_run_plan_state_transition_planned_to_running_is_idempotent(
+def test_run_plan_state_transition_planned_to_done_is_idempotent(
     single_step_plan: Plan,
     planned_context: WorkflowContext,
 ) -> None:
-    """测试：PLANNED → RUNNING 状态转换是幂等的（多次调用不会改变状态）"""
+    """测试：PLANNED → DONE 状态转换是幂等的（多次调用不会改变状态）"""
     runner = DummyStepRunner()
     plan_runner = PlanRunner(step_runner=runner)
     
-    # 第一次执行：PLANNED → RUNNING
+    # 第一次执行：PLANNED → DONE
     plan_runner.run_plan(single_step_plan, planned_context)
-    assert planned_context.status == TaskStatus.RUNNING
+    assert planned_context.status == TaskStatus.DONE
     
-    # 第二次执行：应该保持 RUNNING
+    # 第二次执行：应该保持 DONE
     plan_runner.run_plan(single_step_plan, planned_context)
-    assert planned_context.status == TaskStatus.RUNNING
+    assert planned_context.status == TaskStatus.DONE
     
     # 确保步骤被执行了两次
     assert len(runner.called_steps) == 2
     assert runner.called_steps == ["S1", "S1"]
 
 
-def test_run_plan_complete_state_flow_created_to_running(
+def test_run_plan_complete_state_flow_created_stays_created(
     single_step_plan: Plan,
     fresh_context: WorkflowContext,
 ) -> None:
@@ -898,8 +914,8 @@ def test_plan_runner_blocks_when_task_input_safety_blocks(
         plan_runner.run_plan(single_step_plan, planned_context)
 
     assert excinfo.value.failure_type == FailureType.SAFETY_BLOCK
-    # 状态和步骤结果不应被更改
-    assert planned_context.status == TaskStatus.PLANNED
+    # 输入阻断后最终应进入 FAILED
+    assert planned_context.status == TaskStatus.FAILED
     assert planned_context.step_results == {}
     assert planned_context.safety_events[-1].action == "block"
 
@@ -935,3 +951,4 @@ def test_plan_runner_blocks_on_final_safety(
     # 步骤已执行，但最终安全阻断
     assert "S1" in planned_context.step_results
     assert planned_context.safety_events[-1].action == "block"
+    assert planned_context.status == TaskStatus.FAILED
