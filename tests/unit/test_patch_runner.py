@@ -8,7 +8,7 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.models.db import TaskStatus
+from src.models.db import TaskRecord, TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.patch_runner import PatchRunner
 from src.workflow.errors import FailureType
@@ -90,12 +90,20 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task):
         design_result=None,
         status=TaskStatus.RUNNING,
     )
+    record = TaskRecord(
+        id=sample_task.task_id,
+        status=TaskStatus.RUNNING,
+        goal=sample_task.goal,
+        constraints=sample_task.constraints,
+        metadata=sample_task.metadata,
+        plan=plan,
+    )
 
     step_runner = FakeStepRunner()
     planner = FakePlanner()
     patch_runner = PatchRunner(step_runner=step_runner, planner_agent=planner)
 
-    outcome = patch_runner.run_step_with_patch(plan, 0, context)
+    outcome = patch_runner.run_step_with_patch(plan, 0, context, record=record)
     patched_plan = outcome.plan
     patched_result = outcome.step_results[0]
 
@@ -106,6 +114,7 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task):
     # plan 应被替换为 patched 版本
     assert patched_plan.steps[0].tool == "patched_tool"
     assert context.plan is patched_plan
+    assert record.plan is patched_plan
     assert outcome.next_step_index == 1
     assert outcome.pending_patch is None
 

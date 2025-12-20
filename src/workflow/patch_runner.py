@@ -117,6 +117,10 @@ class PatchRunner:
         # 将最新的 plan 写回 context（如果 task_id 匹配）
         if context.plan is None or context.plan.task_id == patched_plan.task_id:
             context.plan = patched_plan
+        if record is not None and (
+            record.plan is None or record.plan.task_id == patched_plan.task_id
+        ):
+            record.plan = patched_plan
 
         if _has_insert_before_target(plan_patch, step.id):
             pending_patch = PendingPatch(
