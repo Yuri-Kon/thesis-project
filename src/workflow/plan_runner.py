@@ -5,7 +5,7 @@ from src.models.contracts import Plan, StepResult
 from src.models.db import TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
-from src.workflow.patch_runner import PatchRunner
+from src.workflow.patch_runner import PatchRunner, PendingPatch
 from src.agents.safety import SafetyAgent
 from src.workflow.errors import (
     FailureType,
@@ -14,7 +14,6 @@ from src.workflow.errors import (
     classify_exception,
     is_retryable_failure,
 )
-from src.workflow.patch import apply_patch, build_patch_request
 
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口，用于依赖注入和单元测试"""
@@ -164,10 +163,11 @@ class PlanRunner:
             context.plan = plan
         
         # 顺序执行 steps, 并将 StepResult 写回 context.step_results
+        pending_patches: dict[str, PendingPatch] = {}
         step_index = 0
         while step_index < len(plan.steps):
             try:
-                plan, step_result = self._patch_runner.run_step_with_patch(
+                outcome = self._patch_runner.run_step_with_patch(
                     plan, step_index, context
                 )
             except StepRunError as exc:
@@ -186,18 +186,33 @@ class PlanRunner:
                     cause=exc,
                 ) from exc
 
-            context.step_results[step_result.step_id] = step_result
-            # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
-            step_result.metrics.setdefault("failure_type", step_result.failure_type)
-            step_result.metrics.setdefault(
-                "retryable",
-                is_retryable_failure(step_result.failure_type)
-                if step_result.failure_type is not None
-                else None,
-            )
+            plan = outcome.plan
+            if outcome.pending_patch:
+                pending_patches[outcome.pending_patch.target_step_id] = (
+                    outcome.pending_patch
+                )
+
+            for step_result in outcome.step_results:
+                pending_patch = pending_patches.pop(step_result.step_id, None)
+                if pending_patch and "patch" not in step_result.metrics:
+                    self._patch_runner.attach_patch_meta(
+                        step_result,
+                        pending_patch,
+                    )
+                context.step_results[step_result.step_id] = step_result
+                # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
+                step_result.metrics.setdefault(
+                    "failure_type", step_result.failure_type
+                )
+                step_result.metrics.setdefault(
+                    "retryable",
+                    is_retryable_failure(step_result.failure_type)
+                    if step_result.failure_type is not None
+                    else None,
+                )
 
             # 成功或 patch 成功后推进下一步
-            step_index += 1
+            step_index = outcome.next_step_index
         
         # A4: 安全检查 - 最终结果阶段
         final_safety_result = self._safety_agent.check_final_result(

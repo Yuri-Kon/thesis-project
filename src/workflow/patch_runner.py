@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Protocol, Tuple
+from dataclasses import dataclass
+from typing import Protocol
 
 from src.agents.planner import PlannerAgent
-from src.models.contracts import Plan, StepResult
+from src.models.contracts import Plan, PlanPatch, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
-from src.workflow.errors import FailureType, StepRunError
+from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
 from src.workflow.step_runner import StepRunner
-from src.models.contracts import PlanPatch
 
 
 class StepRunnerLike(Protocol):
@@ -16,6 +16,23 @@ class StepRunnerLike(Protocol):
 
     def run_step(self, step, context: WorkflowContext) -> StepResult:  # type: ignore
         ...
+
+
+@dataclass(frozen=True)
+class PendingPatch:
+    target_step_id: str
+    original_step: PlanStep
+    previous_result: StepResult
+    plan_patch: PlanPatch
+
+
+@dataclass(frozen=True)
+class PatchRunOutcome:
+    plan: Plan
+    step_results: list[StepResult]
+    next_step_index: int
+    pending_patch: PendingPatch | None = None
+
 
 class PatchRunner:
     """封装“重试 → Patch → 再执行一次”的最小闭环
@@ -36,13 +53,17 @@ class PatchRunner:
 
     def run_step_with_patch(
         self, plan: Plan, step_index: int, context: WorkflowContext
-    ) -> Tuple[Plan, StepResult]:
+    ) -> PatchRunOutcome:
         """执行指定 step；必要时进行一次 patch 并重新执行该 step"""
         step = plan.steps[step_index]
         result = self._step_runner.run_step(step, context)
 
         if not self._should_patch(result):
-            return plan, result
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[result],
+                next_step_index=step_index + 1,
+            )
 
         patch_request = build_patch_request(
             plan=plan,
@@ -57,9 +78,26 @@ class PatchRunner:
         if context.plan is None or context.plan.task_id == patched_plan.task_id:
             context.plan = patched_plan
 
+        if _has_insert_before_target(plan_patch, step.id):
+            pending_patch = PendingPatch(
+                target_step_id=step.id,
+                original_step=step,
+                previous_result=result,
+                plan_patch=plan_patch,
+            )
+            return PatchRunOutcome(
+                plan=patched_plan,
+                step_results=[],
+                next_step_index=step_index,
+                pending_patch=pending_patch,
+            )
+
         # 优先使用原 step id 定位（避免插入操作改变索引）
         target_id = step.id
         patched_step = next(s for s in patched_plan.steps if s.id == target_id)
+        patched_index = next(
+            idx for idx, s in enumerate(patched_plan.steps) if s.id == target_id
+        )
 
         patched_result = self._step_runner.run_step(patched_step, context)
         self._attach_patch_meta(
@@ -68,7 +106,11 @@ class PatchRunner:
             previous_result=result,
             plan_patch=plan_patch,
         )
-        return patched_plan, patched_result
+        return PatchRunOutcome(
+            plan=patched_plan,
+            step_results=[patched_result],
+            next_step_index=patched_index + 1,
+        )
 
     def _should_patch(self, result: StepResult) -> bool:
         if result.status != "failed":
@@ -106,6 +148,19 @@ class PatchRunner:
         metrics["patch"] = patch_info
         patched_result.metrics = metrics
 
+    def attach_patch_meta(
+        self,
+        patched_result: StepResult,
+        pending_patch: PendingPatch,
+    ) -> None:
+        """对后续执行的目标步骤补齐 patch 元信息"""
+        self._attach_patch_meta(
+            patched_result,
+            original_step=pending_patch.original_step,
+            previous_result=pending_patch.previous_result,
+            plan_patch=pending_patch.plan_patch,
+        )
+
 
 def _summarize_result(result: StepResult) -> dict:
     """提取失败结果的关键摘要，重用 attempt_history 结构"""
@@ -116,3 +171,10 @@ def _summarize_result(result: StepResult) -> dict:
         "tool": result.tool,
         "attempt_history": result.metrics.get("attempt_history"),
     }
+
+
+def _has_insert_before_target(plan_patch: PlanPatch, target_id: str) -> bool:
+    return any(
+        op.op == "insert_step_before" and op.target == target_id
+        for op in plan_patch.operations
+    )
