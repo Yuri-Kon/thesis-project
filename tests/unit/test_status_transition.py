@@ -40,6 +40,8 @@ class TestTaskStatusTransition:
                 "task_id": sample_task.task_id,
                 "from_status": "CREATED",
                 "to_status": "PLANNING",
+                "state": "PLANNING",
+                "reason": None,
             }
         ]
 
@@ -86,3 +88,40 @@ class TestTaskStatusTransition:
 
         assert context.status == to_status
         assert record.status == to_status
+
+    @pytest.mark.parametrize(
+        "start,sequence",
+        [
+            (
+                TaskStatus.PLANNED,
+                [TaskStatus.RUNNING, TaskStatus.SUMMARIZING, TaskStatus.DONE],
+            ),
+            (
+                TaskStatus.RUNNING,
+                [TaskStatus.WAITING_PATCH, TaskStatus.PATCHING, TaskStatus.RUNNING],
+            ),
+            (
+                TaskStatus.RUNNING,
+                [TaskStatus.WAITING_REPLAN, TaskStatus.REPLANNING, TaskStatus.RUNNING],
+            ),
+            (
+                TaskStatus.REPLANNING,
+                [TaskStatus.FAILED],
+            ),
+            (
+                TaskStatus.RUNNING,
+                [TaskStatus.WAITING_REPLAN, TaskStatus.REPLANNING],
+            ),
+        ],
+    )
+    def test_transition_allows_expected_sequences(
+        self, sample_task, start: TaskStatus, sequence: list[TaskStatus]
+    ):
+        record = self._make_record(sample_task.task_id, start)
+        context = WorkflowContext(task=sample_task, status=start)
+
+        for target in sequence:
+            transition_task_status(context, record, target)
+
+        assert context.status == sequence[-1]
+        assert record.status == sequence[-1]

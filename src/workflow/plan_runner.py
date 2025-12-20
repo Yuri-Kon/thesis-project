@@ -121,6 +121,7 @@ class PlanRunner:
         record: TaskRecord | None = None,
         finalize_status: bool = True,
         max_replans: int = 1,
+        resume_from_existing: bool = False,
     ) -> Plan:
         """执行给定的 Plan, 顺序遍历 plan.steps, 调用 StepRunner 并写入 WorkflowContext
         
@@ -136,6 +137,7 @@ class PlanRunner:
             record: 可选的任务记录，用于同步更新持久化状态
             finalize_status: 是否在 SUMMARIZING 后自动置为 DONE
             max_replans: 允许触发再规划的最大次数（最小实现，默认 1）
+            resume_from_existing: 是否基于既有成功结果跳过已完成步骤
             
         Returns:
             Plan: 返回原始 plan 对象（为未来支持 Patch/Replan 预留接口）
@@ -158,6 +160,13 @@ class PlanRunner:
             )
         try:
             # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
+            if context.status == TaskStatus.PLANNED:
+                transition_task_status(
+                    context,
+                    record,
+                    TaskStatus.RUNNING,
+                    reason="plan_execution_start",
+                )
 
             # A4: 安全检查 - 任务输入阶段
             input_safety_result = self._safety_agent.check_task_input(
@@ -168,6 +177,7 @@ class PlanRunner:
                 self._request_replan(
                     context,
                     record,
+                    reason="safety_block",
                     failure_type=FailureType.SAFETY_BLOCK,
                     message="SafetyAgent blocked task input before execution",
                     code="SAFETY_TASK_INPUT_BLOCK",
@@ -181,6 +191,12 @@ class PlanRunner:
             pending_patches: dict[str, PendingPatch] = {}
             step_index = 0
             while step_index < len(plan.steps):
+                step = plan.steps[step_index]
+                if resume_from_existing and self._should_skip_step(
+                    step, context
+                ):
+                    step_index += 1
+                    continue
                 try:
                     outcome = self._patch_runner.run_step_with_patch(
                         plan,
@@ -189,10 +205,8 @@ class PlanRunner:
                         record=record,
                     )
                 except StepRunError as exc:
-                    step = plan.steps[step_index]
                     raise PlanRunError.from_step_error(step.id, exc) from exc
                 except Exception as exc:
-                    step = plan.steps[step_index]
                     failure_type = classify_exception(exc)
                     raise PlanRunError(
                         failure_type=failure_type,
@@ -233,9 +247,17 @@ class PlanRunner:
                         failed_result = step_result
 
                 if failed_result is not None:
+                    failure_reason = "step_failed"
+                    if failed_result.metrics.get("retry_exhausted"):
+                        failure_reason = "retry_exhausted"
+                    if self._coerce_failure_type(
+                        failed_result.failure_type
+                    ) == FailureType.SAFETY_BLOCK:
+                        failure_reason = "safety_block"
                     self._request_replan(
                         context,
                         record,
+                        reason=failure_reason,
                         failure_type=self._coerce_failure_type(
                             failed_result.failure_type
                         ),
@@ -251,7 +273,12 @@ class PlanRunner:
                     context.status == TaskStatus.PATCHING
                     and self._has_patch_applied(outcome.step_results)
                 ):
-                    transition_task_status(context, record, TaskStatus.RUNNING)
+                    transition_task_status(
+                        context,
+                        record,
+                        TaskStatus.RUNNING,
+                        reason="patch_applied",
+                    )
 
                 # 成功或 patch 成功后推进下一步
                 step_index = outcome.next_step_index
@@ -265,6 +292,7 @@ class PlanRunner:
                 self._request_replan(
                     context,
                     record,
+                    reason="safety_block",
                     failure_type=FailureType.SAFETY_BLOCK,
                     message="SafetyAgent blocked final result",
                     code="SAFETY_FINAL_BLOCK",
@@ -272,9 +300,19 @@ class PlanRunner:
 
             # A3: 执行完成后，推进 SUMMARIZING（必要时继续 DONE）
             if context.status == TaskStatus.RUNNING:
-                transition_task_status(context, record, TaskStatus.SUMMARIZING)
+                transition_task_status(
+                    context,
+                    record,
+                    TaskStatus.SUMMARIZING,
+                    reason="plan_completed",
+                )
                 if finalize_status:
-                    transition_task_status(context, record, TaskStatus.DONE)
+                    transition_task_status(
+                        context,
+                        record,
+                        TaskStatus.DONE,
+                        reason="summarizer_placeholder",
+                    )
 
             # 返回原始 plan(为未来支持 Patch/Replan 预留接口)
             return plan
@@ -292,11 +330,12 @@ class PlanRunner:
                     record=record,
                     finalize_status=finalize_status,
                     max_replans=max_replans - 1,
+                    resume_from_existing=True,
                 )
-            self._mark_failed(context, record)
+            self._mark_failed(context, record, reason="plan_error")
             raise
         except Exception:
-            self._mark_failed(context, record)
+            self._mark_failed(context, record, reason="unhandled_exception")
             raise
 
     def _add_safety_event(self, context: WorkflowContext, event) -> None:
@@ -317,6 +356,17 @@ class PlanRunner:
                 pass
         return FailureType.NON_RETRYABLE
 
+    def _should_skip_step(self, step, context: WorkflowContext) -> bool:
+        """判断是否可跳过已成功且与当前计划一致的步骤"""
+        result = context.step_results.get(step.id)
+        if result is None:
+            return False
+        if result.status != "success":
+            return False
+        if result.tool != step.tool:
+            return False
+        return True
+
     def _has_patch_applied(self, step_results: list[StepResult]) -> bool:
         """判断当前批次结果中是否包含已应用的 patch"""
         for result in step_results:
@@ -330,6 +380,7 @@ class PlanRunner:
         context: WorkflowContext,
         record: TaskRecord | None,
         *,
+        reason: str,
         failure_type: FailureType,
         message: str,
         code: str | None = None,
@@ -337,7 +388,12 @@ class PlanRunner:
     ) -> None:
         """触发 WAITING_REPLAN，并抛出 PlanRunError 交给上层处理"""
         if context.status != TaskStatus.WAITING_REPLAN:
-            transition_task_status(context, record, TaskStatus.WAITING_REPLAN)
+            transition_task_status(
+                context,
+                record,
+                TaskStatus.WAITING_REPLAN,
+                reason=reason,
+            )
         raise PlanRunError(
             failure_type=failure_type,
             message=message,
@@ -353,7 +409,12 @@ class PlanRunner:
         error: PlanRunError,
     ) -> Plan:
         """执行最小再规划闭环：WAITING_REPLAN → REPLANNING → RUNNING"""
-        transition_task_status(context, record, TaskStatus.REPLANNING)
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.REPLANNING,
+            reason="replan_requested",
+        )
         request = ReplanRequest(
             task_id=context.task.task_id,
             original_plan=plan,
@@ -364,7 +425,12 @@ class PlanRunner:
         try:
             replanned_plan = self._planner.replan(request)
         except Exception as exc:
-            transition_task_status(context, record, TaskStatus.FAILED)
+            transition_task_status(
+                context,
+                record,
+                TaskStatus.FAILED,
+                reason="replan_failed",
+            )
             raise PlanRunError(
                 failure_type=classify_exception(exc),
                 message=f"Replan failed: {exc}",
@@ -374,7 +440,12 @@ class PlanRunner:
             ) from exc
 
         if replanned_plan.task_id != context.task.task_id:
-            transition_task_status(context, record, TaskStatus.FAILED)
+            transition_task_status(
+                context,
+                record,
+                TaskStatus.FAILED,
+                reason="replan_failed",
+            )
             raise PlanRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message=(
@@ -389,15 +460,27 @@ class PlanRunner:
         if record is not None:
             record.plan = replanned_plan
 
-        transition_task_status(context, record, TaskStatus.RUNNING)
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.RUNNING,
+            reason="replan_succeeded",
+        )
         return replanned_plan
 
     def _mark_failed(
         self,
         context: WorkflowContext,
         record: TaskRecord | None,
+        *,
+        reason: str,
     ) -> None:
         """将任务状态置为 FAILED（仅对非终态生效）"""
         if context.status in TERMINAL_STATES:
             return
-        transition_task_status(context, record, TaskStatus.FAILED)
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.FAILED,
+            reason=reason,
+        )

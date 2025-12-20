@@ -4,10 +4,19 @@ from typing import Callable, Optional
 
 from src.models.contracts import now_iso
 from src.models.db import TERMINAL_STATES, TaskRecord, TaskStatus
+from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 
 # 状态变更的轻量日志回调。
 StatusLogger = Callable[[dict], None]
+
+
+def _default_status_logger(event: dict) -> None:
+    """默认状态日志记录器：写入 data/logs/{task_id}.jsonl"""
+    task_id = event.get("task_id")
+    if not task_id:
+        return
+    append_event(task_id, event)
 
 # FSM 允许的状态迁移集合，用于基础校验。
 _ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -35,6 +44,7 @@ def transition_task_status(
     to_status: TaskStatus,
     *,
     logger: Optional[StatusLogger] = None,
+    reason: Optional[str] = None,
     update_timestamp: bool = True,
 ) -> None:
     """统一入口更新任务状态，并执行最基本校验。
@@ -44,6 +54,7 @@ def transition_task_status(
         record: 可选的持久化记录，用于同步更新状态和时间戳。
         to_status: 目标状态。
         logger: 可选的日志回调，记录 from/to 状态。
+        reason: 可选的触发原因，用于日志记录。
         update_timestamp: 是否同步更新 record.updated_at。
 
     Raises:
@@ -66,7 +77,7 @@ def transition_task_status(
 
     if to_status == TaskStatus.FAILED:
         _apply_status_update(
-            context, record, from_status, to_status, logger, update_timestamp
+            context, record, from_status, to_status, logger, reason, update_timestamp
         )
         return
 
@@ -77,7 +88,13 @@ def transition_task_status(
         )
 
     _apply_status_update(
-        context, record, from_status, to_status, logger, update_timestamp
+        context,
+        record,
+        from_status,
+        to_status,
+        logger,
+        reason,
+        update_timestamp,
     )
 
 
@@ -87,6 +104,7 @@ def _apply_status_update(
     from_status: TaskStatus,
     to_status: TaskStatus,
     logger: Optional[StatusLogger],
+    reason: Optional[str],
     update_timestamp: bool,
 ) -> None:
     """内部辅助函数：更新状态并可选写入状态变更事件。"""
@@ -96,12 +114,14 @@ def _apply_status_update(
         if update_timestamp:
             record.updated_at = now_iso()
 
-    if logger is not None:
-        logger(
-            {
-                "event": "TASK_STATUS_CHANGED",
-                "task_id": context.task.task_id,
-                "from_status": from_status.value,
-                "to_status": to_status.value,
-            }
-        )
+    log_handler = logger or _default_status_logger
+    log_handler(
+        {
+            "event": "TASK_STATUS_CHANGED",
+            "task_id": context.task.task_id,
+            "from_status": from_status.value,
+            "to_status": to_status.value,
+            "state": context.status.value,
+            "reason": reason,
+        }
+    )

@@ -79,8 +79,23 @@ class PatchRunner:
                 next_step_index=step_index + 1,
             )
 
-        transition_task_status(context, record, TaskStatus.WAITING_PATCH)
-        transition_task_status(context, record, TaskStatus.PATCHING)
+        patch_reason = (
+            "retry_exhausted"
+            if result.metrics.get("retry_exhausted")
+            else "patch_required"
+        )
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.WAITING_PATCH,
+            reason=patch_reason,
+        )
+        transition_task_status(
+            context,
+            record,
+            TaskStatus.PATCHING,
+            reason="patch_start",
+        )
         try:
             patch_request = build_patch_request(
                 plan=plan,
@@ -91,7 +106,12 @@ class PatchRunner:
             plan_patch = self._planner.patch(patch_request)
             patched_plan = apply_patch(plan, plan_patch)
         except Exception:
-            transition_task_status(context, record, TaskStatus.WAITING_REPLAN)
+            transition_task_status(
+                context,
+                record,
+                TaskStatus.WAITING_REPLAN,
+                reason="patch_failed",
+            )
             raise
 
         # 将最新的 plan 写回 context（如果 task_id 匹配）
