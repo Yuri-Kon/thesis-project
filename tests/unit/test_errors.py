@@ -13,4 +13,4 @@ from src.workflow.errors import FailureType, is_retryable_failure
     ],
 )
 def test_is_retryable_failure_mapping(failure_type, expected):
-    assert is_retryable_failure(failure_type) is expected
+    assert is_retryable_failure(failure_type) is expected)
