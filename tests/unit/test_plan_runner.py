@@ -448,6 +448,85 @@ def test_run_plan_triggers_patch_after_retry_exhausted(
     assert patch_meta["to_tool"] == "patched_tool"
     assert patch_meta["patched_status"] == "success"
 
+
+def test_run_plan_executes_insert_before_patch_steps(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """insert_step_before 的补丁应先执行新插入步骤，再执行原目标步骤"""
+
+    class SequencedStepRunner(StepRunnerLike):
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+            self.calls.append(step.id)
+            if step.id == "S1" and self.calls.count("S1") == 1:
+                return StepResult(
+                    task_id=context.task.task_id,
+                    step_id=step.id,
+                    tool=step.tool,
+                    status="failed",
+                    failure_type=FailureType.RETRYABLE,
+                    error_message="boom",
+                    error_details={},
+                    outputs={},
+                    metrics={"retry_exhausted": True},
+                    risk_flags=[],
+                    logs_path=None,
+                    timestamp=now_iso(),
+                )
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="success",
+                failure_type=None,
+                error_message=None,
+                error_details={},
+                outputs={"dummy_output": "ok"},
+                metrics={},
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso(),
+            )
+
+    class InsertBeforePlanner(PlannerAgent):
+        def __init__(self) -> None:
+            super().__init__(tool_registry=[])
+            self.requests = []
+
+        def patch(self, request: PatchRequest):  # type: ignore[override]
+            self.requests.append(request)
+            prep_step = PlanStep(
+                id="S0",
+                tool="prep_tool",
+                inputs={},
+                metadata={},
+            )
+            op = PlanPatchOp(
+                op="insert_step_before",
+                target="S1",
+                step=prep_step,
+            )
+            return PlanPatch(task_id=request.task_id, operations=[op], metadata={})
+
+    runner = SequencedStepRunner()
+    planner = InsertBeforePlanner()
+    plan_runner = PlanRunner(step_runner=runner, planner_agent=planner)
+
+    returned_plan = plan_runner.run_plan(single_step_plan, planned_context)
+
+    assert runner.calls == ["S1", "S0", "S1"]
+    assert planner.requests, "Planner.patch 应被调用"
+    assert returned_plan.steps[0].id == "S0"
+    assert planned_context.plan is returned_plan
+    assert "S0" in planned_context.step_results
+    assert planned_context.step_results["S1"].status == "success"
+    patch_meta = planned_context.step_results["S1"].metrics.get("patch")
+    assert patch_meta and patch_meta["applied"] is True
+    assert patch_meta["ops"] == ["insert_step_before"]
+
 # A3: 完整状态机测试 - 覆盖所有状态转换场景
 
 @pytest.fixture
