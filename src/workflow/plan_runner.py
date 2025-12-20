@@ -1,9 +1,11 @@
 from __future__ import annotations
 from typing import Protocol
+from src.agents.planner import PlannerAgent
 from src.models.contracts import Plan, StepResult
 from src.models.db import TaskStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
+from src.workflow.patch_runner import PatchRunner
 from src.agents.safety import SafetyAgent
 from src.workflow.errors import (
     FailureType,
@@ -12,6 +14,7 @@ from src.workflow.errors import (
     classify_exception,
     is_retryable_failure,
 )
+from src.workflow.patch import apply_patch, build_patch_request
 
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口，用于依赖注入和单元测试"""
@@ -94,11 +97,20 @@ class PlanRunner:
         self,
         step_runner: StepRunnerLike | None = None,
         safety_agent: SafetyAgent | None = None,
+        planner_agent: PlannerAgent | None = None,
+        patch_runner: PatchRunner | None = None,
     ) -> None:
         # 默认使用真实 StepRunner, 便于生产代码
         self._step_runner: StepRunnerLike = step_runner or StepRunner()
         # A4: 默认使用真实 SafetyAgent, 便于生产代码
         self._safety_agent: SafetyAgent = safety_agent or SafetyAgent()
+        # B3: 默认使用真实 PlannerAgent，用于 patch
+        self._planner: PlannerAgent = planner_agent or PlannerAgent()
+        # B3-5: PatchRunner，封装 patch 闭环
+        self._patch_runner: PatchRunner = patch_runner or PatchRunner(
+            step_runner=self._step_runner,
+            planner_agent=self._planner,
+        )
     
     def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
         """执行给定的 Plan, 顺序遍历 plan.steps, 调用 StepRunner 并写入 WorkflowContext
@@ -152,20 +164,28 @@ class PlanRunner:
             context.plan = plan
         
         # 顺序执行 steps, 并将 StepResult 写回 context.step_results
-        for step in plan.steps:
+        step_index = 0
+        while step_index < len(plan.steps):
             try:
-                step_result = self._step_runner.run_step(step, context)
+                plan, step_result = self._patch_runner.run_step_with_patch(
+                    plan, step_index, context
+                )
             except StepRunError as exc:
+                step = plan.steps[step_index]
                 raise PlanRunError.from_step_error(step.id, exc) from exc
             except Exception as exc:
+                step = plan.steps[step_index]
                 failure_type = classify_exception(exc)
                 raise PlanRunError(
                     failure_type=failure_type,
-                    message=f"Unexpected error when executing step {step.id}: {exc}",
+                    message=(
+                        f"Unexpected error when executing step {step.id}: {exc}"
+                    ),
                     step_id=step.id,
                     code="STEP_EXECUTION_ERROR",
                     cause=exc,
                 ) from exc
+
             context.step_results[step_result.step_id] = step_result
             # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
             step_result.metrics.setdefault("failure_type", step_result.failure_type)
@@ -175,6 +195,9 @@ class PlanRunner:
                 if step_result.failure_type is not None
                 else None,
             )
+
+            # 成功或 patch 成功后推进下一步
+            step_index += 1
         
         # A4: 安全检查 - 最终结果阶段
         final_safety_result = self._safety_agent.check_final_result(

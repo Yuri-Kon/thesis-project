@@ -3,7 +3,10 @@ import pytest
 from src.models.contracts import (
     ProteinDesignTask,
     Plan,
+    PlanPatch,
+    PlanPatchOp,
     PlanStep,
+    PatchRequest,
     StepResult,
     now_iso,
 )
@@ -13,6 +16,7 @@ from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
 from src.workflow.errors import FailureType, PlanRunError, StepRunError
 from src.agents.safety import SafetyAgent
+from src.agents.planner import PlannerAgent
 
 class DummyStepRunner(StepRunnerLike):
     """用于测试简单的 StepRunner, 记录调用顺序并返回可控的 StepResult"""
@@ -362,6 +366,87 @@ def test_run_plan_with_empty_steps_updates_status(
     # 没有步骤执行
     assert runner.called_steps == []
     assert planned_context.step_results == {}
+
+
+def test_run_plan_triggers_patch_after_retry_exhausted(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """重试耗尽失败时，PlanRunner 应构造 PatchRequest 并应用 PlanPatch"""
+
+    class TwoPhaseStepRunner(StepRunnerLike):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+            self.calls += 1
+            if self.calls == 1:
+                return StepResult(
+                    task_id=context.task.task_id,
+                    step_id=step.id,
+                    tool=step.tool,
+                    status="failed",
+                    failure_type=FailureType.RETRYABLE,
+                    error_message="boom",
+                    error_details={},
+                    outputs={},
+                    metrics={"retry_exhausted": True},
+                    risk_flags=[],
+                    logs_path=None,
+                    timestamp=now_iso(),
+                )
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="success",
+                failure_type=None,
+                error_message=None,
+                error_details={},
+                outputs={"dummy_output": "ok"},
+                metrics={},
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso(),
+            )
+
+    class CapturingPlanner(PlannerAgent):
+        def __init__(self) -> None:
+            super().__init__(tool_registry=[])
+            self.requests = []
+
+        def patch(self, request: PatchRequest):  # type: ignore[override]
+            self.requests.append(request)
+            step = request.original_plan.steps[0]
+            patched_step = PlanStep(
+                id=step.id,
+                tool="patched_tool",
+                inputs=step.inputs,
+                metadata=step.metadata,
+            )
+            op = PlanPatchOp(op="replace_step", target=step.id, step=patched_step)
+            return PlanPatch(task_id=request.task_id, operations=[op], metadata={})
+
+    runner = TwoPhaseStepRunner()
+    planner = CapturingPlanner()
+    plan_runner = PlanRunner(step_runner=runner, planner_agent=planner)
+
+    returned_plan = plan_runner.run_plan(single_step_plan, planned_context)
+
+    assert runner.calls == 2
+    assert planner.requests, "Planner.patch 应被调用"
+    request = planner.requests[0]
+    assert "failure_type" in request.reason
+    assert returned_plan.steps[0].tool == "patched_tool"
+    assert planned_context.plan is returned_plan
+    assert planned_context.step_results["S1"].status == "success"
+    assert planned_context.step_results["S1"].tool == "patched_tool"
+    patch_meta = planned_context.step_results["S1"].metrics.get("patch")
+    assert patch_meta is not None
+    assert patch_meta["applied"] is True
+    assert patch_meta["from_tool"] == "dummy_tool"
+    assert patch_meta["to_tool"] == "patched_tool"
+    assert patch_meta["patched_status"] == "success"
 
 # A3: 完整状态机测试 - 覆盖所有状态转换场景
 

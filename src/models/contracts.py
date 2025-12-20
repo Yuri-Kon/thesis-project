@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 class ProteinDesignTask(BaseModel):
     """上层TaskAPI / CLI 提交的任务对象
@@ -100,6 +100,12 @@ class ReplanRequest(BaseModel):
     safety_events: List[SafetyResult] = Field(default_factory=list)
     reason: str
 
+PlanPatchOpType = Literal[
+    "replace_step",
+    "insert_step_before",
+    "insert_step_after",
+]
+
 class PlanPatchOp(BaseModel):
     """单个 Plan Patch 操作
     
@@ -109,9 +115,39 @@ class PlanPatchOp(BaseModel):
     - "insert_step_after"
     """
 
-    op: Literal["replace_step", "insert_step_before", "insert_step_after"]
+    model_config = ConfigDict(extra="forbid")
+
+    op: PlanPatchOpType
     target: str # 目标 step_id
     step: PlanStep
+
+    @field_validator("step", mode="before")
+    @classmethod
+    def _fill_step_id(cls, value, info):
+        """允许 replace_step 省略 step.id，其余操作需要显式 id"""
+        if not isinstance(value, dict):
+            return value
+
+        op = info.data.get("op")
+        target = info.data.get("target")
+        has_id = "id" in value and value["id"]
+
+        if op == "replace_step":
+            # 默认为复用目标 step_id，保持局部修改语义
+            return {"id": target, **value} if not has_id else value
+
+        if not has_id:
+            raise ValueError("insert step operations require an explicit step.id")
+        return value
+
+    @model_validator(mode="after")
+    def _ensure_step_scope(self):
+        """replace_step 不允许更换 id，避免破坏 Plan/PlanStep 契约"""
+        if self.op == "replace_step" and self.step.id != self.target:
+            raise ValueError(
+                f"replace_step must keep the same id as target ({self.target})"
+            )
+        return self
 
 class PlanPatch(BaseModel):
     """PlannerAgent 针对局部问题生成的最小修改集合"""
