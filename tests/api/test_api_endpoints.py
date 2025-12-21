@@ -1,22 +1,32 @@
 """API端点测试"""
 import pytest
-from fastapi.testclient import TestClient
+import httpx
+
 from src.api.main import app
 from src.models.db import TaskStatus
 
 
 @pytest.mark.api
+@pytest.mark.anyio
 class TestAPIEndpoints:
     """API端点测试类"""
 
     @pytest.fixture
-    def client(self):
-        """创建测试客户端"""
-        return TestClient(app)
+    def anyio_backend(self):
+        return "asyncio"
 
-    def test_create_task_endpoint(self, client: TestClient):
+    @pytest.fixture
+    async def client(self):
+        """创建测试客户端"""
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            yield client
+
+    async def test_create_task_endpoint(self, client: httpx.AsyncClient):
         """测试创建任务端点"""
-        response = client.post(
+        response = await client.post(
             "/tasks",
             json={
                 "goal": "设计一个测试蛋白质",
@@ -31,9 +41,9 @@ class TestAPIEndpoints:
         assert data["goal"] == "设计一个测试蛋白质"
         assert data["status"] == TaskStatus.DONE.value
 
-    def test_create_task_with_minimal_data(self, client: TestClient):
+    async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
-        response = client.post(
+        response = await client.post(
             "/tasks",
             json={"goal": "最小任务"},
         )
@@ -43,9 +53,9 @@ class TestAPIEndpoints:
         assert data["goal"] == "最小任务"
         assert "id" in data
 
-    def test_create_task_with_custom_constraints(self, client: TestClient):
+    async def test_create_task_with_custom_constraints(self, client: httpx.AsyncClient):
         """测试使用自定义约束创建任务"""
-        response = client.post(
+        response = await client.post(
             "/tasks",
             json={
                 "goal": "自定义约束任务",
@@ -62,10 +72,10 @@ class TestAPIEndpoints:
         assert data["constraints"]["length_range"] == [40, 60]
         assert data["metadata"]["priority"] == "high"
 
-    def test_get_task_endpoint_success(self, client: TestClient):
+    async def test_get_task_endpoint_success(self, client: httpx.AsyncClient):
         """测试获取任务端点成功"""
         # 先创建一个任务
-        create_response = client.post(
+        create_response = await client.post(
             "/tasks",
             json={"goal": "测试获取任务"},
         )
@@ -73,24 +83,24 @@ class TestAPIEndpoints:
         task_id = create_response.json()["id"]
         
         # 获取任务
-        get_response = client.get(f"/tasks/{task_id}")
+        get_response = await client.get(f"/tasks/{task_id}")
         
         assert get_response.status_code == 200
         data = get_response.json()
         assert data["id"] == task_id
         assert data["goal"] == "测试获取任务"
 
-    def test_get_task_endpoint_not_found(self, client: TestClient):
+    async def test_get_task_endpoint_not_found(self, client: httpx.AsyncClient):
         """测试获取不存在的任务"""
-        response = client.get("/tasks/nonexistent_task_id")
+        response = await client.get("/tasks/nonexistent_task_id")
         
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_create_task_generates_unique_ids(self, client: TestClient):
+    async def test_create_task_generates_unique_ids(self, client: httpx.AsyncClient):
         """测试创建任务生成唯一ID"""
-        response1 = client.post("/tasks", json={"goal": "任务1"})
-        response2 = client.post("/tasks", json={"goal": "任务2"})
+        response1 = await client.post("/tasks", json={"goal": "任务1"})
+        response2 = await client.post("/tasks", json={"goal": "任务2"})
         
         assert response1.status_code == 200
         assert response2.status_code == 200
@@ -100,9 +110,9 @@ class TestAPIEndpoints:
         
         assert task_id1 != task_id2
 
-    def test_create_task_returns_complete_record(self, client: TestClient):
+    async def test_create_task_returns_complete_record(self, client: httpx.AsyncClient):
         """测试创建任务返回完整记录"""
-        response = client.post(
+        response = await client.post(
             "/tasks",
             json={
                 "goal": "完整记录测试",
@@ -125,7 +135,7 @@ class TestAPIEndpoints:
         assert "plan" in data
         assert "design_result" in data
 
-    def test_get_task_returns_same_data_as_create(self, client: TestClient):
+    async def test_get_task_returns_same_data_as_create(self, client: httpx.AsyncClient):
         """测试获取任务返回与创建时相同的数据"""
         create_data = {
             "goal": "一致性测试",
@@ -133,11 +143,11 @@ class TestAPIEndpoints:
             "metadata": {"test": True},
         }
         
-        create_response = client.post("/tasks", json=create_data)
+        create_response = await client.post("/tasks", json=create_data)
         assert create_response.status_code == 200
         task_id = create_response.json()["id"]
         
-        get_response = client.get(f"/tasks/{task_id}")
+        get_response = await client.get(f"/tasks/{task_id}")
         assert get_response.status_code == 200
         
         created = create_response.json()

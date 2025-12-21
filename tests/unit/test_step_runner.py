@@ -55,6 +55,24 @@ class DummyAdapter(BaseToolAdapter):
         return {"dummy_output": f"executed {self.tool_id}", "inputs": inputs}, {"exec_type": "dummy"}
 
 
+class SpyAdapter(BaseToolAdapter):
+    tool_id = "spy_tool"
+
+    def __init__(self) -> None:
+        self.resolve_called = False
+        self.run_called = False
+        self.received_inputs: dict | None = None
+
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+        self.resolve_called = True
+        return {"value": 42}
+
+    def run_local(self, inputs: dict) -> tuple[dict, dict]:
+        self.run_called = True
+        self.received_inputs = inputs
+        return {"dummy_output": "ok"}, {}
+
+
 @pytest.fixture(autouse=True)
 def dummy_adapter():
     adapter = DummyAdapter()
@@ -239,6 +257,47 @@ def test_run_step_resolves_reference_inputs(dummy_task):
     resolved_inputs = result.outputs["inputs"]
     assert resolved_inputs["seq"] == "AAAABBBBB"
     assert resolved_inputs["k"] == 3
+
+
+def test_run_step_uses_adapter_path(empty_context):
+    """StepRunner 通过 adapter.resolve_inputs + adapter.run_local 执行"""
+    adapter = SpyAdapter()
+    register_adapter(adapter)
+
+    step = PlanStep(
+        id="S1",
+        tool="spy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+    result = runner.run_step(step, empty_context)
+
+    assert adapter.resolve_called is True
+    assert adapter.run_called is True
+    assert adapter.received_inputs == {"value": 42}
+    assert result.outputs["dummy_output"] == "ok"
+    assert result.metrics.get("exec_type") == "adapter_local"
+
+
+def test_run_step_missing_adapter_returns_failed_result(empty_context):
+    """缺失 adapter 时返回不可重试失败"""
+    step = PlanStep(
+        id="S1",
+        tool="missing_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert "Adapter not found" in result.error_message
+    assert result.error_details.get("phase") == "adapter_lookup"
+    assert result.metrics.get("exec_type") == "adapter_lookup"
 
 def test_run_step_invalid_reference_returns_failed_result(dummy_task):
     """对于无法解析的引用，返回 failed 的 StepResult，并标记不可重试"""

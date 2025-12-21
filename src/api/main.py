@@ -22,7 +22,7 @@ class TaskCreateRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 @app.post("/tasks", response_model=TaskRecord)
-def create_task(req: TaskCreateRequest):
+async def create_task(req: TaskCreateRequest):
     """创建一个任务并同步执行"""
 
     task_id = f"task_{uuid4().hex[:8]}"
@@ -38,7 +38,7 @@ def create_task(req: TaskCreateRequest):
     return record
 
 @app.get("/tasks/{task_id}", response_model=TaskRecord)
-def get_task(task_id: str):
+async def get_task(task_id: str):
     """查看任务当前状态和摘要"""
     record = TASK_STORE.get(task_id)
     if record is None:
