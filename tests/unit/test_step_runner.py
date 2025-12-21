@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.agents import safety
 from src.workflow import context
 from src.workflow.step_runner import StepRunner
@@ -16,6 +18,70 @@ from src.models.contracts import ProteinDesignTask, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
 from src.models.db import TaskStatus
 from src.workflow.step_runner import StepRetryPolicy
+
+
+def _resolve_inputs(step: PlanStep, context: WorkflowContext) -> dict:
+    resolved = {}
+    for key, val in step.inputs.items():
+        if isinstance(val, str) and "." in val:
+            step_id, field = val.split(".", 1)
+            if step_id and step_id.startswith("S"):
+                if not context.has_step_result(step_id):
+                    raise ValueError(
+                        f"Failed to resolve input reference '{val}' "
+                        f"for step '{step.id}': step '{step_id}' not found in context"
+                    )
+                try:
+                    resolved_value = context.get_step_output(step_id, field)
+                except KeyError as exc:
+                    raise ValueError(
+                        f"Failed to resolve input reference '{val}' "
+                        f"for step '{step.id}': field '{field}' not found in step '{step_id}' outputs"
+                    ) from exc
+                resolved[key] = resolved_value
+                continue
+        resolved[key] = val
+    return resolved
+
+
+class DummyAdapter(BaseToolAdapter):
+    tool_id = "dummy_tool"
+    adapter_id = "dummy_adapter"
+
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+        return _resolve_inputs(step, context)
+
+    def run_local(self, inputs: dict) -> tuple[dict, dict]:
+        return {"dummy_output": f"executed {self.tool_id}", "inputs": inputs}, {"exec_type": "dummy"}
+
+
+class SpyAdapter(BaseToolAdapter):
+    tool_id = "spy_tool"
+
+    def __init__(self) -> None:
+        self.resolve_called = False
+        self.run_called = False
+        self.received_inputs: dict | None = None
+
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+        self.resolve_called = True
+        return {"value": 42}
+
+    def run_local(self, inputs: dict) -> tuple[dict, dict]:
+        self.run_called = True
+        self.received_inputs = inputs
+        return {"dummy_output": "ok"}, {}
+
+
+@pytest.fixture(autouse=True)
+def dummy_adapter():
+    adapter = DummyAdapter()
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
+    register_adapter(adapter)
+    yield adapter
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
 
 def _isoformat_utc(s: str) -> bool:
     """简单校验一个字符串是否看起来像 UTC ISO-8601 时间
@@ -192,6 +258,47 @@ def test_run_step_resolves_reference_inputs(dummy_task):
     assert resolved_inputs["seq"] == "AAAABBBBB"
     assert resolved_inputs["k"] == 3
 
+
+def test_run_step_uses_adapter_path(empty_context):
+    """StepRunner 通过 adapter.resolve_inputs + adapter.run_local 执行"""
+    adapter = SpyAdapter()
+    register_adapter(adapter)
+
+    step = PlanStep(
+        id="S1",
+        tool="spy_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+    result = runner.run_step(step, empty_context)
+
+    assert adapter.resolve_called is True
+    assert adapter.run_called is True
+    assert adapter.received_inputs == {"value": 42}
+    assert result.outputs["dummy_output"] == "ok"
+    assert result.metrics.get("exec_type") == "adapter_local"
+
+
+def test_run_step_missing_adapter_returns_failed_result(empty_context):
+    """缺失 adapter 时返回不可重试失败"""
+    step = PlanStep(
+        id="S1",
+        tool="missing_tool",
+        inputs={"x": 1},
+        metadata={},
+    )
+
+    runner = StepRunner()
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.NON_RETRYABLE
+    assert "Adapter not found" in result.error_message
+    assert result.error_details.get("phase") == "adapter_lookup"
+    assert result.metrics.get("exec_type") == "adapter_lookup"
+
 def test_run_step_invalid_reference_returns_failed_result(dummy_task):
     """对于无法解析的引用，返回 failed 的 StepResult，并标记不可重试"""
 
@@ -221,7 +328,7 @@ def test_run_step_invalid_reference_returns_failed_result(dummy_task):
     assert result.metrics.get("exec_type") == "input_resolution"
 
 
-def test_run_step_tool_failure_returns_failed_result(empty_context, monkeypatch):
+def test_run_step_tool_failure_returns_failed_result(empty_context, dummy_adapter, monkeypatch):
     """工具返回已知失败时，标记为 retryable/tool failure"""
     step = PlanStep(
         id="S1",
@@ -232,14 +339,14 @@ def test_run_step_tool_failure_returns_failed_result(empty_context, monkeypatch)
 
     runner = StepRunner()
 
-    def fake_exec_tool(step, resolved_inputs):
+    def fake_exec_tool(_inputs):
         raise StepRunError(
             failure_type=FailureType.RETRYABLE,
             message="tool returned non-zero exit",
             code="TOOL_RUN_FAILED",
         )
 
-    monkeypatch.setattr(runner, "_execute_tool", fake_exec_tool)
+    monkeypatch.setattr(dummy_adapter, "run_local", fake_exec_tool)
 
     result = runner.run_step(step, empty_context)
 
@@ -249,7 +356,7 @@ def test_run_step_tool_failure_returns_failed_result(empty_context, monkeypatch)
     assert result.metrics.get("exec_type") == "tool_execution"
 
 
-def test_run_step_tool_exception_returns_tool_error(empty_context, monkeypatch):
+def test_run_step_tool_exception_returns_tool_error(empty_context, dummy_adapter, monkeypatch):
     """未预期异常应标记为 TOOL_ERROR"""
     step = PlanStep(
         id="S1",
@@ -260,10 +367,10 @@ def test_run_step_tool_exception_returns_tool_error(empty_context, monkeypatch):
 
     runner = StepRunner()
 
-    def crash_exec_tool(step, resolved_inputs):
+    def crash_exec_tool(_inputs):
         raise RuntimeError("segfault")
 
-    monkeypatch.setattr(runner, "_execute_tool", crash_exec_tool)
+    monkeypatch.setattr(dummy_adapter, "run_local", crash_exec_tool)
 
     result = runner.run_step(step, empty_context)
 
@@ -273,7 +380,7 @@ def test_run_step_tool_exception_returns_tool_error(empty_context, monkeypatch):
     assert result.metrics.get("exec_type") == "tool_execution"
 
 
-def test_run_step_missing_required_output_marks_non_retryable(empty_context, monkeypatch):
+def test_run_step_missing_required_output_marks_non_retryable(empty_context, dummy_adapter, monkeypatch):
     """缺少必需输出字段时，标记为不可重试失败"""
     step = PlanStep(
         id="S1",
@@ -283,7 +390,7 @@ def test_run_step_missing_required_output_marks_non_retryable(empty_context, mon
     )
 
     runner = StepRunner()
-    monkeypatch.setattr(runner, "_execute_tool", lambda step, inputs: {"some": "value"})
+    monkeypatch.setattr(dummy_adapter, "run_local", lambda _inputs: ({"some": "value"}, {}))
 
     result = runner.run_step(step, empty_context)
 
@@ -293,7 +400,7 @@ def test_run_step_missing_required_output_marks_non_retryable(empty_context, mon
     assert result.metrics.get("exec_type") == "tool_execution"
 
 
-def test_run_step_output_type_mismatch_marks_non_retryable(empty_context, monkeypatch):
+def test_run_step_output_type_mismatch_marks_non_retryable(empty_context, dummy_adapter, monkeypatch):
     """输出类型不符合声明时，标记为不可重试失败"""
     step = PlanStep(
         id="S1",
@@ -304,7 +411,7 @@ def test_run_step_output_type_mismatch_marks_non_retryable(empty_context, monkey
 
     runner = StepRunner()
     # dummy_output 将是字符串，与期望的 dict 不符
-    monkeypatch.setattr(runner, "_execute_tool", lambda step, inputs: "text")
+    monkeypatch.setattr(dummy_adapter, "run_local", lambda _inputs: ({"dummy_output": "text"}, {}))
 
     result = runner.run_step(step, empty_context)
 

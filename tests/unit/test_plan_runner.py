@@ -1,5 +1,7 @@
 import pytest
 
+from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.models.contracts import (
     ProteinDesignTask,
     Plan,
@@ -17,6 +19,53 @@ from src.workflow.plan_runner import PlanRunner, StepRunnerLike
 from src.workflow.errors import FailureType, PlanRunError, StepRunError
 from src.agents.safety import SafetyAgent
 from src.agents.planner import PlannerAgent
+
+
+def _resolve_inputs(step: PlanStep, context: WorkflowContext) -> dict:
+    resolved = {}
+    for key, val in step.inputs.items():
+        if isinstance(val, str) and "." in val:
+            step_id, field = val.split(".", 1)
+            if step_id and step_id.startswith("S"):
+                if not context.has_step_result(step_id):
+                    raise ValueError(
+                        f"Failed to resolve input reference '{val}' "
+                        f"for step '{step.id}': step '{step_id}' not found in context"
+                    )
+                try:
+                    resolved_value = context.get_step_output(step_id, field)
+                except KeyError as exc:
+                    raise ValueError(
+                        f"Failed to resolve input reference '{val}' "
+                        f"for step '{step.id}': field '{field}' not found in step '{step_id}' outputs"
+                    ) from exc
+                resolved[key] = resolved_value
+                continue
+        resolved[key] = val
+    return resolved
+
+
+class DummyAdapter(BaseToolAdapter):
+    def __init__(self, tool_id: str, adapter_id: str | None = None) -> None:
+        self.tool_id = tool_id
+        self.adapter_id = adapter_id
+
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+        return _resolve_inputs(step, context)
+
+    def run_local(self, inputs: dict) -> tuple[dict, dict]:
+        return {"dummy_output": f"executed {self.tool_id}", "inputs": inputs}, {"exec_type": "dummy"}
+
+
+@pytest.fixture(autouse=True)
+def register_dummy_adapters():
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
+    for tool_id in ("tool_a", "tool_b", "tool_c"):
+        register_adapter(DummyAdapter(tool_id))
+    yield
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
 
 class DummyStepRunner(StepRunnerLike):
     """用于测试简单的 StepRunner, 记录调用顺序并返回可控的 StepResult"""

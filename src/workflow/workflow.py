@@ -1,5 +1,6 @@
 from __future__ import annotations
 from src.models.contracts import ProteinDesignTask, now_iso
+from src.adapters.builtins import ensure_builtin_adapters
 from src.models.db import TaskRecord, TaskStatus, TERMINAL_STATES, derive_task_status
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
@@ -9,6 +10,7 @@ from src.workflow.status import transition_task_status
 
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     """同步执行一次完整任务"""
+    ensure_builtin_adapters()
 
     planner = PlannerAgent()
     executor = ExecutorAgent()
