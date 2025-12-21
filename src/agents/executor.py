@@ -13,7 +13,7 @@ class ExecutorAgent:
     当前实现：
     - 使用 StepRunner 执行单个步骤，支持输入解析（包括引用语义）
     - 使用 PlanRunner 执行完整计划，包含安全检查、状态管理等功能
-    后续将通过 Adapter 调用真实工具（ESMFold、ProteinMPNN等）
+    - 通过 AdapterRegistry 调用工具（ESMFold、ProteinMPNN等）
     """
 
     def __init__(self, plan_runner: PlanRunner | None = None):
@@ -29,7 +29,7 @@ class ExecutorAgent:
     def run_step(self, step_id: str, context: WorkflowContext) -> StepResult:
         """执行单个步骤
         
-        使用 StepRunner 来执行步骤，支持输入解析（包括引用语义）。
+        使用 StepRunner 来执行步骤，支持输入解析（包括引用语义），并通过适配器调用工具。
         
         Args:
             step_id: 步骤ID

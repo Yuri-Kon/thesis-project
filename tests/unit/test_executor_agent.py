@@ -1,8 +1,33 @@
 """ExecutorAgent单元测试"""
 import pytest
+
+from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.agents.executor import ExecutorAgent
 from src.workflow.context import WorkflowContext
-from src.models.contracts import Plan, StepResult
+from src.models.contracts import Plan, PlanStep, StepResult
+
+
+class DummyAdapter(BaseToolAdapter):
+    tool_id = "dummy_tool"
+    adapter_id = "dummy_adapter"
+
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+        return dict(step.inputs)
+
+    def run_local(self, inputs: dict) -> tuple[dict, dict]:
+        return {"dummy_output": f"executed {self.tool_id}", "inputs": inputs}, {"exec_type": "dummy"}
+
+
+@pytest.fixture(autouse=True)
+def dummy_adapter():
+    adapter = DummyAdapter()
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
+    register_adapter(adapter)
+    yield adapter
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
 
 
 @pytest.mark.unit
