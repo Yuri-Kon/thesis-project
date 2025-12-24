@@ -1,6 +1,8 @@
 from __future__ import annotations
-from typing import Dict, Any
+
+from typing import Any, Dict
 from uuid import uuid4
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -8,18 +10,17 @@ from src.models.contracts import ProteinDesignTask
 from src.models.db import TaskRecord
 from src.workflow.workflow import run_task_sync
 
-app = FastAPI(title="Protein Design Agent System (Mini Demo)")
+app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.3.1")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
 
+
 class TaskCreateRequest(BaseModel):
     goal: str = Field(..., description="蛋白质设计任务目标(自然语言)")
-    constraints: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="结构化约束"
-    )
+    constraints: Dict[str, Any] = Field(default_factory=dict, description="结构化约束")
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
 
 @app.post("/tasks", response_model=TaskRecord)
 async def create_task(req: TaskCreateRequest):
@@ -36,6 +37,7 @@ async def create_task(req: TaskCreateRequest):
     record = run_task_sync(task)
     TASK_STORE[task_id] = record
     return record
+
 
 @app.get("/tasks/{task_id}", response_model=TaskRecord)
 async def get_task(task_id: str):
