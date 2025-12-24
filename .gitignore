@@ -82,3 +82,5 @@ drafts/
 shared/
 tests/
 .coverage
+nf/
+data/
