@@ -47,6 +47,11 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 - **ProteinToolKG**: 工具节点与兼容关系
 - **Storage**: `output/`、`data/logs`、`data/inputs`
 
+### 外部决策Agent / 人在环路设计
+
+- `HumanDecision` 或 `Human Reviewer` ，作为外部决策Agent
+- 通过 PendingAction / Decision API 与系统交互，而不是直接操纵内部FSM
+
 ![系统构建图](./diagrams/component-views.svg)
 
 ## 运行视图与时序图
@@ -275,6 +280,71 @@ ExecutorAgent就会启动一个小对话：
 
 ![单步骤时序图](./diagrams/single-step-sequence.svg)
 ---   
+
+## 任务生命周期与状态机(FSM)
+
+为了支持 "人在环路"(Human-in-the-loop)、任务快照与可恢复执行，本系统将一次蛋白质设计任务抽象为一个有限自动机(Finite State Machine, FSM)。FSM 不仅表示执行进度，也编码了 "决策阶段" 与 "人工审查点"
+
+### 状态列表
+
+在当前设计中，任务可能处于以下状态(部分为原有状态的语义精化)
+
+|状态|含义|
+|:---|:---|
+|`CREATED`|任务已经创建，尚未开始规划|
+|`PLANNING`|PlannerAgent 正在生成重新执行Plan|
+|`WAITING_PLAN_CONFIRM`|初始 Plan 已经生成，等待人工确认工具链与关键参数|
+|`PLANNED`|Plan 已经确认(自动或人工)，可进入执行阶段|
+|`RUNNING`|ExecutorAgent 正在按照 Plan 执行步骤|
+|`WAITING_PATCH_CONFIRM`|执行中发现局部失败，系统已经生成 Patch 候选，等待人工确认是否应用|
+|`WAITING_REPLAN_CONFIRM`|执行中发现整体风险或目标转移，系统已生成 Replan 候选，等待人工确认是否应用|
+|`SUMMARIZING`|执行完成: SummarizerAgent 正在生成结果汇总与报告|
+|`DONE`|任务成功完成，所有结果已经生成|
+|`FAILED`|任务失败，且无法自动或人工修复|
+|`CANCELLED`|任务被人工显式停止|
+
+其中,所有以 `WAITING_*` 命名的状态均表示:  
+**系统已暂停执行，正等待人类提交决策以继续或终止任务**
+
+### 人在环路与 PendingAction 的关系
+
+为了统一建模 "等待人工输入" 这一行为，系统在进入任意 `WAITING_*` 状态时都会生成一个结构化的 `PendingAction` 对象，例如: 
+
+- `WAITING_PLAN_CONFIRM` → `PendingAction{ action_type="plan_confirm", candidates=[Plan...], ...}`
+- `WAITING_PATCH_CONFIRM` → `PendingAction{ action_type="patch_confirm", candidate_patch=PlanPatch, ...}`
+- `WAITING_REPLAN_CONFIRM` → `PendingAction{ action_type="replan_confirm", candidates=[Replan...], ...}`
+
+此时:
+
+- FSM 的状态固定在对应的`WAITING_*`
+- API层可以通过 `GET /pend-actions` 或 `Get /tasks/{id}` 暴露当前待决策信息
+- 外部UI或CLI将候选方案展示给科研人员
+- 人类提交 `Decision` 后:
+  - 系统能够根据 `Decision` 内容更新 Plan/PlanPatch/Replan
+  - 记录事件日志
+  - 触发一次状态转移
+
+### 快照与可恢复执行的约束
+
+为了支持长时间运行与系统重启后的可靠恢复，FSM 对持久化有明确约束:
+
+1. 状态变更即写入快照与日志事件
+  - 每次状态变更都会:
+    - 更新 Task 的当前状态(例如 `PLNNING → WAITING_PLAN_CONFIRM`)
+    - 追加一条事件 (EventLog): 包含时间、前后状态、触发者、关键元数据
+    - 在关键节点(生成新 Plan / 应用 Patch / 进入 `WAITING_*`)写入 `TaskSnapshot`:
+      - 当前 Plan / PlanPatch / Replan 版本
+      - 已完成步骤索引
+      - 相关 artifacts 路径
+      - 当前 `PendingActin`(若有)
+2. 进入 `WAITING_*` 前必须完成快照
+  - 只有在已经持久化完 Plan、执行进度与 PendingAction 之后，才允许将状态切换为 `WAITING_*`
+  - 这样即便系统进程在等待期间崩溃或重启，任务也可以从快照中恢复到完整的 "等待决策" 场景
+3. 从快照恢复执行
+  - 当系统重启或任务被显式 "恢复执行" 时:
+    - 根据 Task 当前状态和最新 `TaskSnapshot` 恢复上下文
+    - 若处于 `WAITING_*`, 则继续等到 Decision, 不会自动推进
+    - 若处于 `RUNNING`, 则从快照记录的步骤索引继续调度 Executor/ExecutionBackend
 
 ## 数据流与控制流
 
