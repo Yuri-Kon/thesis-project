@@ -177,7 +177,163 @@ class DesignResult(BaseModel):
     metadata: Dictclass
 ```
 
+#### PendingAction 与 Decision 模型
+
+为了统一建模“等待人工输入”这一行为，本系统在实现层引入 `PendingAction` 与 `Decision`
+两个一等数据结构，用于承载 Human-in-the-loop 的交互信息。
+
+- `PendingAction`：描述“系统已经准备好一组候选方案，但需要人来做决策”的状态；
+- `Decision`：描述“人类针对某个 PendingAction 做出的具体选择”。
+
+二者与 FSM 的关系如下：
+
+- 当任务状态进入 `WAITING_PLAN_CONFIRM` / `WAITING_PATCH` / `WAITING_REPLAN` 时：
+  - 创建一条 `PendingAction` 记录；
+  - 任务执行暂停，Executor 不再向前推进；
+- 当人类提交决策后：
+  - 写入一条 `Decision` 记录；
+  - 更新相应的 Plan / PlanPatch / Replan；
+  - 驱动 FSM 进行下一步状态转移（如回到 `RUNNING` 或重新进入 `PLANNING`）。
+
+推荐的数据模型示意如下（以 Pydantic 为例）：
+
+```python
+from enum import Enum
+from datetime import datetime
+from pydantic import BaseModel
+from typing import Dict, List, Optional
+
+
+class PendingActionType(str, Enum):
+    PLAN_CONFIRM = "plan_confirm"     # 初始 Plan 确认
+    PATCH_CONFIRM = "patch_confirm"   # 局部 Patch 应用确认
+    REPLAN_CONFIRM = "replan_confirm" # 整体 Replan 确认
+
+
+class PendingActionStatus(str, Enum):
+    PENDING = "pending"
+    DECIDED = "decided"
+    CANCELLED = "cancelled"
+
+
+class PendingAction(BaseModel):
+    """
+    表示一次等待人工决策的挂起动作。
+    进入任意 WAITING_* 状态时，必须创建一条 PendingAction。
+    """
+    id: str
+    task_id: str
+
+    action_type: PendingActionType
+    status: PendingActionStatus = PendingActionStatus.PENDING
+
+    # 根据 action_type，不同候选可以是 Plan / PlanPatch / Replan 的摘要
+    candidates: List[Dict]  # 具体结构在 Planner 部分定义，如 {"id": "...", "summary": "...", ...}
+
+    # 系统给出的默认建议（例如推荐某个候选、建议终止等）
+    default_suggestion: Optional[str] = None
+
+    # 由 LLM 生成的补充解释信息，帮助科研人员理解候选差异
+    explanation: Optional[str] = None
+
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+    created_by: str = "system"  # 一般由系统创建
+```
+
+`Desicion` 用于记录科研人员对 PendingAction 的操作: 
+
+```python
+class DecisionChoice(str, Enum):
+    ACCEPT = "accept"       # 接受候选方案（如应用 Patch / 采用某个 Plan）
+    REJECT = "reject"       # 拒绝当前候选
+    REPLAN = "replan"       # 要求重新规划（用于 plan_confirm / patch_confirm 等场景）
+    CONTINUE = "continue"   # 继续当前策略（用于 replan_confirm：决定不重规划）
+    CANCEL = "cancel"       # 终止任务
+
+
+class Decision(BaseModel):
+    """
+    表示针对某个 PendingAction 的一次人工决策。
+    """
+    id: str
+    task_id: str
+    pending_action_id: str
+
+    choice: DecisionChoice
+
+    # 若 choice = ACCEPT，则指向被选中的候选 id
+    selected_candidate_id: Optional[str] = None
+
+    # 决策人（科研人员）标识，可与外部用户系统对接
+    decided_by: str
+
+    comment: Optional[str] = None  # 备注/原因说明
+    decided_at: datetime
+```
+
+在具体实现中，可以根据需要将 `candidates: List[Dict]` 进一步细化为:
+
+- `PlanCandidate`(封装 Plan 的摘要与关键指标)
+- `PatchCandidate`(封装 PlanPatch 的摘要)
+- `ReplanCandidate`(封装 Replan 后缀的摘要)
+
+本设计文档中先用 `Dict` 占位，保留实现灵活性
+
 ---
+
+#### TaskSnapshot 模型
+
+为支持任务快照与可恢复执行，本系统对每个任务在关键节点写入一份 `TaskSnapshot` 记录，用于在系统重启或显式恢复时还原上下文
+
+`TaskSnapshot` 的核心字段包括:
+
+- 当前任务状态(FSM 状态)
+- 当前 Plan 版本及其标识
+- 已完成步骤的索引/列表
+- 关键 artifacts(中间产物、结果文件) 的存储路径
+- 若当前处于等待人工决策阶段，则关联 `pending_action_id`
+
+示例模型:  
+
+```python
+class TaskSnapshot(BaseModel):
+    """
+    任务在某一时间点的最小可恢复上下文。
+    """
+    id: str
+    task_id: str
+
+    # 对应 FSM 中的当前状态，例如 RUNNING / WAITING_PLAN_CONFIRM / WAITING_PATCH 等
+    state: str
+
+    # Plan 版本号或哈希，用于指向当前执行的 Plan
+    plan_version: Optional[str] = None
+
+    # 当前已执行完成的步骤索引（例如 0-based index）
+    current_step_index: int = 0
+
+    # 已完成步骤的 id 列表（可选，用于更精细的恢复）
+    completed_step_ids: List[str] = []
+
+    # 关键中间产物、结果文件的路径映射
+    # 例如 {"design_dir": "output/task_xxx/", "mpnn_result": "..."}
+    artifacts: Dict[str, str] = {}
+
+    # 若当前处于 WAITING_* 状态，可关联当前的 PendingAction
+    pending_action_id: Optional[str] = None
+
+    created_at: datetime
+```
+
+约束约定:  
+
+- 进入任意的 `WAITING_*` 状态前必须写入一份最新的 `TaskSnapshot`
+- 从快照恢复时：
+  - 根据 `state` 决定个是否继续执行、继续等待决策、还是直接终止
+  - 以来 `plan_version`/`current_step_index`/`artifacts`
+
+后续在执行层设计中，将给出 "何时写入快照" 和 "如何从快照恢复" 的具体流程
 
 ### API层(`src/api/main/py`)
 
@@ -504,6 +660,46 @@ Graph state包含：
 | `REPLANNING`  | 无可行后缀（搜索失败）              | `FAILED`        | PlannerAgent     |
 | `SUMMARIZING` | DesignResult + 报告生成完成         | `DONE`          | SummarizerAgent  |
 | 任意非终止态   | 发生未捕获异常 / 系统级错误         | `FAILED`        | Workflow 监控模块 |
+
+#### 与架构层 FSM 的对应关系与 Human-in-the-loop 扩展
+
+在 [系统架构设计](./architecture.md)中, 任务状态机以 语义级 FSM 的形式对外暴露，用于描述任务所处的阶段(规划 / 执行 / 总结)以及是否需要人工接入决策；本节给出的 FSM 则是 实现级 FSM ，用于指导执行引擎的实际调度与失败恢复，二者之间存在一一映射关系
+
+##### 状态映射关系(架构层 实现层)
+
+| 架构层状态 | 实现层状态/片段（本节）                      | 说明 |
+|-------------------------------|----------------------------------------------|------|
+| `CREATED`                     | `CREATED`                                    | 一致：任务被 TaskAPI 创建但尚未进入规划。 |
+| `PLANNING`                    | `PLANNING` / `REPLANNING`                    | 架构层只看到“处于规划阶段”；实现层细分为初始规划与基于 ReplanRequest 的再规划。 |
+| `WAITING_PLAN_CONFIRM`        | （待引入：规划完成后，挂起等待人工确认）      | 实现层将增加一个与架构层对应的 `WAITING_PLAN_CONFIRM` 状态，用于在人为确认初始 Plan 前暂停执行。 |
+| `PLANNED`                     | `PLANNED`                                    | 一致：Plan 已被确认，可进入执行阶段。 |
+| `RUNNING`                     | `RUNNING` / `WAITING_PATCH` / `WAITING_REPLAN` / `PATCHING` / `REPLANNING` | 架构层对外统一暴露“执行中”；实现层在内部区分是否进入 Patch / Replan 分支以及当前是否处于补救过程。 |
+| `WAITING_PATCH_CONFIRM`       | `WAITING_PATCH` → `PATCHING` → `RUNNING`     | 架构层只暴露“等待人工确认是否应用 Patch”；在实现层，`WAITING_PATCH` 时创建 PatchRequest，`PATCHING` 为 Planner 生成并应用 PlanPatch，成功后回到 `RUNNING`。 |
+| `WAITING_REPLAN_CONFIRM`      | `WAITING_REPLAN` → `REPLANNING` → (`RUNNING` / `FAILED`) | 架构层只暴露“等待人工决策是否进行整体重规划”；实现层在 `WAITING_REPLAN` 写入 ReplanRequest，`REPLANNING` 阶段由 Planner 搜索新后缀，成功则回到 `RUNNING`，否则进入 `FAILED`。 |
+| `SUMMARIZING`                 | `SUMMARIZING`                                | 一致：SummarizerAgent 汇总所有 StepResult 与 Safety 事件。 |
+| `DONE`                        | `DONE`                                       | 一致：任务成功完成。 |
+| `FAILED`                      | `FAILED`                                     | 一致：任务失败且无法继续。 |
+| `CANCELLED`                   | （未来扩展：实现层可引入 `CANCELLED`）       | 架构层允许任务被用户显式终止；实现层可在后续版本中增加 `CANCELLED` 终止状态，并在 API 层暴露。 |
+
+##### 人在环路(Human-in-the-loop) 在 FSM 中的位置
+
+引入 Human-in-the-loop 之后，任务生命周期中的若干状态会成为 "等待人工决策" 的挂起点:
+
+- `WAITING_PLAN_CONFIRM`: 初始 Plan 已经生成，但在执行前需要科研人员确认工具链与关键参数
+- `WAITING_PATCH` / `WAITING_PATCH_CONFIRM`：某一步骤多次重试失败，系统生成局部 Patch 候选，需要科研人员确认是否应用该 Patch 或转为整体 Replan；
+- `WAITING_REPLAN` / `WAITING_REPLAN_CONFIRM`：SafetyAgent 判定整体风险偏高或目标偏离，Planner 给出 Replan 候选方案集，等待科研人员决定是接受重规划、继续当前策略还是终止任务。
+
+在实现层中，这些“等待人工决策”的状态将统一通过结构化的 `PendingAction` 与 `Decision`
+进行建模：
+
+- 当 FSM 转入 `WAITING_*` 状态时：
+  - 创建一条 `PendingAction` 记录，写入任务当前状态、候选方案（Plan / PlanPatch / Replan），
+    以及系统默认建议与解释信息；
+  - 任务执行暂停，执行器不再推进后续步骤；
+- 当科研人员通过外部 UI / CLI 调用 `Decision` API 提交决策后：
+  - 系统根据决策内容更新内部 Plan / PlanPatch / Replan；
+  - 记录一条 `DECISION_APPLIED` 事件；
+  - 驱动 FSM 进行下一步状态转移（如回到 `RUNNING`、重新进入 `PLANNING`、或进入 `CANCELLED`）。
 
 #### 与 LangGraph 的映射关系
 
