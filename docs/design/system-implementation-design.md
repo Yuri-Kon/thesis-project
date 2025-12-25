@@ -331,7 +331,7 @@ class TaskSnapshot(BaseModel):
 - 进入任意的 `WAITING_*` 状态前必须写入一份最新的 `TaskSnapshot`
 - 从快照恢复时：
   - 根据 `state` 决定个是否继续执行、继续等待决策、还是直接终止
-  - 以来 `plan_version`/`current_step_index`/`artifacts`
+  - 依赖  `plan_version`/`current_step_index`/`artifacts` 重建执行上下文
 
 后续在执行层设计中，将给出 "何时写入快照" 和 "如何从快照恢复" 的具体流程
 
@@ -355,7 +355,29 @@ TaskAPI在architecture中已经有概念性描述，这里是具体实现
 
 #### 任务状态枚举(对齐FSM)
 
-API层使用与内部FSM完全一致的枚举值：
+为支持 Human-in-the-loop（人工审查）并保持架构层 FSM 与实现层 FSM 的一致性，API 层采用
+“对外语义状态（ExternalStatus）+ 内部执行状态（InternalStatus）”的双层表示：
+
+- **ExternalStatus**: 对挖暴露给 UI/CLI/用户的语义状态
+- **InternalStatus**: 执行引擎内部调度状态(更细粒度，用于实现 patch/replan 流程)
+
+##### ExternalStatus(API 对外暴露)
+
+```json
+CREATED
+PLANNING
+WAITING_PLAN_CONFIRM
+PLANNED
+RUNNING
+WAITING_PATCH_CONFIRM
+WAITING_REPLAN_CONFIRM
+SUMMARIZING
+DONE
+FAILED
+CANCELLED
+```
+
+##### InternalStatus(执行器内部使用，可选暴露)
 
 ```json
 CREATED
@@ -369,7 +391,19 @@ REPLANNING
 SUMMARIZING
 DONE
 FAILED
+CANCELLED
 ```
+
+##### 映射时的状态(Internal → External)
+
+- `WAITING_PATCH` / `PATCHING` 映射为 `WAITING_PATCH_CONFIRM`(对外语义：等待人工输入是否应用Patch)
+- `WAITING_REPLAN` / `REPLANNING` 映射为 `WAITING_REPLAN_CONFIRM`(对外语义：等待人工决策是否 Replan)
+
+约束：
+
+- API 响应字段 `status` 必须使用 ExternalStatus
+- 若需要调试/追踪，可附加字段 `internal_status`, 但不得替换 `status`
+- 当 `status` 为任意 `WAITING_*` 时，响应中必须包含 `pending_action`(见 REST API 规范)
 
 所有接口中返回的字段 `status` 必须严格使用以上枚举值
 
@@ -379,22 +413,43 @@ FAILED
 
 ##### POST /tasks
 
-创建一个新的蛋白质设计任务
+创建一个新的蛋白质设计任务。该接口必须快速返回(不等待完整流程)
 
 **请求体**：
 
 ```json
 {
-  "goal": "design a stable 120aa enzyme",
+  "query": "设计一个...",
   "constraints": {
-    "length_range": [100, 140],
-    "safety_level": 1
+    "target_length": 120,
+    "motifs": ["..."],
+    "tools_allowed": ["protein_mpnn", "esmfold"]
   },
-  "metadata": {
-    "user": "demo"
+  "options": {
+    "require_plan_confirm": true
   }
 }
 ```
+
+字段说明：
+
+- `query`: 自然语言任务描述
+- `constraints`: 结构化约束(可为空)
+- `options.require_plan_confirm`: 是否要求初始 Plan 必须经过人工确认(用于强制进入 `WAITING_PLAN_CONFIRM`)
+
+响应(201):
+
+```json
+{
+  "task_id": "task_20250201_001",
+  "status": "CREATED"
+}
+```
+
+约束：
+
+- 任务创建成功后，Workflow 会将任务推进到 `PLANNING`(异步调度)
+- 任务创建失败返回 4xx/5xx, 并提供统一错误格式
 
 处理流程：
 
@@ -417,14 +472,16 @@ FAILED
 
 ##### GET /tasks/{task_id}
 
-查询任务状态(包含Plan、StepResult摘要与Safety事件)
+查询任务状态(包含Plan、StepResult摘要与Safety事件)。  
+该接口用于 "快速响应": 始终返回当前状态与下一步需要的信息。
 
-响应：
+响应(200)：
 
 ```json
 {
   "task_id": "task_20250201_001",
   "status": "RUNNING",
+  "internal_status": "RUNNING"
   "plan_version": 2,
   "current_step": "S3",
   "steps": [
@@ -448,22 +505,126 @@ FAILED
       "message": "Sequence length near upper constraint."
     }
   ],
-  "summary_available": false
+  "pending_action": null,
+  "scores": {"plddt": 0.85, "hydrophobicity": 0.42},
+  "risk_flags": [],
+  "report_path": "output/reports/task_20250201_001.md"
 }
 ```
 
-字段说明：
+当任务处于等待人工决策阶段(`status` 为任意 `WAITING_*`)时， `pending_action` 必须为非空:
 
-| 字段                  | 含义                                     |
-| ------------------- | -------------------------------------- |
-| `status`            | 任务当前状态（FSM 一致）                         |
-| `plan_version`      | 当前 Plan 的版本号（初始为 0，每次 Replan +1）       |
-| `current_step`      | 正在执行或即将执行的步骤                           |
-| `steps[]`           | StepSummary 从数据库读取的摘要                  |
-| `safety_events[]`   | 历史 SafetyResult 的摘要                    |
-| `summary_available` | 若为 true，则可访问 `/tasks/{task_id}/report` |
+```json
+{
+  "task_id": "task_20250201_002",
+  "status": "WAITING_PATCH_CONFIRM",
+  "internal_status": "WAITING_PATCH",
+  "plan_version": 3,
+  "current_step": "S5",
+  "steps": [],
+  "safety_events": [],
+  "pending_action": {
+    "pending_action_id": "pa_000123",
+    "action_type": "patch_confirm",
+    "candidates": [
+      {"candidate_id": "patch_a", "summary": "降低采样温度，重跑ProteinMPNN", "risk": "low", "cost_est": "medium"},
+      {"candidate_id": "patch_b", "summary": "替换折叠工具为ESMFold-lite", "risk": "medium", "cost_est": "low"}
+    ],
+    "default_suggestion": "patch_a",
+    "explanation": "..."
+  },
+  "report_path": null
+}
+```
+
+约束：
+
+- `status`: 必须为 ExternalStatus
+- `internal_status`: 可选返回(用于审计/调试), 但不作为对外状态的判断依据
+- 若 `status` 为 `WAITING_PLAN_CONFIRM` / `WAITING_PATCH_CONFIRM` / `WAITING_REPLAN_CONFIRM`:
+  - `pending_action` 必须存在
+  - `pending_action.action_type` 必须与 `status` 匹配
 
 ---
+
+##### GET /pending-actions
+
+列出所有当前等待人工决策的 PendingAction (用于 UI 的待办列表)
+
+查询参数(可选):
+
+- `status`: 默认 `pending`
+- `task_id`: 按任务过滤
+
+响应（200）：
+
+```json
+[
+  {
+    "pending_action_id": "pa_000123",
+    "task_id": "task_20250201_002",
+    "action_type": "patch_confirm",
+    "created_at": "2025-02-01T12:00:00Z",
+    "summary": "Step S5 重试失败，提供 2 个 Patch 候选"
+  }
+]
+```
+
+约束：
+
+- 仅返回 `PendingActionStatus = pending` 的记录(除非显式过滤)
+- 返回内容为摘要，候选详情以 `GET /tasks/{task_id}` 的 `pending_action` 或数据库读取为准
+
+##### POST /pending-actions/{pending_action_id}/decision
+
+提交人工决策（Decision），用于解除任务在 `WAITING_*` 状态的挂起，并驱动 FSM 继续执行。
+
+请求体：
+
+```json
+{
+  "choice": "accept",
+  "selected_candidate_id": "patch_a",
+  "comment": "先走低风险方案",
+  "decided_by": "user_001"
+}
+```
+
+响应(200):
+
+```json
+{
+  "task_id": "task_20250201_002",
+  "status": "RUNNING",
+  "internal_status": "PATCHING",
+  "pending_action": null
+}
+```
+
+约束(必须严格执行):
+
+1. PendingAction 必须存在且 `status = pending`, 否则返回 409
+2. Task 当前 ExternalStatus 必须与 PendingAction.action_type 匹配，否则返回 409:
+  - `plan_confirm`: `WAITING_PLAN_CONFIRM`
+  - `patch_confirm`: `WAITING_PATCH_CONFIRM`
+  - `replan_confirm`: `WAITING_REPLAN_CONFIRM`
+3. Decision 受 action_type 约束:
+  - `plan_confirm`: 允许 `accept` / `replan` / `cancel`
+  - `patch_confirm`: 允许 `accept` / `replan` / `cancel`
+  - `replan_confirm`: 允许 `accept` / `continue` / `cancel`
+4. Side Effects(提交决策后必须发生的持久化动作)
+  - 写入 `Decision` 记录
+  - 将 PendingAction 标记为 `decided`
+  - 追加 EventLog：`DECISION_APPLIED`
+  - 更新 TaskSnapshot（至少写一次）：记录新的状态与关键选择
+5. 状态转移(外部语义): 
+  - `WAITING_PLAN_CONFIRM` + `accept` → `PLANNED`
+  - `WAITING_PLAN_CONFIRM` + `replan` → `PLANNING`
+  - `WAITING_PATCH_CONFIRM` + `accept` → `RUNNING`（内部进入 PATCHING 后回到 RUNNING）
+  - `WAITING_PATCH_CONFIRM` + `replan` → `WAITING_REPLAN_CONFIRM`（或直接 `PLANNING`，由实现策略决定，但必须一致）
+  - `WAITING_REPLAN_CONFIRM` + `accept` → `PLANNING`
+  - `WAITING_REPLAN_CONFIRM` + `continue` → `RUNNING`
+  - 任意 `WAITING_*` + `cancel` → `CANCELLED`
 
 ##### GET /tasks/{task_id}/report
 
@@ -1308,8 +1469,120 @@ def check_final_result(design_result: DesignResult, context: WorkflowContext) ->
 | `SUMMARY_STARTED`      | Summarizer | 开始生成 DesignResult / 报告     |
 | `SUMMARY_FINISHED`     | Summarizer | 结果汇总完成，进入 DONE 状态          |
 | `TASK_FAILED`          | System     | 任务因错误终止，进入 FAILED 状态       |
+| `PENDING_ACTION_CREATED` | System (Planner/Executor/Safety) | 创建待人工决策对象（PendingAction）。进入任意 `WAITING_*` 状态前必须记录该事件。 |
+| `PENDING_ACTION_UPDATED` | System | PendingAction 候选方案或解释信息更新（例如 Planner 生成新的候选集合覆盖旧集合）。 |
+| `PENDING_ACTION_CANCELLED` | System/Human | PendingAction 被取消（例如任务被取消、或决策切换导致旧 PendingAction 作废）。 |
+| `DECISION_SUBMITTED` | Human/API | 人类提交 Decision（请求到达 API 层并通过基础校验）。 |
+| `DECISION_APPLIED` | System | Decision 被系统应用（写入存储、更新 Plan/PlanPatch/Replan、驱动状态转移）。注意：该事件必须在状态转移成功后写入。 |
+| `TASK_CANCELLED_BY_USER` | Human/API | 用户显式取消任务，任务进入 `CANCELLED` 终止态。 |
 
 若未来新增事件类型，应追加到该列表中，并保持语义稳定。
+
+#### 事件日志与快照写入约束（必须遵守）
+
+本系统的“可追溯执行”依赖于 **事件日志（EventLog）** 与 **任务快照（TaskSnapshot）** 的配合。
+为确保任务可恢复、可审计、可回放，实现必须严格遵循以下约束。
+
+##### 1) 写入原则（Write-Ahead + 原子性）
+
+- **写前日志（Write-Ahead）**：任何会改变任务外部可见行为的操作（状态变更、应用决策、开始/结束执行步骤）
+  必须先写入 EventLog（或与状态写入在同一事务中提交），不得仅在内存中推进状态。
+- **原子提交**：一次“关键动作”要求在同一事务中完成：
+  - Task 状态更新（ExternalStatus / 可选 InternalStatus）
+  - EventLog 追加
+  - 必要时的 TaskSnapshot 写入
+  - 必要时的 PendingAction / Decision 状态更新
+- 若底层存储不支持事务，则必须通过“幂等事件 + 重放修复”策略实现等价一致性（本期实现建议优先选可事务的存储方案）。
+
+##### 2) 必须写事件的关键节点（Mandatory Events）
+
+下列节点必须写 EventLog（缺失视为实现错误）：
+
+1. **状态变更**：任何 Task 状态变化必须记录 `STATE_CHANGED`（若你已有该事件类型）或等价事件。
+2. **进入等待人工决策**：
+   - 在任务即将进入 `WAITING_PLAN_CONFIRM` / `WAITING_PATCH` / `WAITING_REPLAN` 之前：
+     - 必须写入 `PENDING_ACTION_CREATED`
+     - 必须写入最新 `TaskSnapshot`
+     - 然后才允许更新 Task 状态为对应 `WAITING_*`
+3. **提交人工决策**：
+   - API 接收到并通过校验：写 `DECISION_SUBMITTED`
+   - 系统将决策真正应用并完成状态转移：写 `DECISION_APPLIED`
+4. **任务取消**：
+   - 用户取消任务：写 `TASK_CANCELLED_BY_USER`，并将 Task 状态置为 `CANCELLED`
+
+##### 3) 必须写快照的关键节点（Mandatory Snapshots）
+
+以下场景必须写入 TaskSnapshot（缺失视为不可恢复风险）：
+
+- 初始 Plan 固化（从 `PLANNING` 结束并进入 `PLANNED` 或 `WAITING_PLAN_CONFIRM`）
+- 每次将要进入任意 `WAITING_*` 状态之前（与 `PENDING_ACTION_CREATED` 配套）
+- 每次应用 Patch 或接受 Replan 并导致 Plan 发生变化之后
+- Summarizer 输出最终结果（进入 `DONE` 前）
+
+> 备注：快照并不要求记录所有中间过程，但必须保证“最小可恢复上下文”完整：
+> `state + plan_version + current_step_index + artifacts + pending_action_id(可选)`。
+
+---
+
+#### 事件字段与记录格式（推荐）
+
+建议 EventLog 结构满足“可读 + 可检索 + 可回放”三类需求：
+
+```python
+class EventLog(BaseModel):
+    id: str
+    task_id: str
+
+    event_type: str                 # 例如 PENDING_ACTION_CREATED / DECISION_APPLIED
+    ts: datetime                    # 事件时间戳
+
+    actor_type: str                 # system / human / api / workflow
+    actor_id: Optional[str] = None  # user_id 或组件名（PlannerAgent/SafetyAgent 等）
+
+    # 事件相关上下文字段（用于审计、回放与调试）
+    prev_status: Optional[str] = None         # ExternalStatus
+    new_status: Optional[str] = None          # ExternalStatus
+    internal_status: Optional[str] = None     # InternalStatus（可选）
+
+    pending_action_id: Optional[str] = None
+    decision_id: Optional[str] = None
+
+    # 任意扩展信息（必须是可序列化 JSON）
+    data: Dict[str, Any] = {}
+```
+
+推荐的 `data` 内容约定（按事件类型）：
+- `PENDING_ACTION_CREATED`：
+  - `action_type`
+  - `candidate_ids`
+  - `default_suggestion`
+  - `risk_summary`（可选）
+- `DECISION_SUBMITTED` / `DECISION_APPLIED`：
+  - `choice`
+  - `selected_candidate_id`
+  - `comment`（可选）
+- `STATE_CHANGED`：
+  - `reason`（可选，例如 “executor_step_failed”, “safety_block”,“decision_applied”）
+
+#### 与 PendingAction / Decision 的一致性约束（必须遵守）
+
+以下一致性规则用于防止“状态已变更但待办仍挂起”等错误：
+
+1. 若 Task 外部状态为任意 `WAITING_*`：
+   - 必须存在 `PendingActionStatus = pending` 的 PendingAction；
+   - `pending_action.action_type` 必须与当前 `WAITING_*` 匹配；
+   - EventLog 中必须能找到一条最近的 `PENDING_ACTION_CREATED`，且其 `pending_action_id` 与当前一致。
+
+2. 当 `Decision` 被应用（`DECISION_APPLIED` 写入成功）后：
+   - 对应 PendingAction 必须从 `pending` 变更为 `decided`（或 `cancelled`）；
+   - Task 外部状态必须离开 `WAITING_*`（进入 `PLANNING` / `PLANNED` / `RUNNING` / `CANCELLED` 等）；
+   - 必须写入一条新的 `TaskSnapshot`（至少记录决策结果与新状态）。
+
+3. 若任务进入 `FAILED` 或 `CANCELLED` 终止态：
+   - 所有仍处于 `pending` 的 PendingAction 必须被标记为 `cancelled`；
+   - 必须写入 `PENDING_ACTION_CANCELLED`（若存在待办）与终止原因事件（例如 `TASK_FAILED` 或 `TASK_CANCELLED_BY_USER`）。
+
+以上约束作为实现验收标准：任何违反均视为不可追溯或不可恢复缺陷，应在测试中覆盖。
 
 #### 与状态机/数据库的关系
 
