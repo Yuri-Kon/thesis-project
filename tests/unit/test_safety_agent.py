@@ -15,7 +15,7 @@ from src.models.contracts import (
 
 from src.agents.safety import SafetyAgent
 from src.workflow.context import WorkflowContext
-from src.models.db import TaskStatus
+from src.models.db import InternalStatus
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def dummy_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.CREATED,
+            status=InternalStatus.CREATED,
     )
 
 

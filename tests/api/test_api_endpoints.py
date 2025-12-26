@@ -3,7 +3,7 @@ import pytest
 import httpx
 
 from src.api.main import app
-from src.models.db import TaskStatus
+from src.models.db import ExternalStatus
 
 
 @pytest.mark.api
@@ -39,7 +39,7 @@ class TestAPIEndpoints:
         data = response.json()
         assert "id" in data
         assert data["goal"] == "设计一个测试蛋白质"
-        assert data["status"] == TaskStatus.DONE.value
+        assert data["status"] == ExternalStatus.DONE.value
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Protocol
 from src.agents.planner import PlannerAgent
 from src.models.contracts import Plan, ReplanRequest, StepResult
-from src.models.db import TaskRecord, TaskStatus, TERMINAL_STATES
+from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
@@ -16,21 +16,23 @@ from src.workflow.errors import (
     is_retryable_failure,
 )
 
+
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口，用于依赖注入和单元测试"""
 
-    def run_step(self, step, context: WorkflowContext) -> StepResult: # type: ignore
+    def run_step(self, step, context: WorkflowContext) -> StepResult:  # type: ignore
         """执行单个 PlanStep,返回 StepResult
-        
+
         真实实现由 src/workflow/step_runner.StepRunner 提供
         """
 
+
 class PlanRunner:
     """PlanRunner: 顺序执行 Plan.steps, 并回写 WorkflowContext, 管理任务状态
-    
+
     实现最小闭环的行为: 依次执行 Plan 中的步骤
     使用 StepRunner 执行每个步骤，并将执行结果写入 WorkflowContext
-    同时管理 TaskStatus 状态转换
+    同时管理 InternalStatus 状态转换
 
     Attributes:
         step_runner(StepRunner):
@@ -39,10 +41,10 @@ class PlanRunner:
         safety_agent(SafetyAgent):
             通过构造函数注入的安全检查器，用于执行安全检查
             A4 阶段：已接入，执行 task_input 和 final_result 检查
-    
+
     Version:
-        v2(A3扩展): 在 v1 基础上增加 TaskStatus 状态管理
-        
+        v2(C1扩展): 在 v1 基础上增加 InternalStatus 状态管理
+
         完整状态机流程 (CREATED → PLANNING → PLANNED → RUNNING → ... → SUMMARIZING → DONE/FAILED):
         - CREATED → PLANNING: 由 PlannerAgent 负责（任务创建后开始规划）
         - PLANNING → PLANNED: 由 PlannerAgent 负责（规划完成，生成 Plan）
@@ -51,7 +53,7 @@ class PlanRunner:
         - RUNNING → WAITING_REPLAN → REPLANNING → RUNNING/FAILED: 由 PlanRunner 负责（安全阻断或 patch 失败触发再规划）
         - RUNNING → SUMMARIZING: 由 PlanRunner 负责（执行完成，进入汇总阶段）
         - SUMMARIZING → DONE/FAILED: 由 SummarizerAgent 或上层负责（汇总完成，任务结束）
-        
+
         PlanRunner 的状态转换职责:
         - 主要职责: 当 ``context.status == PLANNED`` 时，更新为 ``RUNNING``
         - patch 流程: ``RUNNING → WAITING_PATCH → PATCHING → RUNNING``
@@ -62,7 +64,7 @@ class PlanRunner:
           （允许上层已经设置状态的情况，例如已经是 RUNNING 或终端状态）
         - 终端状态保护: 若 ``context.status`` 为 ``DONE`` 或 ``FAILED``，保持状态不变
           （终端状态不应被 PlanRunner 改变）
-        
+
         - 输入：
             - plan(Plan)
             - context(WorkflowContext)
@@ -89,11 +91,12 @@ class PlanRunner:
                 - 异常发生时，若当前不是终端态，则置为 ``FAILED``
         - 输出:
             - 返回原始 ``plan`` 对象(为未来支持 Patch/Replan 留接口)
-         
+
         Future Work:
             - Patch/Replan 的策略优化与完整前缀锁定逻辑
             - 状态回滚: 未来可能需要在异常时支持状态回滚机制
     """
+
     def __init__(
         self,
         step_runner: StepRunnerLike | None = None,
@@ -112,7 +115,7 @@ class PlanRunner:
             step_runner=self._step_runner,
             planner_agent=self._planner,
         )
-    
+
     def run_plan(
         self,
         plan: Plan,
@@ -124,13 +127,13 @@ class PlanRunner:
         resume_from_existing: bool = False,
     ) -> Plan:
         """执行给定的 Plan, 顺序遍历 plan.steps, 调用 StepRunner 并写入 WorkflowContext
-        
-        同时管理 TaskStatus 状态转换：
+
+        同时管理 InternalStatus 状态转换：
         - 如果 context.status 为 PLANNED，则更新为 RUNNING（主要职责）
         - 如果 context.status 不是 PLANNED，保持原状态不变（允许上层已设置状态）
         - 执行完成后，若 context.status 为 RUNNING，则更新为 SUMMARIZING
         - finalize_status=True 时继续更新为 DONE（最小汇总实现）
-        
+
         Args:
             plan: 要执行的计划对象
             context: 工作流上下文，包含任务信息、当前状态等
@@ -138,14 +141,14 @@ class PlanRunner:
             finalize_status: 是否在 SUMMARIZING 后自动置为 DONE
             max_replans: 允许触发再规划的最大次数（最小实现，默认 1）
             resume_from_existing: 是否基于既有成功结果跳过已完成步骤
-            
+
         Returns:
             Plan: 返回原始 plan 对象（为未来支持 Patch/Replan 预留接口）
-            
+
         Raises:
             ValueError: 当 context.task.task_id 与 plan.task_id 不一致时
             PlanRunError: 当步骤执行/安全阻断/工具异常时，携带统一失败分类
-            
+
         Note:
             - 状态转换遵循完整状态机流程（含 WAITING_PATCH/PATCHING/WAITING_REPLAN/REPLANNING）
             - PlanRunner 主要负责 PLANNED → RUNNING、patch/replan 的中间态推进
@@ -160,11 +163,11 @@ class PlanRunner:
             )
         try:
             # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
-            if context.status == TaskStatus.PLANNED:
+            if context.status == InternalStatus.PLANNED:
                 transition_task_status(
                     context,
                     record,
-                    TaskStatus.RUNNING,
+                    InternalStatus.RUNNING,
                     reason="plan_execution_start",
                 )
 
@@ -192,9 +195,7 @@ class PlanRunner:
             step_index = 0
             while step_index < len(plan.steps):
                 step = plan.steps[step_index]
-                if resume_from_existing and self._should_skip_step(
-                    step, context
-                ):
+                if resume_from_existing and self._should_skip_step(step, context):
                     step_index += 1
                     continue
                 try:
@@ -250,9 +251,10 @@ class PlanRunner:
                     failure_reason = "step_failed"
                     if failed_result.metrics.get("retry_exhausted"):
                         failure_reason = "retry_exhausted"
-                    if self._coerce_failure_type(
-                        failed_result.failure_type
-                    ) == FailureType.SAFETY_BLOCK:
+                    if (
+                        self._coerce_failure_type(failed_result.failure_type)
+                        == FailureType.SAFETY_BLOCK
+                    ):
                         failure_reason = "safety_block"
                     self._request_replan(
                         context,
@@ -270,13 +272,13 @@ class PlanRunner:
                     )
 
                 if (
-                    context.status == TaskStatus.PATCHING
+                    context.status == InternalStatus.PATCHING
                     and self._has_patch_applied(outcome.step_results)
                 ):
                     transition_task_status(
                         context,
                         record,
-                        TaskStatus.RUNNING,
+                        InternalStatus.RUNNING,
                         reason="patch_applied",
                     )
 
@@ -299,31 +301,26 @@ class PlanRunner:
                 )
 
             # A3: 执行完成后，推进 SUMMARIZING（必要时继续 DONE）
-            if context.status == TaskStatus.RUNNING:
+            if context.status == InternalStatus.RUNNING:
                 transition_task_status(
                     context,
                     record,
-                    TaskStatus.SUMMARIZING,
+                    InternalStatus.SUMMARIZING,
                     reason="plan_completed",
                 )
                 if finalize_status:
                     transition_task_status(
                         context,
                         record,
-                        TaskStatus.DONE,
+                        InternalStatus.DONE,
                         reason="summarizer_placeholder",
                     )
 
             # 返回原始 plan(为未来支持 Patch/Replan 预留接口)
             return plan
         except PlanRunError as exc:
-            if (
-                context.status == TaskStatus.WAITING_REPLAN
-                and max_replans > 0
-            ):
-                replanned_plan = self._perform_replan(
-                    plan, context, record, exc
-                )
+            if context.status == InternalStatus.WAITING_REPLAN and max_replans > 0:
+                replanned_plan = self._perform_replan(plan, context, record, exc)
                 return self.run_plan(
                     replanned_plan,
                     context,
@@ -340,7 +337,7 @@ class PlanRunner:
 
     def _add_safety_event(self, context: WorkflowContext, event) -> None:
         """安全事件写入上下文，兼容两种 WorkflowContext 形态"""
-        if hasattr(context, 'add_safety_event'):
+        if hasattr(context, "add_safety_event"):
             context.add_safety_event(event)
         else:
             context.safety_events.append(event)
@@ -387,11 +384,11 @@ class PlanRunner:
         step_id: str | None = None,
     ) -> None:
         """触发 WAITING_REPLAN，并抛出 PlanRunError 交给上层处理"""
-        if context.status != TaskStatus.WAITING_REPLAN:
+        if context.status != InternalStatus.WAITING_REPLAN:
             transition_task_status(
                 context,
                 record,
-                TaskStatus.WAITING_REPLAN,
+                InternalStatus.WAITING_REPLAN,
                 reason=reason,
             )
         raise PlanRunError(
@@ -412,7 +409,7 @@ class PlanRunner:
         transition_task_status(
             context,
             record,
-            TaskStatus.REPLANNING,
+            InternalStatus.REPLANNING,
             reason="replan_requested",
         )
         request = ReplanRequest(
@@ -428,7 +425,7 @@ class PlanRunner:
             transition_task_status(
                 context,
                 record,
-                TaskStatus.FAILED,
+                InternalStatus.FAILED,
                 reason="replan_failed",
             )
             raise PlanRunError(
@@ -443,7 +440,7 @@ class PlanRunner:
             transition_task_status(
                 context,
                 record,
-                TaskStatus.FAILED,
+                InternalStatus.FAILED,
                 reason="replan_failed",
             )
             raise PlanRunError(
@@ -463,7 +460,7 @@ class PlanRunner:
         transition_task_status(
             context,
             record,
-            TaskStatus.RUNNING,
+            InternalStatus.RUNNING,
             reason="replan_succeeded",
         )
         return replanned_plan
@@ -476,11 +473,11 @@ class PlanRunner:
         reason: str,
     ) -> None:
         """将任务状态置为 FAILED（仅对非终态生效）"""
-        if context.status in TERMINAL_STATES:
+        if context.status in TERMINAL_INTERNAL_STATUSES:
             return
         transition_task_status(
             context,
             record,
-            TaskStatus.FAILED,
+            InternalStatus.FAILED,
             reason=reason,
         )

@@ -5,7 +5,7 @@ from typing import Protocol
 
 from src.agents.planner import PlannerAgent
 from src.models.contracts import Plan, PlanPatch, PlanStep, StepResult
-from src.models.db import TaskRecord, TaskStatus
+from src.models.db import TaskRecord, InternalStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
@@ -72,7 +72,7 @@ class PatchRunner:
                 next_step_index=step_index + 1,
             )
 
-        if context.status != TaskStatus.RUNNING:
+        if context.status != InternalStatus.RUNNING:
             return PatchRunOutcome(
                 plan=plan,
                 step_results=[result],
@@ -87,13 +87,13 @@ class PatchRunner:
         transition_task_status(
             context,
             record,
-            TaskStatus.WAITING_PATCH,
+            InternalStatus.WAITING_PATCH,
             reason=patch_reason,
         )
         transition_task_status(
             context,
             record,
-            TaskStatus.PATCHING,
+            InternalStatus.PATCHING,
             reason="patch_start",
         )
         try:
@@ -109,7 +109,7 @@ class PatchRunner:
             transition_task_status(
                 context,
                 record,
-                TaskStatus.WAITING_REPLAN,
+                InternalStatus.WAITING_REPLAN,
                 reason="patch_failed",
             )
             raise

@@ -16,7 +16,7 @@ from src.workflow.step_runner import StepRunner
 from src.workflow.errors import FailureType, StepRunError
 from src.models.contracts import ProteinDesignTask, PlanStep, StepResult
 from src.workflow.context import WorkflowContext
-from src.models.db import TaskStatus
+from src.models.db import InternalStatus
 from src.workflow.step_runner import StepRetryPolicy
 
 
@@ -122,7 +122,7 @@ def empty_context(dummy_task) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.CREATED,
+        status=InternalStatus.CREATED,
     )
 
 def test_run_step_returns_steppresult_instance(empty_context):

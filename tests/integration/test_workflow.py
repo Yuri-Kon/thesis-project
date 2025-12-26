@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 from src.workflow.workflow import run_task_sync
 from src.models.contracts import ProteinDesignTask
-from src.models.db import TaskStatus, TaskRecord
+from src.models.db import ExternalStatus, TaskRecord
 
 
 @pytest.mark.integration
@@ -16,7 +16,7 @@ class TestWorkflowIntegration:
         
         assert isinstance(record, TaskRecord)
         assert record.id == sample_task.task_id
-        assert record.status == TaskStatus.DONE
+        assert record.status == ExternalStatus.DONE
 
     def test_run_task_sync_creates_plan(self, sample_task: ProteinDesignTask):
         """测试任务执行创建计划"""
@@ -48,9 +48,9 @@ class TestWorkflowIntegration:
         # 但可以验证最终状态是正确的
         record = run_task_sync(sample_task)
         
-        assert record.status in [TaskStatus.DONE, TaskStatus.FAILED]
+        assert record.status in [ExternalStatus.DONE, ExternalStatus.FAILED]
         # 对于成功的任务，应该是DONE
-        if record.status == TaskStatus.DONE:
+        if record.status == ExternalStatus.DONE:
             assert record.design_result is not None
 
     def test_run_task_sync_with_custom_constraints(self):
@@ -67,7 +67,7 @@ class TestWorkflowIntegration:
         
         record = run_task_sync(task)
         
-        assert record.status == TaskStatus.DONE
+        assert record.status == ExternalStatus.DONE
         assert record.goal == task.goal
         assert record.constraints == task.constraints
 
@@ -95,7 +95,7 @@ class TestWorkflowIntegration:
         
         record = run_task_sync(task)
         
-        assert record.status == TaskStatus.DONE
+        assert record.status == ExternalStatus.DONE
         assert record.constraints == {}
 
     def test_run_task_sync_preserves_metadata(self, sample_task: ProteinDesignTask):

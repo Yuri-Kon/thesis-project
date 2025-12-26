@@ -12,7 +12,7 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.models.db import TaskStatus
+from src.models.db import InternalStatus
 
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
@@ -170,7 +170,7 @@ def fresh_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.CREATED,
+        status=InternalStatus.CREATED,
     )
 
 @pytest.fixture
@@ -182,7 +182,7 @@ def planned_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.PLANNED,
+        status=InternalStatus.PLANNED,
     )
 
 # 核心行为测试
@@ -320,7 +320,7 @@ def test_run_plan_wraps_unknown_exception_as_tool_error(
     assert excinfo.value.step_id == "S1"
 
 
-# A3: TaskStatus 状态机测试
+# A3: InternalStatus 状态机测试
 
 def test_run_plan_updates_status_from_planned_to_done(
     single_step_plan: Plan,
@@ -331,12 +331,12 @@ def test_run_plan_updates_status_from_planned_to_done(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态应为 PLANNED
-    assert planned_context.status == TaskStatus.PLANNED
+    assert planned_context.status == InternalStatus.PLANNED
     
     plan_runner.run_plan(single_step_plan, planned_context)
     
     # 执行后状态应为 DONE
-    assert planned_context.status == TaskStatus.DONE
+    assert planned_context.status == InternalStatus.DONE
     # 确保步骤已执行
     assert "S1" in planned_context.step_results
 
@@ -350,12 +350,12 @@ def test_run_plan_does_not_change_status_if_not_planned(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 CREATED
-    assert fresh_context.status == TaskStatus.CREATED
+    assert fresh_context.status == InternalStatus.CREATED
     
     plan_runner.run_plan(single_step_plan, fresh_context)
     
     # 状态应保持为 CREATED（不自动更新为 RUNNING）
-    assert fresh_context.status == TaskStatus.CREATED
+    assert fresh_context.status == InternalStatus.CREATED
     # 但步骤应该已执行
     assert "S1" in fresh_context.step_results
 
@@ -371,7 +371,7 @@ def test_run_plan_updates_status_to_done_after_completion(
     plan_runner.run_plan(multi_step_plan, planned_context)
     
     # 执行后状态应为 DONE
-    assert planned_context.status == TaskStatus.DONE
+    assert planned_context.status == InternalStatus.DONE
     # 确保所有步骤已执行
     assert len(planned_context.step_results) == 3
 
@@ -385,14 +385,14 @@ def test_run_plan_maintains_status_on_exception(
     plan_runner = PlanRunner(step_runner=failing_runner)
     
     # 初始状态为 PLANNED
-    assert planned_context.status == TaskStatus.PLANNED
+    assert planned_context.status == InternalStatus.PLANNED
     
     # 执行会抛出异常
     with pytest.raises(PlanRunError) as excinfo:
         plan_runner.run_plan(single_step_plan, planned_context)
     
     # 根据实现，失败应将状态置为 FAILED
-    assert planned_context.status == TaskStatus.FAILED
+    assert planned_context.status == InternalStatus.FAILED
     # 确保没有步骤结果被写入
     assert planned_context.step_results == {}
     assert excinfo.value.failure_type == FailureType.RETRYABLE
@@ -410,7 +410,7 @@ def test_run_plan_with_empty_steps_updates_status(
     plan_runner.run_plan(empty_plan, planned_context)
     
     # 状态应更新为 DONE
-    assert planned_context.status == TaskStatus.DONE
+    assert planned_context.status == InternalStatus.DONE
     # 没有步骤执行
     assert runner.called_steps == []
     assert planned_context.step_results == {}
@@ -430,7 +430,7 @@ def test_run_plan_stops_at_summarizing_when_finalize_false(
         finalize_status=False,
     )
 
-    assert planned_context.status == TaskStatus.SUMMARIZING
+    assert planned_context.status == InternalStatus.SUMMARIZING
 
 
 def test_run_plan_triggers_patch_after_retry_exhausted(
@@ -603,7 +603,7 @@ def planning_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.PLANNING,
+        status=InternalStatus.PLANNING,
     )
 
 
@@ -616,7 +616,7 @@ def running_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.RUNNING,
+        status=InternalStatus.RUNNING,
     )
 
 
@@ -629,7 +629,7 @@ def summarizing_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.SUMMARIZING,
+        status=InternalStatus.SUMMARIZING,
     )
 
 
@@ -642,7 +642,7 @@ def done_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.DONE,
+        status=InternalStatus.DONE,
     )
 
 
@@ -655,7 +655,7 @@ def failed_context(dummy_task: ProteinDesignTask) -> WorkflowContext:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.FAILED,
+        status=InternalStatus.FAILED,
     )
 
 
@@ -668,12 +668,12 @@ def test_run_plan_from_planning_status_does_not_change_status(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 PLANNING
-    assert planning_context.status == TaskStatus.PLANNING
+    assert planning_context.status == InternalStatus.PLANNING
     
     plan_runner.run_plan(single_step_plan, planning_context)
     
     # 状态应保持为 PLANNING（PlanRunner 不负责 PLANNING 状态的管理）
-    assert planning_context.status == TaskStatus.PLANNING
+    assert planning_context.status == InternalStatus.PLANNING
     # 但步骤应该已执行
     assert "S1" in planning_context.step_results
 
@@ -687,12 +687,12 @@ def test_run_plan_from_running_status_updates_to_done(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 RUNNING
-    assert running_context.status == TaskStatus.RUNNING
+    assert running_context.status == InternalStatus.RUNNING
     
     plan_runner.run_plan(single_step_plan, running_context)
     
     # 状态应更新为 DONE
-    assert running_context.status == TaskStatus.DONE
+    assert running_context.status == InternalStatus.DONE
     # 确保步骤已执行
     assert "S1" in running_context.step_results
 
@@ -706,12 +706,12 @@ def test_run_plan_from_summarizing_status_does_not_change_status(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 SUMMARIZING
-    assert summarizing_context.status == TaskStatus.SUMMARIZING
+    assert summarizing_context.status == InternalStatus.SUMMARIZING
     
     plan_runner.run_plan(single_step_plan, summarizing_context)
     
     # 状态应保持为 SUMMARIZING（PlanRunner 不负责 SUMMARIZING 状态的管理）
-    assert summarizing_context.status == TaskStatus.SUMMARIZING
+    assert summarizing_context.status == InternalStatus.SUMMARIZING
     # 但步骤应该已执行
     assert "S1" in summarizing_context.step_results
 
@@ -725,12 +725,12 @@ def test_run_plan_from_done_status_does_not_change_status(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 DONE
-    assert done_context.status == TaskStatus.DONE
+    assert done_context.status == InternalStatus.DONE
     
     plan_runner.run_plan(single_step_plan, done_context)
     
     # 状态应保持为 DONE（终端状态不应被改变）
-    assert done_context.status == TaskStatus.DONE
+    assert done_context.status == InternalStatus.DONE
     # 但步骤应该已执行（允许在终端状态下执行，但状态不变）
     assert "S1" in done_context.step_results
 
@@ -744,12 +744,12 @@ def test_run_plan_from_failed_status_does_not_change_status(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 FAILED
-    assert failed_context.status == TaskStatus.FAILED
+    assert failed_context.status == InternalStatus.FAILED
     
     plan_runner.run_plan(single_step_plan, failed_context)
     
     # 状态应保持为 FAILED（终端状态不应被改变）
-    assert failed_context.status == TaskStatus.FAILED
+    assert failed_context.status == InternalStatus.FAILED
     # 但步骤应该已执行（允许在终端状态下执行，但状态不变）
     assert "S1" in failed_context.step_results
 
@@ -764,11 +764,11 @@ def test_run_plan_state_transition_planned_to_done_is_idempotent(
     
     # 第一次执行：PLANNED → DONE
     plan_runner.run_plan(single_step_plan, planned_context)
-    assert planned_context.status == TaskStatus.DONE
+    assert planned_context.status == InternalStatus.DONE
     
     # 第二次执行：应该保持 DONE
     plan_runner.run_plan(single_step_plan, planned_context)
-    assert planned_context.status == TaskStatus.DONE
+    assert planned_context.status == InternalStatus.DONE
     
     # 确保步骤被执行了两次
     assert len(runner.called_steps) == 2
@@ -784,13 +784,13 @@ def test_run_plan_complete_state_flow_created_stays_created(
     plan_runner = PlanRunner(step_runner=runner)
     
     # 初始状态为 CREATED
-    assert fresh_context.status == TaskStatus.CREATED
+    assert fresh_context.status == InternalStatus.CREATED
     
     # 执行计划（不改变状态，因为不是 PLANNED）
     plan_runner.run_plan(single_step_plan, fresh_context)
     
     # 状态应保持为 CREATED
-    assert fresh_context.status == TaskStatus.CREATED
+    assert fresh_context.status == InternalStatus.CREATED
     # 但步骤应该已执行
     assert "S1" in fresh_context.step_results
     assert fresh_context.plan is single_step_plan
@@ -964,7 +964,7 @@ def test_plan_runner_blocks_when_task_input_safety_blocks(
 
     assert excinfo.value.failure_type == FailureType.SAFETY_BLOCK
     # 输入阻断后最终应进入 FAILED
-    assert planned_context.status == TaskStatus.FAILED
+    assert planned_context.status == InternalStatus.FAILED
     assert planned_context.step_results == {}
     assert planned_context.safety_events[-1].action == "block"
 
@@ -1000,4 +1000,4 @@ def test_plan_runner_blocks_on_final_safety(
     # 步骤已执行，但最终安全阻断
     assert "S1" in planned_context.step_results
     assert planned_context.safety_events[-1].action == "block"
-    assert planned_context.status == TaskStatus.FAILED
+    assert planned_context.status == InternalStatus.FAILED

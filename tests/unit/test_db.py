@@ -1,12 +1,14 @@
 """数据库模型单元测试"""
 import pytest
 from src.models.db import (
-    TaskStatus,
+    ExternalStatus,
+    InternalStatus,
     StepStatus,
     TaskRecord,
     StepRecord,
     derive_task_status,
     step_result_to_record,
+    to_external_status,
 )
 from src.models.contracts import (
     ProteinDesignTask,
@@ -22,13 +24,27 @@ from src.models.contracts import (
 
 @pytest.mark.unit
 class TestTaskStatus:
-    """TaskStatus枚举测试"""
+    """ExternalStatus / InternalStatus 枚举测试"""
 
     def test_task_status_values(self):
-        """测试任务状态值"""
-        expected_names = {
+        """测试 ExternalStatus 状态值"""
+        expected_external = {
             "CREATED",
             "PLANNING",
+            "WAITING_PLAN_CONFIRM",
+            "PLANNED",
+            "RUNNING",
+            "WAITING_PATCH_CONFIRM",
+            "WAITING_REPLAN_CONFIRM",
+            "SUMMARIZING",
+            "DONE",
+            "FAILED",
+            "CANCELLED",
+        }
+        expected_internal = {
+            "CREATED",
+            "PLANNING",
+            "WAITING_PLAN_CONFIRM",
             "PLANNED",
             "RUNNING",
             "WAITING_PATCH",
@@ -38,15 +54,54 @@ class TestTaskStatus:
             "SUMMARIZING",
             "DONE",
             "FAILED",
+            "CANCELLED",
         }
 
-        assert set(TaskStatus.__members__.keys()) == expected_names
-        assert {status.value for status in TaskStatus} == expected_names
+        assert set(ExternalStatus.__members__.keys()) == expected_external
+        assert {status.value for status in ExternalStatus} == expected_external
+        assert set(InternalStatus.__members__.keys()) == expected_internal
+        assert {status.value for status in InternalStatus} == expected_internal
 
     def test_terminal_states(self):
         """测试终端状态"""
-        from src.models.db import TERMINAL_STATES
-        assert TERMINAL_STATES == {TaskStatus.DONE, TaskStatus.FAILED}
+        from src.models.db import (
+            TERMINAL_EXTERNAL_STATUSES,
+            TERMINAL_INTERNAL_STATUSES,
+        )
+
+        assert TERMINAL_EXTERNAL_STATUSES == {
+            ExternalStatus.DONE,
+            ExternalStatus.FAILED,
+            ExternalStatus.CANCELLED,
+        }
+        assert TERMINAL_INTERNAL_STATUSES == {
+            InternalStatus.DONE,
+            InternalStatus.FAILED,
+            InternalStatus.CANCELLED,
+        }
+
+    def test_internal_to_external_mapping(self):
+        """测试内部状态到外部语义状态映射"""
+        assert (
+            to_external_status(InternalStatus.WAITING_PATCH)
+            == ExternalStatus.WAITING_PATCH_CONFIRM
+        )
+        assert (
+            to_external_status(InternalStatus.PATCHING)
+            == ExternalStatus.WAITING_PATCH_CONFIRM
+        )
+        assert (
+            to_external_status(InternalStatus.WAITING_REPLAN)
+            == ExternalStatus.WAITING_REPLAN_CONFIRM
+        )
+        assert (
+            to_external_status(InternalStatus.REPLANNING)
+            == ExternalStatus.WAITING_REPLAN_CONFIRM
+        )
+        assert (
+            to_external_status(InternalStatus.RUNNING)
+            == ExternalStatus.RUNNING
+        )
 
 
 @pytest.mark.unit
@@ -57,7 +112,8 @@ class TestTaskRecord:
         """测试任务记录创建"""
         record = TaskRecord(
             id=sample_task.task_id,
-            status=TaskStatus.CREATED,
+            status=ExternalStatus.CREATED,
+            internal_status=InternalStatus.CREATED,
             created_at=now_iso(),
             updated_at=now_iso(),
             goal=sample_task.goal,
@@ -69,7 +125,8 @@ class TestTaskRecord:
         )
         
         assert record.id == sample_task.task_id
-        assert record.status == TaskStatus.CREATED
+        assert record.status == ExternalStatus.CREATED
+        assert record.internal_status == InternalStatus.CREATED
         assert record.goal == sample_task.goal
 
 
@@ -97,7 +154,7 @@ class TestDeriveTaskStatus:
             design_result,
         )
         
-        assert status == TaskStatus.DONE
+        assert status == InternalStatus.DONE
 
     def test_derive_status_failed_with_failed_step(self, sample_task: ProteinDesignTask):
         """测试有失败步骤时状态为FAILED"""
@@ -124,7 +181,7 @@ class TestDeriveTaskStatus:
             None,
         )
         
-        assert status == TaskStatus.FAILED
+        assert status == InternalStatus.FAILED
 
     def test_derive_status_failed_with_block_safety(self, sample_task: ProteinDesignTask):
         """测试有block安全事件时状态为FAILED"""
@@ -145,7 +202,7 @@ class TestDeriveTaskStatus:
             None,
         )
         
-        assert status == TaskStatus.FAILED
+        assert status == InternalStatus.FAILED
 
     def test_derive_status_created_when_no_plan(self, sample_task: ProteinDesignTask):
         """测试没有计划时状态为CREATED"""
@@ -157,7 +214,7 @@ class TestDeriveTaskStatus:
             None,
         )
         
-        assert status == TaskStatus.CREATED
+        assert status == InternalStatus.CREATED
 
     def test_derive_status_planned_when_plan_exists_but_no_steps(self, sample_task: ProteinDesignTask):
         """测试有计划但无步骤执行时状态为PLANNED"""
@@ -176,7 +233,7 @@ class TestDeriveTaskStatus:
             None,
         )
         
-        assert status == TaskStatus.PLANNED
+        assert status == InternalStatus.PLANNED
 
     def test_derive_status_running_when_steps_executed(self, sample_task: ProteinDesignTask):
         """测试有步骤执行时状态为RUNNING"""
@@ -210,7 +267,7 @@ class TestDeriveTaskStatus:
             None,
         )
         
-        assert status == TaskStatus.RUNNING
+        assert status == InternalStatus.RUNNING
 
 
 @pytest.mark.unit
