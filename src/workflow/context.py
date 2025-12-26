@@ -21,7 +21,7 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
-from src.models.db import TaskStatus
+from src.models.db import InternalStatus
 
 __all__ = ["WorkflowContext"]
 
@@ -57,9 +57,9 @@ class WorkflowContext(BaseModel):
             SummarizerAgent 在 SUMMARIZING 阶段生成的最终设计成果
             在任务未完成前，此字段为 None数据契约
             
-        status: TaskStatus
+        status: InternalStatus
             任务的当前执行状态
-            初始值为 TaskStatus.CREATED
+            初始值为 InternalStatus.CREATED
             在任务执行过程中由各个 Agent 更新
     """
 
@@ -68,7 +68,7 @@ class WorkflowContext(BaseModel):
     step_results: Dict[str, StepResult] = Field(default_factory=dict)
     safety_events: List[SafetyResult] = Field(default_factory=list)
     design_result: Optional[DesignResult] = None
-    status: TaskStatus = TaskStatus.CREATED
+    status: InternalStatus = InternalStatus.CREATED
 
     class Config:
         arbitrary_types_allowed = True

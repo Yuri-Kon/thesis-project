@@ -8,7 +8,7 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.models.db import TaskRecord, TaskStatus
+from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.workflow.context import WorkflowContext
 from src.workflow.patch_runner import PatchRunner
 from src.workflow.errors import FailureType
@@ -88,11 +88,12 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task):
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.RUNNING,
+        status=InternalStatus.RUNNING,
     )
     record = TaskRecord(
         id=sample_task.task_id,
-        status=TaskStatus.RUNNING,
+        status=ExternalStatus.RUNNING,
+        internal_status=InternalStatus.RUNNING,
         goal=sample_task.goal,
         constraints=sample_task.constraints,
         metadata=sample_task.metadata,

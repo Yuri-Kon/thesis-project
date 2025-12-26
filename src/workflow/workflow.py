@@ -1,7 +1,13 @@
 from __future__ import annotations
 from src.models.contracts import ProteinDesignTask, now_iso
 from src.adapters.builtins import ensure_builtin_adapters
-from src.models.db import TaskRecord, TaskStatus, TERMINAL_STATES, derive_task_status
+from src.models.db import (
+    ExternalStatus,
+    InternalStatus,
+    TaskRecord,
+    TERMINAL_INTERNAL_STATUSES,
+    derive_task_status,
+)
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
@@ -19,7 +25,8 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     # 初始 TaskRecord
     record = TaskRecord(
         id=task.task_id,
-        status=TaskStatus.CREATED,
+        status=ExternalStatus.CREATED,
+        internal_status=InternalStatus.CREATED,
         created_at=now_iso(),
         updated_at=now_iso(),
         goal=task.goal,
@@ -36,16 +43,16 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         step_results={},
         safety_events=[],
         design_result=None,
-        status=TaskStatus.CREATED,
+        status=InternalStatus.CREATED,
     )
 
     def _mark_failed_if_needed() -> None:
-        if ctx.status in TERMINAL_STATES:
+        if ctx.status in TERMINAL_INTERNAL_STATUSES:
             return
         transition_task_status(
             ctx,
             record,
-            TaskStatus.FAILED,
+            InternalStatus.FAILED,
             reason="workflow_error",
         )
 
@@ -54,7 +61,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         transition_task_status(
             ctx,
             record,
-            TaskStatus.PLANNING,
+            InternalStatus.PLANNING,
             reason="task_created",
         )
         plan = planner.plan(task)
@@ -63,7 +70,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         transition_task_status(
             ctx,
             record,
-            TaskStatus.PLANNED,
+            InternalStatus.PLANNED,
             reason="plan_generated",
         )
     except Exception:
@@ -76,7 +83,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         transition_task_status(
             ctx,
             record,
-            TaskStatus.RUNNING,
+            InternalStatus.RUNNING,
             reason="plan_execution_start",
         )
         executor.run_plan(plan, ctx, record=record, finalize_status=False)
@@ -89,7 +96,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
         transition_task_status(
             ctx,
             record,
-            TaskStatus.SUMMARIZING,
+            InternalStatus.SUMMARIZING,
             reason="plan_execution_completed",
         )
         design = summarizer.summarize(ctx)
@@ -110,7 +117,7 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
 
     final_reason = (
         "summarizer_completed"
-        if final_status == TaskStatus.DONE
+        if final_status == InternalStatus.DONE
         else "workflow_failed"
     )
     transition_task_status(ctx, record, final_status, reason=final_reason)

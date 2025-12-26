@@ -3,7 +3,13 @@ from __future__ import annotations
 from typing import Callable, Optional
 
 from src.models.contracts import now_iso
-from src.models.db import TERMINAL_STATES, TaskRecord, TaskStatus
+from src.models.db import (
+    ExternalStatus,
+    InternalStatus,
+    TERMINAL_INTERNAL_STATUSES,
+    TaskRecord,
+    to_external_status,
+)
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 
@@ -19,29 +25,40 @@ def _default_status_logger(event: dict) -> None:
     append_event(task_id, event)
 
 # FSM 允许的状态迁移集合，用于基础校验。
-_ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
-    TaskStatus.CREATED: {TaskStatus.PLANNING},
-    TaskStatus.PLANNING: {TaskStatus.PLANNED},
-    TaskStatus.PLANNED: {TaskStatus.RUNNING},
-    TaskStatus.RUNNING: {
-        TaskStatus.SUMMARIZING,
-        TaskStatus.WAITING_PATCH,
-        TaskStatus.WAITING_REPLAN,
+_ALLOWED_TRANSITIONS: dict[InternalStatus, set[InternalStatus]] = {
+    InternalStatus.CREATED: {InternalStatus.PLANNING},
+    InternalStatus.PLANNING: {
+        InternalStatus.PLANNED,
+        InternalStatus.WAITING_PLAN_CONFIRM,
     },
-    TaskStatus.WAITING_PATCH: {TaskStatus.PATCHING},
-    TaskStatus.PATCHING: {TaskStatus.RUNNING, TaskStatus.WAITING_REPLAN},
-    TaskStatus.WAITING_REPLAN: {TaskStatus.REPLANNING},
-    TaskStatus.REPLANNING: {TaskStatus.RUNNING},
-    TaskStatus.SUMMARIZING: {TaskStatus.DONE},
-    TaskStatus.DONE: set(),
-    TaskStatus.FAILED: set(),
+    InternalStatus.WAITING_PLAN_CONFIRM: {
+        InternalStatus.PLANNED,
+        InternalStatus.PLANNING,
+    },
+    InternalStatus.PLANNED: {InternalStatus.RUNNING},
+    InternalStatus.RUNNING: {
+        InternalStatus.SUMMARIZING,
+        InternalStatus.WAITING_PATCH,
+        InternalStatus.WAITING_REPLAN,
+    },
+    InternalStatus.WAITING_PATCH: {InternalStatus.PATCHING},
+    InternalStatus.PATCHING: {
+        InternalStatus.RUNNING,
+        InternalStatus.WAITING_REPLAN,
+    },
+    InternalStatus.WAITING_REPLAN: {InternalStatus.REPLANNING},
+    InternalStatus.REPLANNING: {InternalStatus.RUNNING},
+    InternalStatus.SUMMARIZING: {InternalStatus.DONE},
+    InternalStatus.DONE: set(),
+    InternalStatus.FAILED: set(),
+    InternalStatus.CANCELLED: set(),
 }
 
 
 def transition_task_status(
     context: WorkflowContext,
     record: Optional[TaskRecord],
-    to_status: TaskStatus,
+    to_status: InternalStatus,
     *,
     logger: Optional[StatusLogger] = None,
     reason: Optional[str] = None,
@@ -60,22 +77,32 @@ def transition_task_status(
     Raises:
         ValueError: 当 context/record 状态不一致、终态被修改或非法跳转时。
     """
-    if record is not None and record.status != context.status:
-        raise ValueError(
-            "TaskStatus mismatch between record and context: "
-            f"{record.status} != {context.status}"
-        )
+    if record is not None:
+        expected_external = to_external_status(context.status)
+        if record.status != expected_external:
+            raise ValueError(
+                "ExternalStatus mismatch between record and context: "
+                f"{record.status} != {expected_external}"
+            )
+        if (
+            record.internal_status is not None
+            and record.internal_status != context.status
+        ):
+            raise ValueError(
+                "InternalStatus mismatch between record and context: "
+                f"{record.internal_status} != {context.status}"
+            )
 
     from_status = context.status
     if from_status == to_status:
         return
 
-    if from_status in TERMINAL_STATES:
+    if from_status in TERMINAL_INTERNAL_STATUSES:
         raise ValueError(
             f"Cannot transition from terminal status: {from_status}"
         )
 
-    if to_status == TaskStatus.FAILED:
+    if to_status in (InternalStatus.FAILED, InternalStatus.CANCELLED):
         _apply_status_update(
             context, record, from_status, to_status, logger, reason, update_timestamp
         )
@@ -101,8 +128,8 @@ def transition_task_status(
 def _apply_status_update(
     context: WorkflowContext,
     record: Optional[TaskRecord],
-    from_status: TaskStatus,
-    to_status: TaskStatus,
+    from_status: InternalStatus,
+    to_status: InternalStatus,
     logger: Optional[StatusLogger],
     reason: Optional[str],
     update_timestamp: bool,
@@ -110,7 +137,8 @@ def _apply_status_update(
     """内部辅助函数：更新状态并可选写入状态变更事件。"""
     context.status = to_status
     if record is not None:
-        record.status = to_status
+        record.status = to_external_status(to_status)
+        record.internal_status = to_status
         if update_timestamp:
             record.updated_at = now_iso()
 
@@ -122,6 +150,7 @@ def _apply_status_update(
             "from_status": from_status.value,
             "to_status": to_status.value,
             "state": context.status.value,
+            "external_status": to_external_status(context.status).value,
             "reason": reason,
         }
     )

@@ -11,7 +11,7 @@ from src.models.contracts import (
     now_iso,
 )
 from src.workflow.context import WorkflowContext
-from src.models.db import TaskStatus
+from src.models.db import InternalStatus
 
 
 @pytest.mark.unit  # pytest标记：这是单元测试
@@ -161,14 +161,14 @@ class TestWorkflowContext:
             step_results={},
             safety_events=[],
             design_result=None,
-            status=TaskStatus.CREATED,
+            status=InternalStatus.CREATED,
         )
         
         assert context.task == sample_task
         assert context.plan is None
         assert isinstance(context.step_results, dict)
         assert isinstance(context.safety_events, list)
-        assert context.status == TaskStatus.CREATED
+        assert context.status == InternalStatus.CREATED
 
 
 @pytest.mark.unit
