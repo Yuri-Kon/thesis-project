@@ -119,6 +119,7 @@ ppt/
 resources/papers/
 data/outputs/
 data/logs/
+data/snapshots/
 .coverage
 htmlcov/
 .idea/

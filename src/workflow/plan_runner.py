@@ -1,11 +1,19 @@
 from __future__ import annotations
 from typing import Protocol
 from src.agents.planner import PlannerAgent
-from src.models.contracts import Plan, ReplanRequest, StepResult
+from src.models.contracts import (
+    PendingActionStatus,
+    PendingActionType,
+    Plan,
+    ReplanRequest,
+    StepResult,
+    now_iso,
+)
 from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
+from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.agents.safety import SafetyAgent
 from src.workflow.status import transition_task_status
 from src.workflow.errors import (
@@ -385,6 +393,19 @@ class PlanRunner:
     ) -> None:
         """触发 WAITING_REPLAN，并抛出 PlanRunError 交给上层处理"""
         if context.status != InternalStatus.WAITING_REPLAN:
+            pending_action = build_pending_action(
+                task_id=context.task.task_id,
+                action_type=PendingActionType.REPLAN_CONFIRM,
+                candidates=[],
+                default_suggestion=None,
+                explanation=f"replan requested: {reason}",
+            )
+            enter_waiting_state(
+                context,
+                record,
+                pending_action,
+                InternalStatus.WAITING_REPLAN,
+            )
             transition_task_status(
                 context,
                 record,
@@ -412,6 +433,7 @@ class PlanRunner:
             InternalStatus.REPLANNING,
             reason="replan_requested",
         )
+        self._resolve_pending_replan_action(context, record)
         request = ReplanRequest(
             task_id=context.task.task_id,
             original_plan=plan,
@@ -464,6 +486,24 @@ class PlanRunner:
             reason="replan_succeeded",
         )
         return replanned_plan
+
+    def _resolve_pending_replan_action(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+    ) -> None:
+        action = context.pending_action
+        if (
+            action is None
+            or action.action_type != PendingActionType.REPLAN_CONFIRM
+            or action.status != PendingActionStatus.PENDING
+        ):
+            return
+        action.status = PendingActionStatus.CANCELLED
+        action.decided_at = now_iso()
+        context.pending_action = action
+        if record is not None:
+            record.pending_action = action
 
     def _mark_failed(
         self,

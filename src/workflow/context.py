@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from src.models.contracts import (
     DesignResult,
+    PendingAction,
     Plan,
     ProteinDesignTask,
     SafetyResult,
@@ -68,6 +69,7 @@ class WorkflowContext(BaseModel):
     step_results: Dict[str, StepResult] = Field(default_factory=dict)
     safety_events: List[SafetyResult] = Field(default_factory=list)
     design_result: Optional[DesignResult] = None
+    pending_action: Optional[PendingAction] = None
     status: InternalStatus = InternalStatus.CREATED
 
     class Config:

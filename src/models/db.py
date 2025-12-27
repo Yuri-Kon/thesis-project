@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from .contracts import (
     ProteinDesignTask,
     Plan,
+    PendingAction,
     StepResult,
     DesignResult,
     SafetyResult,
@@ -120,6 +121,9 @@ class TaskRecord(BaseModel):
     # 计划和结果保存为 JSON 格式，后端可序列化为 TEXT / JSONB 等
     plan: Optional[Plan] = None
     design_result: Optional[DesignResult] = None
+
+    # 若处于 WAITING_*，记录当前待决策对象
+    pending_action: Optional[PendingAction] = None
 
     # 安全事件汇总
     safety_events: List[SafetyResult] = Field(default_factory=list)

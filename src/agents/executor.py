@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from src.models.contracts import Plan, StepResult
-from src.models.db import TaskRecord
+from src.models.contracts import DesignResult, Plan, StepResult
+from src.models.db import (
+    InternalStatus,
+    TaskRecord,
+    TERMINAL_INTERNAL_STATUSES,
+    derive_task_status,
+)
+from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.plan_runner import PlanRunner
+from src.workflow.status import transition_task_status
 
 
 class ExecutorAgent:
@@ -88,4 +95,63 @@ class ExecutorAgent:
             record=record,
             finalize_status=finalize_status,
             max_replans=max_replans,
+        )
+
+    def summarize_and_finalize(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        summarizer: SummarizerAgent,
+    ) -> DesignResult:
+        """运行 Summarizer 并驱动 SUMMARIZING → DONE/FAILED 状态变更。"""
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.SUMMARIZING,
+            reason="plan_execution_completed",
+        )
+        try:
+            design = summarizer.summarize(context)
+        except Exception:
+            self._mark_failed_if_needed(context, record, reason="summarizer_error")
+            raise
+
+        context.design_result = design
+        if record is not None:
+            record.design_result = design
+
+        final_status = derive_task_status(
+            context.task,
+            context.plan,
+            context.step_results,
+            context.safety_events,
+            context.design_result,
+        )
+        final_reason = (
+            "summarizer_completed"
+            if final_status == InternalStatus.DONE
+            else "workflow_failed"
+        )
+        transition_task_status(
+            context,
+            record,
+            final_status,
+            reason=final_reason,
+        )
+        return design
+
+    def _mark_failed_if_needed(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        *,
+        reason: str,
+    ) -> None:
+        if context.status in TERMINAL_INTERNAL_STATUSES:
+            return
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.FAILED,
+            reason=reason,
         )

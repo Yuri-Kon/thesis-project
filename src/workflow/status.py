@@ -41,13 +41,24 @@ _ALLOWED_TRANSITIONS: dict[InternalStatus, set[InternalStatus]] = {
         InternalStatus.WAITING_PATCH,
         InternalStatus.WAITING_REPLAN,
     },
-    InternalStatus.WAITING_PATCH: {InternalStatus.PATCHING},
+    InternalStatus.WAITING_PATCH: {
+        InternalStatus.PATCHING,
+        InternalStatus.WAITING_REPLAN,
+    },
     InternalStatus.PATCHING: {
         InternalStatus.RUNNING,
         InternalStatus.WAITING_REPLAN,
+        InternalStatus.PLANNING,
     },
-    InternalStatus.WAITING_REPLAN: {InternalStatus.REPLANNING},
-    InternalStatus.REPLANNING: {InternalStatus.RUNNING},
+    InternalStatus.WAITING_REPLAN: {
+        InternalStatus.REPLANNING,
+        InternalStatus.RUNNING,
+        InternalStatus.PLANNING,
+    },
+    InternalStatus.REPLANNING: {
+        InternalStatus.RUNNING,
+        InternalStatus.PLANNING,
+    },
     InternalStatus.SUMMARIZING: {InternalStatus.DONE},
     InternalStatus.DONE: set(),
     InternalStatus.FAILED: set(),
