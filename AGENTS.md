@@ -1,157 +1,185 @@
-# Repository Guidelines (for Codex)
+# Repository Guidelines(for Codex)
 
-# NOTE: Please answer user questions in Chinese. Code/comments may be in English.
+> Audience: Codex / automated coding agents
+> Language: Please answer user questions in CHINESE. Code and comments may be in English.
 
-This repository implements an **LLM-driven multi-agent workflow** for protein design.
-It is **FSM-driven**, **contract-first**, and supports **retry → patch → replan** at runtime.
+This repository implements an **LLM-driven**, **FSM-governed multi-agent system** for protein design.
 
-Codex MUST follow the invariants and boundaries below. If a request conflicts with them, prefer
-a minimal compliant change and add/adjust tests.
+The system is **contract-first**, **state-machine-driven**, and supports **retry → patch → replan** with optional **Human-in-the-Loop(HITL)** checkpoints.
 
----
+Codex **MUST** follow the invariants, boundaries, and document hierarchy below.
 
-## 0) System Invariants (MUST NOT be violated)
-
-### 0.1 Finite State Machine (FSM) is the source of truth
-
-- Task lifecycle is governed by a finite set of states (e.g. CREATED, PLANNING, PLANNED, RUNNING,
-  WAITING_PATCH, PATCHING, WAITING_REPLAN, REPLANNING, SUMMARIZING, DONE, FAILED).
-- **Do NOT invent new status values.**
-- **Do NOT arbitrarily mutate task status** outside the allowed transitions.
-- Any state transition must be explicit, logged, and consistent across API/DB/logs.
-
-### 0.2 Strict role separation (Planner never executes tools)
-
-- **PlannerAgent** only produces `Plan` / `PlanPatch` / `Replan` outputs.
-- **ExecutorAgent** is the only component that triggers tool execution via adapters/engine.
-- **SafetyAgent** only evaluates risk and returns `SafetyResult` (ok/warn/block).
-- **SummarizerAgent** only aggregates results and generates reports; it does not re-run tools.
-
-### 0.3 Contract-first data model (do not break schemas)
-Core objects are contracts:
-- `ProteinDesignTask`, `Plan`, `PlanStep`, `StepResult`, `DesignResult`, `SafetyResult` (and RiskFlag)
-
-Rules:
-- Do NOT rename or remove existing fields.
-- Do NOT change field meanings.
-- If you must extend, put extras into `metadata` / `metrics` / optional fields, and update all consumers.
-- Step input references like `"S1.sequence"` are part of the contract and MUST be preserved.
-  Resolve references in adapter/input-resolution logic; do not inline values prematurely.
-
-### 0.4 Failure handling is control flow (not just exceptions)
-A step failure does not immediately imply task failure.
-The expected flow is:
-1) retry (bounded, with backoff)
-2) patch (local minimal Plan changes)
-3) replan (suffix regeneration while locking successful prefix)
-Only unrecoverable failures or permanent safety blocks should lead to FAILED.
+If a request conflicts with them, **prefer a minimal compliant change** and **add or update tests**.
 
 ---
 
-## 1) Project Structure & Module Organization
+## 0) Where to Find the Design(READ FIRST)
 
-- `src/` holds the application code. Key packages include:
-  - `agents/` (Planner/Executor/Safety/Summarizer)
-  - `workflow/` (plan runner / step runner / graph orchestration)
-  - `models/` (contracts and typed objects)
-  - `storage/` (logs/artifacts persistence)
-  - `schemas/` (if present, schema validation)
-  - `api/` (FastAPI endpoints / task lifecycle exposure)
-  - `kg/` (ProteinToolKG client and data)
+Before making structural or behavioral changes, consult the following 
+documents in order:
 
-- `tests/` contains pytest suites split into:
-  - `unit/`, `integration/`, and `api/`
-  - Shared fixtures: `tests/conftest.py`
+1. `docs/design/architecture.md`: System-level architecture, FSM, end-to-end workflow, HITL placement(**top-level source of truth**)
+2. `docs/design/agent-design.md`: Responsibilities, I/O contracts, and boundaries of Planner / Executor / Safety / Summarizer.
+3. `docs/design/system-implementation-design.md`: Concrete engineering design: tech stack, code structure, API/FSM alignment, storage. logging.
+4. `docs/design/core-algorithm-spec.md`: PlannerAgent algorithms: Plan / Patch / Replan candidate generation, scoring, HITL gating, Decision application.
 
-- Supporting materials live in:
-  - `docs/`, `resources/`, `data/`, `output/`, `htmlcov/`
+> If code behavior and documentation disagree, **the design documents win**
+
+## 1) System Invariants(MUST NOT be violated)
+
+### Finite State Machine(FSM) is the source of truth
+
+- Task lifecycle is gonverned by a fixed FSM.
+- **DO NOT invent new states** unless explicitly requested by user and reflected in design docs.
+- **DO NOT mutate task status implicitly or out of band**.
+- Every state transition MUST be:
+  - explicit
+  - logged
+  - consistent across API, DB, and logs.
+
+  ---
+
+  ### Strict role separation between Agents
+
+  - PlannerAgent
+    - Generates `Plan` / `PlanPatch` / `Replan`.
+    - MUST NOT execute tools or touch runtime artifacts.
+  - ExecutorAgent
+    - The **only** component allowed to execute tools.
+    - Handles retry / patch / replan control flow.
+  - SafetyAgent
+    - Evaluates risk and emits `SafetyResult`(`ok`/`warn`/`bloc`) only.
+    - MUST NOT modify plans or outputs.
+  - SummarizerAgent
+    - Aggregates results and produces reports.
+    - MUST NOT re-run tools or override safety decisions.
+
+  ---
+
+  ### Contract-first data model(schemas are stable)
+
+  Core contracts include(but are not limited to):
+
+  - `ProteinDesignTask`
+  - `Plan`, `PlanStep`
+  - `StepResult`
+  - `DesignResult`
+  - `SafetyResult`, `RiskFlag`
+  - `PendingAction`, `Decision`(for HITL)
+
+  Rules:
+  
+  - DO NOT rename or remove exsiting fields.
+  - DO NOT change field semantics.
+  - Extensions MUST go into:
+    - `metadata`
+    - `metrics`
+    - optional fields
+  - Step references like `"S1.sequence"` are **part of the contract**:
+    - MUST be preserved
+    - MUST be resolved in adapters / execution logic
+    - MUST NOT be inlined prematurtely.
+
+  ---
+
+  ### Failure handling is control flow, not exceptions
+
+  A step failure does NOT imply task failue.
+
+  Expected order:
+
+  1. retry(bounded, with backoff)
+  2. patch(local, minimal Plan changes)
+  3. replan(regenerate suffix while locking successful prefix)
+
+  Only unrecoverable failures or permanent safety block lead to `FAILED`
+
+  ---
+
+
+## 2) Project Structure (High-Level)
+
+- `src/`
+  - `agents/` — Planner / Executor / Safety / Summarizer implementations
+  - `workflow/` — FSM, graph orchestration, and execution control flow
+  - `models/` — Core contracts, snapshots, and database models
+  - `storage/` — Artifact storage, logs, and persistence utilities
+  - `api/` — FastAPI endpoints exposing task lifecycle and status
+  - `kg/` — ProteinToolKG client logic and tool metadata
+
+- `docs/`
+  - Design documents (**authoritative**; see `docs/design/`)
+
+- `tests/`
+  - `unit/`, `integration/`, `api/`
+  - Shared fixtures in `tests/conftest.py`
+
+- `data/`, `output/`
+  - Inputs, logs, intermediate artifacts, and final results
+
 
 ---
 
-## 2) Build, Test, and Development Commands
+## 3) Coding Style & Conventions
 
-- Install dependencies:
-  - `pip install -r requirements.txt`
+- Primary language: **Python**
+- Follow PEP 8 formatting with 4-space indentation
+- Use type hints consistently where surrounding code does
+- Prefer **small, testable functions**
+- Avoid hidden side effects and implicit state mutation
 
-- Run API locally:
-  - `uvicorn src.api.main:app --reload`
+### Logging
 
-- Run tests:
-  - `pytest`
+- Use structured logs where applicable, including:
+  - `task_id`, `step_id`, `plan_version`, `state`, `event`
+- Logs MUST remain consistent with FSM state and task snapshots
+- **Do NOT log secrets** (API keys, tokens, credentials)
 
-- Full suite script (if present):
-  - `bash run_tests.sh`
-
-- Coverage (optional):
-  - `pytest --cov=src --cov-report=html`
-
----
-
-## 3) Coding Style & Naming Conventions
-
-- Python is the primary language; follow 4-space indentation and PEP 8 formatting.
-- Use type hints consistently where the surrounding code does.
-- Naming:
-  - modules: `snake_case`
-  - classes: `PascalCase`
-  - functions: `snake_case`
-- Prefer small, testable functions. Avoid hidden side effects.
-
-### 3.1 Logging & Observability
-- Use structured logs where applicable (event, task_id, step_id, plan_version, state).
-- Ensure logs remain consistent with FSM and DB snapshots.
-- Do not log secrets (API keys, tokens).
 
 ---
 
-## 4) Testing Guidelines (Required for behavior changes)
+## 4) Testing Requirements (Mandatory for Behavior Changes)
 
-- Framework: pytest
-- Markers may include: `unit`, `integration`, `api`, `slow`
-- Organize tests by scope:
-  - `tests/unit/`, `tests/integration/`, `tests/api/`
+Framework: `pytest`
 
-When modifying:
-- FSM transitions: add/update tests that assert valid transitions and forbid invalid ones.
-- Plan/StepResult/SafetyResult changes: add contract tests and consumer tests.
-- Retry/patch/replan logic: add tests for:
-  - bounded retries + backoff behavior
-  - patch applied then re-execution
-  - replan triggered after patch failure or safety block
-  - prefix-lock correctness
+When modifying behavior, Codex MUST add or update tests covering:
+
+- **FSM transitions**
+  - Assert valid transitions
+  - Forbid invalid transitions
+
+- **Contract changes**
+  - Schema-level tests
+  - Consumer compatibility tests
+
+- **Retry / Patch / Replan logic**
+  - Bounded retries with backoff
+  - Patch application followed by re-execution
+  - Replan triggered after patch failure or safety block
+  - Prefix-lock correctness for suffix replans
+
 
 ---
 
 ## 5) Agent Responsibility Boundaries (Quick Reference)
 
-| Component | Allowed Responsibilities | Forbidden Actions |
-|---|---|---|
-| PlannerAgent | Parse task intent/spec; query KG; generate Plan/Patch/Replan outputs | Execute tools; mutate execution history; direct file I/O as part of tool runs |
-| ExecutorAgent | Execute Plan steps; manage retry/patch/replan triggers; produce StepResult; persist step summaries | Change task goal; invent new contract fields; silently skip required steps |
-| SafetyAgent | Evaluate input/step/output risks; emit SafetyResult with ok/warn/block | Execute tools; modify Plan; modify StepResult outputs |
-| SummarizerAgent | Aggregate results; produce DesignResult + report artifacts | Re-run tools; rewrite step history; alter safety decisions |
+| Agent | Allowed Responsibilities | Forbidden Actions |
+|------|--------------------------|-------------------|
+| PlannerAgent | Parse intent, query KG, generate Plan / Patch / Replan | Execute tools, mutate runtime state |
+| ExecutorAgent | Execute steps, manage retry / patch / replan | Change task goal, invent schemas |
+| SafetyAgent | Evaluate risks, emit SafetyResult | Execute tools, modify plans |
+| SummarizerAgent | Aggregate results, generate reports | Re-run tools, override safety decisions |
+
 
 ---
 
-## 6) Commit & Pull Request Guidelines
+## 6) Safe Defaults (When Unsure)
 
-- Commit messages follow Conventional Commits:
-  - `type(scope): summary`
-  - Examples:
-    - `feat(B2): ...`
-    - `refactor(workflow): ...`
-    - `test(executor): ...`
+If design intent is unclear, Codex SHOULD:
 
-- Keep changes focused.
-- If behavior changes, add or update tests in the matching suite.
+- Prefer **minimal, conservative changes**
+- **Do NOT** introduce new FSM states
+- **Do NOT** move execution logic into Planner / Safety / Summarizer
+- Centralize reference-resolution logic (adapters / step runner)
+- Add tests to lock and document the chosen behavior
 
----
-
-## 7) Safe Defaults for Code Changes (When Unsure)
-
-If you are uncertain about design intent:
-- Prefer minimal changes.
-- Do NOT introduce new states or new required contract fields.
-- Do NOT move tool execution into Planner/Safety/Summarizer.
-- Add tests to lock the behavior.
-- Keep reference-resolution logic centralized (e.g., adapters / step runner), not spread across agents.
