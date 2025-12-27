@@ -3,6 +3,8 @@ import pytest
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.models.contracts import (
+    PendingActionStatus,
+    PendingActionType,
     ProteinDesignTask,
     Plan,
     PlanPatch,
@@ -12,7 +14,7 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.models.db import InternalStatus
+from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
@@ -591,6 +593,96 @@ def test_run_plan_executes_insert_before_patch_steps(
     patch_meta = planned_context.step_results["S1"].metrics.get("patch")
     assert patch_meta and patch_meta["applied"] is True
     assert patch_meta["ops"] == ["insert_step_before"]
+
+
+def test_auto_replan_resolves_pending_action(
+    single_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """自动再规划完成后，不应遗留 PENDING 的 PendingAction"""
+
+    class FailOnceStepRunner(StepRunnerLike):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+            self.calls += 1
+            if self.calls == 1:
+                return StepResult(
+                    task_id=context.task.task_id,
+                    step_id=step.id,
+                    tool=step.tool,
+                    status="failed",
+                    failure_type=FailureType.SAFETY_BLOCK,
+                    error_message="blocked",
+                    error_details={},
+                    outputs={},
+                    metrics={},
+                    risk_flags=[],
+                    logs_path=None,
+                    timestamp=now_iso(),
+                )
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="success",
+                failure_type=None,
+                error_message=None,
+                error_details={},
+                outputs={"dummy_output": "ok"},
+                metrics={},
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso(),
+            )
+
+    class DeterministicReplanPlanner(PlannerAgent):
+        def __init__(self) -> None:
+            super().__init__(tool_registry=[])
+
+        def replan(self, request):  # type: ignore[override]
+            step = request.original_plan.steps[0]
+            replanned_step = PlanStep(
+                id=step.id,
+                tool="replan_tool",
+                inputs=step.inputs,
+                metadata=step.metadata,
+            )
+            return Plan(
+                task_id=request.task_id,
+                steps=[replanned_step],
+                constraints=request.original_plan.constraints,
+                metadata={"strategy": "test"},
+            )
+
+    runner = FailOnceStepRunner()
+    planner = DeterministicReplanPlanner()
+    plan_runner = PlanRunner(step_runner=runner, planner_agent=planner)
+
+    record = TaskRecord(
+        id=planned_context.task.task_id,
+        status=ExternalStatus.PLANNED,
+        internal_status=InternalStatus.PLANNED,
+        created_at=now_iso(),
+        updated_at=now_iso(),
+        goal=planned_context.task.goal,
+        constraints=planned_context.task.constraints,
+        metadata=planned_context.task.metadata,
+        plan=None,
+        design_result=None,
+        safety_events=[],
+    )
+
+    plan_runner.run_plan(single_step_plan, planned_context, record=record)
+
+    assert planned_context.status == InternalStatus.DONE
+    assert planned_context.pending_action is not None
+    assert planned_context.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
+    assert planned_context.pending_action.status == PendingActionStatus.CANCELLED
+    assert planned_context.pending_action.decided_at is not None
+    assert record.pending_action is not None
+    assert record.pending_action.status == PendingActionStatus.CANCELLED
 
 # A3: 完整状态机测试 - 覆盖所有状态转换场景
 

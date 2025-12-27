@@ -1,7 +1,14 @@
 from __future__ import annotations
 from typing import Protocol
 from src.agents.planner import PlannerAgent
-from src.models.contracts import Plan, PendingActionType, ReplanRequest, StepResult
+from src.models.contracts import (
+    PendingActionStatus,
+    PendingActionType,
+    Plan,
+    ReplanRequest,
+    StepResult,
+    now_iso,
+)
 from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
@@ -426,6 +433,7 @@ class PlanRunner:
             InternalStatus.REPLANNING,
             reason="replan_requested",
         )
+        self._resolve_pending_replan_action(context, record)
         request = ReplanRequest(
             task_id=context.task.task_id,
             original_plan=plan,
@@ -478,6 +486,24 @@ class PlanRunner:
             reason="replan_succeeded",
         )
         return replanned_plan
+
+    def _resolve_pending_replan_action(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+    ) -> None:
+        action = context.pending_action
+        if (
+            action is None
+            or action.action_type != PendingActionType.REPLAN_CONFIRM
+            or action.status != PendingActionStatus.PENDING
+        ):
+            return
+        action.status = PendingActionStatus.CANCELLED
+        action.decided_at = now_iso()
+        context.pending_action = action
+        if record is not None:
+            record.pending_action = action
 
     def _mark_failed(
         self,
