@@ -398,6 +398,11 @@ class PlanRunner:
                 record,
                 pending_action,
                 InternalStatus.WAITING_REPLAN,
+            )
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.WAITING_REPLAN,
                 reason=reason,
             )
         raise PlanRunError(

@@ -14,6 +14,9 @@ from src.models.contracts import (
     ReplanRequest,
     StepResult,
 )
+from src.models.db import InternalStatus, TaskRecord, TERMINAL_INTERNAL_STATUSES
+from src.workflow.context import WorkflowContext
+from src.workflow.status import transition_task_status
 
 
 @dataclass(frozen=True)
@@ -68,6 +71,38 @@ class PlannerAgent:
             constraints=task.constraints,
             metadata={},
         )
+
+    def plan_with_status(
+        self,
+        task: ProteinDesignTask,
+        context: WorkflowContext,
+        *,
+        record: TaskRecord | None = None,
+    ) -> Plan:
+        """生成 Plan 并驱动 PLANNING → PLANNED 状态变更。"""
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.PLANNING,
+            reason="task_created",
+        )
+        try:
+            plan = self.plan(task)
+        except Exception:
+            self._mark_failed(context, record, reason="planning_failed")
+            raise
+
+        context.plan = plan
+        if record is not None:
+            record.plan = plan
+
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.PLANNED,
+            reason="plan_generated",
+        )
+        return plan
 
     # --- B3: 局部 Patch ---
     def patch(self, request: PatchRequest) -> PlanPatch:
@@ -153,6 +188,22 @@ class PlannerAgent:
             steps=new_steps,
             constraints=request.original_plan.constraints,
             metadata={"strategy": "replace_failed_step", "reason": request.reason},
+        )
+
+    def _mark_failed(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        *,
+        reason: str,
+    ) -> None:
+        if context.status in TERMINAL_INTERNAL_STATUSES:
+            return
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.FAILED,
+            reason=reason,
         )
 
 

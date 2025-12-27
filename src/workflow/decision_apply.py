@@ -196,10 +196,15 @@ def apply_patch_confirm_decision(
             record,
             replan_action,
             InternalStatus.WAITING_REPLAN,
-            reason="decision_replan_requested",
             event_logger=event_logger,
-            status_logger=status_logger,
             snapshot_writer=snapshot_writer,
+        )
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.WAITING_REPLAN,
+            reason="decision_replan_requested",
+            logger=status_logger,
         )
 
         logger(_decision_event("DECISION_APPLIED", context, action, decision))

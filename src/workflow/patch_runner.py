@@ -124,6 +124,11 @@ class PatchRunner:
             record,
             pending_action,
             InternalStatus.WAITING_PATCH,
+        )
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.WAITING_PATCH,
             reason=patch_reason,
         )
         transition_task_status(
@@ -249,6 +254,11 @@ def _enter_replan_waiting(
         context,
         record,
         pending_action,
+        InternalStatus.WAITING_REPLAN,
+    )
+    transition_task_status(
+        context,
+        record,
         InternalStatus.WAITING_REPLAN,
         reason=reason,
     )

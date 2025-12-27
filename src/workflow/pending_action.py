@@ -13,8 +13,11 @@ from src.models.contracts import (
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord, to_external_status
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
-from src.workflow.snapshots import build_task_snapshot, default_snapshot_writer, SnapshotWriter
-from src.workflow.status import StatusLogger, transition_task_status
+from src.workflow.snapshots import (
+    SnapshotWriter,
+    build_task_snapshot,
+    default_snapshot_writer,
+)
 
 EventLogger = Callable[[dict], None]
 
@@ -58,10 +61,13 @@ def enter_waiting_state(
     *,
     reason: Optional[str] = None,
     event_logger: EventLogger | None = None,
-    status_logger: StatusLogger | None = None,
     snapshot_writer: SnapshotWriter | None = None,
 ) -> None:
-    """Write PendingAction and TaskSnapshot before entering WAITING_*."""
+    """Write PendingAction and TaskSnapshot before entering WAITING_*.
+
+    NOTE: This helper does not transition task status. Callers must invoke
+    transition_task_status explicitly to enter WAITING_*.
+    """
     _validate_waiting_transition(context, pending_action, to_status, record)
     context.pending_action = pending_action
     if record is not None:
@@ -85,14 +91,7 @@ def enter_waiting_state(
         pending_action_id=pending_action.pending_action_id,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
-
-    transition_task_status(
-        context,
-        record,
-        to_status,
-        reason=reason,
-        logger=status_logger,
-    )
+    _ = reason
 
 
 def _validate_waiting_transition(
