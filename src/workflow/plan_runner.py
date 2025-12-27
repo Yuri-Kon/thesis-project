@@ -1,11 +1,12 @@
 from __future__ import annotations
 from typing import Protocol
 from src.agents.planner import PlannerAgent
-from src.models.contracts import Plan, ReplanRequest, StepResult
+from src.models.contracts import Plan, PendingActionType, ReplanRequest, StepResult
 from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
+from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.agents.safety import SafetyAgent
 from src.workflow.status import transition_task_status
 from src.workflow.errors import (
@@ -385,9 +386,17 @@ class PlanRunner:
     ) -> None:
         """触发 WAITING_REPLAN，并抛出 PlanRunError 交给上层处理"""
         if context.status != InternalStatus.WAITING_REPLAN:
-            transition_task_status(
+            pending_action = build_pending_action(
+                task_id=context.task.task_id,
+                action_type=PendingActionType.REPLAN_CONFIRM,
+                candidates=[],
+                default_suggestion=None,
+                explanation=f"replan requested: {reason}",
+            )
+            enter_waiting_state(
                 context,
                 record,
+                pending_action,
                 InternalStatus.WAITING_REPLAN,
                 reason=reason,
             )

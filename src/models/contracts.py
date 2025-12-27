@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Dict, List, Optional, Literal
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+
+
+def now_iso() -> str:
+    """Small helper to generate ISO8601 timestamp strings."""
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 class ProteinDesignTask(BaseModel):
     """上层TaskAPI / CLI 提交的任务对象
@@ -165,6 +171,80 @@ class PatchRequest(BaseModel):
     safety_events: List[SafetyResult] = Field(default_factory=list)
     reason: str
 
-def now_iso() -> str:
-    """小工具，统一生成 ISO8601 时间字符串，后续各处可以复用"""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+class PendingActionType(str, Enum):
+    PLAN_CONFIRM = "plan_confirm"
+    PATCH_CONFIRM = "patch_confirm"
+    REPLAN_CONFIRM = "replan_confirm"
+
+
+class PendingActionStatus(str, Enum):
+    PENDING = "pending"
+    DECIDED = "decided"
+    CANCELLED = "cancelled"
+
+
+class PendingActionCandidate(BaseModel):
+    """候选方案的最小封装"""
+
+    candidate_id: str
+    payload: Plan | PlanPatch
+    summary: Optional[str] = None
+    metadata: Dict = Field(default_factory=dict)
+
+
+class PendingAction(BaseModel):
+    """等待人工决策的结构化对象"""
+
+    pending_action_id: str
+    task_id: str
+    action_type: PendingActionType
+    status: PendingActionStatus = PendingActionStatus.PENDING
+    candidates: List[PendingActionCandidate] = Field(default_factory=list)
+    default_suggestion: Optional[str] = None
+    explanation: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)
+    decided_at: Optional[str] = None
+    created_by: str = "system"
+
+
+class DecisionChoice(str, Enum):
+    ACCEPT = "accept"
+    REPLAN = "replan"
+    CONTINUE = "continue"
+    CANCEL = "cancel"
+
+
+class Decision(BaseModel):
+    """针对 PendingAction 的一次人工决策"""
+
+    decision_id: str
+    task_id: str
+    pending_action_id: str
+    choice: DecisionChoice
+    selected_candidate_id: Optional[str] = None
+    decided_by: str
+    comment: Optional[str] = None
+    decided_at: str = Field(default_factory=now_iso)
+
+    @model_validator(mode="after")
+    def _ensure_accept_has_candidate(self):
+        if self.choice == DecisionChoice.ACCEPT and not self.selected_candidate_id:
+            raise ValueError(
+                "selected_candidate_id is required when choice is accept"
+            )
+        return self
+
+
+class TaskSnapshot(BaseModel):
+    """任务在某一时间点的最小可恢复上下文"""
+
+    snapshot_id: str
+    task_id: str
+    state: str
+    plan_version: Optional[str] = None
+    current_step_index: int = 0
+    completed_step_ids: List[str] = Field(default_factory=list)
+    artifacts: Dict[str, str] = Field(default_factory=dict)
+    pending_action_id: Optional[str] = None
+    created_at: str = Field(default_factory=now_iso)

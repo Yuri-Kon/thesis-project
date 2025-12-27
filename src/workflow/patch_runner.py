@@ -4,13 +4,23 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from src.agents.planner import PlannerAgent
-from src.models.contracts import Plan, PlanPatch, PlanStep, StepResult
+from src.models.contracts import (
+    PendingActionCandidate,
+    PendingActionStatus,
+    PendingActionType,
+    Plan,
+    PlanPatch,
+    PlanStep,
+    StepResult,
+    now_iso,
+)
 from src.models.db import TaskRecord, InternalStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
 from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
+from src.workflow.pending_action import build_pending_action, enter_waiting_state
 
 
 class StepRunnerLike(Protocol):
@@ -84,9 +94,35 @@ class PatchRunner:
             if result.metrics.get("retry_exhausted")
             else "patch_required"
         )
-        transition_task_status(
+        try:
+            patch_request = build_patch_request(
+                plan=plan,
+                failed_step_index=step_index,
+                failed_result=result,
+                context=context,
+            )
+            plan_patch = self._planner.patch(patch_request)
+        except Exception:
+            _enter_replan_waiting(context, record, reason="patch_failed")
+            raise
+
+        patch_candidate = PendingActionCandidate(
+            candidate_id=f"patch_{step.id.lower()}",
+            payload=plan_patch,
+            summary="auto-generated patch candidate",
+            metadata={"reason": patch_reason},
+        )
+        pending_action = build_pending_action(
+            task_id=context.task.task_id,
+            action_type=PendingActionType.PATCH_CONFIRM,
+            candidates=[patch_candidate],
+            default_suggestion=patch_candidate.candidate_id,
+            explanation="patch candidate generated after step failure",
+        )
+        enter_waiting_state(
             context,
             record,
+            pending_action,
             InternalStatus.WAITING_PATCH,
             reason=patch_reason,
         )
@@ -97,21 +133,11 @@ class PatchRunner:
             reason="patch_start",
         )
         try:
-            patch_request = build_patch_request(
-                plan=plan,
-                failed_step_index=step_index,
-                failed_result=result,
-                context=context,
-            )
-            plan_patch = self._planner.patch(patch_request)
             patched_plan = apply_patch(plan, plan_patch)
         except Exception:
-            transition_task_status(
-                context,
-                record,
-                InternalStatus.WAITING_REPLAN,
-                reason="patch_failed",
-            )
+            pending_action.status = PendingActionStatus.CANCELLED
+            pending_action.decided_at = now_iso()
+            _enter_replan_waiting(context, record, reason="patch_failed")
             raise
 
         # 将最新的 plan 写回 context（如果 task_id 匹配）
@@ -204,6 +230,28 @@ class PatchRunner:
             previous_result=pending_patch.previous_result,
             plan_patch=pending_patch.plan_patch,
         )
+
+
+def _enter_replan_waiting(
+    context: WorkflowContext,
+    record: TaskRecord | None,
+    *,
+    reason: str,
+) -> None:
+    pending_action = build_pending_action(
+        task_id=context.task.task_id,
+        action_type=PendingActionType.REPLAN_CONFIRM,
+        candidates=[],
+        default_suggestion=None,
+        explanation="patch failed; replan confirmation required",
+    )
+    enter_waiting_state(
+        context,
+        record,
+        pending_action,
+        InternalStatus.WAITING_REPLAN,
+        reason=reason,
+    )
 
 
 def _summarize_result(result: StepResult) -> dict:
