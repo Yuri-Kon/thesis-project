@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.adapters.dummy_adapter import DummyToolAdapter
 from src.adapters.registry import get_adapter, register_adapter
+from src.tools.visualization.adapter import VisualizationToolAdapter
 
 __all__ = ["ensure_builtin_adapters"]
 
@@ -20,3 +21,7 @@ def ensure_builtin_adapters() -> None:
             get_adapter(tool_id)
         except KeyError:
             register_adapter(DummyToolAdapter(tool_id))
+    try:
+        get_adapter(VisualizationToolAdapter.tool_id)
+    except KeyError:
+        register_adapter(VisualizationToolAdapter())
