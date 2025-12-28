@@ -1,5 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
+import json
 
 from src.models.contracts import DesignResult, now_iso
 from src.workflow.context import WorkflowContext
@@ -34,10 +35,16 @@ class SummarizerAgent:
         if seq_len is not None:
             scores["sequence_length"] = seq_len
         
-        # 创建报告目录
         report_dir = Path("nf/output/reports")
         report_dir.mkdir(parents=True, exist_ok=True)
-        report_path = report_dir / f"{task_id}.json"
+        summary_report_path = report_dir / f"{task_id}.json"
+
+        visualization_artifacts = _extract_visualization_artifacts(context)
+        preferred_report_path, report_source = _select_report_path(
+            visualization_artifacts,
+            report_dir,
+            task_id,
+        )
 
         design = DesignResult(
             task_id=task_id,
@@ -45,13 +52,131 @@ class SummarizerAgent:
             structure_pdb_path=None,  # 当前阶段还没有真实结构
             scores=scores,
             risk_flags=[],
-            report_path=str(report_path),
+            report_path=str(preferred_report_path),
             metadata={
                 "created_at": now_iso(),
                 "step_ids": list(context.step_results.keys()),
+                "artifacts": visualization_artifacts,
+                "summary_report_path": str(summary_report_path),
+                "report_source": report_source,
             },
         )
         
-        # 写入报告文件
-        report_path.write_text(design.model_dump_json(indent=2))
+        summary_report_path.write_text(design.model_dump_json(indent=2))
         return design
+
+
+def _extract_visualization_artifacts(context: WorkflowContext) -> dict:
+    for result in context.step_results.values():
+        outputs = result.outputs or {}
+        if any(
+            key in outputs
+            for key in (
+                "report_html_path",
+                "plotly_html_path",
+                "metrics_json_path",
+                "assets_dir",
+            )
+        ):
+            return {
+                key: outputs.get(key)
+                for key in (
+                    "metrics_json_path",
+                    "plotly_html_path",
+                    "report_html_path",
+                    "assets_dir",
+                    "summary_stats",
+                )
+                if outputs.get(key) is not None
+            }
+    return {}
+
+
+def _select_report_path(
+    artifacts: dict,
+    report_dir: Path,
+    task_id: str,
+) -> tuple[Path, str]:
+    report_html_path = artifacts.get("report_html_path")
+    if report_html_path:
+        return Path(report_html_path), "visualization_tool"
+
+    plotly_html_path = artifacts.get("plotly_html_path")
+    metrics_json_path = artifacts.get("metrics_json_path")
+    if plotly_html_path or metrics_json_path:
+        fallback_path = report_dir / f"{task_id}.html"
+        _write_fallback_report(
+            fallback_path,
+            plotly_html_path,
+            metrics_json_path,
+        )
+        return fallback_path, "visualization_fallback"
+
+    return report_dir / f"{task_id}.json", "summary_json"
+
+
+def _write_fallback_report(
+    report_path: Path,
+    plotly_html_path: str | None,
+    metrics_json_path: str | None,
+) -> None:
+    plotly_snippet = ""
+    if plotly_html_path:
+        plotly_snippet = Path(plotly_html_path).read_text(encoding="utf-8")
+
+    metrics_table = _build_metrics_table(metrics_json_path)
+    report_html = "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="en">',
+            "<head>",
+            '  <meta charset="utf-8" />',
+            "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />",
+            "  <title>Visualization Report</title>",
+            "  <style>",
+            "    body { font-family: Arial, sans-serif; margin: 0; background: #f6f7fb; color: #1d1f27; }",
+            "    main { max-width: 1080px; margin: 0 auto; padding: 32px 20px 48px; }",
+            "    section { background: #ffffff; border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08); }",
+            "    table { border-collapse: collapse; width: 100%; }",
+            "    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e5e7eb; }",
+            "    th { color: #374151; }",
+            "  </style>",
+            "</head>",
+            "<body>",
+            "  <main>",
+            "    <section>",
+            "      <h2>B-factor Trend</h2>",
+            plotly_snippet or "<p>No Plotly output available.</p>",
+            "    </section>",
+            "    <section>",
+            "      <h2>Metrics</h2>",
+            metrics_table,
+            "    </section>",
+            "  </main>",
+            "</body>",
+            "</html>",
+        ]
+    )
+    report_path.write_text(report_html, encoding="utf-8")
+
+
+def _build_metrics_table(metrics_json_path: str | None) -> str:
+    if not metrics_json_path:
+        return "<p>No metrics file available.</p>"
+    try:
+        metrics = json.loads(Path(metrics_json_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return "<p>Failed to load metrics.</p>"
+
+    chain_ids = metrics.get("chain_ids", [])
+    residue_count = metrics.get("residue_count", "N/A")
+    chain_label = ", ".join(chain_ids) if chain_ids else "N/A"
+    return "\n".join(
+        [
+            "<table>",
+            "  <tr><th>Residues</th><td>{}</td></tr>".format(residue_count),
+            "  <tr><th>Chains</th><td>{}</td></tr>".format(chain_label),
+            f"  <tr><th>Metrics JSON</th><td><a href=\"{metrics_json_path}\">{metrics_json_path}</a></td></tr>",
+            "</table>",
+        ]
+    )
