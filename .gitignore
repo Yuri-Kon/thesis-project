@@ -84,3 +84,4 @@ tests/
 .coverage
 nf/
 data/
+scripts/
