@@ -3,6 +3,7 @@
 Generate the demo artifacts and serve them locally to avoid file:// CORS issues.
 
 ```bash
+export PYTHONPATH=/home/yurikon/文档/thesis/thesis-project
 python scripts/demo_visualization_poc.py
 cd output/demo
 python -m http.server 8000
