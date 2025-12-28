@@ -22,6 +22,7 @@ documents in order:
 2. `docs/design/agent-design.md`: Responsibilities, I/O contracts, and boundaries of Planner / Executor / Safety / Summarizer.
 3. `docs/design/system-implementation-design.md`: Concrete engineering design: tech stack, code structure, API/FSM alignment, storage. logging.
 4. `docs/design/core-algorithm-spec.md`: PlannerAgent algorithms: Plan / Patch / Replan candidate generation, scoring, HITL gating, Decision application.
+5. `docs/design/tools-catalog.md`: Optional toolchains that can be prepared for integration, typically called by ExecutorAgent and SummarizerAgent.
 
 > If code behavior and documentation disagree, **the design documents win**
 
