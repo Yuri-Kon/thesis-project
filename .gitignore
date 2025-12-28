@@ -51,7 +51,6 @@ data/outputs/
 data/logs/
 data/raw/
 __pycache__/
-models/
 weights/
 .nextflow/
 .nextflow.log
