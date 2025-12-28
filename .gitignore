@@ -123,3 +123,12 @@ htmlcov/
 .idea/
 .vscode/
 
+# allow demo placeholders
+!/output/
+/output/*
+!/output/demo/
+/output/demo/*
+!/output/demo/.gitkeep
+!/output/demo/pdb/
+/output/demo/pdb/*
+!/output/demo/pdb/.gitkeep
