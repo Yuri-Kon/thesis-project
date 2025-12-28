@@ -71,6 +71,7 @@ def test_plan_confirm_accept_transitions_to_planned(sample_task, sample_plan):
         candidates=[
             PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_1",
@@ -116,6 +117,7 @@ def test_plan_confirm_replan_transitions_to_planning(sample_task):
         task_id=sample_task.task_id,
         action_type=PendingActionType.PLAN_CONFIRM,
         candidates=[],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_2",
@@ -148,6 +150,7 @@ def test_patch_confirm_accept_transitions_to_running(sample_task, sample_plan):
         candidates=[
             PendingActionCandidate(candidate_id="patch_a", payload=plan_patch)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_3",
@@ -181,6 +184,7 @@ def test_patch_confirm_replan_transitions_to_waiting_replan(sample_task):
         task_id=sample_task.task_id,
         action_type=PendingActionType.PATCH_CONFIRM,
         candidates=[],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_4",
@@ -215,6 +219,7 @@ def test_replan_confirm_continue_transitions_to_running(sample_task, sample_plan
         candidates=[
             PendingActionCandidate(candidate_id="replan_a", payload=sample_plan)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_4",
@@ -246,6 +251,7 @@ def test_replan_confirm_accept_transitions_to_planning(sample_task, sample_plan)
         candidates=[
             PendingActionCandidate(candidate_id="replan_a", payload=sample_plan)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_5",
@@ -302,6 +308,7 @@ def test_cancel_transitions_to_cancelled(
         task_id=sample_task.task_id,
         action_type=action_type,
         candidates=[],
+        explanation="test",
     )
     decision = Decision(
         decision_id=f"dec_cancel_{action_type.value}",
@@ -333,6 +340,7 @@ def test_invalid_choice_rejected(sample_task, sample_plan):
         candidates=[
             PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_invalid_1",
@@ -374,6 +382,7 @@ def test_repeated_decision_rejected(sample_task, sample_plan):
         candidates=[
             PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
         ],
+        explanation="test",
         status=PendingActionStatus.DECIDED,
     )
     decision = Decision(
@@ -405,6 +414,7 @@ def test_status_mismatch_rejected(sample_task, sample_plan):
         candidates=[
             PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
         ],
+        explanation="test",
     )
     decision = Decision(
         decision_id="dec_mismatch",

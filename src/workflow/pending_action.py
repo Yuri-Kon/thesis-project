@@ -1,3 +1,8 @@
+"""PendingAction 等待状态工具函数。
+
+该模块用于在进入 WAITING_* 状态前构造并持久化 PendingAction，
+并写入快照与事件日志以满足 HITL 约束。
+"""
 from __future__ import annotations
 
 from typing import Callable, Iterable, Optional
@@ -35,10 +40,23 @@ def build_pending_action(
     *,
     pending_action_id: Optional[str] = None,
     default_suggestion: Optional[str] = None,
-    explanation: Optional[str] = None,
+    explanation: str,
     created_by: str = "system",
 ) -> PendingAction:
-    """Build a minimal PendingAction instance."""
+    """构造最小化 PendingAction 实例。
+
+    Args:
+        task_id: 任务 ID。
+        action_type: 待决策类型。
+        candidates: 候选集合（可为空）。
+        pending_action_id: 可选的 PendingAction ID（默认自动生成）。
+        default_suggestion: 默认建议的候选 ID。
+        explanation: 解释说明文本。
+        created_by: 创建者标识（默认 system）。
+
+    Returns:
+        PendingAction 实例。
+    """
     return PendingAction(
         pending_action_id=pending_action_id or f"pa_{uuid4().hex[:8]}",
         task_id=task_id,
@@ -63,10 +81,22 @@ def enter_waiting_state(
     event_logger: EventLogger | None = None,
     snapshot_writer: SnapshotWriter | None = None,
 ) -> None:
-    """Write PendingAction and TaskSnapshot before entering WAITING_*.
+    """在进入 WAITING_* 前写入 PendingAction 与快照。
 
     NOTE: This helper does not transition task status. Callers must invoke
     transition_task_status explicitly to enter WAITING_*.
+
+    Args:
+        context: 工作流上下文。
+        record: 可选的任务持久化记录。
+        pending_action: 待写入的 PendingAction。
+        to_status: 目标 WAITING_* 内部状态。
+        reason: 可选的原因说明（仅用于调用方日志语义）。
+        event_logger: 可选的事件日志回调。
+        snapshot_writer: 可选的快照写入回调。
+
+    Raises:
+        ValueError: 当 PendingAction 与目标 WAITING_* 状态不匹配。
     """
     _validate_waiting_transition(context, pending_action, to_status, record)
     context.pending_action = pending_action
@@ -100,6 +130,17 @@ def _validate_waiting_transition(
     to_status: InternalStatus,
     record: TaskRecord | None,
 ) -> None:
+    """校验 WAITING_* 转移的 PendingAction 一致性。
+
+    Args:
+        context: 工作流上下文。
+        pending_action: 待验证的 PendingAction。
+        to_status: 目标 WAITING_* 内部状态。
+        record: 可选的任务持久化记录。
+
+    Raises:
+        ValueError: 当状态或 pending_action 不一致时抛出。
+    """
     expected_action = _WAITING_ACTION_MAP.get(to_status)
     if expected_action is None:
         raise ValueError(f"{to_status.value} is not a WAITING_* status")
@@ -117,12 +158,25 @@ def _validate_waiting_transition(
 
 
 def _to_external_waiting_status(to_status: InternalStatus) -> ExternalStatus:
+    """将 WAITING_* 内部状态映射为对外状态。
+
+    Args:
+        to_status: 内部状态。
+
+    Returns:
+        ExternalStatus 对外状态。
+    """
     if to_status in _WAITING_ACTION_MAP:
         return to_external_status(to_status)
     return to_external_status(to_status)
 
 
 def _default_event_logger(event: dict) -> None:
+    """默认事件日志记录器（写入 log_store）。
+
+    Args:
+        event: 事件字典。
+    """
     task_id = event.get("task_id")
     if not task_id:
         return

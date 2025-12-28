@@ -2,8 +2,17 @@
 import pytest
 import httpx
 
-from src.api.main import app
-from src.models.db import ExternalStatus
+from src.api.main import app, TASK_STORE
+from src.models.contracts import (
+    PendingAction,
+    PendingActionCandidate,
+    PendingActionType,
+    Plan,
+    PlanPatch,
+    PlanPatchOp,
+    PlanStep,
+)
+from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 
 
 @pytest.mark.api
@@ -158,3 +167,79 @@ class TestAPIEndpoints:
         assert created["goal"] == retrieved["goal"]
         assert created["constraints"] == retrieved["constraints"]
         assert created["metadata"] == retrieved["metadata"]
+
+    @pytest.mark.parametrize(
+        "external_status,internal_status,action_type",
+        [
+            (
+                ExternalStatus.WAITING_PATCH_CONFIRM,
+                InternalStatus.PATCHING,
+                PendingActionType.PATCH_CONFIRM,
+            ),
+            (
+                ExternalStatus.WAITING_REPLAN_CONFIRM,
+                InternalStatus.WAITING_REPLAN,
+                PendingActionType.REPLAN_CONFIRM,
+            ),
+        ],
+    )
+    async def test_get_task_waiting_state_returns_pending_action(
+        self,
+        client: httpx.AsyncClient,
+        external_status: ExternalStatus,
+        internal_status: InternalStatus,
+        action_type: PendingActionType,
+    ):
+        task_id = f"task_waiting_{action_type.value}"
+        if action_type == PendingActionType.PATCH_CONFIRM:
+            patched_step = PlanStep(id="S1", tool="tool_b", inputs={}, metadata={})
+            patch = PlanPatch(
+                task_id=task_id,
+                operations=[
+                    PlanPatchOp(op="replace_step", target="S1", step=patched_step)
+                ],
+                metadata={},
+            )
+            candidates = [
+                PendingActionCandidate(candidate_id="patch_a", payload=patch)
+            ]
+        else:
+            plan = Plan(
+                task_id=task_id,
+                steps=[PlanStep(id="S1", tool="tool_a", inputs={}, metadata={})],
+                constraints={},
+                metadata={},
+            )
+            candidates = [
+                PendingActionCandidate(candidate_id="replan_a", payload=plan)
+            ]
+
+        pending_action = PendingAction(
+            pending_action_id=f"pa_{action_type.value}",
+            task_id=task_id,
+            action_type=action_type,
+            candidates=candidates,
+            explanation="waiting for decision",
+        )
+        record = TaskRecord(
+            id=task_id,
+            status=external_status,
+            internal_status=internal_status,
+            goal="waiting state test",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[task_id] = record
+
+        response = await client.get(f"/tasks/{task_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == external_status.value
+        assert data["pending_action"] is not None
+        assert data["pending_action"]["action_type"] == action_type.value
+        assert data["pending_action"]["candidates"]
+        assert data["pending_action"]["explanation"] == "waiting for decision"
