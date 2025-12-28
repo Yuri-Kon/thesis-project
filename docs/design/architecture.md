@@ -17,7 +17,7 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 
 - 输入层：CLI/脚本(`run_demo.py`)
 - 智能规划层：`src/agents/planner.py` + `src/kg/protein_tool_kg.json`
-- 执行层：`src/agents/executor.py` + `src/models/adapters/*`
+- 执行层：`src/agents/executor.py` + `src/adapters/` + `src/tools/`
 - 安全与汇总层：`src/agents/safety.py`, `src/agents/summarizer.py`
 - 资源层：`src/kg/`, `output/`, `data`, 模型、权重等
 
@@ -38,9 +38,16 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 
 ### ToolAdapters(适配器层)
 
-- `ProteinMPNNAdapter`: 序列生成(结构引导/目标引导)
-- `ESMFoldAdapter`: 序列->结构预测(输出`pdb_path`,`plddt`)
-- `RDKitPropsAdapter`: 理化性质与二次分析(输出指标字典)
+适配器分为两层：
+
+- **基础层(Adapter Infra)**：`src/adapters/`
+  - `BaseToolAdapter` 抽象与 `AdapterRegistry`
+  - 负责统一接口、注册/检索与执行入口规范
+- **工具层(Concrete Tool)**：`src/tools/<tool>/adapter.py`
+  - 面向具体工具的输入解析与执行封装
+  - 工具 pipeline/脚本放在各自的 `src/tools/<tool>/` 下
+
+Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从而保持执行层与工具实现解耦。
 
 ### Knowledge & Storage
 

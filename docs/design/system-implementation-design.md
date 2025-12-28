@@ -101,9 +101,15 @@ project-root/
       protein_tool_kg.json
       kg_client.py
     adapters/
-      protein_mpnn_adapter.py
-      esmfold_adapter.py
-      rdkit_props_adapter.py
+      base_tool_adapter.py
+      registry.py
+      builtins.py
+      dummy_adapter.py
+    tools/
+      visualization/
+        adapter.py
+        pipeline.py
+      ...
     engines/
       nextfolw_adapter.py
     models/
@@ -129,6 +135,20 @@ project-root/
 ```
 
 ---
+
+### ToolAdapter 分层实现与 tools/ 模块
+
+为保持执行层与具体工具实现解耦，适配器采用“两层结构”：
+
+- **Adapter 基础层**：位于 `src/adapters/`
+  - 定义 `BaseToolAdapter` 接口与 `AdapterRegistry`
+  - 负责适配器注册、检索与统一执行入口
+- **工具实现层**：位于 `src/tools/<tool>/`
+  - `adapter.py` 实现具体工具的输入解析(`resolve_inputs`)与执行(`run_local`)
+  - 工具 pipeline、脚本与产物结构放在同一工具目录内（如 `pipeline.py`）
+
+Executor/StepRunner 只依赖基础层接口，通过 `tool_id`/`adapter_id` 获取适配器执行，
+从而避免在执行层直接绑定具体工具细节。
 
 ### 数据契约层(`src/models/contracts.py`)
 
@@ -1022,18 +1042,30 @@ WorkflowEngineAdapter 自身不参与重试策略，重试逻辑统一在 Execut
 
 ---
 
-### ToolAdapters(`src/adapters/*`)
+### ToolAdapters（适配器层）
 
-### ToolAdapters（src/adapters/*）设计
+#### ToolAdapters（src/adapters/ 与 src/tools/）设计
 
 为实现 PlanStep → 具体工具执行（本地 Python / Nextflow / 外部 API）的解耦，本系统通过
 ToolAdapter 层对每一个具体工具进行适配封装。ToolAdapter 只关心“如何使用某个工具”，
 不关心多 Agent 工作流的细节。
 
+适配器层采用分层结构：
+
+- **基础层(Adapter Infra)**：`src/adapters/`
+  - 定义 `BaseToolAdapter` 接口与 `AdapterRegistry`
+  - 负责注册/检索与执行入口规范
+- **工具实现层(Concrete Tool)**：`src/tools/<tool>/adapter.py`
+  - 实现具体工具的输入解析与执行封装
+  - 对应工具的 pipeline/脚本与产物结构位于同一工具目录
+
+Executor/StepRunner 只依赖基础层接口，通过 `tool_id`/`adapter_id` 获取适配器执行，
+避免执行层直接绑定工具细节。
+
 #### BaseToolAdapter 抽象接口
 
-所有具体 ToolAdapter（如 ProteinMPNNAdapter、ESMFoldAdapter）需实现统一接口。这里给出
-伪代码说明（仅用于设计约定）：
+所有具体 ToolAdapter（如 ProteinMPNNAdapter、ESMFoldAdapter）需实现统一接口，通常
+位于 `src/tools/<tool>/adapter.py`。这里给出伪代码说明（仅用于设计约定）：
 
 ```python
 class BaseToolAdapter(Protocol):
@@ -1083,7 +1115,7 @@ class BaseToolAdapter(Protocol):
 
 1. 根据`step.tool`从ProteinToolKG中找到对应的Tool定义
 2. 根据Tool.execution字段选择执行模式(`"nextflow"|"python"|"external_api"`)
-3. 从AdapterRegistry中获取对应的ToolAdapter实例
+3. 从 AdapterRegistry 中获取对应的 ToolAdapter 实例
 4. 调用`adapter.resolve_inputs(step, context)`完成输入解析
 
 这样可以保证：
@@ -1093,7 +1125,7 @@ class BaseToolAdapter(Protocol):
 
 #### 具体工具适配器示例
 
-##### ProteinMPNNAdapter
+##### ProteinMPNNAdapter（`src/tools/protein_mpnn/adapter.py`）
 
 - 对应Tool.id: `"protein_mpnn"`
 - 典型输入：
@@ -1107,7 +1139,7 @@ class BaseToolAdapter(Protocol):
   - 若Tool.execution == "nextflow": 通过Nextflow module调用底层容器
   - 若Tool.execution == "python": 直接调用本地Python封装
 
-##### ESMFoldAdapter
+##### ESMFoldAdapter（`src/tools/esmfold/adapter.py`）
 
 - Tool.id: `"esmfold"`
 - 输入：
@@ -1601,4 +1633,3 @@ class EventLog(BaseModel):
 - 统计每个工具的平均耗时(根据`STEP_FINISHED`的`data.duration_ms`)
 - 识别高频失败步骤及其常见`failure_modes`
 - 将日志转换为可视化的甘特图/时序图
-
