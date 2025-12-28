@@ -108,9 +108,8 @@ class WorkflowContext(BaseModel):
         Raises:
             KeyError: 如果 step_id 不存在或 key 不在输出中
         """
-        if step_id not in self.step_results:
-            raise KeyError(f"Step '{step_id}' not found in step_results")
-        return self.step_results[step_id].outputs[key]
+        result = self._get_step_result_or_raise(step_id)
+        return self._get_output_or_raise(result, key)
     
     def has_step_result(self, step_id: str) -> bool:
         """检查指定步骤的结果是否存在
@@ -121,7 +120,7 @@ class WorkflowContext(BaseModel):
         Returns:
             如果步骤结果存在返回 True，否则返回 False
         """
-        return step_id in self.step_results
+        return self.get_step_result(step_id) is not None
     
     def get_step_result(self, step_id: str) -> Optional[StepResult]:
         """获取指定步骤的执行结果
@@ -165,3 +164,16 @@ class WorkflowContext(BaseModel):
             如果 design_result 不为 None 返回 True，否则返回 False
         """
         return self.design_result is not None
+
+    def _get_step_result_or_raise(self, step_id: str) -> StepResult:
+        """获取步骤结果，不存在则抛出 KeyError。"""
+        result = self.step_results.get(step_id)
+        if result is None:
+            raise KeyError(f"Step '{step_id}' not found in step_results")
+        return result
+
+    def _get_output_or_raise(self, result: StepResult, key: str) -> Any:
+        """获取步骤输出字段，不存在则抛出 KeyError。"""
+        if key not in result.outputs:
+            raise KeyError(f"Output key '{key}' not found in step '{result.step_id}'")
+        return result.outputs[key]

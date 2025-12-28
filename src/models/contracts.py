@@ -173,19 +173,30 @@ class PatchRequest(BaseModel):
 
 
 class PendingActionType(str, Enum):
+    """PendingAction 类型枚举。"""
+
     PLAN_CONFIRM = "plan_confirm"
     PATCH_CONFIRM = "patch_confirm"
     REPLAN_CONFIRM = "replan_confirm"
 
 
 class PendingActionStatus(str, Enum):
+    """PendingAction 状态枚举。"""
+
     PENDING = "pending"
     DECIDED = "decided"
     CANCELLED = "cancelled"
 
 
 class PendingActionCandidate(BaseModel):
-    """候选方案的最小封装"""
+    """候选方案的最小封装。
+
+    Attributes:
+        candidate_id: 候选唯一标识。
+        payload: 候选承载的对象（Plan 或 PlanPatch）。
+        summary: 候选摘要信息。
+        metadata: 额外元数据。
+    """
 
     candidate_id: str
     payload: Plan | PlanPatch
@@ -194,15 +205,28 @@ class PendingActionCandidate(BaseModel):
 
 
 class PendingAction(BaseModel):
-    """等待人工决策的结构化对象"""
+    """等待人工决策的结构化对象。
+
+    Attributes:
+        pending_action_id: 待决策对象 ID。
+        task_id: 任务 ID。
+        action_type: 待决策类型。
+        candidates: 候选集合。
+        explanation: 解释说明文本。
+        status: PendingAction 当前状态。
+        default_suggestion: 默认建议候选 ID。
+        created_at: 创建时间戳。
+        decided_at: 决策完成时间戳。
+        created_by: 创建者标识（通常为 system）。
+    """
 
     pending_action_id: str
     task_id: str
     action_type: PendingActionType
+    candidates: List[PendingActionCandidate]
+    explanation: str
     status: PendingActionStatus = PendingActionStatus.PENDING
-    candidates: List[PendingActionCandidate] = Field(default_factory=list)
     default_suggestion: Optional[str] = None
-    explanation: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     decided_at: Optional[str] = None
     created_by: str = "system"

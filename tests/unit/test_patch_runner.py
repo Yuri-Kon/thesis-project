@@ -5,6 +5,8 @@ from src.models.contracts import (
     PlanPatch,
     PlanPatchOp,
     PlanStep,
+    PendingActionStatus,
+    PendingActionType,
     StepResult,
     now_iso,
 )
@@ -130,3 +132,55 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task):
     assert patch_meta["patched_status"] == "success"
     prev_attempt = patch_meta["previous_attempt"]
     assert prev_attempt["attempt_history"][0]["failure_type"] == "RETRYABLE"
+    assert record.status == ExternalStatus.WAITING_PATCH_CONFIRM
+    assert record.pending_action is not None
+    assert record.pending_action.action_type == PendingActionType.PATCH_CONFIRM
+    assert record.pending_action.status == PendingActionStatus.PENDING
+    assert record.pending_action.explanation
+
+
+def test_patch_runner_enters_waiting_replan_on_patch_error(sample_task):
+    plan = Plan(
+        task_id=sample_task.task_id,
+        steps=[PlanStep(id="S1", tool="failing_tool", inputs={}, metadata={})],
+        constraints={},
+        metadata={},
+    )
+    context = WorkflowContext(
+        task=sample_task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=InternalStatus.RUNNING,
+    )
+    record = TaskRecord(
+        id=sample_task.task_id,
+        status=ExternalStatus.RUNNING,
+        internal_status=InternalStatus.RUNNING,
+        goal=sample_task.goal,
+        constraints=sample_task.constraints,
+        metadata=sample_task.metadata,
+        plan=plan,
+    )
+
+    class FailingPlanner(PlannerAgent):
+        def __init__(self) -> None:
+            super().__init__(tool_registry=[])
+
+        def patch(self, request):  # type: ignore[override]
+            raise RuntimeError("planner patch failed")
+
+    step_runner = FakeStepRunner()
+    planner = FailingPlanner()
+    patch_runner = PatchRunner(step_runner=step_runner, planner_agent=planner)
+
+    with pytest.raises(RuntimeError):
+        patch_runner.run_step_with_patch(plan, 0, context, record=record)
+
+    assert context.status == InternalStatus.WAITING_REPLAN
+    assert record.status == ExternalStatus.WAITING_REPLAN_CONFIRM
+    assert record.pending_action is not None
+    assert record.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
+    assert record.pending_action.status == PendingActionStatus.PENDING
+    assert record.pending_action.explanation
