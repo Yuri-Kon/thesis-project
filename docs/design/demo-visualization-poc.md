@@ -12,6 +12,7 @@ pip install biopython plotly
 ## Run
 
 ```bash
+export PYTHONPATH=/home/yurikon/文档/thesis/thesis-project
 python scripts/demo_visualization_poc.py
 ```
 
