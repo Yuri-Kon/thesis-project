@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
@@ -78,14 +79,46 @@ def compute_pdb_metrics(pdb_path: Path) -> dict[str, Any]:
 
 
 def write_metrics(metrics_path: Path, metrics: dict[str, Any]) -> None:
-    import json
-
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
     metrics_path.write_text(
         json.dumps(metrics, indent=2, sort_keys=True),
         encoding="utf-8",
     )
     print(f"Wrote metrics -> {metrics_path}")
+
+
+def write_plotly_html(metrics_path: Path, html_path: Path) -> None:
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    per_residue = metrics.get("per_residue_bfactor_avg", [])
+    x_values = [item["res_index"] for item in per_residue]
+    y_values = [item["bfactor_avg"] for item in per_residue]
+
+    html_path.parent.mkdir(parents=True, exist_ok=True)
+    html_path.write_text(
+        "\n".join(
+            [
+                '<div id="bfactor-chart" style="width: 100%; height: 420px;"></div>',
+                '<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>',
+                "<script>",
+                "const trace = {",
+                f"  x: {json.dumps(x_values)},",
+                f"  y: {json.dumps(y_values)},",
+                "  mode: 'lines',",
+                "  line: {color: '#1f77b4'},",
+                "};",
+                "const layout = {",
+                "  title: '1CRN B-factor Average per Residue',",
+                "  xaxis: {title: 'Residue Index'},",
+                "  yaxis: {title: 'B-factor Average'},",
+                "  margin: {l: 60, r: 20, t: 50, b: 50},",
+                "};",
+                "Plotly.newPlot('bfactor-chart', [trace], layout, {displayModeBar: false});",
+                "</script>",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    print(f"Wrote Plotly HTML -> {html_path}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -105,9 +138,11 @@ def main() -> None:
     repo_root = Path(__file__).resolve().parents[1]
     output_path = repo_root / "output" / "demo" / "pdb" / PDB_FILENAME
     metrics_path = repo_root / "output" / "demo" / "metrics.json"
+    plotly_path = repo_root / "output" / "demo" / "plotly.html"
     pdb_path = download_1crn_pdb(output_path, force=args.force)
     metrics = compute_pdb_metrics(pdb_path)
     write_metrics(metrics_path, metrics)
+    write_plotly_html(metrics_path, plotly_path)
 
 
 if __name__ == "__main__":
