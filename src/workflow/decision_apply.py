@@ -14,6 +14,11 @@ from src.models.contracts import (
     PlanPatch,
     now_iso,
 )
+from src.models.validation import (
+    DecisionValidationError,
+    find_pending_action_candidate,
+    validate_decision_for_pending_action,
+)
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord, to_external_status
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
@@ -27,24 +32,6 @@ from src.workflow.snapshots import (
 from src.workflow.status import StatusLogger, transition_task_status
 
 EventLogger = Callable[[dict], None]
-
-_ALLOWED_CHOICES = {
-    PendingActionType.PLAN_CONFIRM: {
-        DecisionChoice.ACCEPT,
-        DecisionChoice.REPLAN,
-        DecisionChoice.CANCEL,
-    },
-    PendingActionType.PATCH_CONFIRM: {
-        DecisionChoice.ACCEPT,
-        DecisionChoice.REPLAN,
-        DecisionChoice.CANCEL,
-    },
-    PendingActionType.REPLAN_CONFIRM: {
-        DecisionChoice.ACCEPT,
-        DecisionChoice.CONTINUE,
-        DecisionChoice.CANCEL,
-    },
-}
 
 _EXPECTED_EXTERNAL = {
     PendingActionType.PLAN_CONFIRM: ExternalStatus.WAITING_PLAN_CONFIRM,
@@ -370,11 +357,10 @@ def _validate_decision_and_state(
             f"Record status {record.status.value} does not match "
             f"PendingAction {action.action_type.value}"
         )
-    if decision.choice not in _ALLOWED_CHOICES[action.action_type]:
-        raise DecisionApplyError(
-            f"Choice {decision.choice.value} is not allowed for "
-            f"{action.action_type.value}"
-        )
+    try:
+        validate_decision_for_pending_action(action, decision)
+    except DecisionValidationError as exc:
+        raise DecisionApplyError(str(exc)) from exc
 
 
 def _select_candidate(
@@ -384,10 +370,10 @@ def _select_candidate(
     selected_id = decision.selected_candidate_id
     if not selected_id:
         raise DecisionApplyError("selected_candidate_id is required for accept")
-    for candidate in action.candidates:
-        if candidate.candidate_id == selected_id:
-            return candidate
-    raise DecisionApplyError("selected_candidate_id is not in candidates")
+    candidate = find_pending_action_candidate(action, selected_id)
+    if candidate is None:
+        raise DecisionApplyError("selected_candidate_id is not in candidates")
+    return candidate
 
 
 def _ensure_plan_payload(candidate: PendingActionCandidate) -> Plan:
