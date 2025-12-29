@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
@@ -260,15 +261,86 @@ class Decision(BaseModel):
         return self
 
 
+class ArtifactRef(BaseModel):
+    """Reference to a persisted artifact."""
+
+    uri: str
+    metadata: Dict = Field(default_factory=dict)
+
+
 class TaskSnapshot(BaseModel):
     """任务在某一时间点的最小可恢复上下文"""
 
     snapshot_id: str
     task_id: str
     state: str
-    plan_version: Optional[str] = None
+    plan_version: Optional[int] = None
+    step_index: int = 0
+    artifacts: Dict[str, Any] = Field(default_factory=dict)
     current_step_index: int = 0
     completed_step_ids: List[str] = Field(default_factory=list)
-    artifacts: Dict[str, str] = Field(default_factory=dict)
     pending_action_id: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
+
+    @field_validator("state")
+    @classmethod
+    def _validate_state(cls, value: str) -> str:
+        from src.models.db import ExternalStatus
+
+        allowed_states = {status.value for status in ExternalStatus}
+        if value not in allowed_states:
+            raise ValueError(f"state must be one of {sorted(allowed_states)}")
+        return value
+
+    @field_validator("plan_version")
+    @classmethod
+    def _validate_plan_version(cls, value: Optional[int]) -> Optional[int]:
+        if value is None:
+            return value
+        if value < 0:
+            raise ValueError("plan_version must be >= 0")
+        return value
+
+    @field_validator("step_index")
+    @classmethod
+    def _validate_step_index(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("step_index must be >= 0")
+        return value
+
+    @field_validator("current_step_index")
+    @classmethod
+    def _validate_current_step_index(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("current_step_index must be >= 0")
+        return value
+
+    @field_validator("artifacts")
+    @classmethod
+    def _validate_artifacts(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError("artifacts must be a mapping")
+        for key, artifact in value.items():
+            if not isinstance(key, str):
+                raise ValueError("artifacts keys must be strings")
+            if isinstance(artifact, ArtifactRef):
+                continue
+            try:
+                json.dumps(artifact, ensure_ascii=True)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "artifacts must be JSON-serializable or ArtifactRef"
+                ) from exc
+        return value
+
+    @model_validator(mode="after")
+    def _sync_step_index(self):
+        step_set = "step_index" in self.model_fields_set
+        current_set = "current_step_index" in self.model_fields_set
+        if step_set and not current_set:
+            self.current_step_index = self.step_index
+        elif current_set and not step_set:
+            self.step_index = self.current_step_index
+        elif self.step_index != self.current_step_index:
+            raise ValueError("step_index must match current_step_index")
+        return self

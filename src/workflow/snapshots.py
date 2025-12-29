@@ -29,6 +29,7 @@ def build_task_snapshot(
         task_id=context.task.task_id,
         state=external_state.value,
         plan_version=_extract_plan_version(context),
+        step_index=len(step_ids),
         current_step_index=len(step_ids),
         completed_step_ids=step_ids,
         artifacts={},
@@ -37,7 +38,7 @@ def build_task_snapshot(
     )
 
 
-def _extract_plan_version(context: WorkflowContext) -> Optional[str]:
+def _extract_plan_version(context: WorkflowContext) -> Optional[int]:
     plan = context.plan
     if plan is None:
         return None
@@ -45,5 +46,8 @@ def _extract_plan_version(context: WorkflowContext) -> Optional[str]:
         value = plan.metadata.get("plan_version")
         if value is None:
             return None
-        return str(value)
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
     return None
