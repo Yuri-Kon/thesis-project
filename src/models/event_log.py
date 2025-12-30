@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from .contracts import now_iso
 from .db import ExternalStatus, InternalStatus
-
-
-def now_iso() -> str:
-    """Generate ISO8601 timestamp strings."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 class EventType(str, Enum):
