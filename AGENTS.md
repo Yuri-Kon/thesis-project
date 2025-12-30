@@ -1,198 +1,131 @@
-# Repository Guidelines(for Codex)
+# AGENTS.md
 
-> Audience: Codex / automated coding agents
-> Language: Please answer user questions in CHINESE. Code and comments may be in English.
+Instructions for Codex when operating in this repository.
 
-This repository implements an **LLM-driven**, **FSM-governed multi-agent system** for protein design.
+This file defines **Codex-specific operational guidance**.
+It does NOT redefine system behavior or architecture.
 
-The system is **contract-first**, **state-machine-driven**, and supports **retry → patch → replan** with optional **Human-in-the-Loop(HITL)** checkpoints.
-
-Codex **MUST** follow the invariants, boundaries, and document hierarchy below.
-
-If a request conflicts with them, **prefer a minimal compliant change** and **add or update tests**.
+All system-level invariants are defiend in `AGENT_CONTRACT.md`
+and MUST be respected.
 
 ---
 
-## 0) Where to Find the Design (READ FIRST)
+## 0. Mandatory Reading (Before Any Code Change)
 
-Design documents are maintained in a **separate worktree** on branch `design`.
+Before modifying code, Codex MUST read any comply with:
 
-By default, the directory layout is:
+1. `AGENT_CONTRACT.md`: Define system-level invariants (FSM, agent boundaries, contracts)
+2. Authoritative design document (in design worktree):
+  - `../thesis-project.design/docs/design/architecture.md`
+  - `../thesis-project.design/docs/design/agent-design.md`
+  - `../thesis-project.design/docs/design/system-implementation-design.md`
+  - `../thesis-project.design/docs/design/core-algorithm-spec.md`
+  - `../thesis-project.design/docs/design/tools-catalog.md`
 
-- Code repository (this repo):
-  - `./` → thesis-project
-- Design worktree:
-  - `../thesis-project.design`
-
-Before making structural or behavioral changes, consult the following
-documents in order (located under the design worktree):
-
-1. `../thesis-project.design/docs/design/architecture.md`
-2. `../thesis-project.design/docs/design/agent-design.md`
-3. `../thesis-project.design/docs/design/system-implementation-design.md`
-4. `../thesis-project.design/docs/design/core-algorithm-spec.md`
-5. `../thesis-project.design/docs/design/tools-catalog.md`
-
-> If code behavior and documentation disagree, **the design documents win**
-
-
-> If code behavior and documentation disagree, **the design documents win**
-
-## 1) System Invariants(MUST NOT be violated)
-
-### Finite State Machine(FSM) is the source of truth
-
-- Task lifecycle is gonverned by a fixed FSM.
-- **DO NOT invent new states** unless explicitly requested by user and reflected in design docs.
-- **DO NOT mutate task status implicitly or out of band**.
-- Every state transition MUST be:
-  - explicit
-  - logged
-  - consistent across API, DB, and logs.
-
-  ---
-
-  ### Strict role separation between Agents
-
-  - PlannerAgent
-    - Generates `Plan` / `PlanPatch` / `Replan`.
-    - MUST NOT execute tools or touch runtime artifacts.
-  - ExecutorAgent
-    - The **only** component allowed to execute tools.
-    - Handles retry / patch / replan control flow.
-  - SafetyAgent
-    - Evaluates risk and emits `SafetyResult`(`ok`/`warn`/`bloc`) only.
-    - MUST NOT modify plans or outputs.
-  - SummarizerAgent
-    - Aggregates results and produces reports.
-    - MUST NOT re-run tools or override safety decisions.
-
-  ---
-
-  ### Contract-first data model(schemas are stable)
-
-  Core contracts include(but are not limited to):
-
-  - `ProteinDesignTask`
-  - `Plan`, `PlanStep`
-  - `StepResult`
-  - `DesignResult`
-  - `SafetyResult`, `RiskFlag`
-  - `PendingAction`, `Decision`(for HITL)
-
-  Rules:
-  
-  - DO NOT rename or remove exsiting fields.
-  - DO NOT change field semantics.
-  - Extensions MUST go into:
-    - `metadata`
-    - `metrics`
-    - optional fields
-  - Step references like `"S1.sequence"` are **part of the contract**:
-    - MUST be preserved
-    - MUST be resolved in adapters / execution logic
-    - MUST NOT be inlined prematurtely.
-
-  ---
-
-  ### Failure handling is control flow, not exceptions
-
-  A step failure does NOT imply task failue.
-
-  Expected order:
-
-  1. retry(bounded, with backoff)
-  2. patch(local, minimal Plan changes)
-  3. replan(regenerate suffix while locking successful prefix)
-
-  Only unrecoverable failures or permanent safety block lead to `FAILED`
-
-  ---
-
-
-## 2) Project Structure (High-Level)
-
-- `src/`
-  - `agents/` — Planner / Executor / Safety / Summarizer implementations
-  - `workflow/` — FSM, graph orchestration, and execution control flow
-  - `models/` — Core contracts, snapshots, and database models
-  - `storage/` — Artifact storage, logs, and persistence utilities
-  - `api/` — FastAPI endpoints exposing task lifecycle and status
-  - `kg/` — ProteinToolKG client logic and tool metadata
-
-- `docs/`
-  - Design documents (**authoritative**; see `docs/design/`)
-
-- `tests/`
-  - `unit/`, `integration/`, `api/`
-  - Shared fixtures in `tests/conftest.py`
-
-- `data/`, `output/`
-  - Inputs, logs, intermediate artifacts, and final results
-
+If any instruction conflicts:
+**AGENT_CONTRACT.md and design documents take precedence.**
 
 ---
 
-## 3) Coding Style & Conventions
+## 1. Role of Codex in This Project
 
-- Primary language: **Python**
-- Follow PEP 8 formatting with 4-space indentation
-- Use type hints consistently where surrounding code does
-- Prefer **small, testable functions**
-- Avoid hidden side effects and implicit state mutation
+Codex acts as a **coding assistant**, not a system designer.
 
-### Logging
+Codex is expected to:
+- implement clearly scoped changes,
+- follow existing architecture and contracts,
+- add tests when behavior changes,
+- avoid speculative refactors or redesigns.
 
-- Use structured logs where applicable, including:
-  - `task_id`, `step_id`, `plan_version`, `state`, `event`
-- Logs MUST remain consistent with FSM state and task snapshots
-- **Do NOT log secrets** (API keys, tokens, credentials)
-
-
----
-
-## 4) Testing Requirements (Mandatory for Behavior Changes)
-
-Framework: `pytest`
-
-When modifying behavior, Codex MUST add or update tests covering:
-
-- **FSM transitions**
-  - Assert valid transitions
-  - Forbid invalid transitions
-
-- **Contract changes**
-  - Schema-level tests
-  - Consumer compatibility tests
-
-- **Retry / Patch / Replan logic**
-  - Bounded retries with backoff
-  - Patch application followed by re-execution
-  - Replan triggered after patch failure or safety block
-  - Prefix-lock correctness for suffix replans
-
+Codex MUST NOT:
+- invent new system behavior,
+- introduce new FSM states or agent roles,
+- reinterpret system intent beyond design documents.
 
 ---
 
-## 5) Agent Responsibility Boundaries (Quick Reference)
+## 2. Scope Control
 
-| Agent | Allowed Responsibilities | Forbidden Actions |
-|------|--------------------------|-------------------|
-| PlannerAgent | Parse intent, query KG, generate Plan / Patch / Replan | Execute tools, mutate runtime state |
-| ExecutorAgent | Execute steps, manage retry / patch / replan | Change task goal, invent schemas |
-| SafetyAgent | Evaluate risks, emit SafetyResult | Execute tools, modify plans |
-| SummarizerAgent | Aggregate results, generate reports | Re-run tools, override safety decisions |
+Codex should only modify code that is:
+- explicitly requested by the user, or
+- strictly necessary to complete the requested task.
 
+When a change might impact:
+- FSM transitions,
+- agent responsibilities,
+- execution semantics,
+Codex MUST stop and ask for confirmation.
 
 ---
 
-## 6) Safe Defaults (When Unsure)
+## 3. Coding Expectations
 
-If design intent is unclear, Codex SHOULD:
+### 3.1 Language and style
+- Primary language: Python
+- Follow existing project conventions
+- Use type hints where present
+- Prefer small, testable functions
+- Avoid hidden side effects
 
-- Prefer **minimal, conservative changes**
-- **Do NOT** introduce new FSM states
-- **Do NOT** move execution logic into Planner / Safety / Summarizer
-- Centralize reference-resolution logic (adapters / step runner)
-- Add tests to lock and document the chosen behavior
+### 3.2 Logging
+- Preserve structured logging conventions
+- Logs must remain consistent with task state and execution flow
+- Do NOT log secrets or credentials
 
+---
+
+## 4. Testing Requirements
+
+When Codex changes behavior, it MUST:
+- add or update relevant tests,
+- ensure existing tests pass.
+
+Test areas include (as applicable):
+- FSM transition validation
+- Agent behavior isolation
+- Retry / patch / replan execution flow
+- Schema compatibility
+
+If tests are missing, Codex should:
+- add minimal tests that lock expected behavior,
+- avoid overengineering test frameworks.
+
+---
+
+## 5. Change Workflow (Expected)
+
+When implementing a feature or fix, Codex should follow:
+
+1. Understand scope from user instruction
+2. Read relevant design documents
+3. Implement minimal necessary changes
+4. Add or update tests
+5. Clearly explain what was changed and why
+
+Large or cross-cutting changes should be broken into:
+- small, reviewable commits, or
+- explicitly staged steps (with user confirmation)
+
+---
+
+## 6. Safe Defaults
+
+If intent is ambiguous:
+- prefer minimal changes,
+- do not refactor unrelated code,
+- do not introduce new abstractions,
+- ask the user before proceeding.
+
+Codex should never assume it is allowed to
+"improve" architecture unless explicitly instructed.
+
+---
+
+## 7. Summary
+
+- `AGENTS.md` = Codex operational entrypoint
+- `AGENT_CONTRACT.md` = system invariants (non-negotiable)
+- Design documents = architectural authority
+
+Codex is expected to assist implementation,
+not redefine the system.
