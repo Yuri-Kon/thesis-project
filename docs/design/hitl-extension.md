@@ -1,8 +1,15 @@
+---
+doc_key: hitl
+version: 1.0
+status: stable
+depends_on: [arch, agent, impl, algo]
+---
+
 # 扩展设计：Human-in-the-loop 与可追溯执行（差分说明）
 
-> 本文档用于描述系统从 v0.2（全自动执行原型）到 v0.3（真实可用版本）的关键重构与扩展点。  
-> 本文档不替代 architecture.md / system-implementation-design.md / agent-design.md / core-algorithm-spec.md，  
-> 而是作为“差分索引”和“设计动机说明”。
+> 本文档用于描述系统从 v0.2（全自动执行原型）到 v0.3（真实可用版本）的关键重构与扩展点。
+> 本文档不替代 architecture.md / system-implementation-design.md / agent-design.md / core-algorithm-spec.md，
+> 而是作为"差分索引"和"设计动机说明"。
 
 ---
 
@@ -29,24 +36,22 @@
 
 ## 2. 架构层变更（architecture.md 对应）
 
-### 2.1 引入“等待人工决策”的语义状态（WAITING_*）
+### 2.1 引入"等待人工决策"的语义状态（WAITING_*）
 
-在架构层 FSM 中新增等待审查状态：
+在架构层 FSM 中新增等待审查状态，详见 [ref:SID:fsm.states.definitions]：
 
-- `WAITING_PLAN_CONFIRM`
-- `WAITING_PATCH_CONFIRM`
-- `WAITING_REPLAN_CONFIRM`
+- [ref:SID:fsm.states.waiting_plan_confirm]
+- [ref:SID:fsm.states.waiting_patch_confirm]
+- [ref:SID:fsm.states.waiting_replan_confirm]
 
 这些状态表示：系统已生成候选方案并暂停推进，等待外部 Decision 恢复执行。
 
-对应文档位置：`architecture.md` → FSM 章节。
-
 ### 2.2 PendingAction / Decision 作为一等对象（跨层统一）
 
-所有人工交互通过结构化对象实现：
+所有人工交互通过结构化对象实现，详见：
 
-- `PendingAction`：系统等待人类决策的“待办”
-- `Decision`：人类对待办的“选择”
+- `PendingAction`：[ref:SID:arch.contracts.pending_action]
+- `Decision`：[ref:SID:arch.contracts.decision]
 
 架构含义：
 
@@ -54,9 +59,9 @@
 - API / CLI / UI 的交互接口统一
 - 审计与回放边界清晰（每个 WAITING_* 都有明确的 pending_action_id）
 
-对应实现规范：`system-implementation-design.md` → contracts / API / EventLog。
-
 ### 2.3 任务快照与恢复点（TaskSnapshot / Checkpoint）
+
+TaskSnapshot 定义详见 [ref:SID:arch.contracts.task_snapshot]。
 
 在关键节点写入 TaskSnapshot：
 
@@ -72,8 +77,6 @@
 - 已完成步骤索引
 - artifacts 路径映射
 - pending_action_id（若有）
-
-对应实现规范：`system-implementation-design.md` → Snapshot 章节与约束。
 
 ---
 
@@ -96,15 +99,17 @@
 
 ### 3.2 新增接口：pending-actions 与 decision 提交
 
-新增并固化 REST API：
+新增并固化 REST API，详见 [ref:SID:api.rest.overview]：
 
-- `GET /pending-actions`：待人工决策列表
-- `POST /pending-actions/{id}/decision`：提交 Decision 并驱动状态转移
+- [ref:SID:api.rest.get_pending_actions]：待人工决策列表
+- [ref:SID:api.rest.submit_decision]：提交 Decision 并驱动状态转移
 
-并在 `GET /tasks/{id}` 返回体中：
+并在 [ref:SID:api.rest.get_task] 返回体中：
 - WAITING_* 状态必须返回 `pending_action` 摘要
 
 ### 3.3 审计与事件日志（EventLog）
+
+EventLog 定义详见 [ref:SID:obs.eventlog.schema]，硬约束详见 [ref:SID:obs.eventlog.mandatory_events]。
 
 新增 HITL 关键事件类型：
 
@@ -114,7 +119,7 @@
 - `PENDING_ACTION_CANCELLED`
 - `TASK_CANCELLED_BY_USER`
 
-并定义硬约束：
+并定义硬约束（详见 [ref:SID:obs.eventlog.mandatory_events]）：
 
 - 进入任意 WAITING_* 前必须：
   - 写 `PENDING_ACTION_CREATED`
@@ -127,33 +132,41 @@
 
 ## 4. Agent 行为层变更（agent-design.md 对应）
 
-Human-in-the-loop 不改变 Agent 核心职责，但改变“候选如何确认”的路径：
+Human-in-the-loop 不改变 Agent 核心职责，但改变"候选如何确认"的路径。
 
-- PlannerAgent：
-  - 负责生成 Plan/Patch/Replan 候选与默认建议
-  - 不负责等待与选择
-- ExecutorAgent：
-  - 负责检测失败与触发 Patch/Replan 请求
-  - WAITING_* 期间不得继续执行
-- SafetyAgent：
-  - 提供风险信号，触发 WAITING_REPLAN_CONFIRM
-  - 不直接终止任务，不直接修改 Plan
-- SummarizerAgent：
-  - 不参与决策，失败不影响执行结果有效性
+详见各 Agent 的 HITL 职责定义：
+
+- PlannerAgent：[ref:SID:planner.hitl.responsibilities]
+  - MUST: [ref:SID:planner.responsibilities.must]
+  - MUST NOT: [ref:SID:planner.responsibilities.must_not]
+- ExecutorAgent：[ref:SID:executor.hitl.responsibilities]
+  - MUST: [ref:SID:executor.responsibilities.must]
+  - MUST NOT: [ref:SID:executor.responsibilities.must_not]
+- SafetyAgent：[ref:SID:safety.hitl.responsibilities]
+  - MUST: [ref:SID:safety.responsibilities.must]
+  - MUST NOT: [ref:SID:safety.responsibilities.must_not]
+- SummarizerAgent：[ref:SID:summarizer.hitl.responsibilities]
+  - MUST: [ref:SID:summarizer.responsibilities.must]
+  - MUST NOT: [ref:SID:summarizer.responsibilities.must_not]
+
+统一约束：[ref:SID:agent.hitl.universal_constraints]
 
 ---
 
 ## 5. 核心算法层变更（core-algorithm-spec.md 对应）
 
-v0.3 引入 Candidate（Top-K）输出与门控（进入 HITL 的规则）：
+v0.3 引入 Candidate（Top-K）输出与门控（进入 HITL 的规则），详见：
 
-- PlanCandidate / PatchCandidate / ReplanCandidate
-- 多目标评分（feasibility/objective/risk/cost/overall）
-- 风险与成本阈值触发 HITL
-- Decision 应用与方案固化为纯逻辑（可单测）
+- Candidate 定义：[ref:SID:planner.contracts.candidate_schema]
+  - [ref:SID:planner.contracts.plan_candidate]
+  - [ref:SID:planner.contracts.patch_candidate]
+  - [ref:SID:planner.contracts.replan_candidate]
+- 候选评分：[ref:SID:planner.algorithm.candidate_scoring]
+- HITL 门控规则：[ref:SID:planner.algorithm.hitl_gate]
+- Decision 应用逻辑：[ref:SID:planner.algorithm.decision_application]
 
 这保证：
-- 人类看到的不只是“一个方案”，而是一组可比较的候选
+- 人类看到的不只是"一个方案"，而是一组可比较的候选
 - 系统给出默认建议与解释，降低审查成本
 - Decision 结果可追溯、可复现
 

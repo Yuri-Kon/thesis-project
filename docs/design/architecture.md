@@ -1,6 +1,14 @@
+---
+doc_key: arch
+version: 1.0
+status: stable
+depends_on: []
+---
+
 # 系统总体架构
 
 ## 分层架构
+<!-- SID:arch.overview.layers -->
 
 - 输入层：User/API：自然语言目标、约束、数据引用
 - 智能规划层：Planner+KG：任务解析、KG约束推理、计划JSON
@@ -22,6 +30,7 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 - 资源层：`src/kg/`, `output/`, `data`, 模型、权重等
 
 ## 组件视图
+<!-- SID:arch.components.overview -->
 
 ### Interface & Core
 
@@ -62,6 +71,7 @@ Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从
 ![系统构建图](./diagrams/component-views.svg)
 
 ## 运行视图与时序图
+<!-- SID:arch.flow.end_to_end -->
 
 端到端LLM调控闭环
 
@@ -289,10 +299,12 @@ ExecutorAgent就会启动一个小对话：
 ---   
 
 ## 任务生命周期与状态机(FSM)
+<!-- SID:fsm.lifecycle.overview -->
 
 为了支持 "人在环路"(Human-in-the-loop)、任务快照与可恢复执行，本系统将一次蛋白质设计任务抽象为一个有限自动机(Finite State Machine, FSM)。FSM 不仅表示执行进度，也编码了 "决策阶段" 与 "人工审查点"
 
 ### 状态列表
+<!-- SID:fsm.states.definitions -->
 
 在当前设计中，任务可能处于以下状态(部分为原有状态的语义精化)
 
@@ -300,22 +312,31 @@ ExecutorAgent就会启动一个小对话：
 |:---|:---|
 |`CREATED`|任务已经创建，尚未开始规划|
 |`PLANNING`|PlannerAgent 正在生成重新执行Plan|
-|`WAITING_PLAN_CONFIRM`|初始 Plan 已经生成，等待人工确认工具链与关键参数|
+|`WAITING_PLAN_CONFIRM`|初始 Plan 已经生成，等待人工确认工具链与关键参数 <!-- SID:fsm.states.waiting_plan_confirm -->|
 |`PLANNED`|Plan 已经确认(自动或人工)，可进入执行阶段|
 |`RUNNING`|ExecutorAgent 正在按照 Plan 执行步骤|
-|`WAITING_PATCH_CONFIRM`|执行中发现局部失败，系统已经生成 Patch 候选，等待人工确认是否应用|
-|`WAITING_REPLAN_CONFIRM`|执行中发现整体风险或目标转移，系统已生成 Replan 候选，等待人工确认是否应用|
+|`WAITING_PATCH_CONFIRM`|执行中发现局部失败，系统已经生成 Patch 候选，等待人工确认是否应用 <!-- SID:fsm.states.waiting_patch_confirm -->|
+|`WAITING_REPLAN_CONFIRM`|执行中发现整体风险或目标转移，系统已生成 Replan 候选，等待人工确认是否应用 <!-- SID:fsm.states.waiting_replan_confirm -->|
 |`SUMMARIZING`|执行完成: SummarizerAgent 正在生成结果汇总与报告|
 |`DONE`|任务成功完成，所有结果已经生成|
 |`FAILED`|任务失败，且无法自动或人工修复|
 |`CANCELLED`|任务被人工显式停止|
 
-其中,所有以 `WAITING_*` 命名的状态均表示:  
+其中,所有以 `WAITING_*` 命名的状态均表示:
 **系统已暂停执行，正等待人类提交决策以继续或终止任务**
 
-### 人在环路与 PendingAction 的关系
+<!-- SID:fsm.transitions.overview BEGIN -->
+**状态转换规则**:
+- `CREATED` → `PLANNING` → `WAITING_PLAN_CONFIRM` → `PLANNED` → `RUNNING`
+- `RUNNING` → `WAITING_PATCH_CONFIRM` (局部失败) 或 `WAITING_REPLAN_CONFIRM` (安全阻断)
+- `WAITING_*` → `RUNNING` (决策批准) 或 `FAILED`/`CANCELLED` (决策拒绝)
+- `RUNNING` → `SUMMARIZING` → `DONE`
+<!-- SID:fsm.transitions.overview END -->
 
-为了统一建模 "等待人工输入" 这一行为，系统在进入任意 `WAITING_*` 状态时都会生成一个结构化的 `PendingAction` 对象，例如: 
+### 人在环路与 PendingAction 的关系
+<!-- SID:arch.contracts.pending_action BEGIN -->
+
+为了统一建模 "等待人工输入" 这一行为，系统在进入任意 `WAITING_*` 状态时都会生成一个结构化的 `PendingAction` 对象，例如:
 
 - `WAITING_PLAN_CONFIRM` → `PendingAction{ action_type="plan_confirm", candidates=[Plan...], ...}`
 - `WAITING_PATCH_CONFIRM` → `PendingAction{ action_type="patch_confirm", candidate_patch=PlanPatch, ...}`
@@ -326,12 +347,15 @@ ExecutorAgent就会启动一个小对话：
 - FSM 的状态固定在对应的`WAITING_*`
 - API层可以通过 `GET /pend-actions` 或 `Get /tasks/{id}` 暴露当前待决策信息
 - 外部UI或CLI将候选方案展示给科研人员
-- 人类提交 `Decision` 后:
+- 人类提交 `Decision` 后: <!-- SID:arch.contracts.decision BEGIN -->
   - 系统能够根据 `Decision` 内容更新 Plan/PlanPatch/Replan
   - 记录事件日志
   - 触发一次状态转移
+<!-- SID:arch.contracts.decision END -->
+<!-- SID:arch.contracts.pending_action END -->
 
 ### 快照与可恢复执行的约束
+<!-- SID:arch.contracts.task_snapshot BEGIN -->
 
 为了支持长时间运行与系统重启后的可靠恢复，FSM 对持久化有明确约束:
 
@@ -352,8 +376,10 @@ ExecutorAgent就会启动一个小对话：
     - 根据 Task 当前状态和最新 `TaskSnapshot` 恢复上下文
     - 若处于 `WAITING_*`, 则继续等到 Decision, 不会自动推进
     - 若处于 `RUNNING`, 则从快照记录的步骤索引继续调度 Executor/ExecutionBackend
+<!-- SID:arch.contracts.task_snapshot END -->
 
 ## 数据流与控制流
+<!-- SID:arch.dataflow.overview -->
 
 **数据流**
 
@@ -367,6 +393,7 @@ ExecutorAgent就会启动一个小对话：
 - Workflow驱动Agent顺序；Executor负责步骤级重试/失败终止；safety贯穿检查；summarizer终结输出。
 
 ## 计划契约(Plan JSON, Planner输出)
+<!-- SID:arch.contracts.plan -->
 
 ```json
 {
@@ -385,6 +412,7 @@ ExecutorAgent就会启动一个小对话：
 - 安全级别：`S0=严格限制`/`S1=默认安全`
 
 ## ProteinToolKG概要
+<!-- SID:arch.kg.overview -->
 
 **工具节点**
 
