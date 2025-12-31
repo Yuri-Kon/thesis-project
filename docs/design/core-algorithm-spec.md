@@ -1,12 +1,20 @@
+---
+doc_key: algo
+version: 1.0
+status: stable
+depends_on: [arch, agent]
+---
+
 # core-algorithm-spec
 
-> 版本：v0.3（与 Step1/Step2 对齐）  
-> 目的：给出**可直接据此编码**的核心算法与输出契约（Plan / Patch / Replan 候选、排序、选择与固化）。  
-> 说明：本文档属于“算法与决策逻辑规范”，不包含具体 API/FSM/存储实现细节（见 system-implementation-design.md）。
+> 版本：v0.3（与 Step1/Step2 对齐）
+> 目的：给出**可直接据此编码**的核心算法与输出契约（Plan / Patch / Replan 候选、排序、选择与固化）。
+> 说明：本文档属于"算法与决策逻辑规范"，不包含具体 API/FSM/存储实现细节（见 system-implementation-design.md）。
 
 ---
 
 ## 1. 范围与非目标
+<!-- SID:algo.scope.overview -->
 
 ### 1.1 本文档覆盖的内容
 
@@ -29,6 +37,7 @@
 ---
 
 ## 2. 术语与对象定义
+<!-- SID:algo.definitions.overview -->
 
 ### 2.1 主要对象
 
@@ -40,12 +49,13 @@
 - Replan：对整体策略的重规划，可能表现为“替换 Plan 后缀”或“重新生成新的 Plan”
 
 ### 2.2 关键概念：Candidate（候选）
+<!-- SID:planner.contracts.candidate_schema BEGIN -->
 
 为了支持 Human-in-the-loop，本规范要求 Planner 在关键节点输出候选集合（Top-K）：
 
-- PlanCandidate：初始 Plan 候选
-- PatchCandidate：PlanPatch 候选
-- ReplanCandidate：Replan（Plan 后缀或整体 Plan）候选
+- PlanCandidate：初始 Plan 候选 <!-- SID:planner.contracts.plan_candidate -->
+- PatchCandidate：PlanPatch 候选 <!-- SID:planner.contracts.patch_candidate -->
+- ReplanCandidate：Replan（Plan 后缀或整体 Plan）候选 <!-- SID:planner.contracts.replan_candidate -->
 
 Candidate 必须包含：
 - candidate_id（稳定可引用）
@@ -55,10 +65,12 @@ Candidate 必须包含：
 - risk_level（低/中/高）
 - cost_estimate（低/中/高 或数值区间）
 - explanation（用于人类审查的理由，允许由 LLM 生成但必须可追溯）
+<!-- SID:planner.contracts.candidate_schema END -->
 
 ---
 
 ## 3. 输入、约束与输出契约
+<!-- SID:planner.contracts.io_overview -->
 
 ### 3.1 Planner 输入
 
@@ -129,6 +141,7 @@ Planner 的核心算法由三个模式构成：
 ---
 
 ## 5. Tool Retrieval（工具检索与约束过滤）
+<!-- SID:planner.algorithm.tool_retrieval -->
 
 ### 5.1 检索目标
 
@@ -214,6 +227,7 @@ ReplanCandidate 必须明确：
 ---
 
 ## 7. Candidate Scoring（候选打分、风险与成本估计）
+<!-- SID:planner.algorithm.candidate_scoring -->
 
 ### 7.1 多目标打分总体原则
 
@@ -258,6 +272,7 @@ cost_estimate 映射规则：
 ---
 
 ## 8. Candidate Selection（自动选择 vs HITL 输出）
+<!-- SID:planner.algorithm.hitl_gate -->
 
 ### 8.1 决策门控（何时进入 HITL）
 
@@ -283,6 +298,7 @@ Planner 在完成候选生成与排序后，需要通过“门控规则”决定
 ---
 
 ## 9. Decision 应用与方案固化（HITL 路径）
+<!-- SID:planner.algorithm.decision_application -->
 
 Planner 不直接等待 Decision，但必须定义“Decision 应用后如何固化”的纯函数逻辑（可测试）。
 

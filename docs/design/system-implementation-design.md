@@ -1,8 +1,18 @@
+---
+doc_key: impl
+version: 1.0
+status: stable
+depends_on: [arch, agent]
+---
+
 # 系统实现设计文档
 
 > 目标：在现有架构的算法设计基础上，明确技术选型、代码结构、组件职责、运行时流程，指导后续代码编码与集成
 
 ## 系统总体概览
+<!-- SID:impl.overview.introduction -->
+
+核心Agent与数据契约已在 [ref:SID:agent.overview.introduction] 中定义。本设计文档在此基础上，加入具体框架实现细节。
 
 系统分为五层：输入层、智能规划层、执行层、安全与汇总层、资源层
 
@@ -24,6 +34,7 @@
 ---
 
 ## 技术栈与框架选型
+<!-- SID:impl.techstack.overview -->
 
 ### 关键框架与组件
 
@@ -199,6 +210,8 @@ class DesignResult(BaseModel):
 
 #### PendingAction 与 Decision 模型
 
+核心概念定义详见 [ref:SID:arch.contracts.pending_action] 和 [ref:SID:arch.contracts.decision]。以下为 Pydantic 实现：
+
 为了统一建模“等待人工输入”这一行为，本系统在实现层引入 `PendingAction` 与 `Decision`
 两个一等数据结构，用于承载 Human-in-the-loop 的交互信息。
 
@@ -303,6 +316,8 @@ class Decision(BaseModel):
 ---
 
 #### TaskSnapshot 模型
+
+核心概念定义详见 [ref:SID:arch.contracts.task_snapshot]。以下为 Pydantic 实现：
 
 为支持任务快照与可恢复执行，本系统对每个任务在关键节点写入一份 `TaskSnapshot` 记录，用于在系统重启或显式恢复时还原上下文
 
@@ -430,8 +445,10 @@ CANCELLED
 ---
 
 #### REST API 规范
+<!-- SID:api.rest.overview -->
 
 ##### POST /tasks
+<!-- SID:api.rest.create_task -->
 
 创建一个新的蛋白质设计任务。该接口必须快速返回(不等待完整流程)
 
@@ -568,6 +585,7 @@ CANCELLED
 ---
 
 ##### GET /pending-actions
+<!-- SID:api.rest.get_pending_actions -->
 
 列出所有当前等待人工决策的 PendingAction (用于 UI 的待办列表)
 
@@ -596,6 +614,7 @@ CANCELLED
 - 返回内容为摘要，候选详情以 `GET /tasks/{task_id}` 的 `pending_action` 或数据库读取为准
 
 ##### POST /pending-actions/{pending_action_id}/decision
+<!-- SID:api.rest.submit_decision -->
 
 提交人工决策（Decision），用于解除任务在 `WAITING_*` 状态的挂起，并驱动 FSM 继续执行。
 
@@ -647,6 +666,7 @@ CANCELLED
   - 任意 `WAITING_*` + `cancel` → `CANCELLED`
 
 ##### GET /tasks/{task_id}/report
+<!-- SID:api.rest.get_report -->
 
 在任务完成后返回DesignResult
 
@@ -1445,10 +1465,12 @@ def check_final_result(design_result: DesignResult, context: WorkflowContext) ->
   - 所有详细事件(步骤执行、重试、patch、replan等)写入`data/logs/{task_id}.jsonl`
 
 ### 日志与可观测设计
+<!-- SID:obs.overview -->
 
 为支持多Agent协作任务的调试、回访与故障排查，本系统在数据库持久化之外，引入统一的日志与追踪规范。所有与任务执行相关的事件会以JSON Lines的形式写入`data/logs/{task_id}.jsonl`文件，并与状态机 / 数据库中的记录保持一致。
 
 #### 单条日志记录结构
+<!-- SID:obs.eventlog.schema -->
 
 每条日志记录为一个JSON对象，对象字段定义如下：
 
@@ -1511,6 +1533,7 @@ def check_final_result(design_result: DesignResult, context: WorkflowContext) ->
 若未来新增事件类型，应追加到该列表中，并保持语义稳定。
 
 #### 事件日志与快照写入约束（必须遵守）
+<!-- SID:obs.eventlog.mandatory_events -->
 
 本系统的“可追溯执行”依赖于 **事件日志（EventLog）** 与 **任务快照（TaskSnapshot）** 的配合。
 为确保任务可恢复、可审计、可回放，实现必须严格遵循以下约束。

@@ -1,7 +1,14 @@
+---
+doc_key: tools
+version: 1.0
+status: stable
+depends_on: [impl]
+---
+
 # Tools Catalog(候选工具清单)
 
-> 本文档用于记录 **当前系统架构下，可接入的真实工具候选集合**  
-> 工具按照 **Executor / Visualization / Summarizer** 三类划分  
+> 本文档用于记录 **当前系统架构下，可接入的真实工具候选集合**
+> 工具按照 **Executor / Visualization / Summarizer** 三类划分
 > 不涉及任务规划逻辑，仅关注:
 >
 > -  工具真实存在，在生物信息学领域被广泛应用
@@ -11,6 +18,7 @@
 ---
 
 ## 1. Executor 可选择的工具(计算 / 评估类)
+<!-- SID:tools.executor.overview -->
 
 > Executor 负责执行实际计算任务，通常耗时较长，产出结构化 artifacts.
 > 以下工具可通过 ToolAdapter 以 `python / nextflow / external` 方式接入。
@@ -20,6 +28,7 @@
 ### 1.1 结构预测类(Structure Prediction)
 
 #### ESMFold
+<!-- SID:tools.esmfold.spec -->
 
 - 类型：蛋白质结构预测
 - 输入：氨基酸序列(FASTA / string)
@@ -32,6 +41,7 @@
   - 适合作为第一个真实结构工具
 
 #### AlphaFold / OpenFold
+<!-- SID:tools.alphafold.spec -->
 
 - 类型: 高精度结构预测
 - 输入: 序列 + MSA
@@ -192,6 +202,7 @@
 ---
 
 ## 4. 推荐的接入优先级（现实可行）
+<!-- SID:tools.integration_priority -->
 
 ### P0（近期最值得接入）
 - ESMFold（Executor）
@@ -211,6 +222,7 @@
 ---
 
 ## 5. 设计原则（约束）
+<!-- SID:tools.adapter.constraints BEGIN -->
 
 - 所有工具：
   - 不直接与人交互
@@ -221,3 +233,4 @@
 - 工具替换：
   - 不应影响系统整体架构
   - 同类工具可并存，供后续选择
+<!-- SID:tools.adapter.constraints END -->

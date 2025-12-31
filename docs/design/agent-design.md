@@ -1,10 +1,19 @@
+---
+doc_key: agent
+version: 1.0
+status: stable
+depends_on: [arch]
+---
+
 # Agent设计文档
 
 本文档用于定义系统中四类核心Agent(Planner/Executor/Safety/Summarizer)的职责边界、输入输出契约、交互方式以及在整体工作流中的协作关系。
 
 ## Agent体系总览
+<!-- SID:agent.overview.introduction -->
 
 ### 角色列表
+<!-- SID:agent.overview.roles -->
 
 系统中定义四类核心Agent：
 
@@ -33,10 +42,12 @@
 6. 若执行中发生错误或高风险，PlannserAgent可通过`replan`/`patch`更新计划
 
 ## 接口定义
+<!-- SID:agent.contracts.overview -->
 
 ### 核心数据结构接口
 
 #### ProteinDesignTask
+<!-- SID:agent.contracts.protein_design_task -->
 
 ```python
 @dataclass
@@ -48,6 +59,7 @@ class ProteinDesignTask:
 ```
 
 #### Plan(Planner 输出)
+<!-- SID:agent.contracts.plan -->
 
 ```python
 @dataclass
@@ -66,6 +78,7 @@ class Plan:
 ```
 
 #### StepResult(执行步骤结果)
+<!-- SID:agent.contracts.step_result -->
 
 ```python
 @dataclass
@@ -82,6 +95,7 @@ class StepResult:
 ```
 
 #### DesignResult(最终结果)
+<!-- SID:agent.contracts.design_result -->
 
 ```python
 @dataclass
@@ -96,6 +110,7 @@ class DesignResult:
 ```
 
 #### SafetyResult(安全检查结果)
+<!-- SID:agent.contracts.safety_result -->
 
 ```python
 @dataclass
@@ -131,6 +146,7 @@ class WorkfolwContext:
 ```
 
 ### PlannerAgent接口
+<!-- SID:planner.interface.overview -->
 
 #### 对外主接口
 
@@ -229,29 +245,32 @@ class PlannerAgent:
 ```
 
 ## Human-in-the-loop 扩展设计（Agent 行为层）
+<!-- SID:agent.hitl.overview -->
 
 本节在不破坏既有多 Agent 自动协作逻辑的前提下，引入 Human-in-the-loop（HITL）机制，
-明确各 Agent 在“需要人工决策”的场景下应承担的职责、触发条件与行为边界。
+明确各 Agent 在"需要人工决策"的场景下应承担的职责、触发条件与行为边界。
 
 设计原则如下：
 
 - 人类被视为一种**外部决策 Agent（External Decision Agent）**；
 - 系统内部 Agent **不直接与人类交互**；
-- 所有人工介入均通过结构化的 `PendingAction / Decision` 完成；
+- 所有人工介入均通过结构化的 `PendingAction / Decision` 完成（详见 [ref:SID:arch.contracts.pending_action]）；
 - Agent 只负责：
   - 发现问题
   - 生成候选方案
   - 提出系统建议
-  而不负责“等待”或“选择”。
+  而不负责"等待"或"选择"。
 
 ---
 
 ### 1. PlannerAgent 在 HITL 场景下的职责
+<!-- SID:planner.hitl.responsibilities -->
 
 PlannerAgent 仍然是**计划搜索与重规划的唯一负责者**，Human-in-the-loop 不改变其核心算法职责，
-仅改变“计划如何被最终确认”的路径。
+仅改变"计划如何被最终确认"的路径。
 
 #### 1.1 初始 Plan 阶段（WAITING_PLAN_CONFIRM）
+<!-- SID:planner.hitl.plan_confirm -->
 
 在以下条件之一满足时，PlannerAgent **必须创建 PendingAction(plan_confirm)**，而非直接进入执行：
 
@@ -268,10 +287,21 @@ PlannerAgent 的职责包括：
 - 给出系统默认建议（例如推荐某一 Plan）；
 - 将上述信息封装进 `PendingAction(action_type = plan_confirm)`。
 
+<!-- SID:planner.responsibilities.must BEGIN -->
+PlannerAgent **必须**：
+
+- 生成一个或多个 Plan 候选（可包含 Top-K 次优解）；
+- 为每个候选生成结构化摘要、风险等级与成本估计；
+- 给出系统默认建议；
+- 将上述信息封装进 `PendingAction`。
+<!-- SID:planner.responsibilities.must END -->
+
+<!-- SID:planner.responsibilities.must_not BEGIN -->
 PlannerAgent **不得**：
 
 - 在未收到 Decision 的情况下自行选择 Plan；
 - 直接修改 Task 状态为 `PLANNED`。
+<!-- SID:planner.responsibilities.must_not END -->
 
 ---
 
@@ -290,10 +320,12 @@ PlannerAgent **不得**：
 ---
 
 ### 2. ExecutorAgent 在 HITL 场景下的职责
+<!-- SID:executor.hitl.responsibilities -->
 
 ExecutorAgent 负责**执行控制与失败检测**，但不具备决策权。
 
 #### 2.1 Patch 触发与 WAITING_PATCH_CONFIRM
+<!-- SID:executor.hitl.patch_confirm -->
 
 当 ExecutorAgent 发现以下情况之一：
 
@@ -307,10 +339,21 @@ ExecutorAgent 应：
 3. 将任务状态推进至 `WAITING_PATCH`（实现层）；
 4. 由系统创建 `PendingAction(action_type = patch_confirm)`。
 
+<!-- SID:executor.responsibilities.must BEGIN -->
+ExecutorAgent **必须**：
+
+- 停止继续执行后续步骤；
+- 触发 PlannerAgent 生成Patch候选；
+- 将任务状态推进至 WAITING_PATCH；
+- 由系统创建 PendingAction。
+<!-- SID:executor.responsibilities.must END -->
+
+<!-- SID:executor.responsibilities.must_not BEGIN -->
 ExecutorAgent **不得**：
 
 - 自行决定应用 Patch；
 - 在 WAITING_* 状态下继续执行任何工具调用。
+<!-- SID:executor.responsibilities.must_not END -->
 
 ---
 
@@ -327,10 +370,12 @@ ExecutorAgent **不得**：
 ---
 
 ### 3. SafetyAgent 在 HITL 场景下的职责
+<!-- SID:safety.hitl.responsibilities -->
 
-SafetyAgent 是 **HITL 触发的重要信号源**，但仍保持“建议者”角色。
+SafetyAgent 是 **HITL 触发的重要信号源**，但仍保持"建议者"角色。
 
 #### 3.1 触发 WAITING_REPLAN_CONFIRM 的条件
+<!-- SID:safety.hitl.replan_trigger -->
 
 当 SafetyAgent 在任意阶段返回以下结果之一：
 
@@ -346,39 +391,55 @@ SafetyAgent 应：
   - 是否建议 Replan；
 - 触发系统进入 `WAITING_REPLAN_CONFIRM`。
 
+<!-- SID:safety.responsibilities.must BEGIN -->
+SafetyAgent **必须**：
+
+- 向系统提交风险评估结果；
+- 明确标注风险来源、风险等级、是否建议 Replan；
+- 触发系统进入 WAITING_REPLAN_CONFIRM。
+<!-- SID:safety.responsibilities.must END -->
+
+<!-- SID:safety.responsibilities.must_not BEGIN -->
 SafetyAgent **不得**：
 
 - 自行终止任务；
 - 自行决定是否 Replan；
 - 直接修改 Plan。
+<!-- SID:safety.responsibilities.must_not END -->
 
 ---
 
 ### 4. SummarizerAgent 与 HITL 的关系
+<!-- SID:summarizer.hitl.responsibilities -->
 
 SummarizerAgent 不参与任何人工决策流程。
 
-约束如下：
+<!-- SID:summarizer.responsibilities.must BEGIN -->
+SummarizerAgent **必须**：
 
-- SummarizerAgent 仅在任务进入 `SUMMARIZING` 后启动；
-- SummarizerAgent 的失败：
-  - **不得影响任务的执行结果有效性**
-  - 仅影响展示与报告生成；
-- SummarizerAgent 的输出应明确区分：
-  - 执行结果（DesignResult）
-  - 展示产物（图表、可视化、报告文本）。
+- 仅在任务进入 `SUMMARIZING` 后启动；
+- 明确区分执行结果（DesignResult）与展示产物（图表、可视化、报告文本）。
+<!-- SID:summarizer.responsibilities.must END -->
+
+<!-- SID:summarizer.responsibilities.must_not BEGIN -->
+SummarizerAgent **不得**：
+
+- 影响任务的执行结果有效性（即使Summarizer失败，执行结果仍有效）；
+- 参与任何人工决策流程。
+<!-- SID:summarizer.responsibilities.must_not END -->
 
 ---
 
 ### 5. Agent 层统一约束（必须遵守）
+<!-- SID:agent.hitl.universal_constraints BEGIN -->
 
 为确保 HITL 机制的可控性与一致性，所有 Agent 必须遵守以下规则：
 
 1. Agent **不得直接等待人工输入**；
 2. Agent **不得直接与 UI / 人类交互**；
 3. 所有人工介入点必须：
-   - 显式对应一个 `PendingAction`；
-   - 显式对应 FSM 中的 `WAITING_*` 状态；
+   - 显式对应一个 `PendingAction`（详见 [ref:SID:arch.contracts.pending_action]）；
+   - 显式对应 FSM 中的 `WAITING_*` 状态（详见 [ref:SID:fsm.states.definitions]）；
 4. Agent 的职责边界为：
    - 发现问题
    - 生成候选
@@ -388,4 +449,5 @@ SummarizerAgent 不参与任何人工决策流程。
 
 通过上述设计，Human-in-the-loop 被严格限制在少数高价值、高风险的决策节点，
 而系统在绝大多数情况下仍保持全自动执行能力。
+<!-- SID:agent.hitl.universal_constraints END -->
 
