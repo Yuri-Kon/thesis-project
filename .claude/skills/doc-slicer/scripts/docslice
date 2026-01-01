@@ -384,6 +384,7 @@ class DocSlice:
         # Track SID uniqueness across all documents
         sid_locations = defaultdict(list)
         sid_paired = set()  # Track SIDs that have BEGIN/END pairs
+        doc_lines = {}
 
         # Check each document
         for doc in self.index_data.get('documents', []):
@@ -393,6 +394,7 @@ class DocSlice:
                 errors.append(f"Document file not found: {doc['path']}")
                 continue
 
+            doc_lines[doc['path']] = lines
             doc_key = doc['doc_key']
 
             # Track BEGIN/END pairing
@@ -447,13 +449,74 @@ class DocSlice:
             if len(locations) > 1:
                 errors.append(f"Duplicate SID '{sid}' found at: {', '.join(locations)}")
 
-        # Validate index.json consistency
+        # Validate index.json consistency and locator resolution
         for spec in self.index_data.get('specs', []):
             sid = spec['sid']
+            locator = spec.get('locator', {})
+            locator_type = locator.get('type')
+            path = spec.get('path')
 
             # Check if SID was found in actual documents
             if sid not in sid_locations:
                 errors.append(f"SID in index.json but not found in documents: {sid}")
+                continue
+
+            if not path:
+                errors.append(f"SID missing path in index.json: {sid}")
+                continue
+
+            lines = doc_lines.get(path)
+            if not lines:
+                errors.append(f"Document not loaded for SID '{sid}': {path}")
+                continue
+
+            try:
+                if locator_type in ('comment', 'inline'):
+                    line_num = locator.get('line')
+                    if line_num is None:
+                        errors.append(f"SID missing locator line: {sid}")
+                    elif line_num >= len(lines):
+                        errors.append(f"SID locator line out of range for {sid}: {line_num}")
+                elif locator_type == 'begin_end':
+                    line_start = locator.get('line_start')
+                    line_end = locator.get('line_end')
+                    if line_start is None or line_end is None:
+                        errors.append(f"SID missing begin/end lines: {sid}")
+                    elif line_start >= len(lines) or line_end >= len(lines):
+                        errors.append(f"SID begin/end lines out of range for {sid}: {line_start}-{line_end}")
+                    elif line_start > line_end:
+                        errors.append(f"SID begin line after end line for {sid}: {line_start}-{line_end}")
+                else:
+                    errors.append(f"Unknown locator type for {sid}: {locator_type}")
+
+                content, line_range = self._extract_content_by_locator(spec, lines)
+                if not content.strip():
+                    errors.append(f"SID resolved to empty content: {sid}")
+                if not line_range:
+                    errors.append(f"SID missing resolved line range: {sid}")
+            except Exception as exc:
+                errors.append(f"SID failed to resolve: {sid} ({exc})")
+
+        # Validate topic views
+        for topic_name, topic in self.topic_views.get('topics', {}).items():
+            for entry in topic.get('specs', []):
+                topic_sid = entry.get('sid')
+                if not topic_sid:
+                    errors.append(f"Topic '{topic_name}' contains an entry without sid")
+                    continue
+                spec = self.sid_lookup.get(topic_sid)
+                if not spec:
+                    errors.append(f"Topic '{topic_name}' references missing SID: {topic_sid}")
+                    continue
+                if spec.get('stability') == 'deprecated':
+                    errors.append(f"Topic '{topic_name}' references deprecated SID: {topic_sid}")
+
+        # Validate depends_on references
+        for spec in self.index_data.get('specs', []):
+            sid = spec['sid']
+            for dep in spec.get('depends_on', []):
+                if dep not in self.sid_lookup:
+                    errors.append(f"SID depends_on missing: {sid} -> {dep}")
 
         return errors
 

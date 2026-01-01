@@ -118,6 +118,74 @@ else
 fi
 echo
 
+# Golden cases
+echo "Test 11: Golden cases - FSM WAITING_* SIDs"
+WAITING_CASES=(
+    "fsm.states.waiting_plan_confirm:WAITING_PLAN_CONFIRM"
+    "fsm.states.waiting_patch_confirm:WAITING_PATCH_CONFIRM"
+    "fsm.states.waiting_replan_confirm:WAITING_REPLAN_CONFIRM"
+)
+for entry in "${WAITING_CASES[@]}"; do
+    SID="${entry%%:*}"
+    EXPECTED="${entry##*:}"
+    OUTPUT=$("$DOCSLICE" --sid "$SID" --no-metadata)
+    if [[ "$OUTPUT" == *"$EXPECTED"* ]]; then
+        echo "✓ $SID resolves"
+    else
+        echo "✗ $SID failed to resolve"
+        exit 1
+    fi
+done
+echo
+
+echo "Test 12: Golden cases - HITL / Decision SIDs"
+HITL_CASES=(
+    "arch.contracts.pending_action:PendingAction"
+    "arch.contracts.decision:Decision"
+)
+for entry in "${HITL_CASES[@]}"; do
+    SID="${entry%%:*}"
+    EXPECTED="${entry##*:}"
+    OUTPUT=$("$DOCSLICE" --sid "$SID" --no-metadata)
+    if [[ "$OUTPUT" == *"$EXPECTED"* ]]; then
+        echo "✓ $SID resolves"
+    else
+        echo "✗ $SID failed to resolve"
+        exit 1
+    fi
+done
+echo
+
+echo "Test 13: Golden cases - Candidate gating SID"
+OUTPUT=$("$DOCSLICE" --sid planner.algorithm.hitl_gate)
+if [[ "$OUTPUT" == *"# SID: planner.algorithm.hitl_gate"* ]]; then
+    echo "✓ planner.algorithm.hitl_gate resolves"
+else
+    echo "✗ planner.algorithm.hitl_gate failed to resolve"
+    exit 1
+fi
+echo
+
+echo "Test 14: Golden cases - EventLog schema SID"
+OUTPUT=$("$DOCSLICE" --sid obs.eventlog.schema)
+if [[ "$OUTPUT" == *"# SID: obs.eventlog.schema"* ]]; then
+    echo "✓ obs.eventlog.schema resolves"
+else
+    echo "✗ obs.eventlog.schema failed to resolve"
+    exit 1
+fi
+echo
+
+echo "Test 15: Golden cases - topic planning"
+OUTPUT=$("$DOCSLICE" --topic planning --max-lines 50 2>&1)
+if [[ "$OUTPUT" == *"Topic: planning"* ]]; then
+    echo "✓ topic planning resolves"
+else
+    echo "✗ topic planning failed to resolve"
+    exit 1
+fi
+echo
+
 echo "========================================"
 echo "All tests passed! ✓"
 echo "========================================"
