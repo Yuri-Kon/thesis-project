@@ -17,12 +17,9 @@ Before editing or generating code, Claude MUST read and comply with:
 1. `AGENT_CONTRACT.md`  
    → Defines non-negotiable system invariants
 
-2. Authoritative design documents (maintained in the design worktree):
-   - `../thesis-project.design/docs/design/architecture.md`
-   - `../thesis-project.design/docs/design/agent-design.md`
-   - `../thesis-project.design/docs/design/system-implementation-design.md`
-   - `../thesis-project.design/docs/design/core-algorithm-spec.md`
-   - `../thesis-project.design/docs/design/tools-catalog.md`
+2. Authoritative design specs (retrieved in minimal slices):
+   - Prefer precise spec fragments (SID/topic/ref) over full-document reads
+   - Use only the fragments needed for the requested change
 
 If any instruction conflicts:
 **AGENT_CONTRACT.md and design documents take precedence.**
@@ -139,4 +136,3 @@ not as permission to improvise.
 
 Claude is expected to assist implementation
 within clearly defined boundaries.
-

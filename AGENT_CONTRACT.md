@@ -151,6 +151,13 @@ Agents MUST consult design documents before:
 When code and design disagree:
 **design documents override code assumptions**.
 
+### 6.1 Spec Access Discipline
+
+To reduce unnecessary context and keep references precise, agents MUST
+prefer deterministic spec slicing when available (e.g. via the docslice
+skill under `.claude/skills/doc-slicer/`) and retrieve only the needed
+SID/topic fragments instead of full-document reads.
+
 ---
 
 ## 7. Minimal Change Principle
