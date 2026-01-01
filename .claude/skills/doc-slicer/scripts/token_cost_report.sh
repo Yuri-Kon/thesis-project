@@ -28,6 +28,83 @@ assert_file "$ALGO_DOC"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
+now_ns() {
+    date +%s%N
+}
+
+file_sha() {
+    python - "$1" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+print(hashlib.sha256(path.read_bytes()).hexdigest())
+PY
+}
+
+scenario_setup() {
+    local name="$1"
+    SCENARIO_DIR="$TMP_DIR/scenarios/$name"
+    FRAG_TSV="$SCENARIO_DIR/fragments.tsv"
+    FULL_TSV="$SCENARIO_DIR/full.tsv"
+    COMBINED_OUT="$SCENARIO_DIR/combined.txt"
+    mkdir -p "$SCENARIO_DIR"
+    : >"$FRAG_TSV"
+    : >"$FULL_TSV"
+    : >"$COMBINED_OUT"
+}
+
+add_full_doc() {
+    local label="$1"
+    local path="$2"
+    printf "%s\t%s\n" "$label" "$path" >>"$FULL_TSV"
+}
+
+run_docslice() {
+    local label="$1"
+    local out_path="$2"
+    shift 2
+    local start_ns end_ns duration_ms sha bytes
+    start_ns="$(now_ns)"
+    "$DOCSLICE" "$@" >"$out_path" 2>&1
+    end_ns="$(now_ns)"
+    duration_ms=$(( (end_ns - start_ns) / 1000000 ))
+    bytes="$(wc -c < "$out_path" | tr -d ' ')"
+    sha="$(file_sha "$out_path")"
+    printf "%s\t%s\t%s\t%s\t%s\n" "$label" "$out_path" "$duration_ms" "$sha" "$bytes" >>"$FRAG_TSV"
+    cat "$out_path" >>"$COMBINED_OUT"
+    echo >>"$COMBINED_OUT"
+}
+
+assert_contains() {
+    local file="$1"
+    local pattern="$2"
+    local message="$3"
+    if ! grep -Fq "$pattern" "$file"; then
+        echo "✗ $message"
+        echo "  Pattern: $pattern"
+        echo "  File: $file"
+        echo "  Preview:"
+        head -n 20 "$file" | sed 's/^/  /'
+        exit 1
+    fi
+}
+
+assert_table() {
+    local file="$1"
+    local message="$2"
+    if grep -Fq "|---" "$file" || grep -Fq "|:---" "$file"; then
+        return 0
+    fi
+    echo "✗ $message"
+    echo "  Pattern: |--- or |:---"
+    echo "  File: $file"
+    echo "  Preview:"
+    head -n 20 "$file" | sed 's/^/  /'
+    exit 1
+}
+
 print_report() {
     local scenario="$1"
     local fragments_tsv="$2"
@@ -64,7 +141,18 @@ except ImportError:
 def count_path(path: str) -> int:
     return count_text(Path(path).read_text(encoding="utf-8"))
 
-def load_tsv(path: str):
+def load_fragments(path: str):
+    entries = []
+    with open(path, "r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            label, file_path, duration_ms, sha256, bytes_len = line.split("\t", 4)
+            entries.append((label, file_path, int(duration_ms), sha256, int(bytes_len)))
+    return entries
+
+def load_full(path: str):
     entries = []
     with open(path, "r", encoding="utf-8") as handle:
         for line in handle:
@@ -75,11 +163,22 @@ def load_tsv(path: str):
             entries.append((label, file_path))
     return entries
 
-fragments = [(label, count_path(path)) for label, path in load_tsv(fragments_tsv)]
-full_docs = [(label, count_path(path)) for label, path in load_tsv(full_tsv)]
+frag_rows = []
+for label, path, duration_ms, sha256, bytes_len in load_fragments(fragments_tsv):
+    tokens = count_path(path)
+    frag_rows.append((label, tokens, duration_ms, sha256, bytes_len))
 
-docslice_total = sum(count for _, count in fragments)
-full_total = sum(count for _, count in full_docs)
+full_rows = []
+for label, path in load_full(full_tsv):
+    tokens = count_path(path)
+    bytes_len = Path(path).stat().st_size
+    full_rows.append((label, tokens, bytes_len))
+
+docslice_total = sum(tokens for _, tokens, _, _, _ in frag_rows)
+full_total = sum(tokens for _, tokens, _ in full_rows)
+docslice_bytes = sum(bytes_len for _, _, _, _, bytes_len in frag_rows)
+full_bytes = sum(bytes_len for _, _, bytes_len in full_rows)
+docslice_time = sum(duration_ms for _, _, duration_ms, _, _ in frag_rows)
 delta = full_total - docslice_total
 ratio = (docslice_total / full_total) if full_total else 0.0
 reduction = (1.0 - ratio) * 100.0 if full_total else 0.0
@@ -87,13 +186,19 @@ reduction = (1.0 - ratio) * 100.0 if full_total else 0.0
 print(f"Scenario: {scenario}")
 print(f"Token report ({engine})")
 print("DocSlice fragments:")
-for label, count in fragments:
-    print(f"  - {label}: {count}")
-print(f"DocSlice total: {docslice_total}")
+for label, tokens, duration_ms, sha256, bytes_len in frag_rows:
+    share_slice = (tokens / docslice_total) * 100.0 if docslice_total else 0.0
+    share_full = (tokens / full_total) * 100.0 if full_total else 0.0
+    print(
+        f"  - {label}: tokens={tokens}, share_slice={share_slice:.2f}%, "
+        f"share_full={share_full:.2f}%, time_ms={duration_ms}, bytes={bytes_len}, "
+        f"sha256={sha256[:12]}"
+    )
+print(f"DocSlice total: tokens={docslice_total}, time_ms={docslice_time}, bytes={docslice_bytes}")
 print("Full docs:")
-for label, count in full_docs:
-    print(f"  - {label}: {count}")
-print(f"Full total: {full_total}")
+for label, tokens, bytes_len in full_rows:
+    print(f"  - {label}: tokens={tokens}, bytes={bytes_len}")
+print(f"Full total: tokens={full_total}, bytes={full_bytes}")
 print(f"Delta: {delta}")
 print(f"Ratio: {ratio:.4f}")
 print(f"Reduction: {reduction:.2f}%")
@@ -114,124 +219,66 @@ echo "Token Cost Comparison Scenarios"
 echo "========================================"
 echo
 
-SCENARIO_DIR="$TMP_DIR/scenarios"
-mkdir -p "$SCENARIO_DIR"
-
-SCENARIO_SIMPLE="$SCENARIO_DIR/simple"
-mkdir -p "$SCENARIO_SIMPLE"
-FRAG_SIMPLE="$SCENARIO_SIMPLE/fragments.tsv"
-FULL_SIMPLE="$SCENARIO_SIMPLE/full.tsv"
-COMBINED_SIMPLE="$SCENARIO_SIMPLE/combined.txt"
-: >"$FRAG_SIMPLE"
-: >"$FULL_SIMPLE"
-: >"$COMBINED_SIMPLE"
-printf "architecture.md\t%s\n" "$ARCH_DOC" >>"$FULL_SIMPLE"
-printf "system-implementation-design.md\t%s\n" "$IMPL_DOC" >>"$FULL_SIMPLE"
-SIMPLE_SIDS=(
-    "fsm.states.definitions"
-    "arch.contracts.decision"
-    "obs.eventlog.schema"
-)
-for SID in "${SIMPLE_SIDS[@]}"; do
-    OUT_PATH="$SCENARIO_SIMPLE/${SID//./_}.txt"
-    "$DOCSLICE" --sid "$SID" >"$OUT_PATH"
-    printf "%s\t%s\n" "$SID" "$OUT_PATH" >>"$FRAG_SIMPLE"
-    cat "$OUT_PATH" >>"$COMBINED_SIMPLE"
-    echo >>"$COMBINED_SIMPLE"
-done
-if ! grep -q "状态列表" "$COMBINED_SIMPLE"; then
-    echo "✗ Simple scenario missing FSM definitions"
-    exit 1
-fi
-print_report "简单场景：基本 token 消耗比较" "$FRAG_SIMPLE" "$FULL_SIMPLE"
+scenario_setup "simple"
+add_full_doc "architecture.md" "$ARCH_DOC"
+add_full_doc "system-implementation-design.md" "$IMPL_DOC"
+run_docslice "fsm.states.definitions" "$SCENARIO_DIR/fsm_states_definitions.txt" --sid fsm.states.definitions
+run_docslice "arch.contracts.decision" "$SCENARIO_DIR/arch_contracts_decision.txt" --sid arch.contracts.decision
+run_docslice "obs.eventlog.schema" "$SCENARIO_DIR/obs_eventlog_schema.txt" --sid obs.eventlog.schema
+assert_contains "$COMBINED_OUT" "状态列表" "Simple scenario missing FSM definitions"
+assert_table "$COMBINED_OUT" "Simple scenario missing table structure"
+assert_contains "$COMBINED_OUT" "EventLog" "Simple scenario missing EventLog schema"
+print_report "简单场景：基本 token 消耗比较" "$FRAG_TSV" "$FULL_TSV"
 echo
 
-SCENARIO_MEDIUM="$SCENARIO_DIR/medium"
-mkdir -p "$SCENARIO_MEDIUM"
-FRAG_MEDIUM="$SCENARIO_MEDIUM/fragments.tsv"
-FULL_MEDIUM="$SCENARIO_MEDIUM/full.tsv"
-COMBINED_MEDIUM="$SCENARIO_MEDIUM/combined.txt"
-: >"$FRAG_MEDIUM"
-: >"$FULL_MEDIUM"
-: >"$COMBINED_MEDIUM"
-printf "architecture.md\t%s\n" "$ARCH_DOC" >>"$FULL_MEDIUM"
-printf "system-implementation-design.md\t%s\n" "$IMPL_DOC" >>"$FULL_MEDIUM"
-MEDIUM_SIDS=(
-    "arch.contracts.pending_action"
-    "arch.contracts.decision"
-    "fsm.transitions.overview"
-    "obs.eventlog.mandatory_events"
-)
-for SID in "${MEDIUM_SIDS[@]}"; do
-    OUT_PATH="$SCENARIO_MEDIUM/${SID//./_}.txt"
-    "$DOCSLICE" --sid "$SID" >"$OUT_PATH"
-    printf "%s\t%s\n" "$SID" "$OUT_PATH" >>"$FRAG_MEDIUM"
-    cat "$OUT_PATH" >>"$COMBINED_MEDIUM"
-    echo >>"$COMBINED_MEDIUM"
-done
-if ! grep -q "PendingAction" "$COMBINED_MEDIUM"; then
-    echo "✗ Medium scenario missing PendingAction"
-    exit 1
-fi
-if ! grep -q "Decision" "$COMBINED_MEDIUM"; then
-    echo "✗ Medium scenario missing Decision"
-    exit 1
-fi
-if ! grep -q "状态转换规则" "$COMBINED_MEDIUM"; then
-    echo "✗ Medium scenario missing FSM transitions overview"
-    exit 1
-fi
-if ! grep -q "事件日志" "$COMBINED_MEDIUM"; then
-    echo "✗ Medium scenario missing event log requirements"
-    exit 1
-fi
-print_report "中等场景：可用性检验与性能测试" "$FRAG_MEDIUM" "$FULL_MEDIUM"
+scenario_setup "medium"
+add_full_doc "architecture.md" "$ARCH_DOC"
+add_full_doc "system-implementation-design.md" "$IMPL_DOC"
+run_docslice "arch.contracts.pending_action" "$SCENARIO_DIR/arch_contracts_pending_action.txt" --sid arch.contracts.pending_action
+run_docslice "arch.contracts.decision" "$SCENARIO_DIR/arch_contracts_decision.txt" --sid arch.contracts.decision
+run_docslice "fsm.transitions.overview" "$SCENARIO_DIR/fsm_transitions_overview.txt" --sid fsm.transitions.overview
+run_docslice "obs.eventlog.mandatory_events" "$SCENARIO_DIR/obs_eventlog_mandatory_events.txt" --sid obs.eventlog.mandatory_events
+assert_contains "$COMBINED_OUT" "PendingAction" "Medium scenario missing PendingAction"
+assert_contains "$COMBINED_OUT" "Decision" "Medium scenario missing Decision"
+assert_contains "$COMBINED_OUT" "状态转换规则" "Medium scenario missing FSM transitions overview"
+assert_contains "$COMBINED_OUT" "事件日志" "Medium scenario missing event log requirements"
+print_report "中等场景：可用性检验与性能测试" "$FRAG_TSV" "$FULL_TSV"
 echo
 
-SCENARIO_ADVANCED="$SCENARIO_DIR/advanced"
-mkdir -p "$SCENARIO_ADVANCED"
-FRAG_ADVANCED="$SCENARIO_ADVANCED/fragments.tsv"
-FULL_ADVANCED="$SCENARIO_ADVANCED/full.tsv"
-COMBINED_ADVANCED="$SCENARIO_ADVANCED/combined.txt"
-: >"$FRAG_ADVANCED"
-: >"$FULL_ADVANCED"
-: >"$COMBINED_ADVANCED"
-printf "architecture.md\t%s\n" "$ARCH_DOC" >>"$FULL_ADVANCED"
-printf "agent-design.md\t%s\n" "$AGENT_DOC" >>"$FULL_ADVANCED"
-printf "core-algorithm-spec.md\t%s\n" "$ALGO_DOC" >>"$FULL_ADVANCED"
-printf "system-implementation-design.md\t%s\n" "$IMPL_DOC" >>"$FULL_ADVANCED"
+scenario_setup "complex"
+add_full_doc "architecture.md" "$ARCH_DOC"
+add_full_doc "agent-design.md" "$AGENT_DOC"
+add_full_doc "system-implementation-design.md" "$IMPL_DOC"
+run_docslice "api.rest.overview" "$SCENARIO_DIR/api_rest_overview.txt" --sid api.rest.overview
+run_docslice "agent.contracts.step_result" "$SCENARIO_DIR/agent_contracts_step_result.txt" --sid agent.contracts.step_result
+run_docslice "fsm.states.definitions" "$SCENARIO_DIR/fsm_states_definitions.txt" --sid fsm.states.definitions
+assert_contains "$COMBINED_OUT" '```' "Complex scenario missing code block"
+assert_table "$COMBINED_OUT" "Complex scenario missing table structure"
+assert_contains "$COMBINED_OUT" "StepResult" "Complex scenario missing StepResult definition"
+print_report "复杂场景：表格与代码块混合" "$FRAG_TSV" "$FULL_TSV"
+echo
 
-TOPIC_OUT="$SCENARIO_ADVANCED/topic_hitl.txt"
-"$DOCSLICE" --topic hitl --max-lines 200 >"$TOPIC_OUT" 2>&1
-printf "topic:hitl(max-lines=200)\t%s\n" "$TOPIC_OUT" >>"$FRAG_ADVANCED"
-cat "$TOPIC_OUT" >>"$COMBINED_ADVANCED"
-echo >>"$COMBINED_ADVANCED"
+scenario_setup "advanced"
+add_full_doc "architecture.md" "$ARCH_DOC"
+add_full_doc "agent-design.md" "$AGENT_DOC"
+add_full_doc "core-algorithm-spec.md" "$ALGO_DOC"
+add_full_doc "system-implementation-design.md" "$IMPL_DOC"
+run_docslice "topic:hitl(max-lines=200)" "$SCENARIO_DIR/topic_hitl.txt" --topic hitl --max-lines 200
+run_docslice "ref:arch#任务生命周期与状态机(FSM)" "$SCENARIO_DIR/ref_fsm_lifecycle.txt" --ref "DOC:arch#任务生命周期与状态机(FSM)"
+run_docslice "topic:planning(max-chars=4000)" "$SCENARIO_DIR/topic_planning.txt" --topic planning --max-chars 4000
+assert_contains "$COMBINED_OUT" "Topic: hitl" "Advanced scenario missing hitl topic output"
+assert_contains "$COMBINED_OUT" "任务生命周期与状态机" "Advanced scenario missing FSM lifecycle section"
+assert_contains "$COMBINED_OUT" "Topic: planning" "Advanced scenario missing planning topic output"
+print_report "高级场景：主题切片与跨文档覆盖" "$FRAG_TSV" "$FULL_TSV"
+echo
 
-REF_OUT="$SCENARIO_ADVANCED/ref_fsm_lifecycle.txt"
-"$DOCSLICE" --ref "DOC:arch#任务生命周期与状态机(FSM)" >"$REF_OUT"
-printf "ref:arch#任务生命周期与状态机(FSM)\t%s\n" "$REF_OUT" >>"$FRAG_ADVANCED"
-cat "$REF_OUT" >>"$COMBINED_ADVANCED"
-echo >>"$COMBINED_ADVANCED"
-
-PLANNING_OUT="$SCENARIO_ADVANCED/topic_planning.txt"
-"$DOCSLICE" --topic planning --max-chars 4000 >"$PLANNING_OUT" 2>&1
-printf "topic:planning(max-chars=4000)\t%s\n" "$PLANNING_OUT" >>"$FRAG_ADVANCED"
-cat "$PLANNING_OUT" >>"$COMBINED_ADVANCED"
-echo >>"$COMBINED_ADVANCED"
-
-if ! grep -q "Topic: hitl" "$COMBINED_ADVANCED"; then
-    echo "✗ Advanced scenario missing hitl topic output"
-    exit 1
-fi
-if ! grep -q "任务生命周期与状态机" "$COMBINED_ADVANCED"; then
-    echo "✗ Advanced scenario missing FSM lifecycle section"
-    exit 1
-fi
-if ! grep -q "Topic: planning" "$COMBINED_ADVANCED"; then
-    echo "✗ Advanced scenario missing planning topic output"
-    exit 1
-fi
-print_report "高级场景：复杂文档结构和性能优化" "$FRAG_ADVANCED" "$FULL_ADVANCED"
+scenario_setup "long"
+add_full_doc "system-implementation-design.md" "$IMPL_DOC"
+run_docslice "obs.eventlog.mandatory_events" "$SCENARIO_DIR/obs_eventlog_mandatory_events.txt" --sid obs.eventlog.mandatory_events
+run_docslice "api.rest.overview" "$SCENARIO_DIR/api_rest_overview.txt" --sid api.rest.overview
+assert_contains "$COMBINED_OUT" "任务状态定义" "Long scenario missing task state definition"
+assert_contains "$COMBINED_OUT" "REST API" "Long scenario missing REST API overview"
+print_report "超长场景：大段规范与高负载" "$FRAG_TSV" "$FULL_TSV"
 echo
 
 echo "========================================"
