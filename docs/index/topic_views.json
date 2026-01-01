@@ -1,0 +1,512 @@
+{
+  "version": "1.0",
+  "generated_at": "2025-12-31",
+  "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
+  "topics": {
+    "hitl": {
+      "title": "Human-in-the-Loop",
+      "description": "HITL 机制相关规范，包括 FSM 状态、契约定义、Agent 职责、API 端点和事件日志约束",
+      "use_case": "实现人工审查功能时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "arch.contracts.pending_action",
+          "title": "PendingAction 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "HITL 核心契约，定义等待人工决策的结构"
+        },
+        {
+          "sid": "arch.contracts.decision",
+          "title": "Decision 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "HITL 核心契约，定义人工决策的结构"
+        },
+        {
+          "sid": "arch.contracts.task_snapshot",
+          "title": "TaskSnapshot 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "支持任务恢复与快照的核心契约"
+        },
+        {
+          "sid": "fsm.states.waiting_plan_confirm",
+          "title": "WAITING_PLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "HITL 三个等待状态之一"
+        },
+        {
+          "sid": "fsm.states.waiting_patch_confirm",
+          "title": "WAITING_PATCH_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "HITL 三个等待状态之一"
+        },
+        {
+          "sid": "fsm.states.waiting_replan_confirm",
+          "title": "WAITING_REPLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "HITL 三个等待状态之一"
+        },
+        {
+          "sid": "agent.hitl.overview",
+          "title": "HITL 机制在 Agent 层的概述",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "Agent 如何与 HITL 机制交互的总览"
+        },
+        {
+          "sid": "agent.hitl.universal_constraints",
+          "title": "Agent 层 HITL 统一约束",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "所有 Agent 必须遵守的 HITL 约束"
+        },
+        {
+          "sid": "planner.hitl.responsibilities",
+          "title": "PlannerAgent HITL 职责",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "PlannerAgent 在 HITL 场景下的职责边界"
+        },
+        {
+          "sid": "planner.hitl.plan_confirm",
+          "title": "初始 Plan 确认阶段",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "Plan 确认流程详细说明"
+        },
+        {
+          "sid": "executor.hitl.responsibilities",
+          "title": "ExecutorAgent HITL 职责",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "ExecutorAgent 在 HITL 场景下的职责边界"
+        },
+        {
+          "sid": "executor.hitl.patch_confirm",
+          "title": "Patch 触发与确认",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "Patch 确认流程详细说明"
+        },
+        {
+          "sid": "safety.hitl.responsibilities",
+          "title": "SafetyAgent HITL 职责",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "SafetyAgent 在 HITL 场景下的职责边界"
+        },
+        {
+          "sid": "safety.hitl.replan_trigger",
+          "title": "触发 WAITING_REPLAN_CONFIRM 的条件",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "何时触发 Replan 确认的规则"
+        },
+        {
+          "sid": "planner.algorithm.hitl_gate",
+          "title": "HITL 门控决策规则",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "决定何时进入 HITL 的算法规则"
+        },
+        {
+          "sid": "planner.algorithm.decision_application",
+          "title": "Decision 应用逻辑",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "如何应用人工决策的算法逻辑"
+        },
+        {
+          "sid": "api.rest.get_pending_actions",
+          "title": "GET /pending-actions 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "获取待决策列表的 API"
+        },
+        {
+          "sid": "api.rest.submit_decision",
+          "title": "POST /pending-actions/{id}/decision 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "提交人工决策的 API"
+        },
+        {
+          "sid": "obs.eventlog.mandatory_events",
+          "title": "事件日志写入约束（必须遵守）",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "HITL 相关事件的强制日志要求"
+        }
+      ],
+      "total_specs": 19,
+      "critical_specs": 6,
+      "high_specs": 13
+    },
+    "planning": {
+      "title": "Task Planning",
+      "description": "任务规划相关规范，包括 Planner 接口、算法、候选方案评分和工具检索",
+      "use_case": "实现 PlannerAgent 或规划逻辑时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "arch.contracts.plan",
+          "title": "Plan 契约定义（架构层视角）",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "Plan 在架构层的作用定义"
+        },
+        {
+          "sid": "fsm.states.waiting_plan_confirm",
+          "title": "WAITING_PLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "Plan 确认状态定义"
+        },
+        {
+          "sid": "fsm.states.waiting_replan_confirm",
+          "title": "WAITING_REPLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "Replan 确认状态定义"
+        },
+        {
+          "sid": "agent.contracts.protein_design_task",
+          "title": "ProteinDesignTask 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "Planner 的输入契约"
+        },
+        {
+          "sid": "agent.contracts.plan",
+          "title": "Plan 数据结构（Agent 层视角）",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "Plan 的数据结构定义"
+        },
+        {
+          "sid": "planner.interface.overview",
+          "title": "PlannerAgent 接口总览",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "PlannerAgent 的完整接口定义"
+        },
+        {
+          "sid": "planner.responsibilities.must",
+          "title": "PlannerAgent 必须做的事",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "PlannerAgent 的强制职责"
+        },
+        {
+          "sid": "planner.responsibilities.must_not",
+          "title": "PlannerAgent 不得做的事",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "PlannerAgent 的禁止行为"
+        },
+        {
+          "sid": "planner.contracts.io_overview",
+          "title": "Planner 输入输出契约",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "Planner 的 I/O 契约详细说明"
+        },
+        {
+          "sid": "planner.contracts.candidate_schema",
+          "title": "Candidate 对象模式总览",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "候选方案的数据模式"
+        },
+        {
+          "sid": "planner.contracts.plan_candidate",
+          "title": "PlanCandidate 模式定义",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "初始 Plan 候选的模式"
+        },
+        {
+          "sid": "planner.contracts.replan_candidate",
+          "title": "ReplanCandidate 模式定义",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "Replan 候选的模式"
+        },
+        {
+          "sid": "planner.algorithm.tool_retrieval",
+          "title": "工具检索算法",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "如何从 KG 检索工具的算法"
+        },
+        {
+          "sid": "planner.algorithm.candidate_scoring",
+          "title": "候选方案评分规则",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "候选方案评分与排序算法"
+        },
+        {
+          "sid": "arch.kg.overview",
+          "title": "ProteinToolKG 在架构中的位置",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "medium",
+          "rationale": "KG 在规划中的作用"
+        }
+      ],
+      "total_specs": 15,
+      "critical_specs": 9,
+      "high_specs": 5,
+      "medium_specs": 1
+    },
+    "execution": {
+      "title": "Task Execution",
+      "description": "任务执行相关规范，包括 Executor 接口、Step 执行、工具适配器和 Patch 机制",
+      "use_case": "实现 ExecutorAgent 或执行逻辑时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "agent.contracts.plan",
+          "title": "Plan 数据结构（Agent 层视角）",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "Executor 的输入契约"
+        },
+        {
+          "sid": "agent.contracts.step_result",
+          "title": "StepResult 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "每个 Step 的执行结果契约"
+        },
+        {
+          "sid": "agent.contracts.design_result",
+          "title": "DesignResult 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "最终执行结果契约"
+        },
+        {
+          "sid": "fsm.states.waiting_patch_confirm",
+          "title": "WAITING_PATCH_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "Patch 确认状态定义"
+        },
+        {
+          "sid": "executor.hitl.responsibilities",
+          "title": "ExecutorAgent HITL 职责",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "ExecutorAgent 的职责边界"
+        },
+        {
+          "sid": "executor.hitl.patch_confirm",
+          "title": "Patch 触发与确认",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "Patch 机制详细说明"
+        },
+        {
+          "sid": "executor.responsibilities.must",
+          "title": "ExecutorAgent 必须做的事",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "ExecutorAgent 的强制职责"
+        },
+        {
+          "sid": "executor.responsibilities.must_not",
+          "title": "ExecutorAgent 不得做的事",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "critical",
+          "rationale": "ExecutorAgent 的禁止行为"
+        },
+        {
+          "sid": "planner.contracts.patch_candidate",
+          "title": "PatchCandidate 模式定义",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "Patch 候选的数据模式"
+        },
+        {
+          "sid": "tools.executor.overview",
+          "title": "Executor 可选择的工具",
+          "doc_key": "tools",
+          "path": "docs/design/tools-catalog.md",
+          "priority": "high",
+          "rationale": "可用工具清单"
+        },
+        {
+          "sid": "tools.adapter.constraints",
+          "title": "ToolAdapter 设计原则与约束",
+          "doc_key": "tools",
+          "path": "docs/design/tools-catalog.md",
+          "priority": "critical",
+          "rationale": "工具适配器必须遵守的约束"
+        },
+        {
+          "sid": "tools.esmfold.spec",
+          "title": "ESMFold 工具规约",
+          "doc_key": "tools",
+          "path": "docs/design/tools-catalog.md",
+          "priority": "medium",
+          "rationale": "示例工具规约"
+        }
+      ],
+      "total_specs": 12,
+      "critical_specs": 6,
+      "high_specs": 5,
+      "medium_specs": 1
+    },
+    "observability": {
+      "title": "Observability & Monitoring",
+      "description": "可观测性相关规范，包括事件日志、快照、状态机追踪和 API 监控",
+      "use_case": "实现日志、监控、审计功能时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "fsm.lifecycle.overview",
+          "title": "任务生命周期与状态机",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "状态机是可观测性的核心基础"
+        },
+        {
+          "sid": "fsm.states.definitions",
+          "title": "FSM 状态完整定义表",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "所有状态的定义，用于状态追踪"
+        },
+        {
+          "sid": "fsm.transitions.overview",
+          "title": "状态转换规则总览",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "状态转换规则，用于追踪异常转换"
+        },
+        {
+          "sid": "arch.contracts.task_snapshot",
+          "title": "TaskSnapshot 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "快照机制，支持恢复与审计"
+        },
+        {
+          "sid": "agent.contracts.step_result",
+          "title": "StepResult 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "Step 级别的执行结果，用于细粒度追踪"
+        },
+        {
+          "sid": "agent.contracts.design_result",
+          "title": "DesignResult 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "最终结果，用于任务级别追踪"
+        },
+        {
+          "sid": "agent.contracts.safety_result",
+          "title": "SafetyResult 数据结构",
+          "doc_key": "agent",
+          "path": "docs/design/agent-design.md",
+          "priority": "high",
+          "rationale": "安全检查结果，用于风险追踪"
+        },
+        {
+          "sid": "obs.eventlog.schema",
+          "title": "EventLog 单条日志记录结构",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "日志记录的数据模式"
+        },
+        {
+          "sid": "obs.eventlog.mandatory_events",
+          "title": "事件日志写入约束（必须遵守）",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "强制日志事件，确保可审计性"
+        },
+        {
+          "sid": "api.rest.overview",
+          "title": "REST API 总览",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "medium",
+          "rationale": "API 也需要日志与监控"
+        }
+      ],
+      "total_specs": 10,
+      "critical_specs": 6,
+      "high_specs": 3,
+      "medium_specs": 1
+    }
+  },
+  "summary": {
+    "total_topics": 4,
+    "total_unique_specs": 45,
+    "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
+  },
+  "usage_guide": {
+    "for_claude_code_skills": "Claude Code Skills 可通过 topic 参数选择相应的规范集合，仅注入该主题的最小可用上下文",
+    "for_docslice": "docslice 脚本可根据 topic 提取对应的规范片段，避免全文扫描",
+    "priority_levels": {
+      "critical": "核心规范，必须理解和遵守",
+      "high": "重要规范，实现时需要参考",
+      "medium": "辅助规范，提供额外上下文"
+    }
+  }
+}

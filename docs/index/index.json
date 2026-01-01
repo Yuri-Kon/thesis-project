@@ -1,0 +1,1061 @@
+{
+  "version": "1.0",
+  "generated_at": "2025-12-31",
+  "description": "Machine-readable specification index for thesis-project design documents",
+  "total_specs": 65,
+  "documents": [
+    {
+      "doc_key": "arch",
+      "title": "系统总体架构",
+      "path": "docs/design/architecture.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": []
+    },
+    {
+      "doc_key": "agent",
+      "title": "Agent设计文档",
+      "path": "docs/design/agent-design.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["arch"]
+    },
+    {
+      "doc_key": "algo",
+      "title": "核心算法规范",
+      "path": "docs/design/core-algorithm-spec.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["arch", "agent"]
+    },
+    {
+      "doc_key": "impl",
+      "title": "系统实现设计",
+      "path": "docs/design/system-implementation-design.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["arch", "agent"]
+    },
+    {
+      "doc_key": "tools",
+      "title": "Tools Catalog",
+      "path": "docs/design/tools-catalog.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["impl"]
+    },
+    {
+      "doc_key": "hitl",
+      "title": "Human-in-the-loop 扩展设计",
+      "path": "docs/design/hitl-extension.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["arch", "agent", "impl", "algo"]
+    }
+  ],
+  "specs": [
+    {
+      "sid": "arch.overview.layers",
+      "title": "分层架构",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 11,
+        "marker": "<!-- SID:arch.overview.layers -->"
+      },
+      "level": "Section",
+      "tags": ["arch", "overview", "layers"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.components.overview",
+      "title": "组件视图",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 33,
+        "marker": "<!-- SID:arch.components.overview -->"
+      },
+      "level": "Section",
+      "tags": ["arch", "components"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.flow.end_to_end",
+      "title": "运行视图与时序图",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 74,
+        "marker": "<!-- SID:arch.flow.end_to_end -->"
+      },
+      "level": "Section",
+      "tags": ["arch", "flow", "runtime"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.dataflow.overview",
+      "title": "数据流概览",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 382,
+        "marker": "<!-- SID:arch.dataflow.overview -->"
+      },
+      "level": "Section",
+      "tags": ["arch", "dataflow"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.kg.overview",
+      "title": "ProteinToolKG 在架构中的位置",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 415,
+        "marker": "<!-- SID:arch.kg.overview -->"
+      },
+      "level": "Block",
+      "tags": ["arch", "kg", "knowledge_graph"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.pending_action",
+      "title": "PendingAction 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 337,
+        "line_end": 355,
+        "marker_begin": "<!-- SID:arch.contracts.pending_action BEGIN -->",
+        "marker_end": "<!-- SID:arch.contracts.pending_action END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["arch", "contracts", "hitl", "pending_action"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.decision",
+      "title": "Decision 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 350,
+        "line_end": 354,
+        "marker_begin": "<!-- SID:arch.contracts.decision BEGIN -->",
+        "marker_end": "<!-- SID:arch.contracts.decision END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["arch", "contracts", "hitl", "decision"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.task_snapshot",
+      "title": "TaskSnapshot 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 358,
+        "line_end": 379,
+        "marker_begin": "<!-- SID:arch.contracts.task_snapshot BEGIN -->",
+        "marker_end": "<!-- SID:arch.contracts.task_snapshot END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["arch", "contracts", "hitl", "snapshot"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.plan",
+      "title": "Plan 契约定义（架构层视角）",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 396,
+        "marker": "<!-- SID:arch.contracts.plan -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["arch", "contracts", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.lifecycle.overview",
+      "title": "任务生命周期与状态机",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 302,
+        "marker": "<!-- SID:fsm.lifecycle.overview -->"
+      },
+      "level": "Section",
+      "tags": ["fsm", "lifecycle", "state_machine"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.definitions",
+      "title": "FSM 状态完整定义表",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 307,
+        "marker": "<!-- SID:fsm.states.definitions -->"
+      },
+      "level": "Block",
+      "tags": ["fsm", "states", "definitions"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_plan_confirm",
+      "title": "WAITING_PLAN_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "inline",
+        "line": 315,
+        "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["fsm", "states", "hitl", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_patch_confirm",
+      "title": "WAITING_PATCH_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "inline",
+        "line": 318,
+        "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["fsm", "states", "hitl", "execution"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_replan_confirm",
+      "title": "WAITING_REPLAN_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "inline",
+        "line": 319,
+        "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["fsm", "states", "hitl", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.transitions.overview",
+      "title": "状态转换规则总览",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 328,
+        "line_end": 334,
+        "marker_begin": "<!-- SID:fsm.transitions.overview BEGIN -->",
+        "marker_end": "<!-- SID:fsm.transitions.overview END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["fsm", "transitions", "state_machine"],
+      "depends_on": ["fsm.states.definitions"],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.overview.introduction",
+      "title": "Agent体系总览",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 13,
+        "marker": "<!-- SID:agent.overview.introduction -->"
+      },
+      "level": "Section",
+      "tags": ["agent", "overview"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.overview.roles",
+      "title": "Agent 角色列表",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 16,
+        "marker": "<!-- SID:agent.overview.roles -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "overview", "roles"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.overview",
+      "title": "核心数据结构契约总览",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 45,
+        "marker": "<!-- SID:agent.contracts.overview -->"
+      },
+      "level": "Section",
+      "tags": ["agent", "contracts", "data_structures"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.protein_design_task",
+      "title": "ProteinDesignTask 数据结构",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 50,
+        "marker": "<!-- SID:agent.contracts.protein_design_task -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "contracts", "task"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.plan",
+      "title": "Plan 数据结构（Agent 层视角）",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 62,
+        "marker": "<!-- SID:agent.contracts.plan -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "contracts", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.step_result",
+      "title": "StepResult 数据结构",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 81,
+        "marker": "<!-- SID:agent.contracts.step_result -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "contracts", "execution", "result"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.design_result",
+      "title": "DesignResult 数据结构",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 98,
+        "marker": "<!-- SID:agent.contracts.design_result -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "contracts", "result"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.contracts.safety_result",
+      "title": "SafetyResult 数据结构",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 113,
+        "marker": "<!-- SID:agent.contracts.safety_result -->"
+      },
+      "level": "Block",
+      "tags": ["agent", "contracts", "safety", "result"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.hitl.overview",
+      "title": "HITL 机制在 Agent 层的概述",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 248,
+        "marker": "<!-- SID:agent.hitl.overview -->"
+      },
+      "level": "Section",
+      "tags": ["agent", "hitl", "overview"],
+      "depends_on": ["arch.contracts.pending_action", "arch.contracts.decision"],
+      "stability": "stable"
+    },
+    {
+      "sid": "agent.hitl.universal_constraints",
+      "title": "Agent 层 HITL 统一约束",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 434,
+        "line_end": 452,
+        "marker_begin": "<!-- SID:agent.hitl.universal_constraints BEGIN -->",
+        "marker_end": "<!-- SID:agent.hitl.universal_constraints END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["agent", "hitl", "constraints"],
+      "depends_on": ["arch.contracts.pending_action", "fsm.states.definitions"],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.interface.overview",
+      "title": "PlannerAgent 接口总览",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 149,
+        "marker": "<!-- SID:planner.interface.overview -->"
+      },
+      "level": "Section",
+      "tags": ["planner", "interface", "agent"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.hitl.responsibilities",
+      "title": "PlannerAgent HITL 职责",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 267,
+        "marker": "<!-- SID:planner.hitl.responsibilities -->"
+      },
+      "level": "Section",
+      "tags": ["planner", "hitl", "responsibilities"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.hitl.plan_confirm",
+      "title": "初始 Plan 确认阶段",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 273,
+        "marker": "<!-- SID:planner.hitl.plan_confirm -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "hitl", "planning"],
+      "depends_on": ["fsm.states.waiting_plan_confirm"],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.responsibilities.must",
+      "title": "PlannerAgent 必须做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 290,
+        "line_end": 297,
+        "marker_begin": "<!-- SID:planner.responsibilities.must BEGIN -->",
+        "marker_end": "<!-- SID:planner.responsibilities.must END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["planner", "responsibilities", "must"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.responsibilities.must_not",
+      "title": "PlannerAgent 不得做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 299,
+        "line_end": 304,
+        "marker_begin": "<!-- SID:planner.responsibilities.must_not BEGIN -->",
+        "marker_end": "<!-- SID:planner.responsibilities.must_not END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["planner", "responsibilities", "must_not"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "executor.hitl.responsibilities",
+      "title": "ExecutorAgent HITL 职责",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 323,
+        "marker": "<!-- SID:executor.hitl.responsibilities -->"
+      },
+      "level": "Section",
+      "tags": ["executor", "hitl", "responsibilities"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "executor.hitl.patch_confirm",
+      "title": "Patch 触发与确认",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 328,
+        "marker": "<!-- SID:executor.hitl.patch_confirm -->"
+      },
+      "level": "Block",
+      "tags": ["executor", "hitl", "execution", "patch"],
+      "depends_on": ["fsm.states.waiting_patch_confirm"],
+      "stability": "stable"
+    },
+    {
+      "sid": "executor.responsibilities.must",
+      "title": "ExecutorAgent 必须做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 342,
+        "line_end": 349,
+        "marker_begin": "<!-- SID:executor.responsibilities.must BEGIN -->",
+        "marker_end": "<!-- SID:executor.responsibilities.must END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["executor", "responsibilities", "must"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "executor.responsibilities.must_not",
+      "title": "ExecutorAgent 不得做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 351,
+        "line_end": 356,
+        "marker_begin": "<!-- SID:executor.responsibilities.must_not BEGIN -->",
+        "marker_end": "<!-- SID:executor.responsibilities.must_not END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["executor", "responsibilities", "must_not"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "safety.hitl.responsibilities",
+      "title": "SafetyAgent HITL 职责",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 373,
+        "marker": "<!-- SID:safety.hitl.responsibilities -->"
+      },
+      "level": "Section",
+      "tags": ["safety", "hitl", "responsibilities"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "safety.hitl.replan_trigger",
+      "title": "触发 WAITING_REPLAN_CONFIRM 的条件",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 378,
+        "marker": "<!-- SID:safety.hitl.replan_trigger -->"
+      },
+      "level": "Block",
+      "tags": ["safety", "hitl", "planning"],
+      "depends_on": ["fsm.states.waiting_replan_confirm"],
+      "stability": "stable"
+    },
+    {
+      "sid": "safety.responsibilities.must",
+      "title": "SafetyAgent 必须做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 394,
+        "line_end": 400,
+        "marker_begin": "<!-- SID:safety.responsibilities.must BEGIN -->",
+        "marker_end": "<!-- SID:safety.responsibilities.must END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["safety", "responsibilities", "must"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "safety.responsibilities.must_not",
+      "title": "SafetyAgent 不得做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 402,
+        "line_end": 408,
+        "marker_begin": "<!-- SID:safety.responsibilities.must_not BEGIN -->",
+        "marker_end": "<!-- SID:safety.responsibilities.must_not END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["safety", "responsibilities", "must_not"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "summarizer.hitl.responsibilities",
+      "title": "SummarizerAgent HITL 职责",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 413,
+        "marker": "<!-- SID:summarizer.hitl.responsibilities -->"
+      },
+      "level": "Section",
+      "tags": ["summarizer", "hitl", "responsibilities"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "summarizer.responsibilities.must",
+      "title": "SummarizerAgent 必须做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 417,
+        "line_end": 422,
+        "marker_begin": "<!-- SID:summarizer.responsibilities.must BEGIN -->",
+        "marker_end": "<!-- SID:summarizer.responsibilities.must END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["summarizer", "responsibilities", "must"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "summarizer.responsibilities.must_not",
+      "title": "SummarizerAgent 不得做的事",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 424,
+        "line_end": 429,
+        "marker_begin": "<!-- SID:summarizer.responsibilities.must_not BEGIN -->",
+        "marker_end": "<!-- SID:summarizer.responsibilities.must_not END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["summarizer", "responsibilities", "must_not"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "algo.scope.overview",
+      "title": "算法规范范围说明",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 13,
+        "marker": "<!-- SID:algo.scope.overview -->"
+      },
+      "level": "Section",
+      "tags": ["algo", "scope"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "algo.definitions.overview",
+      "title": "算法定义总览",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 30,
+        "marker": "<!-- SID:algo.definitions.overview -->"
+      },
+      "level": "Section",
+      "tags": ["algo", "definitions"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.contracts.io_overview",
+      "title": "Planner 输入输出契约",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 58,
+        "marker": "<!-- SID:planner.contracts.io_overview -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "contracts", "io"],
+      "depends_on": ["agent.contracts.protein_design_task", "agent.contracts.plan"],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.contracts.candidate_schema",
+      "title": "Candidate 对象模式总览",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 117,
+        "marker": "<!-- SID:planner.contracts.candidate_schema -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "contracts", "candidate"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.contracts.plan_candidate",
+      "title": "PlanCandidate 模式定义",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 123,
+        "marker": "<!-- SID:planner.contracts.plan_candidate -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["planner", "contracts", "candidate", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.contracts.patch_candidate",
+      "title": "PatchCandidate 模式定义",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 148,
+        "marker": "<!-- SID:planner.contracts.patch_candidate -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["planner", "contracts", "candidate", "execution"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.contracts.replan_candidate",
+      "title": "ReplanCandidate 模式定义",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 174,
+        "marker": "<!-- SID:planner.contracts.replan_candidate -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["planner", "contracts", "candidate", "planning"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.tool_retrieval",
+      "title": "工具检索算法",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 202,
+        "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "algorithm", "tool_retrieval"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.candidate_scoring",
+      "title": "候选方案评分规则",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 298,
+        "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "algorithm", "scoring"],
+      "depends_on": ["planner.contracts.candidate_schema"],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.hitl_gate",
+      "title": "HITL 门控决策规则",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 345,
+        "marker": "<!-- SID:planner.algorithm.hitl_gate -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "algorithm", "hitl"],
+      "depends_on": ["planner.algorithm.candidate_scoring"],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.decision_application",
+      "title": "Decision 应用逻辑",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 394,
+        "marker": "<!-- SID:planner.algorithm.decision_application -->"
+      },
+      "level": "Block",
+      "tags": ["planner", "algorithm", "hitl", "decision"],
+      "depends_on": ["arch.contracts.decision"],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.overview.introduction",
+      "title": "实现层总览",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 13,
+        "marker": "<!-- SID:impl.overview.introduction -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "overview"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.techstack.overview",
+      "title": "技术栈选型",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 76,
+        "marker": "<!-- SID:impl.techstack.overview -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "techstack"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.overview",
+      "title": "REST API 总览",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 139,
+        "marker": "<!-- SID:api.rest.overview -->"
+      },
+      "level": "Section",
+      "tags": ["api", "rest"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.create_task",
+      "title": "POST /tasks 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 151,
+        "marker": "<!-- SID:api.rest.create_task -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["api", "rest", "task"],
+      "depends_on": ["agent.contracts.protein_design_task"],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.get_pending_actions",
+      "title": "GET /pending-actions 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 267,
+        "marker": "<!-- SID:api.rest.get_pending_actions -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["api", "rest", "hitl", "pending_actions"],
+      "depends_on": ["arch.contracts.pending_action"],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.submit_decision",
+      "title": "POST /pending-actions/{id}/decision 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 295,
+        "marker": "<!-- SID:api.rest.submit_decision -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["api", "rest", "hitl", "decision"],
+      "depends_on": ["arch.contracts.decision"],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.get_report",
+      "title": "GET /tasks/{task_id}/report 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 322,
+        "marker": "<!-- SID:api.rest.get_report -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["api", "rest", "report"],
+      "depends_on": ["agent.contracts.design_result"],
+      "stability": "stable"
+    },
+    {
+      "sid": "obs.eventlog.schema",
+      "title": "EventLog 单条日志记录结构",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 772,
+        "marker": "<!-- SID:obs.eventlog.schema -->"
+      },
+      "level": "Block",
+      "tags": ["obs", "eventlog", "observability"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "obs.eventlog.mandatory_events",
+      "title": "事件日志写入约束（必须遵守）",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 820,
+        "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["obs", "eventlog", "observability", "hitl"],
+      "depends_on": ["fsm.states.definitions"],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.executor.overview",
+      "title": "Executor 可选择的工具",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 21,
+        "marker": "<!-- SID:tools.executor.overview -->"
+      },
+      "level": "Section",
+      "tags": ["tools", "executor"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.esmfold.spec",
+      "title": "ESMFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 31,
+        "marker": "<!-- SID:tools.esmfold.spec -->"
+      },
+      "level": "Block",
+      "tags": ["tools", "esmfold", "structure_prediction"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.alphafold.spec",
+      "title": "AlphaFold/OpenFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 44,
+        "marker": "<!-- SID:tools.alphafold.spec -->"
+      },
+      "level": "Block",
+      "tags": ["tools", "alphafold", "structure_prediction"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.adapter.constraints",
+      "title": "ToolAdapter 设计原则与约束",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 225,
+        "line_end": 236,
+        "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
+        "marker_end": "<!-- SID:tools.adapter.constraints END -->"
+      },
+      "level": "Spec-Item",
+      "tags": ["tools", "adapter", "constraints"],
+      "depends_on": [],
+      "stability": "stable"
+    }
+  ]
+}
