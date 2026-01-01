@@ -19,7 +19,9 @@ Before modifying code, Codex MUST read any comply with:
   - Use the docslice skill at `.claude/skills/doc-slicer/`
   - Script: `.claude/skills/doc-slicer/scripts/docslice`
   - Retrieve only the needed fragments by `--sid`, `--topic`, or `--ref`
-  - Read full design docs only if docslice cannot locate the required spec
+  - If the first slice is incomplete or misses the target, expand scope and retry
+    (e.g., increase `--max-lines`/`--max-chars`, or try a broader `--ref`/`--topic`)
+  - Read full design docs only if docslice still cannot locate or capture the required spec
 
 If any instruction conflicts:
 **AGENT_CONTRACT.md and design documents take precedence.**
