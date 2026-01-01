@@ -6,9 +6,8 @@ A read-only, deterministic document slicer for extracting specification fragment
 
 `docslice` is the core tool for the skill execution mechanism in Claude Code, providing precise specification context retrieval. It enables:
 
-**Location**: The script can be run from either:
-- Main repository: `thesis-project/scripts/docslice` (auto-detects design worktree)
-- Design worktree: `thesis-project.design/scripts/docslice`
+**Location**: Packaged with the skill at `.claude/skills/doc-slicer/scripts/docslice`.
+It auto-detects the design worktree from the repo root.
 
 The script automatically detects its location and finds the design documentation.
 
@@ -23,10 +22,10 @@ The script requires Python 3.6+ and no external dependencies (uses only standard
 
 ```bash
 # Make the script executable
-chmod +x scripts/docslice
+chmod +x .claude/skills/doc-slicer/scripts/docslice
 
 # Optionally, add to PATH or create a symlink
-ln -s $(pwd)/scripts/docslice /usr/local/bin/docslice
+ln -s $(pwd)/.claude/skills/doc-slicer/scripts/docslice /usr/local/bin/docslice
 ```
 
 ## Usage
@@ -306,7 +305,6 @@ When run from the design worktree (`thesis-project.design/scripts/docslice`):
 
 ## Related Documents
 
-- [SECTION_CONTRACT.md](../docs/index/SECTION_CONTRACT.md) - SID contract definition
 - [index.json](../docs/index/index.json) - Machine-readable specification index
 - [topic_views.json](../docs/index/topic_views.json) - Topic-based views
 
