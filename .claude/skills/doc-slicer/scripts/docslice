@@ -38,24 +38,31 @@ class DocSlice:
     def __init__(self, repo_root: Optional[Path] = None):
         """Initialize docslice with repository root."""
         if repo_root is None:
-            # Assume script is in scripts/ directory
-            script_parent = Path(__file__).parent.parent
+            script_path = Path(__file__).resolve()
+            repo_root = None
 
-            # Check if we're in the main repo or design worktree
-            # Main repo: look for design worktree at ../thesis-project.design/
-            # Design worktree: use current location
-            design_index = script_parent / "docs" / "index" / "index.json"
-            if design_index.exists():
-                # We're in the design worktree
-                repo_root = script_parent
-            else:
-                # We're in the main repo, look for design worktree
-                design_worktree = script_parent.parent / "thesis-project.design"
-                if design_worktree.exists() and (design_worktree / "docs" / "index" / "index.json").exists():
-                    repo_root = design_worktree
-                else:
-                    # Fallback to script parent
-                    repo_root = script_parent
+            # Prefer a design worktree found in any ancestor.
+            for parent in script_path.parents:
+                if (parent / "docs" / "index" / "index.json").exists():
+                    repo_root = parent
+                    break
+
+            if repo_root is None:
+                main_repo = None
+                for parent in script_path.parents:
+                    if (parent / ".git").exists():
+                        main_repo = parent
+                        break
+
+                if main_repo is not None:
+                    design_worktree = main_repo.parent / "thesis-project.design"
+                    if (design_worktree / "docs" / "index" / "index.json").exists():
+                        repo_root = design_worktree
+                    else:
+                        repo_root = main_repo
+
+            if repo_root is None:
+                repo_root = script_path.parent
 
         self.repo_root = repo_root
         self.index_dir = repo_root / "docs" / "index"
