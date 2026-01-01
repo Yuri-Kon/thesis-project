@@ -186,6 +186,80 @@ else
 fi
 echo
 
+echo "Test 16: Token cost reduction with docslice"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+DESIGN_ROOT="$REPO_ROOT/../thesis-project.design"
+ARCH_DOC="$DESIGN_ROOT/docs/design/architecture.md"
+IMPL_DOC="$DESIGN_ROOT/docs/design/system-implementation-design.md"
+if [ ! -f "$ARCH_DOC" ] || [ ! -f "$IMPL_DOC" ]; then
+    echo "✗ Design docs not found: $ARCH_DOC or $IMPL_DOC"
+    exit 1
+fi
+
+estimate_tokens() {
+    python - "$@" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+def estimate(text: str) -> int:
+    cjk = re.findall(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", text)
+    text_wo_cjk = re.sub(r"[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]", "", text)
+    words = re.findall(r"[A-Za-z0-9_]+", text_wo_cjk)
+    text_wo_words = re.sub(r"[A-Za-z0-9_]+", "", text_wo_cjk)
+    other_nonspace = re.findall(r"\S", text_wo_words)
+    return len(cjk) + len(words) + len(other_nonspace)
+
+paths = sys.argv[1:]
+if paths:
+    total = 0
+    for path in paths:
+        total += estimate(Path(path).read_text(encoding="utf-8"))
+    print(total)
+else:
+    print(estimate(sys.stdin.read()))
+PY
+}
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+DOCSLICE_OUTPUT="$TMP_DIR/docslice_output.txt"
+: > "$DOCSLICE_OUTPUT"
+
+TOKEN_SIDS=(
+    "fsm.states.definitions"
+    "arch.contracts.decision"
+    "obs.eventlog.schema"
+)
+for SID in "${TOKEN_SIDS[@]}"; do
+    "$DOCSLICE" --sid "$SID" >> "$DOCSLICE_OUTPUT"
+    echo >> "$DOCSLICE_OUTPUT"
+done
+
+if ! grep -q "状态列表" "$DOCSLICE_OUTPUT"; then
+    echo "✗ docslice output missing FSM definitions"
+    exit 1
+fi
+if ! grep -q "Decision" "$DOCSLICE_OUTPUT"; then
+    echo "✗ docslice output missing Decision contract"
+    exit 1
+fi
+if ! grep -q "EventLog" "$DOCSLICE_OUTPUT"; then
+    echo "✗ docslice output missing EventLog schema"
+    exit 1
+fi
+
+DOCSLICE_TOKENS="$(estimate_tokens "$DOCSLICE_OUTPUT")"
+FULL_TOKENS="$(estimate_tokens "$ARCH_DOC" "$IMPL_DOC")"
+
+if [ "$DOCSLICE_TOKENS" -lt "$FULL_TOKENS" ]; then
+    echo "✓ Token cost reduced ($DOCSLICE_TOKENS < $FULL_TOKENS)"
+else
+    echo "✗ Token cost not reduced ($DOCSLICE_TOKENS >= $FULL_TOKENS)"
+    exit 1
+fi
+echo
+
 echo "========================================"
 echo "All tests passed! ✓"
 echo "========================================"
