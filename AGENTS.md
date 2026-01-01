@@ -15,12 +15,13 @@ and MUST be respected.
 Before modifying code, Codex MUST read any comply with:
 
 1. `AGENT_CONTRACT.md`: Define system-level invariants (FSM, agent boundaries, contracts)
-2. Authoritative design document (in design worktree):
-  - `../thesis-project.design/docs/design/architecture.md`
-  - `../thesis-project.design/docs/design/agent-design.md`
-  - `../thesis-project.design/docs/design/system-implementation-design.md`
-  - `../thesis-project.design/docs/design/core-algorithm-spec.md`
-  - `../thesis-project.design/docs/design/tools-catalog.md`
+2. Authoritative design specs via deterministic slicing (preferred):
+  - Use the docslice skill at `.claude/skills/doc-slicer/`
+  - Script: `.claude/skills/doc-slicer/scripts/docslice`
+  - Retrieve only the needed fragments by `--sid`, `--topic`, or `--ref`
+  - If the first slice is incomplete or misses the target, expand scope and retry
+    (e.g., increase `--max-lines`/`--max-chars`, or try a broader `--ref`/`--topic`)
+  - Read full design docs only if docslice still cannot locate or capture the required spec
 
 If any instruction conflicts:
 **AGENT_CONTRACT.md and design documents take precedence.**
