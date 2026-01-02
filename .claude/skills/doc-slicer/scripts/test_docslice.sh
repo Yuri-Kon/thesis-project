@@ -40,6 +40,69 @@ else
 fi
 echo
 
+# Test 2c: Heading resolution prefers nearest upward heading
+echo "Test 2c: --sid resolves heading by nearest upward heading"
+TMP_ROOT="$(mktemp -d)"
+trap 'rm -rf "$TMP_ROOT"' EXIT
+mkdir -p "$TMP_ROOT/docs/design" "$TMP_ROOT/docs/index"
+cat > "$TMP_ROOT/docs/design/sample.md" <<'EOF'
+# Sample Doc
+
+Intro paragraph.
+
+## Section A
+
+Some explanation before SID.
+
+<!-- SID:sample.section.a -->
+Paragraph after SID.
+
+### Subheading A1
+Details under A1.
+
+## Section B
+Section B content.
+EOF
+SID_LINE=$(nl -ba "$TMP_ROOT/docs/design/sample.md" | awk '/SID:sample.section.a/ {print $1}')
+cat > "$TMP_ROOT/docs/index/index.json" <<EOF
+{
+  "documents": [
+    {
+      "doc_key": "sample",
+      "title": "Sample Doc",
+      "path": "docs/design/sample.md",
+      "status": "stable",
+      "depends_on": []
+    }
+  ],
+  "specs": [
+    {
+      "sid": "sample.section.a",
+      "title": "Section A",
+      "doc_key": "sample",
+      "path": "docs/design/sample.md",
+      "locator": {
+        "type": "comment",
+        "line": ${SID_LINE}
+      },
+      "level": "Section",
+      "tags": []
+    }
+  ]
+}
+EOF
+cat > "$TMP_ROOT/docs/index/topic_views.json" <<'EOF'
+{ "topics": {} }
+EOF
+OUTPUT=$("$DOCSLICE" --sid sample.section.a --no-metadata --repo-root "$TMP_ROOT")
+if [[ "$OUTPUT" == "## Section A"* ]]; then
+    echo "✓ heading resolved to nearest upward heading"
+else
+    echo "✗ heading resolution did not prefer upward heading"
+    exit 1
+fi
+echo
+
 # Test 3: Extract by SID (begin_end marker)
 echo "Test 3: --sid with begin_end marker"
 OUTPUT=$("$DOCSLICE" --sid arch.contracts.pending_action --no-metadata)
