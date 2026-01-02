@@ -29,6 +29,17 @@ else
 fi
 echo
 
+# Test 2b: Section extraction includes nested SIDs
+echo "Test 2b: --sid section includes nested SIDs"
+OUTPUT=$("$DOCSLICE" --sid agent.contracts.overview --no-metadata)
+if [[ "$OUTPUT" == *"SID:agent.contracts.protein_design_task"* ]]; then
+    echo "✓ section extraction includes nested SIDs"
+else
+    echo "✗ section extraction missing nested SIDs"
+    exit 1
+fi
+echo
+
 # Test 3: Extract by SID (begin_end marker)
 echo "Test 3: --sid with begin_end marker"
 OUTPUT=$("$DOCSLICE" --sid arch.contracts.pending_action --no-metadata)
