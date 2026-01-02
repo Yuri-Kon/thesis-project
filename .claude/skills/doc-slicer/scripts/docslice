@@ -110,9 +110,13 @@ class DocSlice:
             return self._extract_inline(lines, locator['line'])
         elif locator_type == 'begin_end':
             # Bounded block with BEGIN/END, use line_start and line_end from locator
-            line_start = locator.get('line_start')
-            line_end = locator.get('line_end')
-            return self._extract_line_range(lines, line_start, line_end)
+            content, line_range, used_fallback, reason = self._extract_begin_end_with_fallback(spec, lines)
+            if used_fallback:
+                print(
+                    f"Warning: Falling back to marker scan for SID {spec['sid']} ({reason})",
+                    file=sys.stderr
+                )
+            return content, line_range
         else:
             raise ValueError(f"Unknown locator type: {locator_type}")
 
@@ -215,6 +219,38 @@ class DocSlice:
             filtered_lines.append(line)
 
         return '\n'.join(filtered_lines).strip(), (line_start, line_end)
+
+    def _extract_begin_end_with_fallback(
+        self,
+        spec: Dict,
+        lines: List[str]
+    ) -> Tuple[str, Tuple[int, int], bool, str]:
+        """Extract begin/end block with fallback to marker scan."""
+        sid = spec['sid']
+        locator = spec.get('locator', {})
+        line_start = locator.get('line_start')
+        line_end = locator.get('line_end')
+
+        begin_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+BEGIN\s*-->')
+        end_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+END\s*-->')
+
+        fallback_reason = ""
+        if line_start is None or line_end is None:
+            fallback_reason = "missing line range"
+        elif line_start < 1 or line_end < 1 or line_start >= len(lines) or line_end >= len(lines):
+            fallback_reason = "line range out of bounds"
+        elif line_start > line_end:
+            fallback_reason = "line range reversed"
+        elif not begin_pattern.search(lines[line_start]) or not end_pattern.search(lines[line_end]):
+            fallback_reason = "marker not at expected lines"
+        else:
+            content, line_range = self._extract_line_range(lines, line_start, line_end)
+            if content.strip():
+                return content, line_range, False, ""
+            fallback_reason = "empty content"
+
+        content, line_range = self._extract_bounded_block(lines, sid)
+        return content, line_range, True, fallback_reason
 
     def _extract_bounded_block(self, lines: List[str], sid: str) -> Tuple[str, Tuple[int, int]]:
         """Extract content between BEGIN and END markers."""
@@ -491,10 +527,19 @@ class DocSlice:
                     line_end = locator.get('line_end')
                     if line_start is None or line_end is None:
                         errors.append(f"SID missing begin/end lines: {sid}")
-                    elif line_start >= len(lines) or line_end >= len(lines):
-                        errors.append(f"SID begin/end lines out of range for {sid}: {line_start}-{line_end}")
-                    elif line_start > line_end:
-                        errors.append(f"SID begin line after end line for {sid}: {line_start}-{line_end}")
+                        continue
+
+                    content, line_range, used_fallback, reason = self._extract_begin_end_with_fallback(spec, lines)
+                    if used_fallback:
+                        print(
+                            f"Warning: Falling back to marker scan for SID {sid} ({reason})",
+                            file=sys.stderr
+                        )
+                    if not content.strip():
+                        errors.append(f"SID resolved to empty content: {sid}")
+                    if not line_range:
+                        errors.append(f"SID missing resolved line range: {sid}")
+                    continue
                 else:
                     errors.append(f"Unknown locator type for {sid}: {locator_type}")
 
