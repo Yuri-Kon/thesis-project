@@ -103,6 +103,58 @@ else
 fi
 echo
 
+# Test 2d: begin_end fallback when line range is stale
+echo "Test 2d: --sid begin_end fallback to marker scan"
+TMP_ROOT_FALLBACK="$(mktemp -d)"
+mkdir -p "$TMP_ROOT_FALLBACK/docs/design" "$TMP_ROOT_FALLBACK/docs/index"
+cat > "$TMP_ROOT_FALLBACK/docs/design/sample.md" <<'EOF'
+# Sample Doc
+
+<!-- SID:sample.block.a BEGIN -->
+Block content line
+<!-- SID:sample.block.a END -->
+EOF
+cat > "$TMP_ROOT_FALLBACK/docs/index/index.json" <<'EOF'
+{
+  "documents": [
+    {
+      "doc_key": "sample",
+      "title": "Sample Doc",
+      "path": "docs/design/sample.md",
+      "status": "stable",
+      "depends_on": []
+    }
+  ],
+  "specs": [
+    {
+      "sid": "sample.block.a",
+      "title": "Sample Block",
+      "doc_key": "sample",
+      "path": "docs/design/sample.md",
+      "locator": {
+        "type": "begin_end",
+        "line_start": 50,
+        "line_end": 60
+      },
+      "level": "Spec-Item",
+      "tags": []
+    }
+  ]
+}
+EOF
+cat > "$TMP_ROOT_FALLBACK/docs/index/topic_views.json" <<'EOF'
+{ "topics": {} }
+EOF
+OUTPUT=$("$DOCSLICE" --sid sample.block.a --no-metadata --repo-root "$TMP_ROOT_FALLBACK" 2>&1)
+rm -rf "$TMP_ROOT_FALLBACK"
+if [[ "$OUTPUT" == *"Warning: Falling back to marker scan for SID sample.block.a"* ]] && [[ "$OUTPUT" == *"Block content line"* ]]; then
+    echo "✓ begin_end fallback works"
+else
+    echo "✗ begin_end fallback failed"
+    exit 1
+fi
+echo
+
 # Test 3: Extract by SID (begin_end marker)
 echo "Test 3: --sid with begin_end marker"
 OUTPUT=$("$DOCSLICE" --sid arch.contracts.pending_action --no-metadata)
