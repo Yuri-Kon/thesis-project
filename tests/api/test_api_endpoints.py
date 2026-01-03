@@ -172,6 +172,11 @@ class TestAPIEndpoints:
         "external_status,internal_status,action_type",
         [
             (
+                ExternalStatus.WAITING_PLAN_CONFIRM,
+                InternalStatus.WAITING_PLAN_CONFIRM,
+                PendingActionType.PLAN_CONFIRM,
+            ),
+            (
                 ExternalStatus.WAITING_PATCH_CONFIRM,
                 InternalStatus.PATCHING,
                 PendingActionType.PATCH_CONFIRM,
@@ -190,6 +195,7 @@ class TestAPIEndpoints:
         internal_status: InternalStatus,
         action_type: PendingActionType,
     ):
+        """测试 WAITING_* 状态时 API 返回 pending_action"""
         task_id = f"task_waiting_{action_type.value}"
         if action_type == PendingActionType.PATCH_CONFIRM:
             patched_step = PlanStep(id="S1", tool="tool_b", inputs={}, metadata={})
@@ -211,7 +217,7 @@ class TestAPIEndpoints:
                 metadata={},
             )
             candidates = [
-                PendingActionCandidate(candidate_id="replan_a", payload=plan)
+                PendingActionCandidate(candidate_id="plan_a" if action_type == PendingActionType.PLAN_CONFIRM else "replan_a", payload=plan)
             ]
 
         pending_action = PendingAction(
@@ -243,3 +249,43 @@ class TestAPIEndpoints:
         assert data["pending_action"]["action_type"] == action_type.value
         assert data["pending_action"]["candidates"]
         assert data["pending_action"]["explanation"] == "waiting for decision"
+
+    @pytest.mark.parametrize(
+        "external_status,internal_status",
+        [
+            (ExternalStatus.CREATED, InternalStatus.CREATED),
+            (ExternalStatus.PLANNING, InternalStatus.PLANNING),
+            (ExternalStatus.PLANNED, InternalStatus.PLANNED),
+            (ExternalStatus.RUNNING, InternalStatus.RUNNING),
+            (ExternalStatus.DONE, InternalStatus.DONE),
+            (ExternalStatus.FAILED, InternalStatus.FAILED),
+        ],
+    )
+    async def test_get_task_non_waiting_state_no_pending_action(
+        self,
+        client: httpx.AsyncClient,
+        external_status: ExternalStatus,
+        internal_status: InternalStatus,
+    ):
+        """测试非 WAITING_* 状态时 API 不返回 pending_action 或返回 null"""
+        task_id = f"task_non_waiting_{external_status.value}"
+        record = TaskRecord(
+            id=task_id,
+            status=external_status,
+            internal_status=internal_status,
+            goal="non-waiting state test",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=None,  # 非 WAITING 状态，pending_action 应为 None
+        )
+        TASK_STORE[task_id] = record
+
+        response = await client.get(f"/tasks/{task_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == external_status.value
+        # pending_action 应该是 None 或不存在
+        assert data.get("pending_action") is None
