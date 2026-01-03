@@ -165,6 +165,64 @@
       "critical_specs": 6,
       "high_specs": 13
     },
+    "fsm": {
+      "title": "Finite State Machine",
+      "description": "任务生命周期与状态机规范，包括状态定义、等待态和转换规则",
+      "use_case": "实现或校验任务状态流转时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "fsm.lifecycle.overview",
+          "title": "任务生命周期与状态机",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "FSM 总览与语义基础"
+        },
+        {
+          "sid": "fsm.states.definitions",
+          "title": "FSM 状态完整定义表",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "FSM 状态集合的权威定义"
+        },
+        {
+          "sid": "fsm.states.waiting_plan_confirm",
+          "title": "WAITING_PLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "等待人工确认 Plan 的状态语义"
+        },
+        {
+          "sid": "fsm.states.waiting_patch_confirm",
+          "title": "WAITING_PATCH_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "等待人工确认 Patch 的状态语义"
+        },
+        {
+          "sid": "fsm.states.waiting_replan_confirm",
+          "title": "WAITING_REPLAN_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "等待人工确认 Replan 的状态语义"
+        },
+        {
+          "sid": "fsm.transitions.overview",
+          "title": "状态转换规则总览",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "合法状态流转的基准规则"
+        }
+      ],
+      "total_specs": 6,
+      "critical_specs": 3,
+      "high_specs": 3
+    },
     "planning": {
       "title": "Task Planning",
       "description": "任务规划相关规范，包括 Planner 接口、算法、候选方案评分和工具检索",
