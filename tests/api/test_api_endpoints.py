@@ -4,8 +4,10 @@ import httpx
 
 from src.api.main import app, TASK_STORE
 from src.models.contracts import (
+    DecisionChoice,
     PendingAction,
     PendingActionCandidate,
+    PendingActionStatus,
     PendingActionType,
     Plan,
     PlanPatch,
@@ -289,3 +291,207 @@ class TestAPIEndpoints:
         assert data["status"] == external_status.value
         # pending_action 应该是 None 或不存在
         assert data.get("pending_action") is None
+
+    async def test_submit_decision_accept_plan(self, client: httpx.AsyncClient):
+        """测试提交 ACCEPT 决策以接受计划"""
+        task_id = "task_decision_accept_plan"
+        pending_action_id = "pa_accept_plan"
+
+        # 创建一个 WAITING_PLAN_CONFIRM 状态的任务
+        plan = Plan(
+            task_id=task_id,
+            steps=[PlanStep(id="S1", tool="tool_a", inputs={}, metadata={})],
+            constraints={},
+            metadata={},
+        )
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(candidate_id="plan_1", payload=plan)
+            ],
+            explanation="please confirm plan",
+        )
+        record = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="test decision accept",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[task_id] = record
+
+        # 提交决策
+        response = await client.post(
+            f"/pending-actions/{pending_action_id}/decision",
+            json={
+                "choice": "accept",
+                "selected_candidate_id": "plan_1",
+                "decided_by": "test_user",
+                "comment": "looks good",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == task_id
+        assert data["status"] == ExternalStatus.PLANNED.value
+        assert data["plan"] is not None
+        assert data["pending_action"] is None or data["pending_action"]["status"] == PendingActionStatus.DECIDED.value
+
+    async def test_submit_decision_not_found(self, client: httpx.AsyncClient):
+        """测试提交决策时 PendingAction 不存在"""
+        response = await client.post(
+            "/pending-actions/nonexistent_pa/decision",
+            json={
+                "choice": "accept",
+                "selected_candidate_id": "plan_1",
+                "decided_by": "test_user",
+            },
+        )
+
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+
+    async def test_submit_decision_validation_error(self, client: httpx.AsyncClient):
+        """测试提交决策时验证失败（accept 缺少 candidate_id）"""
+        task_id = "task_decision_validation_error"
+        pending_action_id = "pa_validation_error"
+
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_1",
+                    payload=Plan(task_id=task_id, steps=[], constraints={}, metadata={}),
+                )
+            ],
+            explanation="test",
+        )
+        record = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="test validation error",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[task_id] = record
+
+        # 提交 accept 决策但不提供 selected_candidate_id
+        response = await client.post(
+            f"/pending-actions/{pending_action_id}/decision",
+            json={
+                "choice": "accept",
+                "decided_by": "test_user",
+            },
+        )
+
+        # Pydantic 验证错误会被捕获并返回 400
+        assert response.status_code == 400
+
+    async def test_submit_decision_replan_choice(self, client: httpx.AsyncClient):
+        """测试提交 REPLAN 决策"""
+        task_id = "task_decision_replan"
+        pending_action_id = "pa_replan"
+
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_1",
+                    payload=Plan(task_id=task_id, steps=[], constraints={}, metadata={}),
+                )
+            ],
+            explanation="test replan",
+        )
+        record = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="test replan decision",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[task_id] = record
+
+        # 提交 replan 决策
+        response = await client.post(
+            f"/pending-actions/{pending_action_id}/decision",
+            json={
+                "choice": "replan",
+                "decided_by": "test_user",
+                "comment": "need better plan",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == task_id
+        # REPLAN 会触发重新规划，状态应该变为 PLANNING
+        assert data["status"] == ExternalStatus.PLANNING.value
+
+    async def test_submit_decision_cancel_choice(self, client: httpx.AsyncClient):
+        """测试提交 CANCEL 决策"""
+        task_id = "task_decision_cancel"
+        pending_action_id = "pa_cancel"
+
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_1",
+                    payload=Plan(task_id=task_id, steps=[], constraints={}, metadata={}),
+                )
+            ],
+            explanation="test cancel",
+        )
+        record = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="test cancel decision",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[task_id] = record
+
+        # 提交 cancel 决策
+        response = await client.post(
+            f"/pending-actions/{pending_action_id}/decision",
+            json={
+                "choice": "cancel",
+                "decided_by": "test_user",
+                "comment": "task cancelled by user",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == task_id
+        # CANCEL 应该将任务状态设置为 CANCELLED
+        assert data["status"] == ExternalStatus.CANCELLED.value
