@@ -199,6 +199,17 @@ else
 fi
 echo
 
+# Test 6b: Extract by topic (FSM)
+echo "Test 6b: --topic fsm extraction"
+OUTPUT=$("$DOCSLICE" --topic fsm --max-lines 200 2>&1)
+if [[ "$OUTPUT" == *"Topic: fsm"* ]]; then
+    echo "✓ --topic fsm works"
+else
+    echo "✗ --topic fsm failed"
+    exit 1
+fi
+echo
+
 # Test 7: Topic with max-chars limit
 echo "Test 7: --topic with max-chars limit"
 OUTPUT=$("$DOCSLICE" --topic hitl --max-chars 5000 2>&1)
