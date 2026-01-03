@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Callable, Iterable, Optional
 from uuid import uuid4
 
+from src.infra.event_log_factory import make_waiting_enter
 from src.models.contracts import (
     PendingAction,
     PendingActionCandidate,
@@ -16,7 +17,8 @@ from src.models.contracts import (
     now_iso,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord, to_external_status
-from src.storage.log_store import append_event
+from src.models.event_log import ActorType
+from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.snapshots import (
     SnapshotWriter,
@@ -99,10 +101,16 @@ def enter_waiting_state(
         ValueError: 当 PendingAction 与目标 WAITING_* 状态不匹配。
     """
     _validate_waiting_transition(context, pending_action, to_status, record)
+
+    # 记录进入 WAITING_* 状态前的状态
+    prev_status = to_external_status(context.status)
+    new_status = _to_external_waiting_status(to_status)
+
     context.pending_action = pending_action
     if record is not None:
         record.pending_action = pending_action
 
+    # 写入旧格式事件日志以保持兼容性
     log_handler = event_logger or _default_event_logger
     log_handler(
         {
@@ -115,9 +123,26 @@ def enter_waiting_state(
         }
     )
 
+    # 写入结构化 WAITING_ENTER EventLog
+    waiting_enter_event = make_waiting_enter(
+        task_id=context.task.task_id,
+        pending_action_id=pending_action.pending_action_id,
+        prev_status=prev_status,
+        new_status=new_status,
+        waiting_state=to_status.value,
+        actor_type=ActorType.SYSTEM,
+        internal_status=to_status,
+        data={
+            "action_type": pending_action.action_type.value,
+            "reason": reason or "entering_waiting_state",
+            "candidate_count": len(pending_action.candidates),
+        },
+    )
+    write_event_log(waiting_enter_event)
+
     snapshot = build_task_snapshot(
         context,
-        state_override=_to_external_waiting_status(to_status),
+        state_override=new_status,
         pending_action_id=pending_action.pending_action_id,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
