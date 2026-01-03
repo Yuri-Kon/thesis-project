@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from src.infra.event_log_factory import make_waiting_exit, make_decision_applied
 from src.models.contracts import (
     Decision,
     DecisionChoice,
@@ -20,7 +21,8 @@ from src.models.validation import (
     validate_decision_for_pending_action,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord, to_external_status
-from src.storage.log_store import append_event
+from src.models.event_log import ActorType
+from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.patch import apply_patch
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
@@ -74,6 +76,9 @@ def apply_plan_confirm_decision(
     _ensure_action_type(action, PendingActionType.PLAN_CONFIRM)
     _validate_decision_and_state(context, record, action, decision)
 
+    # Record the WAITING_* status before transition
+    prev_status = to_external_status(context.status)
+
     logger = event_logger or _default_event_logger
     logger(_decision_event("DECISION_SUBMITTED", context, action, decision))
 
@@ -113,6 +118,16 @@ def apply_plan_confirm_decision(
 
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
+
+    # Emit structured EventLog events
+    _emit_decision_applied_event(context, action, decision, prev_status)
+    _emit_waiting_exit_event(
+        context,
+        action,
+        prev_status,
+        waiting_state=InternalStatus.WAITING_PLAN_CONFIRM.value,
+    )
+
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
     _write_snapshot(context, action, snapshot_writer)
 
@@ -138,6 +153,9 @@ def apply_patch_confirm_decision(
     action = _resolve_pending_action(context, record, pending_action)
     _ensure_action_type(action, PendingActionType.PATCH_CONFIRM)
     _validate_decision_and_state(context, record, action, decision)
+
+    # Record the WAITING_* status before transition
+    prev_status = to_external_status(context.status)
 
     logger = event_logger or _default_event_logger
     logger(_decision_event("DECISION_SUBMITTED", context, action, decision))
@@ -168,6 +186,14 @@ def apply_patch_confirm_decision(
         action.status = PendingActionStatus.CANCELLED
         action.decided_at = now_iso()
         _sync_pending_action(context, record, action)
+
+        # Emit WAITING_EXIT for the cancelled patch confirm
+        _emit_waiting_exit_event(
+            context,
+            action,
+            prev_status,
+            waiting_state=InternalStatus.WAITING_PATCH.value,
+        )
 
         replan_action_id = f"{action.pending_action_id}_replan"
         replan_action = build_pending_action(
@@ -217,6 +243,16 @@ def apply_patch_confirm_decision(
 
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
+
+    # Emit structured EventLog events
+    _emit_decision_applied_event(context, action, decision, prev_status)
+    _emit_waiting_exit_event(
+        context,
+        action,
+        prev_status,
+        waiting_state=InternalStatus.WAITING_PATCH.value,
+    )
+
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
     _write_snapshot(context, action, snapshot_writer)
 
@@ -243,6 +279,9 @@ def apply_replan_confirm_decision(
     action = _resolve_pending_action(context, record, pending_action)
     _ensure_action_type(action, PendingActionType.REPLAN_CONFIRM)
     _validate_decision_and_state(context, record, action, decision)
+
+    # Record the WAITING_* status before transition
+    prev_status = to_external_status(context.status)
 
     logger = event_logger or _default_event_logger
     logger(_decision_event("DECISION_SUBMITTED", context, action, decision))
@@ -283,6 +322,16 @@ def apply_replan_confirm_decision(
 
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
+
+    # Emit structured EventLog events
+    _emit_decision_applied_event(context, action, decision, prev_status)
+    _emit_waiting_exit_event(
+        context,
+        action,
+        prev_status,
+        waiting_state=InternalStatus.WAITING_REPLAN.value,
+    )
+
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
     _write_snapshot(context, action, snapshot_writer)
 
@@ -470,3 +519,66 @@ def _default_event_logger(event: dict) -> None:
     if not task_id:
         return
     append_event(task_id, event)
+
+
+def _emit_decision_applied_event(
+    context: WorkflowContext,
+    action: PendingAction,
+    decision: Decision,
+    prev_status: ExternalStatus,
+) -> None:
+    """Emit DECISION_APPLIED EventLog.
+
+    Args:
+        context: Workflow context.
+        action: The resolved PendingAction.
+        decision: The decision being applied.
+        prev_status: Previous external status (must be WAITING_*).
+    """
+    current_status = to_external_status(context.status)
+    decision_event = make_decision_applied(
+        task_id=context.task.task_id,
+        decision_id=decision.decision_id,
+        pending_action_id=action.pending_action_id,
+        prev_status=prev_status,
+        new_status=current_status,
+        choice=decision.choice.value,
+        actor_type=ActorType.HUMAN,
+        internal_status=context.status,
+        data={
+            "selected_candidate_id": decision.selected_candidate_id,
+            "action_type": action.action_type.value,
+        },
+    )
+    write_event_log(decision_event)
+
+
+def _emit_waiting_exit_event(
+    context: WorkflowContext,
+    action: PendingAction,
+    prev_status: ExternalStatus,
+    waiting_state: str,
+) -> None:
+    """Emit WAITING_EXIT EventLog.
+
+    Args:
+        context: Workflow context.
+        action: The resolved PendingAction.
+        prev_status: Previous external status (must be WAITING_*).
+        waiting_state: The waiting state description.
+    """
+    current_status = to_external_status(context.status)
+    exit_event = make_waiting_exit(
+        task_id=context.task.task_id,
+        prev_status=prev_status,
+        new_status=current_status,
+        waiting_state=waiting_state,
+        actor_type=ActorType.HUMAN,
+        internal_status=context.status,
+        pending_action_id=action.pending_action_id,
+        data={
+            "action_type": action.action_type.value,
+            "action_status": action.status.value,
+        },
+    )
+    write_event_log(exit_event)
