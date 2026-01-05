@@ -32,8 +32,8 @@
 
 | Issue ID | 日期 | 模块 | Issue 标题 | 关键工作内容 | 产出/验收标准 |
 |--------|------|------|-----------|-------------|--------------|
-| #11 | 12.31 | Tool | ESMFold 接入方案确认 | 本地 / 容器 / Nextflow 决策 | 接入路径确定 |
-| #12 | 01.01 | Tool | ESMFoldAdapter 实现 | run() + 输出标准化 | StepResult 正确 |
+| #11 | 12.31 | Tool | ESMFold 接入方法与运行假设确认 | 本地 / 容器 / Nextflow 决策 | 接入路径确定 |
+| #12 | 01.01 | Tool | ESMFoldAdapter 最小实现 | run() + 输出标准化 | StepResult 正确 |
 | #13 | 01.02 | Executor | StepRunner 真实执行 | 执行时间/失败捕获 | artifacts 生成 |
 | #14 | 01.03 | Executor | 真实失败场景测试 | 非法输入 / 超时 | WAITING_* 触发 |
 | #15 | 01.03 | Planner | Patch / Replan 触发验证 | 规则版 Patch / Replan | 人工确认生效 |

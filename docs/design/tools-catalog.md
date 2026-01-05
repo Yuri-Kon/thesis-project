@@ -31,14 +31,25 @@ depends_on: [impl]
 <!-- SID:tools.esmfold.spec -->
 
 - 类型：蛋白质结构预测
-- 输入：氨基酸序列(FASTA / string)
-- 输出: PDB 文件、置信度(pLDDT)
-- 接入方式：
-  - python(本地模型)
-  - nextflow(容器化，推荐)
+- 输入：单条氨基酸序列(FASTA / string)
+- 输出：PDB 文件、置信度(pLDDT)
+- 执行方式：nextflow（v0.x 唯一方式，blocking）
+  - 仅通过 Nextflow 调度容器，不提供 docker run/compose 路径
+- 运行假设：
+  - Nextflow 已安装，可通过 `nextflow --info` 验证
+  - profile: `docker` / `podman`（Fedora 开发环境默认 podman）
+  - 容器引擎：Docker 或 Podman
+  - GPU 必须存在（系统不负责 GPU 管理）
+- 模块位置：`nf/modules/esmfold.nf`
+- 产物目录约定：`output/pdb/`、`output/metrics/`、`output/artifacts/`（文件名包含 `task_id`）
+- 非目标：
+  - batch / 多序列
+  - GPU 管理
+  - 并发/并行
 - 备注:
   - 轻量，无需 MSA
   - 适合作为第一个真实结构工具
+  - 同类结构预测工具在 v0.x 统一通过 Nextflow 接入
 
 #### AlphaFold / OpenFold
 <!-- SID:tools.alphafold.spec -->
@@ -233,4 +244,6 @@ depends_on: [impl]
 - 工具替换：
   - 不应影响系统整体架构
   - 同类工具可并存，供后续选择
+- 结构预测类工具：
+  - v0.x 统一通过 Nextflow 容器方式接入
 <!-- SID:tools.adapter.constraints END -->
