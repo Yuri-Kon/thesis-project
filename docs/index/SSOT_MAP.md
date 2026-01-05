@@ -191,10 +191,12 @@
 | SID | 说明 | 粒度 |
 |-----|------|------|
 | `SID:obs.eventlog.schema` | EventLog 单条日志记录结构 | Block |
+| `SID:obs.overview` | 日志与可观测设计总览 | Block |
 | `SID:obs.eventlog.mandatory_events` | 事件日志写入约束（必须遵守） | Spec-Item |
 
 **引用规则**：
 - 引用日志模式时 → `SID:obs.eventlog.schema`
+- 引用可观测设计总览时 → `SID:obs.overview`
 - 引用日志写入约束时 → `SID:obs.eventlog.mandatory_events`
 
 ---

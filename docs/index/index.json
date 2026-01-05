@@ -2,7 +2,7 @@
   "version": "1.0",
   "generated_at": "2025-12-31",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 67,
+  "total_specs": 68,
   "documents": [
     {
       "doc_key": "arch",
@@ -993,6 +993,21 @@
       "level": "Spec-Item",
       "tags": ["api", "rest", "report"],
       "depends_on": ["agent.contracts.design_result"],
+      "stability": "stable"
+    },
+    {
+      "sid": "obs.overview",
+      "title": "日志与可观测设计",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1482,
+        "marker": "<!-- SID:obs.overview -->"
+      },
+      "level": "Block",
+      "tags": ["obs", "overview"],
+      "depends_on": [],
       "stability": "stable"
     },
     {

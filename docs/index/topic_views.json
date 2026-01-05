@@ -547,6 +547,14 @@
           "rationale": "日志记录的数据模式"
         },
         {
+          "sid": "obs.overview",
+          "title": "日志与可观测设计",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "medium",
+          "rationale": "可观测设计总体约束与范围说明"
+        },
+        {
           "sid": "obs.eventlog.mandatory_events",
           "title": "事件日志写入约束（必须遵守）",
           "doc_key": "impl",
@@ -563,15 +571,15 @@
           "rationale": "API 也需要日志与监控"
         }
       ],
-      "total_specs": 10,
+      "total_specs": 11,
       "critical_specs": 6,
       "high_specs": 3,
-      "medium_specs": 1
+      "medium_specs": 2
     }
   },
   "summary": {
     "total_topics": 4,
-    "total_unique_specs": 47,
+    "total_unique_specs": 48,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

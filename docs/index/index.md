@@ -13,7 +13,7 @@
 
 **版本**: 1.0
 **生成日期**: 2025-12-31
-**总规范数**: 67
+**总规范数**: 68
 **文档数**: 6
 
 ---
@@ -185,6 +185,7 @@
 
 | SID | 标题 | 级别 | 标签 |
 |-----|------|------|------|
+| `obs.overview` | 日志与可观测设计 | Block | obs, overview |
 | `obs.eventlog.schema` | EventLog 单条日志记录结构 | Block | obs, eventlog, observability |
 | `obs.eventlog.mandatory_events` | 事件日志写入约束（必须遵守） | Spec-Item | obs, eventlog, observability, hitl |
 
