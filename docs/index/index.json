@@ -996,17 +996,17 @@
       "stability": "stable"
     },
     {
-      "sid": "obs.overview",
+      "sid": "obs.observability.overview",
       "title": "日志与可观测设计",
       "doc_key": "impl",
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
         "line": 1482,
-        "marker": "<!-- SID:obs.overview -->"
+        "marker": "<!-- SID:obs.observability.overview -->"
       },
       "level": "Block",
-      "tags": ["obs", "overview"],
+      "tags": ["obs", "observability", "overview"],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1092,8 +1092,8 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 225,
-        "line_end": 236,
+        "line_start": 237,
+        "line_end": 250,
         "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
         "marker_end": "<!-- SID:tools.adapter.constraints END -->"
       },

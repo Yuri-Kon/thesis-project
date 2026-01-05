@@ -547,7 +547,7 @@
           "rationale": "日志记录的数据模式"
         },
         {
-          "sid": "obs.overview",
+          "sid": "obs.observability.overview",
           "title": "日志与可观测设计",
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",

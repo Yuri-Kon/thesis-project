@@ -1479,7 +1479,7 @@ def check_final_result(design_result: DesignResult, context: WorkflowContext) ->
   - 所有详细事件(步骤执行、重试、patch、replan等)写入`data/logs/{task_id}.jsonl`
 
 ### 日志与可观测设计
-<!-- SID:obs.overview -->
+<!-- SID:obs.observability.overview -->
 
 为支持多Agent协作任务的调试、回访与故障排查，本系统在数据库持久化之外，引入统一的日志与追踪规范。所有与任务执行相关的事件会以JSON Lines的形式写入`data/logs/{task_id}.jsonl`文件，并与状态机 / 数据库中的记录保持一致。
 
