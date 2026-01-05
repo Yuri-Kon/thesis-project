@@ -37,6 +37,7 @@
 | `SID:arch.overview.layers` | 5 层架构总览 | Section |
 | `SID:arch.components.overview` | 核心组件概览 | Section |
 | `SID:arch.flow.end_to_end` | 端到端工作流 | Section |
+| `SID:arch.execution.nextflow_boundary` | Nextflow 执行后端边界 | Block |
 | `SID:arch.dataflow.overview` | 数据流概览 | Section |
 | `SID:arch.kg.overview` | ProteinToolKG 在架构层的位置 | Block |
 | `SID:arch.contracts.pending_action` | PendingAction 契约定义 | Spec-Item |
@@ -204,6 +205,7 @@
 |-----|------|------|
 | `SID:impl.overview.introduction` | 实现层总览 | Section |
 | `SID:impl.techstack.overview` | 技术栈选型 | Block |
+| `SID:impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block |
 
 ---
 

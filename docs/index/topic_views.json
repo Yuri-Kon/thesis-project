@@ -448,6 +448,22 @@
           "rationale": "工具适配器必须遵守的约束"
         },
         {
+          "sid": "arch.execution.nextflow_boundary",
+          "title": "执行后端边界(Nextflow)",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "high",
+          "rationale": "明确 Nextflow 不参与多步编排，控制流仍由系统负责"
+        },
+        {
+          "sid": "impl.nextflow.control_flow_constraints",
+          "title": "Nextflow 接入边界与控制流约束",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "执行失败传播与单步执行约束，避免控制流分裂"
+        },
+        {
           "sid": "tools.esmfold.spec",
           "title": "ESMFold 工具规约",
           "doc_key": "tools",
@@ -456,9 +472,9 @@
           "rationale": "示例工具规约"
         }
       ],
-      "total_specs": 12,
-      "critical_specs": 6,
-      "high_specs": 5,
+      "total_specs": 14,
+      "critical_specs": 7,
+      "high_specs": 6,
       "medium_specs": 1
     },
     "observability": {
@@ -555,7 +571,7 @@
   },
   "summary": {
     "total_topics": 4,
-    "total_unique_specs": 45,
+    "total_unique_specs": 47,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

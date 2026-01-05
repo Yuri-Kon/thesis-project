@@ -2,7 +2,7 @@
   "version": "1.0",
   "generated_at": "2025-12-31",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 65,
+  "total_specs": 67,
   "documents": [
     {
       "doc_key": "arch",
@@ -85,13 +85,28 @@
       "stability": "stable"
     },
     {
+      "sid": "arch.execution.nextflow_boundary",
+      "title": "执行后端边界(Nextflow)",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 62,
+        "marker": "<!-- SID:arch.execution.nextflow_boundary -->"
+      },
+      "level": "Block",
+      "tags": ["arch", "execution", "nextflow", "boundary"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
       "sid": "arch.flow.end_to_end",
       "title": "运行视图与时序图",
       "doc_key": "arch",
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 74,
+        "line": 82,
         "marker": "<!-- SID:arch.flow.end_to_end -->"
       },
       "level": "Section",
@@ -106,7 +121,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 382,
+        "line": 390,
         "marker": "<!-- SID:arch.dataflow.overview -->"
       },
       "level": "Section",
@@ -121,7 +136,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 415,
+        "line": 423,
         "marker": "<!-- SID:arch.kg.overview -->"
       },
       "level": "Block",
@@ -136,8 +151,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 337,
-        "line_end": 355,
+        "line_start": 345,
+        "line_end": 363,
         "marker_begin": "<!-- SID:arch.contracts.pending_action BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.pending_action END -->"
       },
@@ -153,8 +168,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 350,
-        "line_end": 354,
+        "line_start": 358,
+        "line_end": 362,
         "marker_begin": "<!-- SID:arch.contracts.decision BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.decision END -->"
       },
@@ -170,8 +185,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 358,
-        "line_end": 379,
+        "line_start": 366,
+        "line_end": 387,
         "marker_begin": "<!-- SID:arch.contracts.task_snapshot BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.task_snapshot END -->"
       },
@@ -187,7 +202,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 396,
+        "line": 404,
         "marker": "<!-- SID:arch.contracts.plan -->"
       },
       "level": "Spec-Item",
@@ -202,7 +217,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 302,
+        "line": 310,
         "marker": "<!-- SID:fsm.lifecycle.overview -->"
       },
       "level": "Section",
@@ -217,7 +232,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 307,
+        "line": 315,
         "marker": "<!-- SID:fsm.states.definitions -->"
       },
       "level": "Block",
@@ -232,7 +247,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 315,
+        "line": 323,
         "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
       },
       "level": "Spec-Item",
@@ -247,7 +262,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 318,
+        "line": 326,
         "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
       },
       "level": "Spec-Item",
@@ -262,7 +277,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 319,
+        "line": 327,
         "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
       },
       "level": "Spec-Item",
@@ -277,8 +292,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 328,
-        "line_end": 334,
+        "line_start": 336,
+        "line_end": 342,
         "marker_begin": "<!-- SID:fsm.transitions.overview BEGIN -->",
         "marker_end": "<!-- SID:fsm.transitions.overview END -->"
       },
@@ -882,12 +897,27 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 76,
+        "line": 37,
         "marker": "<!-- SID:impl.techstack.overview -->"
       },
       "level": "Block",
       "tags": ["impl", "techstack"],
       "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.nextflow.control_flow_constraints",
+      "title": "Nextflow 接入边界与控制流约束",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 826,
+        "marker": "<!-- SID:impl.nextflow.control_flow_constraints -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "nextflow", "control_flow", "constraints"],
+      "depends_on": ["arch.execution.nextflow_boundary"],
       "stability": "stable"
     },
     {
@@ -897,7 +927,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 139,
+        "line": 452,
         "marker": "<!-- SID:api.rest.overview -->"
       },
       "level": "Section",
@@ -912,7 +942,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 151,
+        "line": 455,
         "marker": "<!-- SID:api.rest.create_task -->"
       },
       "level": "Spec-Item",
@@ -927,7 +957,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 267,
+        "line": 592,
         "marker": "<!-- SID:api.rest.get_pending_actions -->"
       },
       "level": "Spec-Item",
@@ -942,7 +972,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 295,
+        "line": 621,
         "marker": "<!-- SID:api.rest.submit_decision -->"
       },
       "level": "Spec-Item",
@@ -957,7 +987,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 322,
+        "line": 673,
         "marker": "<!-- SID:api.rest.get_report -->"
       },
       "level": "Spec-Item",
@@ -972,7 +1002,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 772,
+        "line": 1487,
         "marker": "<!-- SID:obs.eventlog.schema -->"
       },
       "level": "Block",
@@ -987,7 +1017,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 820,
+        "line": 1550,
         "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
       },
       "level": "Spec-Item",

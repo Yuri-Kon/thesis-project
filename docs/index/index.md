@@ -13,7 +13,7 @@
 
 **版本**: 1.0
 **生成日期**: 2025-12-31
-**总规范数**: 65
+**总规范数**: 67
 **文档数**: 6
 
 ---
@@ -42,6 +42,7 @@
 | `arch.overview.layers` | 分层架构 | Section | arch, overview, layers |
 | `arch.components.overview` | 组件视图 | Section | arch, components |
 | `arch.flow.end_to_end` | 运行视图与时序图 | Section | arch, flow, runtime |
+| `arch.execution.nextflow_boundary` | 执行后端边界(Nextflow) | Block | arch, execution, nextflow, boundary |
 | `arch.dataflow.overview` | 数据流概览 | Section | arch, dataflow |
 | `arch.kg.overview` | ProteinToolKG 在架构中的位置 | Block | arch, kg, knowledge_graph |
 | `arch.contracts.pending_action` | PendingAction 契约定义 | Spec-Item | arch, contracts, hitl, pending_action |
@@ -197,6 +198,7 @@
 |-----|------|------|------|
 | `impl.overview.introduction` | 实现层总览 | Section | impl, overview |
 | `impl.techstack.overview` | 技术栈选型 | Block | impl, techstack |
+| `impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block | impl, nextflow, control_flow, constraints |
 
 ---
 
