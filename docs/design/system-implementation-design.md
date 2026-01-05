@@ -135,17 +135,19 @@ project-root/
       protein_mpnn.nf
       esmfold.nf
       rdkit_props.nf
-    output/
-      pdb/
-      metrics/
-      artifacts/
-      reports/
-    data/
-      inputs/
-      logs/
+  data/
+    inputs/
+    logs/
+  output/
+    pdb/
+    metrics/
+    artifacts/
+    reports/
 ```
 
 ---
+
+产物目录统一放在 `output/` 下，按类型分子目录（`pdb/`、`metrics/`、`artifacts/`、`reports/`），文件名需包含 `task_id` 便于检索与追踪。
 
 ### ToolAdapter 分层实现与 tools/ 模块
 
