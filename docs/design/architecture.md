@@ -58,6 +58,14 @@ A[输入层] --> B[智能规划层] --> C[执行层] --> D[安全与汇总层] -
 
 Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从而保持执行层与工具实现解耦。
 
+#### 执行后端边界(Nextflow)
+<!-- SID:arch.execution.nextflow_boundary -->
+
+- Nextflow 仅作为单步工具执行后端，单次 run 对应一个 PlanStep（blocking）。
+- 控制流 SSOT 仍在 Workflow/FSM/PlanStep，Nextflow 不参与多步编排或决策。
+- 失败传播：Nextflow 失败 → StepResult.failed → Executor retry/patch/replan → FSM 转移（不新增 FSM 状态或 Agent 角色）。
+- 输出目录约定与资源层一致：产物根目录为 `output/`，Adapter 只解析工作目录并回填路径。
+
 ### Knowledge & Storage
 
 - **ProteinToolKG**: 工具节点与兼容关系

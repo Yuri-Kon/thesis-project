@@ -50,6 +50,7 @@ depends_on: [impl]
   - 轻量，无需 MSA
   - 适合作为第一个真实结构工具
   - 同类结构预测工具在 v0.x 统一通过 Nextflow 接入
+- 控制流与执行边界：见 `docs/design/system-implementation-design.md` 的“Nextflow 接入边界与控制流约束”
 
 #### AlphaFold / OpenFold
 <!-- SID:tools.alphafold.spec -->

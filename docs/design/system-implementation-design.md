@@ -26,7 +26,7 @@ depends_on: [arch, agent]
 本设计文档在此基础上，加入具体框架, 尤其是：  
 
 - 使用LangGraph实现LLM多Agent调度;
-- 引入Nextflow作为底层计算工作流引擎；
+- 引入 Nextflow 作为单步工具执行后端（不承担多步编排）；
 - 明确ToolAdapter的容器化执行方式；
 - 引入Fluent进行交互式可视化
 - 设计任务/日志存储、KG访问、API层等
@@ -48,6 +48,8 @@ depends_on: [arch, agent]
 #### 工作流引擎
 
 - Nextflow
+  - 仅作为单步工具执行后端（单次 run == 单个 PlanStep，blocking）
+  - 不参与多步编排或状态决策，控制流 SSOT 仍在 Workflow/FSM
   - 管理重计算任务
   - 与容器结合，实现可复现的计算环境
 
@@ -819,6 +821,16 @@ Graph state包含：
    2. 若risk_flags中包含`block`，向graph发出`request_replan`事件
 4. `summarizer_node`
    1. 在任务完成或终止时，汇总所有StepResult + Safety事件，生成一个`DesignResult`
+
+#### Nextflow 接入边界与控制流约束
+<!-- SID:impl.nextflow.control_flow_constraints -->
+
+- 控制流 SSOT 仍在 Workflow/FSM/PlanStep，Nextflow 仅作为 tool execution backend，不参与多步编排或决策。
+- 单次 Nextflow run == 单个 PlanStep 执行（blocking）。
+- 失败传播：Nextflow 失败 → StepExecutionError → StepResult.status = "failed" → Executor retry/patch/replan → FSM 转移。
+- 输出目录约定与资源层一致：产物落在 `output/`（如 `output/{pdb,metrics,artifacts}/...`，文件名含 `task_id`），Adapter 仅解析工作目录并回填路径。
+- 不新增/修改任何 agent 职责或 FSM 状态。
+- 以上约束为 ESMFold Nextflow 接入前置条件。
 
 ---
 
