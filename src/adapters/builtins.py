@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.adapters.dummy_adapter import DummyToolAdapter
+from src.adapters.esmfold_adapter import ESMFoldAdapter
 from src.adapters.registry import get_adapter, register_adapter
 from src.tools.visualization.adapter import VisualizationToolAdapter
 
@@ -15,7 +16,7 @@ _BUILTIN_TOOL_IDS = (
 
 
 def ensure_builtin_adapters() -> None:
-    """注册内置 Dummy 适配器，供本地最小闭环使用"""
+    """注册内置适配器，供本地最小闭环使用"""
     for tool_id in _BUILTIN_TOOL_IDS:
         try:
             get_adapter(tool_id)
@@ -25,3 +26,7 @@ def ensure_builtin_adapters() -> None:
         get_adapter(VisualizationToolAdapter.tool_id)
     except KeyError:
         register_adapter(VisualizationToolAdapter())
+    try:
+        get_adapter(ESMFoldAdapter.tool_id)
+    except KeyError:
+        register_adapter(ESMFoldAdapter())
