@@ -217,7 +217,7 @@ class WorkflowEngineAdapter:
 
         根据输出目录约定（SID:arch.execution.nextflow_boundary）：
         - 产物根目录为 output/
-        - 文件名包含 task_id
+        - 文件名格式：{task_id}_{step_id}.{ext} 或 {task_id}.{ext}（精确匹配）
         - 子目录结构：output/pdb/, output/metrics/, output/artifacts/
 
         Args:
@@ -237,7 +237,9 @@ class WorkflowEngineAdapter:
         # 检查 metrics 输出
         metrics_dir = self.output_dir / "metrics"
         if metrics_dir.exists():
-            metrics_file = self._find_output_file(metrics_dir, task_id, ".json")
+            metrics_file = self._find_output_file(
+                metrics_dir, task_id, step_id, "_metrics.json"
+            )
             if metrics_file:
                 with open(metrics_file, "r") as f:
                     metrics_data = json.load(f)
@@ -246,14 +248,21 @@ class WorkflowEngineAdapter:
         # 检查 pdb 输出
         pdb_dir = self.output_dir / "pdb"
         if pdb_dir.exists():
-            pdb_file = self._find_output_file(pdb_dir, task_id, ".pdb")
+            pdb_file = self._find_output_file(pdb_dir, task_id, step_id, ".pdb")
             if pdb_file:
                 outputs["pdb_path"] = str(pdb_file.resolve())
 
-        # 检查 artifacts 输出
+        # 检查 artifacts 输出（使用精确前缀匹配）
         artifacts_dir = self.output_dir / "artifacts"
         if artifacts_dir.exists():
-            artifact_files = list(artifacts_dir.glob(f"*{task_id}*"))
+            # 优先匹配 {task_id}_{step_id}_*
+            artifact_files = list(artifacts_dir.glob(f"{task_id}_{step_id}_*"))
+            if not artifact_files:
+                # Fallback: 匹配 {task_id}_*（但不包含其他 task_id 的前缀）
+                artifact_files = [
+                    f for f in artifacts_dir.glob(f"{task_id}_*")
+                    if f.name.startswith(f"{task_id}_")
+                ]
             if artifact_files:
                 outputs["artifacts"] = [str(f.resolve()) for f in artifact_files]
 
@@ -263,26 +272,34 @@ class WorkflowEngineAdapter:
         self,
         directory: Path,
         task_id: str,
-        extension: str,
+        step_id: str,
+        suffix: str,
     ) -> Path | None:
-        """在目录中查找包含 task_id 的输出文件
+        """在目录中查找精确匹配的输出文件
+
+        使用精确的文件名格式，避免子串匹配导致的错误。
+        优先查找 {task_id}_{step_id}{suffix}，如果不存在则查找 {task_id}{suffix}。
 
         Args:
             directory: 搜索目录
             task_id: 任务 ID
-            extension: 文件扩展名（如 ".pdb", ".json"）
+            step_id: 步骤 ID
+            suffix: 文件后缀（如 ".pdb", "_metrics.json"）
 
         Returns:
             找到的文件路径，如果不存在则返回 None
         """
-        pattern = f"*{task_id}*{extension}"
-        matches = list(directory.glob(pattern))
+        # 优先查找包含 step_id 的文件（更精确）
+        exact_file = directory / f"{task_id}_{step_id}{suffix}"
+        if exact_file.exists():
+            return exact_file
 
-        if not matches:
-            return None
+        # Fallback: 查找只包含 task_id 的文件（向后兼容）
+        fallback_file = directory / f"{task_id}{suffix}"
+        if fallback_file.exists():
+            return fallback_file
 
-        # 返回第一个匹配的文件
-        return matches[0]
+        return None
 
     def _classify_nextflow_error(self, exit_code: int) -> FailureType:
         """根据 Nextflow 退出码分类失败类型

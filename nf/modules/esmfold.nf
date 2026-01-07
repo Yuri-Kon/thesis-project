@@ -6,11 +6,12 @@
  * 输入:
  *   - sequence: 氨基酸序列字符串
  *   - task_id: 任务 ID
+ *   - step_id: 步骤 ID
  *   - output_dir: 输出目录
  *
  * 输出:
- *   - PDB 文件: ${output_dir}/pdb/${task_id}.pdb
- *   - 指标文件: ${output_dir}/metrics/${task_id}_metrics.json
+ *   - PDB 文件: ${output_dir}/pdb/${task_id}_${step_id}.pdb
+ *   - 指标文件: ${output_dir}/metrics/${task_id}_${step_id}_metrics.json
  */
 
 nextflow.enable.dsl = 2
@@ -22,7 +23,7 @@ params.tool = "esmfold"
 params.output_dir = "output"
 
 process ESMFOLD {
-    tag "${params.task_id}"
+    tag "${params.task_id}_${params.step_id}"
 
     // 容器配置（生产环境使用）
     // container = 'ghcr.io/sokrypton/esmfold:latest'
@@ -30,11 +31,12 @@ process ESMFOLD {
     input:
     val sequence
     val task_id
+    val step_id
     val output_dir
 
     output:
-    path "${output_dir}/pdb/${task_id}.pdb", emit: pdb
-    path "${output_dir}/metrics/${task_id}_metrics.json", emit: metrics
+    path "${output_dir}/pdb/${task_id}_${step_id}.pdb", emit: pdb
+    path "${output_dir}/metrics/${task_id}_${step_id}_metrics.json", emit: metrics
 
     script:
     """
@@ -47,9 +49,9 @@ process ESMFOLD {
     # 在真实环境中，这里会调用 ESMFold 容器
 
     # 生成 mock PDB 文件
-    cat > ${output_dir}/pdb/${task_id}.pdb << 'EOF'
+    cat > ${output_dir}/pdb/${task_id}_${step_id}.pdb << 'EOF'
 HEADER    PROTEIN STRUCTURE PREDICTION
-TITLE     ESMFOLD PREDICTION FOR ${task_id}
+TITLE     ESMFOLD PREDICTION FOR ${task_id}_${step_id}
 REMARK    MOCK OUTPUT FOR TESTING
 ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00  0.00           N
 ATOM      2  CA  MET A   1       1.450   0.000   0.000  1.00  0.00           C
@@ -59,9 +61,10 @@ END
 EOF
 
     # 生成 mock 指标文件
-    cat > ${output_dir}/metrics/${task_id}_metrics.json << EOF
+    cat > ${output_dir}/metrics/${task_id}_${step_id}_metrics.json << EOF
 {
   "task_id": "${task_id}",
+  "step_id": "${step_id}",
   "tool": "esmfold",
   "sequence_length": ${sequence.length()},
   "plddt_mean": 0.85,
@@ -71,7 +74,7 @@ EOF
 }
 EOF
 
-    echo "ESMFold prediction completed for task ${task_id}"
+    echo "ESMFold prediction completed for task ${task_id}, step ${step_id}"
     echo "Sequence length: ${sequence.length()}"
     """
 }
@@ -84,11 +87,15 @@ workflow {
     if (params.task_id == null) {
         error "ERROR: --task_id parameter is required"
     }
+    if (params.step_id == null) {
+        error "ERROR: --step_id parameter is required"
+    }
 
     // 执行预测
     ESMFOLD(
         params.sequence,
         params.task_id,
+        params.step_id,
         params.output_dir
     )
 

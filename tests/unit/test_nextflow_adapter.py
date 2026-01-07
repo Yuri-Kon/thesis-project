@@ -47,19 +47,22 @@ def mock_nextflow_success(tmp_path: Path) -> MagicMock:
 
     # 创建测试输出文件
     def side_effect(*args, **kwargs):
-        # 从命令行参数提取 task_id
+        # 从命令行参数提取 task_id 和 step_id
         cmd = args[0]
         task_id_idx = cmd.index("--task_id") + 1
         task_id = cmd[task_id_idx]
+        step_id_idx = cmd.index("--step_id") + 1
+        step_id = cmd[step_id_idx]
 
-        # 生成 PDB 文件
-        pdb_file = output_dir / "pdb" / f"{task_id}.pdb"
+        # 生成 PDB 文件（使用精确的文件名格式）
+        pdb_file = output_dir / "pdb" / f"{task_id}_{step_id}.pdb"
         pdb_file.write_text("MOCK PDB CONTENT\n")
 
-        # 生成 metrics 文件
-        metrics_file = output_dir / "metrics" / f"{task_id}_metrics.json"
+        # 生成 metrics 文件（使用精确的文件名格式）
+        metrics_file = output_dir / "metrics" / f"{task_id}_{step_id}_metrics.json"
         metrics_data = {
             "task_id": task_id,
+            "step_id": step_id,
             "tool": "esmfold",
             "plddt_mean": 0.85,
         }
@@ -96,6 +99,7 @@ def test_prepare_nextflow_params(adapter: WorkflowEngineAdapter) -> None:
 def test_parse_outputs_with_pdb_and_metrics(adapter: WorkflowEngineAdapter, tmp_path: Path) -> None:
     """测试输出解析：包含 PDB 和 metrics"""
     task_id = "task123"
+    step_id = "S1"
 
     # 创建测试输出
     pdb_dir = adapter.output_dir / "pdb"
@@ -103,22 +107,23 @@ def test_parse_outputs_with_pdb_and_metrics(adapter: WorkflowEngineAdapter, tmp_
     pdb_dir.mkdir(parents=True, exist_ok=True)
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
-    pdb_file = pdb_dir / f"{task_id}.pdb"
+    # 使用精确的文件名格式
+    pdb_file = pdb_dir / f"{task_id}_{step_id}.pdb"
     pdb_file.write_text("MOCK PDB")
 
-    metrics_file = metrics_dir / f"{task_id}_metrics.json"
+    metrics_file = metrics_dir / f"{task_id}_{step_id}_metrics.json"
     metrics_data = {"plddt_mean": 0.85, "confidence": "high"}
     metrics_file.write_text(json.dumps(metrics_data))
 
     # 解析输出
     outputs = adapter._parse_outputs(
         task_id=task_id,
-        step_id="S1",
+        step_id=step_id,
         tool_name="esmfold",
     )
 
     assert "pdb_path" in outputs
-    assert outputs["pdb_path"].endswith(f"{task_id}.pdb")
+    assert outputs["pdb_path"].endswith(f"{task_id}_{step_id}.pdb")
     assert "metrics" in outputs
     assert outputs["metrics"]["plddt_mean"] == 0.85
 
@@ -230,10 +235,10 @@ def test_execute_failure_output_parse_error(
     result.returncode = 0
     mock_run.return_value = result
 
-    # 创建格式错误的 metrics 文件
+    # 创建格式错误的 metrics 文件（使用精确的文件名格式）
     metrics_dir = adapter.output_dir / "metrics"
     metrics_dir.mkdir(parents=True)
-    metrics_file = metrics_dir / "task123_metrics.json"
+    metrics_file = metrics_dir / "task123_S1_metrics.json"
     metrics_file.write_text("INVALID JSON")
 
     module_path = tmp_path / "test.nf"
@@ -256,21 +261,34 @@ def test_execute_failure_output_parse_error(
 
 
 def test_find_output_file(adapter: WorkflowEngineAdapter) -> None:
-    """测试输出文件查找"""
+    """测试输出文件查找（精确匹配）"""
     # 创建测试文件
     test_dir = adapter.output_dir / "test"
     test_dir.mkdir(parents=True)
 
-    file1 = test_dir / "task123_output.pdb"
-    file2 = test_dir / "task123_other.pdb"
-    file1.write_text("test")
-    file2.write_text("test")
+    # 创建精确格式的文件
+    exact_file = test_dir / "task123_S1.pdb"
+    exact_file.write_text("test")
 
-    # 查找文件
-    found = adapter._find_output_file(test_dir, "task123", ".pdb")
+    # 查找文件（应该找到精确匹配）
+    found = adapter._find_output_file(test_dir, "task123", "S1", ".pdb")
     assert found is not None
-    assert "task123" in found.name
-    assert found.suffix == ".pdb"
+    assert found.name == "task123_S1.pdb"
+
+
+def test_find_output_file_fallback_to_task_id_only(adapter: WorkflowEngineAdapter) -> None:
+    """测试输出文件查找的 fallback 逻辑"""
+    # 创建测试文件（只有 task_id，没有 step_id）
+    test_dir = adapter.output_dir / "test"
+    test_dir.mkdir(parents=True)
+
+    fallback_file = test_dir / "task123.pdb"
+    fallback_file.write_text("test")
+
+    # 查找文件（应该 fallback 到只有 task_id 的文件）
+    found = adapter._find_output_file(test_dir, "task123", "S1", ".pdb")
+    assert found is not None
+    assert found.name == "task123.pdb"
 
 
 def test_find_output_file_not_found(adapter: WorkflowEngineAdapter) -> None:
@@ -278,5 +296,20 @@ def test_find_output_file_not_found(adapter: WorkflowEngineAdapter) -> None:
     test_dir = adapter.output_dir / "test"
     test_dir.mkdir(parents=True)
 
-    found = adapter._find_output_file(test_dir, "task999", ".pdb")
+    found = adapter._find_output_file(test_dir, "task999", "S1", ".pdb")
+    assert found is None
+
+
+def test_find_output_file_no_substring_match(adapter: WorkflowEngineAdapter) -> None:
+    """测试不会误匹配子串（修复 bug）"""
+    # 创建测试文件，模拟可能导致子串匹配的情况
+    test_dir = adapter.output_dir / "test"
+    test_dir.mkdir(parents=True)
+
+    # 创建 task12 的文件（不应该被 task1 匹配到）
+    wrong_file = test_dir / "task12_S1.pdb"
+    wrong_file.write_text("wrong")
+
+    # 查找 task1 的文件（应该返回 None，而不是匹配到 task12）
+    found = adapter._find_output_file(test_dir, "task1", "S1", ".pdb")
     assert found is None
