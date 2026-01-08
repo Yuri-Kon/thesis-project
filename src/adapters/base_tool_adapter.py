@@ -18,9 +18,13 @@ class BaseToolAdapter(ABC):
     adapter_id: str | None = None
 
     @abstractmethod
-    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> Dict[str, Any]:
+    def resolve_inputs(
+        self, step: PlanStep, context: WorkflowContext
+    ) -> Dict[str, Any]:
         """将 PlanStep.inputs 解析为工具实际输入"""
 
     @abstractmethod
-    def run_local(self, inputs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def run_local(
+        self, inputs: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """本地执行工具并返回 (outputs, metrics)"""

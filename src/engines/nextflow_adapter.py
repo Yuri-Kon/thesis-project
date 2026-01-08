@@ -14,6 +14,7 @@ WorkflowEngineAdapter - Nextflow 执行后端
 - 失败传播：Nextflow 失败 → StepExecutionError → StepResult.failed
 - 输出目录约定：产物落在 output/，文件名含 task_id
 """
+
 from __future__ import annotations
 
 import json
@@ -184,8 +185,10 @@ class WorkflowEngineAdapter:
             self.nextflow_bin,
             "run",
             str(module_path),
-            "-profile", self.profile,
-            "-work-dir", str(self.work_dir.resolve()),
+            "-profile",
+            self.profile,
+            "-work-dir",
+            str(self.work_dir.resolve()),
         ]
 
         # 添加参数（通过 --key value 格式）
@@ -260,7 +263,8 @@ class WorkflowEngineAdapter:
             if not artifact_files:
                 # Fallback: 匹配 {task_id}_*（但不包含其他 task_id 的前缀）
                 artifact_files = [
-                    f for f in artifacts_dir.glob(f"{task_id}_*")
+                    f
+                    for f in artifacts_dir.glob(f"{task_id}_*")
                     if f.name.startswith(f"{task_id}_")
                 ]
             if artifact_files:
