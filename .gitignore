@@ -122,6 +122,7 @@ data/snapshots/
 htmlcov/
 .idea/
 .vscode/
+work/
 
 # allow demo placeholders
 !/output/
