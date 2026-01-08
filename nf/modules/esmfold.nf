@@ -28,6 +28,10 @@ process ESMFOLD {
     // 容器配置（生产环境使用）
     // container = 'ghcr.io/sokrypton/esmfold:latest'
 
+    // 发布目录配置：将输出复制到指定目录
+    publishDir "${params.output_dir}/pdb", pattern: "*.pdb", mode: 'copy'
+    publishDir "${params.output_dir}/metrics", pattern: "*_metrics.json", mode: 'copy'
+
     input:
     val sequence
     val task_id
@@ -35,21 +39,16 @@ process ESMFOLD {
     val output_dir
 
     output:
-    path "${output_dir}/pdb/${task_id}_${step_id}.pdb", emit: pdb
-    path "${output_dir}/metrics/${task_id}_${step_id}_metrics.json", emit: metrics
+    path "${task_id}_${step_id}.pdb", emit: pdb
+    path "${task_id}_${step_id}_metrics.json", emit: metrics
 
     script:
     """
-    # 创建输出目录
-    mkdir -p ${output_dir}/pdb
-    mkdir -p ${output_dir}/metrics
-    mkdir -p ${output_dir}/artifacts
-
     # Mock 实现：生成测试输出
     # 在真实环境中，这里会调用 ESMFold 容器
 
-    # 生成 mock PDB 文件
-    cat > ${output_dir}/pdb/${task_id}_${step_id}.pdb << 'EOF'
+    # 生成 mock PDB 文件（直接在当前目录，publishDir 会复制到目标位置）
+    cat > ${task_id}_${step_id}.pdb << 'EOF'
 HEADER    PROTEIN STRUCTURE PREDICTION
 TITLE     ESMFOLD PREDICTION FOR ${task_id}_${step_id}
 REMARK    MOCK OUTPUT FOR TESTING
@@ -61,7 +60,7 @@ END
 EOF
 
     # 生成 mock 指标文件
-    cat > ${output_dir}/metrics/${task_id}_${step_id}_metrics.json << EOF
+    cat > ${task_id}_${step_id}_metrics.json << EOF
 {
   "task_id": "${task_id}",
   "step_id": "${step_id}",

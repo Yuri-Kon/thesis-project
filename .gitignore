@@ -9,7 +9,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx 
+*.idx
 *.ilg
 *.ind
 *.ist
@@ -92,7 +92,7 @@ venv/
 .env.*
 *.egg-info/
 
-# 11. 日志与中间数据 
+# 11. 日志与中间数据
 
 data/logs/
 data/outputs/
@@ -122,6 +122,8 @@ data/snapshots/
 htmlcov/
 .idea/
 .vscode/
+work/
+*.log.*
 
 # allow demo placeholders
 !/output/
