@@ -12,9 +12,10 @@ def now_iso() -> str:
     """Small helper to generate ISO8601 timestamp strings."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
+
 class ProteinDesignTask(BaseModel):
     """上层TaskAPI / CLI 提交的任务对象
-    
+
     对应设计文档中的 ProteinDesignTask:
     - task_id: 系统生成的唯一ID
     - goal: 自然语言设计目标
@@ -27,14 +28,16 @@ class ProteinDesignTask(BaseModel):
     constraints: Dict = Field(default_factory=dict)
     metadata: Dict = Field(default_factory=dict)
 
+
 class PlanStep(BaseModel):
     """PlannerAgent 生成的单个步骤描述"""
 
     id: str
-    tool: str # 对应 ProteinToolKG中的tool.id
+    tool: str  # 对应 ProteinToolKG中的tool.id
     # 支持字面值和 "S1.sequence" 形式的引用
     inputs: Dict = Field(default_factory=dict)
     metadata: Dict = Field(default_factory=dict)
+
 
 class Plan(BaseModel):
     """PlannerAgent 输出的完整计划 JSON契约"""
@@ -43,6 +46,7 @@ class Plan(BaseModel):
     steps: List[PlanStep]
     constraints: Dict = Field(default_factory=dict)
     metadata: Dict = Field(default_factory=dict)
+
 
 class RiskFlag(BaseModel):
     """单条风险标记，用于描述某一类安全风险"""
@@ -53,6 +57,7 @@ class RiskFlag(BaseModel):
     scope: Literal["input", "step", "output", "task"]
     step_id: Optional[str] = None
     details: Dict = Field(default_factory=dict)
+
 
 class SafetyResult(BaseModel):
     """一次安全检查的结果(输入/步骤/输出/整体)"""
@@ -65,6 +70,7 @@ class SafetyResult(BaseModel):
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     action: Literal["allow", "warn", "block"]
     timestamp: str
+
 
 class StepResult(BaseModel):
     """ExecutoAgent 执行单个 PlanStep 的结果摘要"""
@@ -85,8 +91,10 @@ class StepResult(BaseModel):
     logs_path: Optional[str] = None
     timestamp: str
 
+
 class DesignResult(BaseModel):
     """SummarizerAgent 汇总后的最终设计结果"""
+
     task_id: str
     sequence: Optional[str] = None
     structure_pdb_path: Optional[str] = None
@@ -95,8 +103,10 @@ class DesignResult(BaseModel):
     report_path: str
     metadata: Dict = Field(default_factory=dict)
 
+
 # WorkflowContext 已移至 src.workflow.context
 # 请使用 src.workflow.context.WorkflowContext（包含 status 字段和辅助方法）
+
 
 class ReplanRequest(BaseModel):
     """ExecutorAgent / SafetyAgent 在运行期触发再规划时发送PlannerAgent的请求"""
@@ -107,15 +117,17 @@ class ReplanRequest(BaseModel):
     safety_events: List[SafetyResult] = Field(default_factory=list)
     reason: str
 
+
 PlanPatchOpType = Literal[
     "replace_step",
     "insert_step_before",
     "insert_step_after",
 ]
 
+
 class PlanPatchOp(BaseModel):
     """单个 Plan Patch 操作
-    
+
     op:
     - "replace_step"
     - "insert_step_before"
@@ -125,7 +137,7 @@ class PlanPatchOp(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     op: PlanPatchOpType
-    target: str # 目标 step_id
+    target: str  # 目标 step_id
     step: PlanStep
 
     @field_validator("step", mode="before")
@@ -156,12 +168,14 @@ class PlanPatchOp(BaseModel):
             )
         return self
 
+
 class PlanPatch(BaseModel):
     """PlannerAgent 针对局部问题生成的最小修改集合"""
 
     task_id: str
     operations: List[PlanPatchOp]
     metadata: Dict = Field(default_factory=dict)
+
 
 class PatchRequest(BaseModel):
     """ExecutorAgent 针对某个局部失败 / 异常向 PlannerAgent 申请 Patch 的请求"""
@@ -255,9 +269,7 @@ class Decision(BaseModel):
     @model_validator(mode="after")
     def _ensure_accept_has_candidate(self):
         if self.choice == DecisionChoice.ACCEPT and not self.selected_candidate_id:
-            raise ValueError(
-                "selected_candidate_id is required when choice is accept"
-            )
+            raise ValueError("selected_candidate_id is required when choice is accept")
         return self
 
 
