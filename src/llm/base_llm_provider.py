@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import Any, TYPE_CHECKING, Dict, List, Optional
 from pydantic import BaseModel, ValidationError
 
 from src.models.contracts import ProteinDesignTask, Plan
@@ -15,8 +15,13 @@ class ProviderConfig(BaseModel):
 
     model_name: str
     api_key: Optional[str] = None
-    timeout: int = 30
+    timeout: int = 300
     max_tokens: int = 2000
+    temperature: float = 0.7
+    top_p: float = 1.0
+    stream: bool = False
+    extra_body: Optional[Dict[str, Any]] = None
+    use_response_format: bool = True
 
 
 class BaseProvider(ABC):

@@ -85,24 +85,35 @@ class OpenAICompatibleProvider(BaseProvider):
         # 调用 LLM
         start_time = time.time()
         try:
-            response = self.client.chat.completions.create(
-                model=self.config.model_name,
-                messages=[
+            request_kwargs = {
+                "model": self.config.model_name,
+                "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=self.config.max_tokens,
-                timeout=self.config.timeout,
-                temperature=0.7,
-                response_format={"type": "json_object"},  # 请求 JSON 输出
-            )
+                "max_tokens": self.config.max_tokens,
+                "timeout": self.config.timeout,
+                "temperature": self.config.temperature,
+                "top_p": self.config.top_p,
+            }
+            if self.config.extra_body:
+                request_kwargs["extra_body"] = self.config.extra_body
+            if self.config.stream:
+                request_kwargs["stream"] = True
+            elif self.config.use_response_format:
+                request_kwargs["response_format"] = {"type": "json_object"}
+
+            response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
             raise Exception(f"LLM API 调用失败: {e}")
 
         elapsed = time.time() - start_time
 
         # 提取响应内容
-        content = response.choices[0].message.content
+        if self.config.stream:
+            content = self._collect_stream_content(response)
+        else:
+            content = response.choices[0].message.content
         if not content:
             raise ValueError("LLM 返回空响应")
 
@@ -204,3 +215,13 @@ class OpenAICompatibleProvider(BaseProvider):
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
+
+    def _collect_stream_content(self, stream) -> str:
+        """从流式响应中拼接内容"""
+        chunks: List[str] = []
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            content = getattr(delta, "content", None)
+            if content:
+                chunks.append(content)
+        return "".join(chunks)
