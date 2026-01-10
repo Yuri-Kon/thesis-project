@@ -265,3 +265,112 @@ class TestSummarizerAgent:
         # 验证元数据中包含了两个步骤ID
         assert "S1" in result.metadata["step_ids"]
         assert "S2" in result.metadata["step_ids"]
+
+    def test_summarizer_maintains_consistency_with_multiple_structure_steps(
+        self, sample_workflow_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试多个结构预测步骤时，PDB 路径与指标保持一致（修复 PR review 问题）"""
+        from src.models.contracts import now_iso
+
+        summarizer = SummarizerAgent()
+        context = sample_workflow_context
+
+        # 第一个 ESMFold 步骤：有完整的 PDB 和 metrics
+        step1_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="esmfold",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={
+                "pdb_path": "/path/to/first_structure.pdb",
+                "metrics": {
+                    "plddt_mean": 0.75,
+                    "confidence": "medium",
+                },
+            },
+            metrics={"exec_type": "nextflow"},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        # 第二个结构预测步骤：只有 PDB，没有 metrics（模拟旧适配器或部分输出）
+        step2_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S2",
+            tool="esmfold",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={
+                "pdb_path": "/path/to/second_structure.pdb",
+                # 注意：没有 metrics 字段
+            },
+            metrics={"exec_type": "nextflow"},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        context.step_results["S1"] = step1_result
+        context.step_results["S2"] = step2_result
+
+        report_dir = tmp_path / "reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        result = summarizer.summarize(context)
+
+        # 验证使用了最新的 PDB 路径
+        assert result.structure_pdb_path == "/path/to/second_structure.pdb"
+
+        # 关键验证：由于 S2 没有 metrics，scores 应该是空的（不应该使用 S1 的旧指标）
+        # 这确保了 PDB 路径和指标的一致性
+        assert "plddt_mean" not in result.scores
+        assert "confidence" not in result.scores
+
+    def test_summarizer_works_with_non_esmfold_structure_tools(
+        self, sample_workflow_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试汇总器支持非 ESMFold 的其他结构预测工具（扩展性验证）"""
+        from src.models.contracts import now_iso
+
+        summarizer = SummarizerAgent()
+        context = sample_workflow_context
+
+        # 模拟一个假想的 AlphaFold 工具（不是 esmfold）
+        alphafold_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="alphafold",  # 注意：不是 "esmfold"
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={
+                "pdb_path": "/path/to/alphafold_structure.pdb",
+                "metrics": {
+                    "plddt_mean": 0.95,
+                    "confidence": "very_high",
+                },
+            },
+            metrics={"exec_type": "nextflow"},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        context.step_results["S1"] = alphafold_result
+
+        report_dir = tmp_path / "reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        result = summarizer.summarize(context)
+
+        # 验证即使工具不是 ESMFold，只要输出了 pdb_path 和 metrics，就能被正确提取
+        assert result.structure_pdb_path == "/path/to/alphafold_structure.pdb"
+        assert result.scores["plddt_mean"] == 0.95
+        assert result.scores["confidence"] == "very_high"

@@ -27,32 +27,38 @@ class SummarizerAgent:
         # 简单策略：从 step_results 中提取信息
         seq_len = None
         structure_pdb_path = None
-        esmfold_scores = {}
+        structure_scores = {}  # 与结构相关的评分指标
 
         for r in context.step_results.values():
             # 提取序列长度
             if "sequence_length" in r.outputs:
                 seq_len = r.outputs["sequence_length"]
 
-            # 提取 ESMFold 结果
-            if r.tool == "esmfold":
-                # 提取 PDB 路径
-                if "pdb_path" in r.outputs:
-                    structure_pdb_path = r.outputs["pdb_path"]
+            # 提取结构预测结果（通用方式，不限于特定工具）
+            # 只要 outputs 包含 pdb_path，就认为是结构预测工具的输出
+            if "pdb_path" in r.outputs:
+                # 更新 PDB 路径
+                structure_pdb_path = r.outputs["pdb_path"]
 
-                # 提取 pLDDT 和其他指标
+                # 重要：清空旧的结构评分，确保指标与当前 PDB 路径一致
+                # 这样避免了将新结构与旧指标错误配对的问题
+                structure_scores = {}
+
+                # 提取该步骤的结构预测指标
                 if "metrics" in r.outputs:
                     metrics = r.outputs["metrics"]
+                    # 提取 pLDDT（结构预测置信度的标准指标）
                     if "plddt_mean" in metrics:
-                        esmfold_scores["plddt_mean"] = metrics["plddt_mean"]
+                        structure_scores["plddt_mean"] = metrics["plddt_mean"]
+                    # 提取置信度等级（如果有）
                     if "confidence" in metrics:
-                        esmfold_scores["confidence"] = metrics["confidence"]
+                        structure_scores["confidence"] = metrics["confidence"]
 
         scores = {}
         if seq_len is not None:
             scores["sequence_length"] = seq_len
-        # 合并 ESMFold 的分数
-        scores.update(esmfold_scores)
+        # 合并结构预测的分数
+        scores.update(structure_scores)
         
         report_dir = Path("nf/output/reports")
         report_dir.mkdir(parents=True, exist_ok=True)
