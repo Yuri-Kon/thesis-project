@@ -134,3 +134,6 @@ work/
 !/output/demo/pdb/
 /output/demo/pdb/*
 !/output/demo/pdb/.gitkeep
+
+# Demo 输出目录
+demo_output/
