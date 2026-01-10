@@ -14,96 +14,39 @@
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 # 将项目根目录添加到路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.agents.planner import PlannerAgent, _DEFAULT_TOOL_REGISTRY
-from src.llm.baseline_provider import BaselineProvider
-from src.llm.base_llm_provider import ProviderConfig
+from src.llm.provider_registry import create_provider, load_provider_catalog
 from tests.fixtures.benchmark_tasks import BENCHMARK_TASKS
 
+DEFAULT_CONFIG_PATH = Path("configs/llm_providers.json")
 
-def get_available_providers() -> Dict[str, str]:
+
+def get_available_providers(catalog) -> Dict[str, str]:
     """返回可用的 providers 及其描述"""
-    providers = {"baseline": "简单确定性基线 provider"}
-
-    # 检查 openai 是否可用
-    try:
-        from src.llm.openai_compatible_provider import OpenAICompatibleProvider
-
-        providers["openai"] = "OpenAI 兼容 provider (GPT-4, 等)"
-        providers["nemotron"] = "NVIDIA Nemotron via OpenAI 兼容 API (NIM_API_KEY)"
-    except ImportError:
-        pass
-
+    providers = {}
+    for name, settings in catalog.providers.items():
+        providers[name] = settings.description or settings.provider_type
     return providers
 
 
-def create_provider(name: str, api_key: Optional[str] = None) -> object:
-    """根据名称创建 provider 实例
-
-    Args:
-        name: Provider 名称 (baseline, openai, nemotron)
-        api_key: LLM providers 的可选 API 密钥
-
-    Returns:
-        Provider 实例
-
-    Raises:
-        ValueError: 如果 provider 名称未知
-    """
-    if name == "baseline":
-        config = ProviderConfig(model_name="baseline")
-        from src.llm.baseline_provider import BaselineProvider
-
-        return BaselineProvider(config)
-
-    elif name == "openai":
-        from src.llm.openai_compatible_provider import OpenAICompatibleProvider
-
-        config = ProviderConfig(
-            model_name="gpt-4o-mini",
-            api_key=api_key or os.getenv("OPENAI_API_KEY"),
-            timeout=30,
-            max_tokens=2000,
-        )
-        return OpenAICompatibleProvider(config)
-
-    elif name == "nemotron":
-        from src.llm.openai_compatible_provider import OpenAICompatibleProvider
-
-        config = ProviderConfig(
-            model_name="nvidia/nemotron-3-nano-30b-a3b",
-            api_key=api_key or os.getenv("NIM_API_KEY") or os.getenv("NVIDIA_API_KEY"),
-            timeout=300,
-            max_tokens=4096,
-            temperature=1.0,
-            top_p=1.0,
-            stream=False,
-            # extra_body={
-            #     "reasoning_budget": 16384,
-            #     "chat_template_kwargs": {"enable_thinking": True},
-            # },
-            use_response_format=True,
-        )
-        endpoint = os.getenv(
-            "NVIDIA_API_ENDPOINT", "https://integrate.api.nvidia.com/v1"
-        )
-        return OpenAICompatibleProvider(config, endpoint=endpoint)
-
-    else:
-        raise ValueError(f"Unknown provider: {name}")
-
-
-def run_single_comparison(task, provider_name: str, provider, tool_registry) -> Dict:
+def run_single_comparison(
+    task,
+    provider_name: str,
+    provider,
+    tool_registry,
+    *,
+    provider_settings,
+) -> Dict:
     """通过 provider 运行单个任务并收集指标
 
     Args:
@@ -133,12 +76,25 @@ def run_single_comparison(task, provider_name: str, provider, tool_registry) -> 
     # 构建结果
     result = {
         "provider": provider_name,
+        "provider_type": provider_settings.provider_type,
+        "model": provider_settings.model_name,
+        "endpoint": provider_settings.endpoint,
+        "provider_config": {
+            "timeout": provider_settings.timeout,
+            "max_tokens": provider_settings.max_tokens,
+            "temperature": provider_settings.temperature,
+            "top_p": provider_settings.top_p,
+            "stream": provider_settings.stream,
+            "use_response_format": provider_settings.use_response_format,
+            "extra_body": provider_settings.extra_body,
+        },
         "task_id": task.task_id,
         "task_goal": task.goal,
         "task_constraints": task.constraints,
         "timestamp": datetime.utcnow().isoformat(),
         "elapsed_seconds": round(elapsed, 3),
         "success": success,
+        "candidates": [],
     }
 
     if success and plan:
@@ -158,6 +114,7 @@ def run_single_comparison(task, provider_name: str, provider, tool_registry) -> 
         }
         result["num_steps"] = len(plan.steps)
         result["tools_used"] = [step.tool for step in plan.steps]
+        result["candidates"] = plan.metadata.get("candidates", [])
 
         # 如果有说明则提取
         if "explanation" in plan.metadata:
@@ -182,14 +139,28 @@ def main():
     parser.add_argument(
         "--api-key", help="LLM providers 的 API 密钥 (或通过环境变量设置)"
     )
+    parser.add_argument(
+        "--config",
+        default=str(DEFAULT_CONFIG_PATH),
+        help="Provider 配置文件路径 (JSON)",
+    )
 
     args = parser.parse_args()
 
+    # 加载 provider 配置
+    config_path = Path(args.config)
+    if not config_path.is_absolute():
+        config_path = project_root / config_path
+    if not config_path.exists():
+        print(f"错误: 找不到配置文件 {config_path}")
+        sys.exit(1)
+    catalog = load_provider_catalog(config_path)
+
     # 解析 provider 列表
-    provider_names = [p.strip() for p in args.providers.split(",")]
+    provider_names = [p.strip() for p in args.providers.split(",") if p.strip()]
 
     # 显示可用的 providers
-    available = get_available_providers()
+    available = get_available_providers(catalog)
     print("可用的 providers:")
     for name, desc in available.items():
         print(f"  - {name}: {desc}")
@@ -220,12 +191,23 @@ def main():
         print(f"任务: {task.task_id} - {task.goal}")
 
         for provider_name in provider_names:
-            print(f"  Provider: {provider_name}...", end=" ")
+            settings = catalog.providers[provider_name]
+            print(
+                f"  Provider: {provider_name} ({settings.model_name})...",
+                end=" ",
+            )
 
             try:
-                provider = create_provider(provider_name, args.api_key)
+                provider = create_provider(
+                    settings,
+                    api_key_override=args.api_key,
+                )
                 result = run_single_comparison(
-                    task, provider_name, provider, _DEFAULT_TOOL_REGISTRY
+                    task,
+                    provider_name,
+                    provider,
+                    _DEFAULT_TOOL_REGISTRY,
+                    provider_settings=settings,
                 )
                 all_results.append(result)
 
@@ -267,17 +249,22 @@ def main():
     print("\n" + "=" * 80)
     print("摘要")
     print("=" * 80)
-    print(f"{'Provider':<15} {'任务':<20} {'步骤数':<8} {'耗时 (s)':<10} {'状态'}")
+    print(
+        f"{'Provider':<12} {'Model':<32} {'任务':<20} {'步骤数':<8} {'耗时 (s)':<10} {'状态'}"
+    )
     print("-" * 80)
 
     for result in all_results:
         provider = result["provider"]
+        model = result.get("model", "-")
         task_id = result["task_id"]
         steps = result.get("num_steps", "-")
         elapsed = result["elapsed_seconds"]
         status = "✓" if result["success"] else "✗"
 
-        print(f"{provider:<15} {task_id:<20} {steps:<8} {elapsed:<10.3f} {status}")
+        print(
+            f"{provider:<12} {model:<32} {task_id:<20} {steps:<8} {elapsed:<10.3f} {status}"
+        )
 
     print("=" * 80)
 
