@@ -15,10 +15,10 @@ class SummarizerAgent:
 
     def summarize(self, context: WorkflowContext) -> DesignResult:
         """汇总工作流结果，生成最终设计结果
-        
+
         Args:
             context: 工作流上下文
-            
+
         Returns:
             DesignResult: 最终设计结果
         """
@@ -26,14 +26,33 @@ class SummarizerAgent:
 
         # 简单策略：从 step_results 中提取信息
         seq_len = None
+        structure_pdb_path = None
+        esmfold_scores = {}
+
         for r in context.step_results.values():
+            # 提取序列长度
             if "sequence_length" in r.outputs:
                 seq_len = r.outputs["sequence_length"]
-                break
-        
+
+            # 提取 ESMFold 结果
+            if r.tool == "esmfold":
+                # 提取 PDB 路径
+                if "pdb_path" in r.outputs:
+                    structure_pdb_path = r.outputs["pdb_path"]
+
+                # 提取 pLDDT 和其他指标
+                if "metrics" in r.outputs:
+                    metrics = r.outputs["metrics"]
+                    if "plddt_mean" in metrics:
+                        esmfold_scores["plddt_mean"] = metrics["plddt_mean"]
+                    if "confidence" in metrics:
+                        esmfold_scores["confidence"] = metrics["confidence"]
+
         scores = {}
         if seq_len is not None:
             scores["sequence_length"] = seq_len
+        # 合并 ESMFold 的分数
+        scores.update(esmfold_scores)
         
         report_dir = Path("nf/output/reports")
         report_dir.mkdir(parents=True, exist_ok=True)
@@ -49,7 +68,7 @@ class SummarizerAgent:
         design = DesignResult(
             task_id=task_id,
             sequence=context.task.constraints.get("sequence"),
-            structure_pdb_path=None,  # 当前阶段还没有真实结构
+            structure_pdb_path=structure_pdb_path,  # ESMFold 生成的 PDB 文件
             scores=scores,
             risk_flags=[],
             report_path=str(preferred_report_path),
