@@ -434,3 +434,66 @@ def test_status_mismatch_rejected(sample_task, sample_plan):
 
     with pytest.raises(DecisionConflictError):
         apply_plan_confirm_decision(context, record, decision)
+
+
+@pytest.mark.unit
+def test_missing_pending_action_rejected(sample_task):
+    """测试 PendingAction 缺失场景"""
+    decision = Decision(
+        decision_id="dec_missing_pa",
+        task_id=sample_task.task_id,
+        pending_action_id="pa_missing",
+        choice=DecisionChoice.ACCEPT,
+        selected_candidate_id="plan_a",
+        decided_by="user_1",
+    )
+    context = WorkflowContext(
+        task=sample_task,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+        pending_action=None,
+    )
+    record = _make_record(sample_task.task_id, InternalStatus.WAITING_PLAN_CONFIRM)
+    record.pending_action = None
+
+    with pytest.raises(DecisionApplyError, match="PendingAction is required"):
+        apply_plan_confirm_decision(context, record, decision)
+
+
+@pytest.mark.unit
+def test_decision_persisted_to_record(sample_task, sample_plan):
+    """测试决策持久化到 TaskRecord.decisions"""
+    pending_action = PendingAction(
+        pending_action_id="pa_persist",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
+        ],
+        explanation="test",
+    )
+    decision = Decision(
+        decision_id="dec_persist",
+        task_id=sample_task.task_id,
+        pending_action_id=pending_action.pending_action_id,
+        choice=DecisionChoice.ACCEPT,
+        selected_candidate_id="plan_a",
+        decided_by="user_1",
+    )
+    context = WorkflowContext(
+        task=sample_task,
+        plan=None,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+        pending_action=pending_action,
+    )
+    record = _make_record(sample_task.task_id, InternalStatus.WAITING_PLAN_CONFIRM)
+    record.pending_action = pending_action
+
+    # 验证初始状态
+    assert len(record.decisions) == 0
+
+    apply_plan_confirm_decision(context, record, decision)
+
+    # 验证决策已持久化
+    assert len(record.decisions) == 1
+    assert record.decisions[0].decision_id == "dec_persist"
+    assert record.decisions[0].choice == DecisionChoice.ACCEPT

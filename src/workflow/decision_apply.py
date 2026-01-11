@@ -119,6 +119,10 @@ def apply_plan_confirm_decision(
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
 
+    # 持久化 Decision 到 TaskRecord
+    if record is not None:
+        record.decisions.append(decision)
+
     # Emit structured EventLog events
     _emit_decision_applied_event(context, action, decision, prev_status)
     _emit_waiting_exit_event(
@@ -187,6 +191,10 @@ def apply_patch_confirm_decision(
         action.decided_at = now_iso()
         _sync_pending_action(context, record, action)
 
+        # 持久化 Decision 到 TaskRecord
+        if record is not None:
+            record.decisions.append(decision)
+
         # Emit WAITING_EXIT for the cancelled patch confirm
         _emit_waiting_exit_event(
             context,
@@ -243,6 +251,10 @@ def apply_patch_confirm_decision(
 
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
+
+    # 持久化 Decision 到 TaskRecord
+    if record is not None:
+        record.decisions.append(decision)
 
     # Emit structured EventLog events
     _emit_decision_applied_event(context, action, decision, prev_status)
@@ -322,6 +334,10 @@ def apply_replan_confirm_decision(
 
     action.decided_at = now_iso()
     _sync_pending_action(context, record, action)
+
+    # 持久化 Decision 到 TaskRecord
+    if record is not None:
+        record.decisions.append(decision)
 
     # Emit structured EventLog events
     _emit_decision_applied_event(context, action, decision, prev_status)

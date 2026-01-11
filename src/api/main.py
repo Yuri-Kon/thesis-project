@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.models.contracts import ProteinDesignTask, Decision, DecisionChoice
+from src.models.contracts import ProteinDesignTask, Decision, DecisionChoice, PendingActionStatus
 from src.models.db import TaskRecord
 from src.models.validation import DecisionValidationError, validate_decision_for_pending_action
 from src.workflow.workflow import run_task_sync
@@ -15,6 +15,7 @@ from src.workflow.decision_apply import (
     apply_patch_confirm_decision,
     apply_replan_confirm_decision,
     DecisionApplyError,
+    DecisionConflictError,
 )
 from src.models.contracts import PendingActionType, now_iso
 from src.workflow.context import WorkflowContext
@@ -98,6 +99,19 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
 
     pending_action = record.pending_action
 
+    # 显式检查 PendingAction 状态
+    if pending_action is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"pending_action {pending_action_id} not found in task record"
+        )
+
+    if pending_action.status != PendingActionStatus.PENDING:
+        raise HTTPException(
+            status_code=409,
+            detail=f"PendingAction {pending_action_id} is not in PENDING status (current: {pending_action.status.value})"
+        )
+
     # 构造 Decision 对象
     try:
         decision = Decision(
@@ -149,12 +163,12 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
                 status_code=400,
                 detail=f"Unsupported action type: {pending_action.action_type.value}"
             )
+    except DecisionConflictError as e:
+        # 决策冲突：已决策或状态不匹配
+        raise HTTPException(status_code=409, detail=str(e))
     except DecisionApplyError as e:
-        # 决策冲突或应用失败
-        error_msg = str(e)
-        if "conflict" in error_msg.lower() or "already" in error_msg.lower():
-            raise HTTPException(status_code=409, detail=error_msg)
-        raise HTTPException(status_code=500, detail=error_msg)
+        # 其他决策应用失败
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to apply decision: {str(e)}")
 
