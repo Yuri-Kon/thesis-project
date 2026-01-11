@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, List, Sequence, Set
+from typing import Iterable, List, Optional, Sequence, Set
 
+from src.llm.base_llm_provider import BaseProvider
 from src.models.contracts import (
     PatchRequest,
     Plan,
@@ -33,35 +34,68 @@ class ToolSpec:
 
 class PlannerAgent:
     """最小可用 PlannerAgent: 根据任务目标生成一个单步 Plan
-    
-    当前实现：固定生成一个单步计划，调用 dummy_tool
+
+    当前实现：支持可选的 LLM Provider 生成计划，或使用默认的单步计划
     后续将接入 KG 和 LLM 实现智能规划
     """
 
-    def __init__(self, tool_registry: Iterable[ToolSpec] | None = None) -> None:
-        # 允许注入自定义 registry，便于测试；默认使用内置 dummy 列表
-        self._tool_registry: List[ToolSpec] = list(tool_registry or _DEFAULT_TOOL_REGISTRY)
+    def __init__(
+        self,
+        tool_registry: Iterable[ToolSpec] | None = None,
+        llm_provider: Optional[BaseProvider] = None,
+    ) -> None:
+        """初始化 PlannerAgent
+
+        Args:
+            tool_registry: 可用工具注册表，默认使用内置 dummy 列表
+            llm_provider: 可选的 LLM Provider，用于生成计划
+        """
+        self._tool_registry: List[ToolSpec] = list(
+            tool_registry or _DEFAULT_TOOL_REGISTRY
+        )
+        self._llm_provider = llm_provider
 
     def plan(self, task: ProteinDesignTask) -> Plan:
         """生成执行计划
-        
+
         Args:
             task: 蛋白质设计任务
-            
+
         Returns:
             Plan: 包含步骤列表的执行计划
         """
-        # 最小版: 固定生成一个叫 S1 的步骤，调用 dummy_tool
-        # 后续会被真实工具替代
+        # 如果未提供 Provider，回退到默认行为（向后兼容）
+        if self._llm_provider is None:
+            return self._default_plan(task)
+
+        # 调用 LLM Provider 生成计划
+        plan_dict = self._llm_provider.call_planner(
+            task=task, tool_registry=self._tool_registry
+        )
+
+        # 验证并返回 Plan 对象
+        return Plan.model_validate(plan_dict)
+
+    def _default_plan(self, task: ProteinDesignTask) -> Plan:
+        """向后兼容的默认单步计划
+
+        生成一个单步骤计划，调用第一个可用工具（或 dummy_tool）
+        保持与原始 PlannerAgent 行为一致
+        """
+        # 选择第一个工具，默认使用 dummy_tool
+        tool_id = self._tool_registry[0].id if self._tool_registry else "dummy_tool"
+
+        # 从任务约束中提取 sequence，或使用默认值
+        sequence = task.constraints.get(
+            "sequence",
+            "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"
+        )
+
+        # 构建单步计划
         step = PlanStep(
             id="S1",
-            tool="dummy_tool",
-            inputs={
-                "sequence": task.constraints.get(
-                    "sequence",
-                    "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR",
-                )
-            },
+            tool=tool_id,
+            inputs={"sequence": sequence},
             metadata={},
         )
 
@@ -118,7 +152,9 @@ class PlannerAgent:
         target_step = _locate_target_step(request)
         target_spec = _find_tool_spec(self._tool_registry, target_step.tool)
 
-        available_inputs = _collect_available_inputs(request.context_step_results, target_step)
+        available_inputs = _collect_available_inputs(
+            request.context_step_results, target_step
+        )
         candidate = _select_candidate(
             registry=self._tool_registry,
             capability=target_spec.capabilities[0] if target_spec.capabilities else "",
@@ -130,7 +166,10 @@ class PlannerAgent:
             update={
                 "tool": candidate.id,
                 # 追加简单元数据，便于调试
-                "metadata": {**(target_step.metadata or {}), "patched_from": target_step.tool},
+                "metadata": {
+                    **(target_step.metadata or {}),
+                    "patched_from": target_step.tool,
+                },
             },
             deep=True,
         )
@@ -139,7 +178,11 @@ class PlannerAgent:
             target=target_step.id,
             step=patched_step,
         )
-        return PlanPatch(task_id=request.task_id, operations=[op], metadata={"strategy": "cost_first"})
+        return PlanPatch(
+            task_id=request.task_id,
+            operations=[op],
+            metadata={"strategy": "cost_first"},
+        )
 
     # --- B4: 再规划 ---
     def replan(self, request: ReplanRequest) -> Plan:
@@ -154,7 +197,9 @@ class PlannerAgent:
         try:
             candidate = _select_candidate(
                 registry=self._tool_registry,
-                capability=target_spec.capabilities[0] if target_spec.capabilities else "",
+                capability=target_spec.capabilities[0]
+                if target_spec.capabilities
+                else "",
                 available_inputs=available_inputs,
                 exclude_tool=target_step.tool,
             )
@@ -162,7 +207,9 @@ class PlannerAgent:
             fallback_inputs = _collect_registry_inputs(self._tool_registry)
             candidate = _select_candidate(
                 registry=self._tool_registry,
-                capability=target_spec.capabilities[0] if target_spec.capabilities else "",
+                capability=target_spec.capabilities[0]
+                if target_spec.capabilities
+                else "",
                 available_inputs=fallback_inputs,
                 exclude_tool=target_step.tool,
             )
@@ -209,6 +256,7 @@ class PlannerAgent:
 
 # --- helpers ---
 
+
 def _ensure_task_match(request: PatchRequest) -> None:
     if request.task_id != request.original_plan.task_id:
         raise ValueError(
@@ -235,7 +283,11 @@ def _locate_target_step(request: PatchRequest) -> PlanStep:
 
 
 def _locate_replan_target_step(request: ReplanRequest) -> PlanStep:
-    target_id = request.failed_steps[-1] if request.failed_steps else request.original_plan.steps[-1].id
+    target_id = (
+        request.failed_steps[-1]
+        if request.failed_steps
+        else request.original_plan.steps[-1].id
+    )
     for step in request.original_plan.steps:
         if step.id == target_id:
             return step
@@ -256,7 +308,9 @@ def _collect_registry_inputs(registry: Sequence[ToolSpec]) -> Set[str]:
     return inputs
 
 
-def _collect_available_inputs(results: Sequence[StepResult], target_step: PlanStep) -> Set[str]:
+def _collect_available_inputs(
+    results: Sequence[StepResult], target_step: PlanStep
+) -> Set[str]:
     available: Set[str] = set()
     for r in results:
         available.update(r.outputs.keys())
@@ -293,7 +347,9 @@ def _select_candidate(
         candidates.append(spec)
 
     if not candidates:
-        raise ValueError(f"No alternative tool found for capability '{capability}' with inputs {sorted(available_inputs)}")
+        raise ValueError(
+            f"No alternative tool found for capability '{capability}' with inputs {sorted(available_inputs)}"
+        )
 
     # 简化策略：按 cost 优先，其次 safety_level
     candidates.sort(key=lambda t: (t.cost, t.safety_level, t.id))

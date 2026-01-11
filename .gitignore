@@ -99,6 +99,7 @@ data/outputs/
 output/
 data/inputs/tmp/
 *.log
+logs/
 
 #  12. Nextflow / workflow 相关中间文件
 .nextflow/
