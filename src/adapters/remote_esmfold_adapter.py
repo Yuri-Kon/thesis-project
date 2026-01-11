@@ -23,7 +23,7 @@ from src.engines.remote_model_service import (
 )
 from src.models.contracts import PlanStep, TaskSnapshot, now_iso
 from src.workflow.context import WorkflowContext
-from src.workflow.errors import FailureType, StepRunError
+from src.workflow.errors import FailureType, FailureCode, StepRunError
 from src.workflow.recovery import RemoteJobContext
 
 __all__ = ["RemoteESMFoldAdapter"]
@@ -190,7 +190,7 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
                 raise StepRunError(
                     failure_type=FailureType.NON_RETRYABLE,
                     message="Missing required input 'sequence'",
-                    code="ESMFOLD_MISSING_SEQUENCE",
+                    code=FailureCode.INPUT_RESOLUTION_FAILED.value,
                 )
 
             # 准备远程服务输入
@@ -236,7 +236,7 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
                     raise StepRunError(
                         failure_type=FailureType.NON_RETRYABLE,
                         message=f"Job {job_id} status is unknown",
-                        code="REMOTE_JOB_UNKNOWN",
+                        code=FailureCode.REMOTE_JOB_UNKNOWN.value,
                     )
 
                 time.sleep(poll_interval)
@@ -245,7 +245,7 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
                 raise StepRunError(
                     failure_type=FailureType.RETRYABLE,
                     message=f"Job {job_id} polling timeout",
-                    code="REMOTE_POLL_TIMEOUT",
+                    code=FailureCode.REMOTE_POLL_TIMEOUT.value,
                 )
 
         if final_status == JobStatus.FAILED:
@@ -253,7 +253,7 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Remote job {job_id} failed",
-                code="REMOTE_JOB_FAILED",
+                code=FailureCode.REMOTE_JOB_FAILED.value,
             )
 
         # 下载结果

@@ -23,7 +23,7 @@ from typing import Any, Dict
 
 import httpx
 
-from src.workflow.errors import FailureType, StepRunError
+from src.workflow.errors import FailureType, FailureCode, StepRunError
 
 __all__ = [
     "JobStatus",
@@ -177,30 +177,41 @@ class RESTModelInvocationService(RemoteModelInvocationService):
                 raise StepRunError(
                     failure_type=FailureType.TOOL_ERROR,
                     message="Remote service response missing 'job_id'",
-                    code="REMOTE_INVALID_RESPONSE",
+                    code=FailureCode.REMOTE_SUBMIT_INVALID_RESPONSE.value,
                 )
 
             return data["job_id"]
 
         except httpx.HTTPStatusError as exc:
+            # 根据 HTTP 状态码选择失败码
+            if exc.response.status_code >= 500:
+                failure_code = FailureCode.REMOTE_SUBMIT_HTTP_5XX
+            else:
+                failure_code = FailureCode.REMOTE_SUBMIT_HTTP_4XX
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE
                 if exc.response.status_code >= 500
                 else FailureType.NON_RETRYABLE,
                 message=f"Failed to submit job: HTTP {exc.response.status_code}",
-                code=f"REMOTE_SUBMIT_HTTP_{exc.response.status_code}",
+                code=failure_code.value,
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise StepRunError(
+                failure_type=FailureType.RETRYABLE,
+                message=f"Timeout during job submission: {exc}",
+                code=FailureCode.REMOTE_SUBMIT_TIMEOUT.value,
             ) from exc
         except httpx.RequestError as exc:
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE,
                 message=f"Network error during job submission: {exc}",
-                code="REMOTE_SUBMIT_NETWORK_ERROR",
+                code=FailureCode.REMOTE_SUBMIT_NETWORK_ERROR.value,
             ) from exc
         except Exception as exc:
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Unexpected error during job submission: {exc}",
-                code="REMOTE_SUBMIT_UNEXPECTED_ERROR",
+                code=FailureCode.REMOTE_SUBMIT_UNEXPECTED_ERROR.value,
             ) from exc
 
     def poll_status(
@@ -231,24 +242,35 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code == 404:
                 return JobStatus.UNKNOWN
+            # 根据 HTTP 状态码选择失败码
+            if exc.response.status_code >= 500:
+                failure_code = FailureCode.REMOTE_POLL_HTTP_5XX
+            else:
+                failure_code = FailureCode.REMOTE_POLL_HTTP_4XX
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE
                 if exc.response.status_code >= 500
                 else FailureType.NON_RETRYABLE,
                 message=f"Failed to poll job status: HTTP {exc.response.status_code}",
-                code=f"REMOTE_POLL_HTTP_{exc.response.status_code}",
+                code=failure_code.value,
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise StepRunError(
+                failure_type=FailureType.RETRYABLE,
+                message=f"Timeout during status polling: {exc}",
+                code=FailureCode.REMOTE_POLL_TIMEOUT.value,
             ) from exc
         except httpx.RequestError as exc:
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE,
                 message=f"Network error during status polling: {exc}",
-                code="REMOTE_POLL_NETWORK_ERROR",
+                code=FailureCode.REMOTE_POLL_NETWORK_ERROR.value,
             ) from exc
         except Exception as exc:
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Unexpected error during status polling: {exc}",
-                code="REMOTE_POLL_UNEXPECTED_ERROR",
+                code=FailureCode.REMOTE_POLL_UNEXPECTED_ERROR.value,
             ) from exc
 
     def download_results(
@@ -313,24 +335,35 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             return outputs
 
         except httpx.HTTPStatusError as exc:
+            # 根据 HTTP 状态码选择失败码
+            if exc.response.status_code >= 500:
+                failure_code = FailureCode.REMOTE_DOWNLOAD_HTTP_5XX
+            else:
+                failure_code = FailureCode.REMOTE_DOWNLOAD_HTTP_4XX
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE
                 if exc.response.status_code >= 500
                 else FailureType.NON_RETRYABLE,
                 message=f"Failed to download results: HTTP {exc.response.status_code}",
-                code=f"REMOTE_DOWNLOAD_HTTP_{exc.response.status_code}",
+                code=failure_code.value,
+            ) from exc
+        except httpx.TimeoutException as exc:
+            raise StepRunError(
+                failure_type=FailureType.RETRYABLE,
+                message=f"Timeout during result download: {exc}",
+                code=FailureCode.REMOTE_DOWNLOAD_TIMEOUT.value,
             ) from exc
         except httpx.RequestError as exc:
             raise StepRunError(
                 failure_type=FailureType.RETRYABLE,
                 message=f"Network error during result download: {exc}",
-                code="REMOTE_DOWNLOAD_NETWORK_ERROR",
+                code=FailureCode.REMOTE_DOWNLOAD_NETWORK_ERROR.value,
             ) from exc
         except Exception as exc:
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Unexpected error during result download: {exc}",
-                code="REMOTE_DOWNLOAD_UNEXPECTED_ERROR",
+                code=FailureCode.REMOTE_DOWNLOAD_UNEXPECTED_ERROR.value,
             ) from exc
 
     def _download_file(
@@ -379,7 +412,7 @@ class RESTModelInvocationService(RemoteModelInvocationService):
                 raise StepRunError(
                     failure_type=FailureType.NON_RETRYABLE,
                     message=f"Job {job_id} status is unknown",
-                    code="REMOTE_JOB_UNKNOWN",
+                    code=FailureCode.REMOTE_JOB_UNKNOWN.value,
                 )
 
             time.sleep(self.poll_interval)
@@ -388,5 +421,5 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         raise StepRunError(
             failure_type=FailureType.RETRYABLE,
             message=f"Job {job_id} polling timeout after {self.max_poll_attempts} attempts",
-            code="REMOTE_POLL_TIMEOUT",
+            code=FailureCode.REMOTE_POLL_TIMEOUT.value,
         )
