@@ -12,6 +12,7 @@ from .contracts import (
     StepResult,
     DesignResult,
     SafetyResult,
+    Decision,
     now_iso,
 )
 
@@ -124,6 +125,9 @@ class TaskRecord(BaseModel):
 
     # 若处于 WAITING_*，记录当前待决策对象
     pending_action: Optional[PendingAction] = None
+
+    # 决策记录（用于审计和回放）
+    decisions: List[Decision] = Field(default_factory=list)
 
     # 安全事件汇总
     safety_events: List[SafetyResult] = Field(default_factory=list)
