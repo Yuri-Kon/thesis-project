@@ -28,8 +28,10 @@ from src.workflow.context import WorkflowContext
 from src.agents.safety import SafetyAgent
 from src.workflow.errors import (
     FailureType,
+    FailureCode,
     StepRunError,
     is_retryable_failure,
+    build_error_meta,
 )
 
 __all__ = ["StepRunner", "StepRetryPolicy"]
@@ -181,7 +183,11 @@ class StepRunner:
                 status="failed",
                 failure_type=FailureType.SAFETY_BLOCK,
                 error_message=f"SafetyAgent blocked step {step.id} before execution",
-                error_details={"code": "SAFETY_PRE_BLOCK", "phase": "safety_precheck"},
+                error_details=build_error_meta(
+                    failure_code=FailureCode.SAFETY_PRE_BLOCK,
+                    phase="safety_precheck",
+                    timestamp=now_iso,
+                ),
                 outputs={},
                 metrics={
                     "exec_type": "safety_precheck",
@@ -205,7 +211,13 @@ class StepRunner:
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE,
                 error_message=str(exc),
-                error_details={"phase": "adapter_lookup"},
+                error_details=build_error_meta(
+                    failure_code=FailureCode.ADAPTER_NOT_FOUND,
+                    phase="adapter_lookup",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
                 outputs={},
                 metrics={
                     "exec_type": "adapter_lookup",
@@ -229,7 +241,13 @@ class StepRunner:
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE,
                 error_message=str(exc),
-                error_details={"phase": "input_resolution"},
+                error_details=build_error_meta(
+                    failure_code=FailureCode.INPUT_RESOLUTION_FAILED,
+                    phase="input_resolution",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
                 outputs={},
                 metrics={
                     "exec_type": "input_resolution",
@@ -248,6 +266,8 @@ class StepRunner:
             duration_ms = int((perf_counter() - t0) * 1000)
             now_iso = datetime.now(timezone.utc).isoformat()
             # 工具失败（可重试/不可重试由 failure_type 决定）
+            # StepRunError 已经包含 code，直接使用或构建标准化元数据
+            error_code = getattr(exc, "code", None)
             return StepResult(
                 task_id=context.task.task_id,
                 step_id=step.id,
@@ -255,7 +275,13 @@ class StepRunner:
                 status="failed",
                 failure_type=exc.failure_type,
                 error_message=str(exc),
-                error_details={"code": getattr(exc, "code", None), "phase": "tool_execution"},
+                error_details=build_error_meta(
+                    failure_code=error_code or FailureCode.TOOL_EXECUTION_ERROR,
+                    phase="tool_execution",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
                 outputs={},
                 metrics={
                     "exec_type": "tool_execution",
@@ -275,7 +301,13 @@ class StepRunner:
                 status="failed",
                 failure_type=FailureType.TOOL_ERROR,
                 error_message=f"Unexpected tool exception: {exc}",
-                error_details={"phase": "tool_execution"},
+                error_details=build_error_meta(
+                    failure_code=FailureCode.TOOL_UNEXPECTED_ERROR,
+                    phase="tool_execution",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
                 outputs={},
                 metrics={
                     "exec_type": "tool_execution",
@@ -327,7 +359,11 @@ class StepRunner:
                 status="failed",
                 failure_type=FailureType.SAFETY_BLOCK,
                 error_message=f"SafetyAgent blocked step {step.id} after execution",
-                error_details={"code": "SAFETY_POST_BLOCK", "phase": "safety_postcheck"},
+                error_details=build_error_meta(
+                    failure_code=FailureCode.SAFETY_POST_BLOCK,
+                    phase="safety_postcheck",
+                    timestamp=now_iso,
+                ),
                 outputs=temp_result.outputs,
                 metrics={
                     "exec_type": "safety_postcheck",
@@ -441,7 +477,7 @@ class StepRunner:
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message="Tool outputs is not a dict",
-                code="OUTPUT_NOT_DICT",
+                code=FailureCode.OUTPUT_NOT_DICT.value,
             )
 
         required = step.metadata.get("required_outputs", []) if step.metadata else []
@@ -450,7 +486,7 @@ class StepRunner:
                 raise StepRunError(
                     failure_type=FailureType.NON_RETRYABLE,
                     message=f"Missing required output field '{key}'",
-                    code="OUTPUT_MISSING",
+                    code=FailureCode.OUTPUT_MISSING.value,
                 )
 
         type_hints: Dict[str, str] = step.metadata.get("output_types", {}) if step.metadata else {}
@@ -459,7 +495,7 @@ class StepRunner:
                 raise StepRunError(
                     failure_type=FailureType.NON_RETRYABLE,
                     message=f"Output field '{key}' type mismatch, expected {expected}",
-                    code="OUTPUT_TYPE_MISMATCH",
+                    code=FailureCode.OUTPUT_TYPE_MISMATCH.value,
                 )
 
     def _type_matches(self, value: Any, type_name: str) -> bool:

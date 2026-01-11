@@ -93,7 +93,7 @@ def test_submit_job_http_error(service: RESTModelInvocationService) -> None:
             )
 
     assert exc_info.value.failure_type == FailureType.RETRYABLE
-    assert "500" in exc_info.value.code
+    assert exc_info.value.code == "REMOTE_SUBMIT_HTTP_5XX"
 
 
 def test_submit_job_network_error(service: RESTModelInvocationService) -> None:
