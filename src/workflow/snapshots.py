@@ -39,6 +39,11 @@ def build_task_snapshot(
     """
     external_state = state_override or to_external_status(context.status)
     step_ids = list(context.step_results.keys())
+    artifacts_payload = dict(artifacts or {})
+    if context.pending_action is not None:
+        artifacts_payload.setdefault(
+            "pending_action", context.pending_action.model_dump()
+        )
     return TaskSnapshot(
         snapshot_id=f"snapshot_{uuid4().hex[:8]}",
         task_id=context.task.task_id,
@@ -47,7 +52,7 @@ def build_task_snapshot(
         step_index=len(step_ids),
         current_step_index=len(step_ids),
         completed_step_ids=step_ids,
-        artifacts=artifacts or {},
+        artifacts=artifacts_payload,
         pending_action_id=pending_action_id,
         created_at=now_iso(),
     )
