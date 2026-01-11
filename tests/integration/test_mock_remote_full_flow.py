@@ -80,8 +80,8 @@ def test_mock_remote_full_flow(tmp_path: Path) -> None:
     )
     record = TaskRecord(
         id=task_id,
-        status=ExternalStatus.CREATED,
-        internal_status=InternalStatus.CREATED,
+        status=ExternalStatus.PLANNED,
+        internal_status=InternalStatus.PLANNED,
         goal=task.goal,
         constraints=task.constraints,
         metadata=task.metadata,
