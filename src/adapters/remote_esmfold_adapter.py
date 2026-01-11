@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.engines.remote_model_service import (
@@ -21,11 +21,14 @@ from src.engines.remote_model_service import (
     RESTModelInvocationService,
     RemoteModelInvocationService,
 )
-from src.models.contracts import PlanStep
+from src.models.contracts import PlanStep, TaskSnapshot, now_iso
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType, StepRunError
+from src.workflow.recovery import RemoteJobContext
 
 __all__ = ["RemoteESMFoldAdapter"]
+
+SnapshotWriter = Callable[[TaskSnapshot], None]
 
 
 class RemoteESMFoldAdapter(BaseToolAdapter):
@@ -43,6 +46,8 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
         *,
         base_url: Optional[str] = None,
         output_dir: Optional[Path] = None,
+        snapshot_writer: Optional[SnapshotWriter] = None,
+        enable_snapshot: bool = True,
     ) -> None:
         """初始化 RemoteESMFoldAdapter
 
@@ -50,6 +55,8 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
             service: 远程服务实例，如果为 None 则使用 base_url 创建 REST 服务
             base_url: 远程服务基础 URL（当 service 为 None 时使用）
             output_dir: 输出目录，默认为 "output/remote"
+            snapshot_writer: 可选的快照写入函数，用于在远程作业执行期间保存快照
+            enable_snapshot: 是否启用快照写入（默认 True）
         """
         if service is None:
             if base_url is None:
@@ -60,6 +67,9 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
 
         self.service = service
         self.output_dir = Path(output_dir or "output/remote")
+        self.snapshot_writer = snapshot_writer
+        self.enable_snapshot = enable_snapshot
+        self._context: Optional[WorkflowContext] = None
 
     def resolve_inputs(
         self,
@@ -80,6 +90,9 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
         Raises:
             ValueError: 输入引用无法解析
         """
+        # 保存 context 引用用于快照写入
+        self._context = context
+
         resolved: Dict[str, Any] = {}
 
         for key, val in step.inputs.items():
@@ -133,6 +146,8 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
         self,
         inputs: Dict[str, Any],
         output_dir: Optional[Path] = None,
+        *,
+        resume_job_id: Optional[str] = None,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """远程执行 ESMFold 预测
 
@@ -141,6 +156,7 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
         Args:
             inputs: 输入参数，必须包含 "sequence"
             output_dir: 可选的输出目录覆盖
+            resume_job_id: 可选的恢复作业 ID（用于从快照恢复）
 
         Returns:
             (outputs, metrics): 输出字典和指标字典
@@ -152,36 +168,51 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
                     - exec_type: "remote"
                     - duration_ms: 执行时间（毫秒）
                     - job_id: 远程作业 ID
+                    - resumed: 是否从快照恢复（布尔值）
 
         Raises:
             StepRunError: 执行失败
         """
         t0 = perf_counter()
 
-        # 验证输入
-        sequence = inputs.get("sequence")
-        if not sequence:
-            raise StepRunError(
-                failure_type=FailureType.NON_RETRYABLE,
-                message="Missing required input 'sequence'",
-                code="ESMFOLD_MISSING_SEQUENCE",
-            )
-
         # 获取上下文信息
         task_id = inputs.get("task_id", "unknown")
         step_id = inputs.get("step_id", "unknown")
 
-        # 准备远程服务输入
-        payload = {
-            "sequence": sequence,
-        }
+        # 如果提供了 resume_job_id，直接跳到轮询阶段
+        if resume_job_id:
+            job_id = resume_job_id
+            resumed = True
+        else:
+            # 验证输入
+            sequence = inputs.get("sequence")
+            if not sequence:
+                raise StepRunError(
+                    failure_type=FailureType.NON_RETRYABLE,
+                    message="Missing required input 'sequence'",
+                    code="ESMFOLD_MISSING_SEQUENCE",
+                )
 
-        # 提交作业
-        job_id = self.service.submit_job(
-            payload=payload,
-            task_id=task_id,
-            step_id=step_id,
-        )
+            # 准备远程服务输入
+            payload = {
+                "sequence": sequence,
+            }
+
+            # 提交作业
+            job_id = self.service.submit_job(
+                payload=payload,
+                task_id=task_id,
+                step_id=step_id,
+            )
+            resumed = False
+
+            # 写入快照（保存 job_id 和 endpoint 用于恢复）
+            self._write_snapshot_if_enabled(
+                task_id=task_id,
+                step_id=step_id,
+                job_id=job_id,
+                status="pending",
+            )
 
         # 等待作业完成（如果服务支持 wait_for_completion）
         if hasattr(self.service, "wait_for_completion"):
@@ -240,6 +271,55 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
             "exec_type": "remote",
             "duration_ms": duration_ms,
             "job_id": job_id,
+            "resumed": resumed,
         }
 
         return outputs, metrics
+
+    def _write_snapshot_if_enabled(
+        self,
+        task_id: str,
+        step_id: str,
+        job_id: str,
+        status: str,
+    ) -> None:
+        """写入快照（如果启用）
+
+        Args:
+            task_id: 任务 ID
+            step_id: 步骤 ID
+            job_id: 远程作业 ID
+            status: 作业状态
+        """
+        if not self.enable_snapshot or self.snapshot_writer is None:
+            return
+
+        if self._context is None:
+            return
+
+        # 构建远程作业上下文
+        endpoint = getattr(self.service, "base_url", "unknown")
+        remote_job = RemoteJobContext(
+            job_id=job_id,
+            endpoint=endpoint,
+            step_id=step_id,
+            status=status,
+            submitted_at=now_iso(),
+        )
+
+        # 构建 artifacts
+        artifacts: Dict[str, Any] = {
+            "remote_jobs": {
+                step_id: remote_job.to_dict(),
+            }
+        }
+
+        # 导入 build_task_snapshot（延迟导入避免循环依赖）
+        from src.workflow.snapshots import build_task_snapshot
+
+        # 构建并写入快照
+        snapshot = build_task_snapshot(
+            self._context,
+            artifacts=artifacts,
+        )
+        self.snapshot_writer(snapshot)
