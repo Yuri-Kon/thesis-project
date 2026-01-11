@@ -575,11 +575,105 @@
       "critical_specs": 6,
       "high_specs": 3,
       "medium_specs": 2
+    },
+    "llm_provider": {
+      "title": "LLM Provider 集成",
+      "description": "外部 LLM Provider 接入与 Planner 侧调用的实现指南",
+      "use_case": "扩展或替换 Planner 的外部 LLM Provider 时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "impl.llm_provider.guide",
+          "title": "LLM Provider 集成指南",
+          "doc_key": "impl_llm_provider",
+          "path": "docs/impl/llm_provider_guide.md",
+          "priority": "critical",
+          "rationale": "Provider 接入的总览与使用入口"
+        },
+        {
+          "sid": "impl.llm_provider.external_providers",
+          "title": "OpenAICompatibleProvider",
+          "doc_key": "impl_llm_provider",
+          "path": "docs/impl/llm_provider_guide.md",
+          "priority": "high",
+          "rationale": "外部 OpenAI 兼容 Provider 的接入与用法"
+        }
+      ],
+      "total_specs": 2,
+      "critical_specs": 1,
+      "high_specs": 1
+    },
+    "snapshot_recovery": {
+      "title": "Snapshot 恢复",
+      "description": "快照写入与远程作业恢复流程的实现约束",
+      "use_case": "实现断点恢复或远程作业续跑时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "impl.snapshot_recovery.overview",
+          "title": "Snapshot Recovery for Remote Jobs",
+          "doc_key": "impl_snapshot_recovery",
+          "path": "docs/impl/snapshot-recovery.md",
+          "priority": "critical",
+          "rationale": "快照恢复的总览与适用范围"
+        },
+        {
+          "sid": "impl.snapshot_recovery.snapshot_schema",
+          "title": "快照结构",
+          "doc_key": "impl_snapshot_recovery",
+          "path": "docs/impl/snapshot-recovery.md",
+          "priority": "high",
+          "rationale": "快照结构与字段说明"
+        },
+        {
+          "sid": "impl.snapshot_recovery.recovery_flow",
+          "title": "恢复流程",
+          "doc_key": "impl_snapshot_recovery",
+          "path": "docs/impl/snapshot-recovery.md",
+          "priority": "high",
+          "rationale": "恢复步骤与执行逻辑"
+        }
+      ],
+      "total_specs": 3,
+      "critical_specs": 1,
+      "high_specs": 2
+    },
+    "remote_model_invocation": {
+      "title": "远程模型调用",
+      "description": "远程模型调用与适配器接入的实现约束",
+      "use_case": "实现远程模型 submit/poll/download 或适配器对接时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "impl.remote_model_invocation.overview",
+          "title": "Remote Model Invocation Service",
+          "doc_key": "impl_remote_model_invocation",
+          "path": "docs/impl/remote_model_invocation.md",
+          "priority": "critical",
+          "rationale": "远程模型调用的总体结构与边界"
+        },
+        {
+          "sid": "impl.remote_model_invocation.components",
+          "title": "核心组件",
+          "doc_key": "impl_remote_model_invocation",
+          "path": "docs/impl/remote_model_invocation.md",
+          "priority": "high",
+          "rationale": "远程调用核心组件与职责拆分"
+        },
+        {
+          "sid": "impl.remote_model_invocation.rest_api",
+          "title": "REST API 规范",
+          "doc_key": "impl_remote_model_invocation",
+          "path": "docs/impl/remote_model_invocation.md",
+          "priority": "high",
+          "rationale": "远程服务的 API 协议与字段要求"
+        }
+      ],
+      "total_specs": 3,
+      "critical_specs": 1,
+      "high_specs": 2
     }
   },
   "summary": {
-    "total_topics": 4,
-    "total_unique_specs": 48,
+    "total_topics": 7,
+    "total_unique_specs": 56,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

@@ -12,9 +12,9 @@
 ## 索引总览
 
 **版本**: 1.0
-**生成日期**: 2025-12-31
-**总规范数**: 68
-**文档数**: 6
+**生成日期**: 2026-01-11
+**总规范数**: 77
+**文档数**: 10
 
 ---
 
@@ -26,6 +26,10 @@
 | `agent` | Agent设计文档 | [docs/design/agent-design.md](../design/agent-design.md) | stable | arch |
 | `algo` | 核心算法规范 | [docs/design/core-algorithm-spec.md](../design/core-algorithm-spec.md) | stable | arch, agent |
 | `impl` | 系统实现设计 | [docs/design/system-implementation-design.md](../design/system-implementation-design.md) | stable | arch, agent |
+| `impl_index` | 实现代码索引与结构化总览 | [docs/impl/implementation_index.md](../impl/implementation_index.md) | stable | impl |
+| `impl_llm_provider` | LLM Provider 集成指南 | [docs/impl/llm_provider_guide.md](../impl/llm_provider_guide.md) | stable | impl |
+| `impl_snapshot_recovery` | Snapshot Recovery for Remote Jobs | [docs/impl/snapshot-recovery.md](../impl/snapshot-recovery.md) | stable | impl |
+| `impl_remote_model_invocation` | Remote Model Invocation Service | [docs/impl/remote_model_invocation.md](../impl/remote_model_invocation.md) | stable | impl |
 | `tools` | Tools Catalog | [docs/design/tools-catalog.md](../design/tools-catalog.md) | stable | impl |
 | `hitl` | HITL 扩展设计 | [docs/design/hitl-extension.md](../design/hitl-extension.md) | stable | arch, agent, impl, algo |
 
@@ -200,6 +204,15 @@
 | `impl.overview.introduction` | 实现层总览 | Section | impl, overview |
 | `impl.techstack.overview` | 技术栈选型 | Block | impl, techstack |
 | `impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block | impl, nextflow, control_flow, constraints |
+| `impl.index.codebase_overview` | 实现代码索引与结构化总览 | Section | impl, index, codebase, overview |
+| `impl.llm_provider.guide` | LLM Provider 集成指南 | Section | impl, llm_provider, guide, overview |
+| `impl.llm_provider.external_providers` | OpenAICompatibleProvider | Block | impl, llm_provider, external, openai_compatible |
+| `impl.snapshot_recovery.overview` | Snapshot Recovery for Remote Jobs | Section | impl, snapshot_recovery, overview |
+| `impl.snapshot_recovery.snapshot_schema` | 快照结构 | Block | impl, snapshot_recovery, snapshot, schema |
+| `impl.snapshot_recovery.recovery_flow` | 恢复流程 | Block | impl, snapshot_recovery, recovery, flow |
+| `impl.remote_model_invocation.overview` | Remote Model Invocation Service | Section | impl, remote_model_invocation, overview |
+| `impl.remote_model_invocation.components` | 核心组件 | Block | impl, remote_model_invocation, components |
+| `impl.remote_model_invocation.rest_api` | REST API 规范 | Section | impl, remote_model_invocation, rest_api |
 
 ---
 
@@ -220,13 +233,17 @@
 
 | 文档 | Section | Block | Spec-Item | 总计 |
 |------|---------|-------|-----------|------|
-| architecture.md | 4 | 2 | 9 | 15 |
-| agent-design.md | 8 | 5 | 11 | 24 |
-| core-algorithm-spec.md | 2 | 5 | 4 | 11 |
-| system-implementation-design.md | 3 | 2 | 5 | 10 |
+| architecture.md | 5 | 3 | 8 | 16 |
+| agent-design.md | 8 | 9 | 9 | 26 |
+| core-algorithm-spec.md | 2 | 6 | 3 | 11 |
+| system-implementation-design.md | 2 | 4 | 5 | 11 |
+| implementation_index.md | 1 | 0 | 0 | 1 |
+| llm_provider_guide.md | 1 | 1 | 0 | 2 |
+| snapshot-recovery.md | 1 | 2 | 0 | 3 |
+| remote_model_invocation.md | 2 | 1 | 0 | 3 |
 | tools-catalog.md | 1 | 2 | 1 | 4 |
 | hitl-extension.md | 0 | 0 | 0 | 0 (differential index) |
-| **总计** | **18** | **16** | **30** | **64** |
+| **总计** | **23** | **28** | **26** | **77** |
 
 **注**: hitl-extension.md 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 
@@ -236,9 +253,9 @@
 
 | 粒度 | 数量 | 占比 |
 |------|------|------|
-| Section | 18 | 28% |
-| Block | 16 | 25% |
-| Spec-Item | 30 | 47% |
+| Section | 23 | 30% |
+| Block | 28 | 36% |
+| Spec-Item | 26 | 34% |
 
 ---
 
@@ -250,6 +267,9 @@
 - **planning**: 任务规划相关规范
 - **execution**: 执行相关规范
 - **observability**: 可观测性相关规范
+- **llm_provider**: LLM Provider 接入与使用
+- **snapshot_recovery**: 快照恢复与断点续跑
+- **remote_model_invocation**: 远程模型调用与适配器接入
 
 ---
 
@@ -290,7 +310,7 @@ jq '.specs[] | select(.sid == "arch.contracts.pending_action")' index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
-| 1.0 | 2025-12-31 | 初始版本，索引 65 个规范，覆盖 6 个文档 |
+| 1.0 | 2026-01-11 | 索引 77 个规范，覆盖 10 个文档（新增 Remote Model Invocation 索引） |
 
 ---
 

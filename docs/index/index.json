@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2025-12-31",
+  "generated_at": "2026-01-11",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 68,
+  "total_specs": 77,
   "documents": [
     {
       "doc_key": "arch",
@@ -35,6 +35,38 @@
       "status": "stable",
       "version": "1.0",
       "depends_on": ["arch", "agent"]
+    },
+    {
+      "doc_key": "impl_index",
+      "title": "实现代码索引与结构化总览",
+      "path": "docs/impl/implementation_index.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["impl"]
+    },
+    {
+      "doc_key": "impl_llm_provider",
+      "title": "LLM Provider 集成指南",
+      "path": "docs/impl/llm_provider_guide.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["impl"]
+    },
+    {
+      "doc_key": "impl_snapshot_recovery",
+      "title": "Snapshot Recovery for Remote Jobs",
+      "path": "docs/impl/snapshot-recovery.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["impl"]
+    },
+    {
+      "doc_key": "impl_remote_model_invocation",
+      "title": "Remote Model Invocation Service",
+      "path": "docs/impl/remote_model_invocation.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": ["impl"]
     },
     {
       "doc_key": "tools",
@@ -1099,6 +1131,141 @@
       },
       "level": "Spec-Item",
       "tags": ["tools", "adapter", "constraints"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.index.codebase_overview",
+      "title": "实现代码索引与结构化总览",
+      "doc_key": "impl_index",
+      "path": "docs/impl/implementation_index.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.index.codebase_overview -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "index", "codebase", "overview"],
+      "depends_on": ["impl.overview.introduction", "impl.techstack.overview"],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.llm_provider.guide",
+      "title": "LLM Provider 集成指南",
+      "doc_key": "impl_llm_provider",
+      "path": "docs/impl/llm_provider_guide.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.llm_provider.guide -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "llm_provider", "guide", "overview"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.llm_provider.external_providers",
+      "title": "OpenAICompatibleProvider",
+      "doc_key": "impl_llm_provider",
+      "path": "docs/impl/llm_provider_guide.md",
+      "locator": {
+        "type": "comment",
+        "line": 50,
+        "marker": "<!-- SID:impl.llm_provider.external_providers -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "llm_provider", "external", "openai_compatible"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.overview",
+      "title": "Snapshot Recovery for Remote Jobs",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.snapshot_recovery.overview -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "snapshot_recovery", "overview"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.snapshot_schema",
+      "title": "快照结构",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 38,
+        "marker": "<!-- SID:impl.snapshot_recovery.snapshot_schema -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "snapshot_recovery", "snapshot", "schema"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.recovery_flow",
+      "title": "恢复流程",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 309,
+        "marker": "<!-- SID:impl.snapshot_recovery.recovery_flow -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "snapshot_recovery", "recovery", "flow"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.overview",
+      "title": "Remote Model Invocation Service",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.remote_model_invocation.overview -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "remote_model_invocation", "overview"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.components",
+      "title": "核心组件",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 11,
+        "marker": "<!-- SID:impl.remote_model_invocation.components -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "remote_model_invocation", "components"],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.rest_api",
+      "title": "REST API 规范",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 149,
+        "marker": "<!-- SID:impl.remote_model_invocation.rest_api -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "remote_model_invocation", "rest_api"],
       "depends_on": [],
       "stability": "stable"
     }
