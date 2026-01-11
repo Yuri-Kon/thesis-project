@@ -187,9 +187,11 @@ def test_download_results_success(service: RESTModelInvocationService, tmp_path:
 
             outputs = service.download_results("job123", output_dir)
 
-    assert outputs["pdb_path"] == "structure.pdb"
+    # 验证路径已映射为本地绝对路径
+    assert outputs["pdb_path"] == str((output_dir / "structure.pdb").resolve())
     assert outputs["metrics"]["pLDDT"] == 85.5
     assert len(outputs["artifacts"]) == 1
+    assert outputs["artifacts"][0] == str((output_dir / "structure.pdb").resolve())
     assert (output_dir / "structure.pdb").exists()
 
 
@@ -209,6 +211,52 @@ def test_download_results_no_artifacts(service: RESTModelInvocationService, tmp_
 
     assert outputs["metrics"]["pLDDT"] == 85.5
     assert "artifacts" not in outputs
+
+
+def test_download_results_path_mapping(service: RESTModelInvocationService, tmp_path: Path) -> None:
+    """测试路径映射功能（多文件场景）"""
+    output_dir = tmp_path / "output"
+
+    # Mock 结果响应 - 包含多个文件和路径字段
+    mock_results_response = Mock()
+    mock_results_response.json.return_value = {
+        "job_id": "job123",
+        "outputs": {
+            "pdb_path": "structure.pdb",      # 应该被映射
+            "log_path": "esmfold.log",        # 应该被映射
+            "some_metric": 42.0,              # 不应该被映射（非字符串）
+            "unrelated_path": "/absolute/path/file.txt",  # 不应该被映射（不在 artifacts 中）
+        },
+        "artifacts": [
+            {"name": "structure.pdb", "url": "http://localhost:8000/files/structure.pdb"},
+            {"name": "esmfold.log", "url": "http://localhost:8000/files/esmfold.log"},
+        ],
+    }
+    mock_results_response.raise_for_status = Mock()
+
+    # Mock 文件下载
+    mock_file_response = Mock()
+    mock_file_response.raise_for_status = Mock()
+    mock_file_response.iter_bytes = Mock(return_value=[b"data"])
+
+    with patch.object(service.client, "get", return_value=mock_results_response):
+        with patch.object(service.client, "stream") as mock_stream:
+            mock_stream.return_value.__enter__.return_value = mock_file_response
+
+            outputs = service.download_results("job123", output_dir)
+
+    # 验证路径映射
+    assert outputs["pdb_path"] == str((output_dir / "structure.pdb").resolve())
+    assert outputs["log_path"] == str((output_dir / "esmfold.log").resolve())
+
+    # 验证非路径字段不受影响
+    assert outputs["some_metric"] == 42.0
+    assert outputs["unrelated_path"] == "/absolute/path/file.txt"
+
+    # 验证 artifacts 列表
+    assert len(outputs["artifacts"]) == 2
+    assert str((output_dir / "structure.pdb").resolve()) in outputs["artifacts"]
+    assert str((output_dir / "esmfold.log").resolve()) in outputs["artifacts"]
 
 
 def test_wait_for_completion_success(service: RESTModelInvocationService) -> None:

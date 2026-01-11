@@ -282,8 +282,10 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 下载产物文件
+            # 下载产物文件并映射路径
             downloaded_artifacts = []
+            artifact_name_to_path = {}
+
             for artifact in artifacts:
                 artifact_name = artifact.get("name")
                 artifact_url = artifact.get("url")
@@ -294,11 +296,19 @@ class RESTModelInvocationService(RemoteModelInvocationService):
                 # 下载文件
                 artifact_path = output_dir / artifact_name
                 self._download_file(artifact_url, artifact_path)
-                downloaded_artifacts.append(str(artifact_path.resolve()))
+                local_path = str(artifact_path.resolve())
+                downloaded_artifacts.append(local_path)
+                artifact_name_to_path[artifact_name] = local_path
 
             # 添加产物路径到输出
             if downloaded_artifacts:
                 outputs["artifacts"] = downloaded_artifacts
+
+            # 将 outputs 中的相对路径映射为本地绝对路径
+            # 例如：outputs["pdb_path"] = "structure.pdb" -> "/path/to/output/structure.pdb"
+            for key, value in list(outputs.items()):
+                if isinstance(value, str) and value in artifact_name_to_path:
+                    outputs[key] = artifact_name_to_path[value]
 
             return outputs
 
