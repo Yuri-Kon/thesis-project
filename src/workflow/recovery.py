@@ -131,7 +131,7 @@ def restore_context_from_snapshot(
         - 待处理的 pending_action（如果有）
 
         注意：step_results 会恢复为占位结果（不含真实 outputs），
-        PlanRunner 的 resume_from_existing=True 模式会跳过已完成的步骤。
+        这些结果会标记 outputs_missing，以避免被当成可跳过的已完成步骤。
     """
     actual_task_id = task_id or task.task_id
 
@@ -404,4 +404,9 @@ def _to_internal_status(status: ExternalStatus) -> InternalStatus:
 def _should_resume_after_recovery(context: WorkflowContext) -> bool:
     if context.status != InternalStatus.RUNNING:
         return False
-    return bool(context.step_results)
+    if not context.step_results:
+        return False
+    for result in context.step_results.values():
+        if result.metrics.get("outputs_missing"):
+            return False
+    return True

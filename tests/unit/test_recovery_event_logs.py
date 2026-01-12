@@ -161,6 +161,51 @@ def test_recover_context_with_event_logs_is_idempotent():
 
 
 @pytest.mark.unit
+def test_recover_context_missing_outputs_disables_resume():
+    task = ProteinDesignTask(
+        task_id="task_recovery_missing_outputs",
+        goal="recovery missing outputs",
+        constraints={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(id="S1", tool="esmfold", inputs={"sequence": "ACDE"}, metadata={}),
+            PlanStep(
+                id="S2",
+                tool="dummy_tool",
+                inputs={"sequence": "S1.sequence"},
+                metadata={},
+            ),
+        ],
+    )
+    snapshot = TaskSnapshot(
+        snapshot_id="snapshot_running_missing_outputs",
+        task_id=task.task_id,
+        state=ExternalStatus.RUNNING.value,
+        plan_version=0,
+        step_index=1,
+        completed_step_ids=["S1"],
+        artifacts={},
+        created_at=now_iso(),
+    )
+
+    with TemporaryDirectory() as tmpdir:
+        log_dir = Path(tmpdir)
+        result = recover_context_with_event_logs(
+            task=task,
+            plan=plan,
+            snapshot=snapshot,
+            log_dir=log_dir,
+        )
+
+    assert result is not None
+    assert result.context.status == InternalStatus.RUNNING
+    assert result.resume_from_existing is False
+    assert result.context.step_results["S1"].metrics.get("outputs_missing") is True
+
+
+@pytest.mark.unit
 def test_recover_context_waiting_disables_resume():
     task = ProteinDesignTask(
         task_id="task_recovery_waiting",
