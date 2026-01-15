@@ -20,7 +20,7 @@ from src.workflow.decision_apply import (
 from src.models.contracts import PendingActionType, now_iso
 from src.workflow.context import WorkflowContext
 
-app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.3.1")
+app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.5.2")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
