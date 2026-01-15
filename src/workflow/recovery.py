@@ -10,18 +10,32 @@ Snapshot-based recovery logic for resuming interrupted tasks.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional, Sequence
 
-from src.models.contracts import TaskSnapshot, ProteinDesignTask, Plan
+from src.models.contracts import (
+    PendingAction,
+    Plan,
+    PlanStep,
+    ProteinDesignTask,
+    StepResult,
+    TaskSnapshot,
+    now_iso,
+)
 from src.models.db import ExternalStatus, InternalStatus
+from src.models.event_log import EventLog, EventType
+from src.storage.log_store import DEFAULT_LOG_DIR, read_event_logs
 from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DIR
 from src.workflow.context import WorkflowContext
 
 __all__ = [
     "restore_context_from_snapshot",
+    "recover_context_with_event_logs",
     "extract_remote_job_context",
     "RemoteJobContext",
+    "RecoveryResult",
 ]
 
 
@@ -78,6 +92,16 @@ class RemoteJobContext:
         )
 
 
+@dataclass(frozen=True)
+class RecoveryResult:
+    """恢复结果，包含上下文与回放信息"""
+
+    context: WorkflowContext
+    snapshot: TaskSnapshot
+    applied_event_logs: Sequence[EventLog]
+    resume_from_existing: bool
+
+
 def restore_context_from_snapshot(
     task: ProteinDesignTask,
     plan: Plan,
@@ -106,8 +130,8 @@ def restore_context_from_snapshot(
         - 恢复的内部状态（从 snapshot.state）
         - 待处理的 pending_action（如果有）
 
-        注意：step_results 不会被恢复，因为快照不保存完整的 StepResult。
-        PlanRunner 的 resume_from_existing=True 模式会跳过已完成的步骤。
+        注意：step_results 会恢复为占位结果（不含真实 outputs），
+        这些结果会标记 outputs_missing，以避免被当成可跳过的已完成步骤。
     """
     actual_task_id = task_id or task.task_id
 
@@ -142,6 +166,7 @@ def restore_context_from_snapshot(
         ExternalStatus.SUMMARIZING.value: InternalStatus.SUMMARIZING,
         ExternalStatus.DONE.value: InternalStatus.DONE,
         ExternalStatus.FAILED.value: InternalStatus.FAILED,
+        ExternalStatus.CANCELLED.value: InternalStatus.CANCELLED,
     }
     internal_status = status_mapping.get(
         snapshot.state,
@@ -155,8 +180,8 @@ def restore_context_from_snapshot(
         status=internal_status,
     )
 
-    # 注意：我们不恢复 step_results，因为快照不保存完整的 StepResult
-    # PlanRunner 的 resume_from_existing 模式将通过 completed_step_ids 跳过已完成步骤
+    context.pending_action = _extract_pending_action(snapshot)
+    _restore_completed_steps(context, plan, snapshot)
 
     return context
 
@@ -189,3 +214,199 @@ def extract_remote_job_context(
         return RemoteJobContext.from_dict(job_data)
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def recover_context_with_event_logs(
+    task: ProteinDesignTask,
+    plan: Plan,
+    *,
+    task_id: Optional[str] = None,
+    snapshot: Optional[TaskSnapshot] = None,
+    snapshot_dir: Path = DEFAULT_SNAPSHOT_DIR,
+    log_dir: Optional[Path] = None,
+) -> Optional[RecoveryResult]:
+    """从快照恢复上下文，并结合 EventLog 回放对齐状态"""
+    context = restore_context_from_snapshot(
+        task=task,
+        plan=plan,
+        task_id=task_id,
+        snapshot=snapshot,
+        snapshot_dir=snapshot_dir,
+    )
+    if context is None:
+        return None
+
+    actual_snapshot = snapshot or read_latest_snapshot(
+        task_id or task.task_id, snapshot_dir=snapshot_dir
+    )
+    if actual_snapshot is None:
+        return None
+
+    events = read_event_logs(
+        actual_snapshot.task_id, log_dir=log_dir or DEFAULT_LOG_DIR
+    )
+    applied_events = _apply_event_log_replay(context, actual_snapshot, events)
+    resume_from_existing = _should_resume_after_recovery(context)
+    return RecoveryResult(
+        context=context,
+        snapshot=actual_snapshot,
+        applied_event_logs=applied_events,
+        resume_from_existing=resume_from_existing,
+    )
+
+
+def _restore_completed_steps(
+    context: WorkflowContext,
+    plan: Plan,
+    snapshot: TaskSnapshot,
+) -> None:
+    step_ids = _resolve_completed_step_ids(plan, snapshot)
+    if not step_ids:
+        return
+    step_lookup = {step.id: step for step in plan.steps}
+    for step_id in step_ids:
+        step = step_lookup.get(step_id)
+        if step is None:
+            continue
+        context.step_results.setdefault(
+            step_id,
+            _build_stub_step_result(
+                task_id=context.task.task_id,
+                step=step,
+                timestamp=snapshot.created_at or now_iso(),
+            ),
+        )
+
+
+def _resolve_completed_step_ids(plan: Plan, snapshot: TaskSnapshot) -> list[str]:
+    if snapshot.completed_step_ids:
+        return list(snapshot.completed_step_ids)
+    if snapshot.step_index <= 0:
+        return []
+    step_index = min(snapshot.step_index, len(plan.steps))
+    return [step.id for step in plan.steps[:step_index]]
+
+
+def _build_stub_step_result(
+    *,
+    task_id: str,
+    step: PlanStep,
+    timestamp: str,
+) -> StepResult:
+    return StepResult(
+        task_id=task_id,
+        step_id=step.id,
+        tool=step.tool,
+        status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
+        outputs={},
+        metrics={"recovered": True, "outputs_missing": True},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=timestamp,
+    )
+
+
+def _extract_pending_action(snapshot: TaskSnapshot) -> Optional[PendingAction]:
+    payload = snapshot.artifacts.get("pending_action")
+    if not isinstance(payload, dict):
+        return None
+    try:
+        action = PendingAction.model_validate(payload)
+    except Exception:
+        return None
+    if snapshot.pending_action_id and action.pending_action_id != snapshot.pending_action_id:
+        return None
+    return action
+
+
+def _apply_event_log_replay(
+    context: WorkflowContext,
+    snapshot: TaskSnapshot,
+    events: Iterable[EventLog],
+) -> list[EventLog]:
+    filtered = _filter_events_after_snapshot(snapshot, events)
+    pending_action = context.pending_action
+    for event in filtered:
+        if event.new_status is None:
+            continue
+        if event.event_type == EventType.WAITING_ENTER:
+            context.status = _to_internal_status(event.new_status)
+            if event.pending_action_id and pending_action:
+                if pending_action.pending_action_id != event.pending_action_id:
+                    pending_action = None
+            if event.pending_action_id and pending_action is None:
+                pending_action = _extract_pending_action(snapshot)
+        elif event.event_type in (EventType.WAITING_EXIT, EventType.DECISION_APPLIED):
+            context.status = _to_internal_status(event.new_status)
+            if pending_action and event.pending_action_id:
+                if pending_action.pending_action_id == event.pending_action_id:
+                    pending_action = None
+            else:
+                pending_action = None
+    if context.status not in (
+        InternalStatus.WAITING_PLAN_CONFIRM,
+        InternalStatus.WAITING_PATCH,
+        InternalStatus.WAITING_REPLAN,
+    ):
+        pending_action = None
+    context.pending_action = pending_action
+    return filtered
+
+
+def _filter_events_after_snapshot(
+    snapshot: TaskSnapshot,
+    events: Iterable[EventLog],
+) -> list[EventLog]:
+    snapshot_ts = _parse_iso(snapshot.created_at)
+    if snapshot_ts is None:
+        return list(events)
+    filtered: list[EventLog] = []
+    for event in events:
+        event_ts = _parse_iso(event.ts)
+        if event_ts is None or event_ts >= snapshot_ts:
+            filtered.append(event)
+    return filtered
+
+
+def _parse_iso(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _to_internal_status(status: ExternalStatus) -> InternalStatus:
+    mapping = {
+        ExternalStatus.CREATED: InternalStatus.CREATED,
+        ExternalStatus.PLANNING: InternalStatus.PLANNING,
+        ExternalStatus.WAITING_PLAN_CONFIRM: InternalStatus.WAITING_PLAN_CONFIRM,
+        ExternalStatus.PLANNED: InternalStatus.PLANNED,
+        ExternalStatus.RUNNING: InternalStatus.RUNNING,
+        ExternalStatus.WAITING_PATCH_CONFIRM: InternalStatus.WAITING_PATCH,
+        ExternalStatus.WAITING_REPLAN_CONFIRM: InternalStatus.WAITING_REPLAN,
+        ExternalStatus.SUMMARIZING: InternalStatus.SUMMARIZING,
+        ExternalStatus.DONE: InternalStatus.DONE,
+        ExternalStatus.FAILED: InternalStatus.FAILED,
+        ExternalStatus.CANCELLED: InternalStatus.CANCELLED,
+    }
+    return mapping.get(status, InternalStatus.CREATED)
+
+
+def _should_resume_after_recovery(context: WorkflowContext) -> bool:
+    if context.status != InternalStatus.RUNNING:
+        return False
+    if not context.step_results:
+        return False
+    for result in context.step_results.values():
+        if result.metrics.get("outputs_missing"):
+            return False
+    return True

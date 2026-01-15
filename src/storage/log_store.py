@@ -42,3 +42,43 @@ def write_event_log(
     payload = json.dumps(event_log.model_dump(), ensure_ascii=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(payload + "\n")
+
+
+def read_event_logs(
+    task_id: str,
+    *,
+    log_dir: Path = DEFAULT_LOG_DIR,
+    strict: bool = False,
+) -> list["EventLog"]:
+    """读取指定任务的 EventLog 记录（过滤非结构化事件）"""
+    path = log_dir / f"{task_id}.jsonl"
+    if not path.exists():
+        return []
+
+    from src.models.event_log import EventLog
+
+    events: list[EventLog] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                if strict:
+                    raise
+                continue
+            if not isinstance(payload, dict):
+                if strict:
+                    raise ValueError("EventLog payload must be a JSON object")
+                continue
+            if "event_type" not in payload:
+                continue
+            try:
+                events.append(EventLog.model_validate(payload))
+            except Exception:
+                if strict:
+                    raise
+                continue
+    return events

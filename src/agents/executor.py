@@ -73,6 +73,7 @@ class ExecutorAgent:
         record: TaskRecord | None = None,
         finalize_status: bool = True,
         max_replans: int = 1,
+        resume_from_existing: bool = False,
     ) -> Plan:
         """执行完整计划
         
@@ -84,6 +85,7 @@ class ExecutorAgent:
             record: 可选的任务记录，用于同步更新持久化状态
             finalize_status: 是否在 SUMMARIZING 后自动置为 DONE
             max_replans: 允许触发再规划的最大次数
+            resume_from_existing: 是否跳过已完成步骤（用于恢复）
             
         Returns:
             Plan: 执行后的计划（当前实现不做修改）
@@ -95,6 +97,7 @@ class ExecutorAgent:
             record=record,
             finalize_status=finalize_status,
             max_replans=max_replans,
+            resume_from_existing=resume_from_existing,
         )
 
     def summarize_and_finalize(

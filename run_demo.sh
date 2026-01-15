@@ -1,5 +1,5 @@
 #!/bin/bash
-# ESMFold Nextflow 端到端演示 - 快速运行脚本
+# ESMFold 远程调用 + HITL 恢复演示 - 快速运行脚本
 #
 # 使用方法:
 #   ./run_demo.sh          # 运行模拟模式
@@ -55,15 +55,14 @@ clean)
   ;;
 
 mock)
-  print_header "ESMFold 端到端演示（模拟模式）"
+  print_header "ESMFold 远程调用演示（模拟模式）"
   ;;
 
 real)
-  print_header "ESMFold 端到端演示（真实模式）"
-  print_warning "真实模式需要云端服务器或本地 GPU"
+  print_header "ESMFold 远程调用演示（真实模式）"
+  print_warning "真实模式需要远程 ESMFold 服务"
   print_warning "请确保已配置环境变量："
   echo "  - ESMFOLD_API_URL"
-  echo "  - ESMFOLD_API_KEY"
   echo ""
   ;;
 
