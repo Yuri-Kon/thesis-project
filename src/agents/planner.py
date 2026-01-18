@@ -54,6 +54,10 @@ class PlannerAgent:
         if tool_registry is None:
             tool_registry = _load_default_tool_registry()
         self._tool_registry: List[ToolSpec] = list(tool_registry)
+        if not self._tool_registry:
+            raise ValueError(
+                "Tool registry is empty; ensure ProteinToolKG provides tools."
+            )
         self._llm_provider = llm_provider
 
     def plan(self, task: ProteinDesignTask) -> Plan:
@@ -75,7 +79,9 @@ class PlannerAgent:
         )
 
         # 验证并返回 Plan 对象
-        return Plan.model_validate(plan_dict)
+        plan = Plan.model_validate(plan_dict)
+        _ensure_plan_tools_in_registry(plan, self._tool_registry)
+        return plan
 
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
         """向后兼容的默认单步计划
@@ -83,8 +89,11 @@ class PlannerAgent:
         生成一个单步骤计划，调用第一个可用工具（或 dummy_tool）
         保持与原始 PlannerAgent 行为一致
         """
-        # 选择第一个工具，默认使用 dummy_tool
-        tool_id = self._tool_registry[0].id if self._tool_registry else "dummy_tool"
+        if not self._tool_registry:
+            raise ValueError(
+                "Tool registry is empty; cannot build default plan."
+            )
+        tool_id = self._tool_registry[0].id
 
         # 从任务约束中提取 sequence，或使用默认值
         sequence = task.constraints.get(
@@ -357,43 +366,11 @@ def _select_candidate(
     return candidates[0]
 
 
-# 默认工具注册表（可替换为 KG 查询）
-_DEFAULT_TOOL_REGISTRY: Sequence[ToolSpec] = (
-    ToolSpec(
-        id="dummy_tool",
-        capabilities=("design",),
-        inputs=("sequence",),
-        outputs=("dummy_output", "sequence"),
-        cost=5,
-        safety_level=2,
-    ),
-    ToolSpec(
-        id="dummy_tool_alt",
-        capabilities=("design",),
-        inputs=("sequence",),
-        outputs=("dummy_output", "sequence"),
-        cost=2,
-        safety_level=1,
-    ),
-    ToolSpec(
-        id="dummy_tool_safe",
-        capabilities=("design",),
-        inputs=("sequence",),
-        outputs=("dummy_output", "sequence"),
-        cost=3,
-        safety_level=0,
-    ),
-)
-
-
 def _load_tool_specs_from_kg() -> Sequence[ToolSpec]:
-    try:
-        kg = load_tool_kg()
-    except ToolKGError:
-        return ()
+    kg = load_tool_kg()
     tools = kg.get("tools", [])
     if not isinstance(tools, list):
-        return ()
+        raise ToolKGError("ProteinToolKG 'tools' must be a list")
 
     specs: List[ToolSpec] = []
     for tool in tools:
@@ -413,9 +390,22 @@ def _load_tool_specs_from_kg() -> Sequence[ToolSpec]:
                 safety_level=tool.get("safety_level", 1),
             )
         )
+    if not specs:
+        raise ToolKGError("ProteinToolKG contains no usable tools")
     return tuple(specs)
 
 
 def _load_default_tool_registry() -> Sequence[ToolSpec]:
-    kg_registry = _load_tool_specs_from_kg()
-    return kg_registry or _DEFAULT_TOOL_REGISTRY
+    return _load_tool_specs_from_kg()
+
+
+def _ensure_plan_tools_in_registry(
+    plan: Plan, registry: Sequence[ToolSpec]
+) -> None:
+    registry_ids = {spec.id for spec in registry}
+    missing = {step.tool for step in plan.steps if step.tool not in registry_ids}
+    if missing:
+        raise ValueError(
+            "Plan references tools not registered in ProteinToolKG: "
+            f"{sorted(missing)}"
+        )

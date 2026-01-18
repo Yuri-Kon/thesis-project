@@ -45,7 +45,7 @@ class BaselineProvider(BaseProvider):
         """生成简单的单步计划
 
         策略:
-        1. 从注册表选择第一个工具（或默认使用 "dummy_tool"）
+        1. 从注册表选择第一个工具
         2. 使用 task.constraints.get("sequence") 作为主要输入
         3. 生成 ID 为 "S1" 的单个步骤
 
@@ -56,8 +56,11 @@ class BaselineProvider(BaseProvider):
         Returns:
             Plan 的 Dict 表示（task_id, steps, constraints, metadata）
         """
-        # 从注册表选择第一个工具，回退到 dummy_tool
-        tool_id = tool_registry[0].id if tool_registry else "dummy_tool"
+        if not tool_registry:
+            raise ValueError(
+                "Tool registry is empty; cannot build baseline plan."
+            )
+        tool_id = tool_registry[0].id
 
         # 从任务约束中提取 sequence 或使用默认值
         sequence = task.constraints.get(

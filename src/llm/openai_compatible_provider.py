@@ -159,7 +159,6 @@ class OpenAICompatibleProvider(BaseProvider):
 
 给定:
 - 一个带有目标和约束的蛋白质设计任务
-- 一个包含工具能力的可用工具注册表
 
 输出:
 - 一个遵循此 schema 的有效 JSON 计划:
@@ -181,7 +180,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
 规则:
 1. 步骤 ID 必须顺序: S1, S2, S3, 等
-2. 工具名称必须与注册表中的 tool ID 完全匹配
+2. 工具名称必须与 ProteinToolKG 中的 tool ID 完全匹配
 3. 使用符号引用 (如 "S1.sequence") 来引用前序步骤的输出
 4. 不要内联或计算实际值 - 保持引用的符号形式
 5. 链接步骤时考虑工具能力、输入和输出
@@ -192,26 +191,11 @@ class OpenAICompatibleProvider(BaseProvider):
     def _build_user_prompt(
         self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
     ) -> str:
-        """构建包含任务和工具信息的用户提示词"""
-        # 格式化工具注册表
-        tools_desc = []
-        for tool in tool_registry:
-            tools_desc.append(
-                f"- {tool.id}:\n"
-                f"  能力: {', '.join(tool.capabilities)}\n"
-                f"  输入: {', '.join(tool.inputs)}\n"
-                f"  输出: {', '.join(tool.outputs)}\n"
-                f"  成本: {tool.cost}, 安全级别: {tool.safety_level}"
-            )
-
-        tools_text = "\n".join(tools_desc)
-
+        """构建包含任务信息的用户提示词"""
+        _ = tool_registry
         return f"""任务 ID: {task.task_id}
 目标: {task.goal}
 约束: {json.dumps(task.constraints, indent=2)}
-
-可用工具:
-{tools_text}
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
@@ -220,7 +204,10 @@ class OpenAICompatibleProvider(BaseProvider):
         """从流式响应中拼接内容"""
         chunks: List[str] = []
         for chunk in stream:
-            delta = chunk.choices[0].delta
+            choices = getattr(chunk, "choices", None)
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
             content = getattr(delta, "content", None)
             if content:
                 chunks.append(content)

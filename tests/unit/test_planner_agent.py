@@ -1,6 +1,8 @@
 """PlannerAgent单元测试"""
 import pytest
+import src.agents.planner as planner_module
 from src.agents.planner import PlannerAgent
+from src.kg.kg_client import ToolKGError
 from src.models.contracts import ProteinDesignTask, Plan, PlanStep, ReplanRequest
 
 
@@ -66,6 +68,13 @@ class TestPlannerAgent:
         assert step.tool is not None
         assert isinstance(step.inputs, dict)
         assert isinstance(step.metadata, dict)
+
+    def test_planner_raises_when_kg_empty(self, monkeypatch):
+        """KG 为空时 Planner 应该明确失败"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: {"tools": []})
+
+        with pytest.raises(ToolKGError):
+            PlannerAgent()
 
     def test_replan_replaces_failed_step(self, sample_task: ProteinDesignTask):
         """测试再规划会替换失败步骤的工具"""
