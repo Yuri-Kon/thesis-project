@@ -7,6 +7,12 @@
       "name": "Structure Prediction",
       "domain": "protein/structure",
       "description": "Predict 3D protein structures from sequence inputs."
+    },
+    {
+      "capability_id": "sequence_design",
+      "name": "Sequence Design",
+      "domain": "protein/design",
+      "description": "Design amino acid sequences from a structural backbone or template."
     }
   ],
   "io_types": [
@@ -16,6 +22,13 @@
       "output_types": ["structure_pdb", "plddt"],
       "combinable": true,
       "description": "Single sequence to structure prediction outputs."
+    },
+    {
+      "io_type_id": "structure_to_sequence",
+      "input_types": ["structure_pdb"],
+      "output_types": ["sequence"],
+      "combinable": true,
+      "description": "Design sequences from structural backbone inputs."
     },
     {
       "io_type_id": "sequence_msa_to_structure",
@@ -39,6 +52,19 @@
         "max_length": 2000
       },
       "description": "ESMFold runtime requirements and limits."
+    },
+    {
+      "constraint_id": "protein_mpnn_runtime",
+      "preconditions": ["structure_template_provided"],
+      "resource_assumptions": [
+        "gpu_available",
+        "python_environment_ready"
+      ],
+      "model_assumptions": ["backbone_required"],
+      "limits": {
+        "max_length": 2000
+      },
+      "description": "ProteinMPNN runtime requirements for backbone-guided design."
     },
     {
       "constraint_id": "alphafold_runtime",
@@ -94,6 +120,47 @@
       },
       "failure_modes": ["timeout", "nan_output"],
       "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "protein_mpnn",
+      "tool_id": "protein_mpnn",
+      "name": "ProteinMPNN",
+      "domain": "protein/design",
+      "description": "Sequence design from backbone coordinates.",
+      "capabilities": ["sequence_design"],
+      "io": {
+        "io_type_id": "structure_to_sequence",
+        "inputs": {
+          "pdb_path": "path"
+        },
+        "outputs": {
+          "sequence": "str",
+          "sequence_score": "float"
+        },
+        "input_types": ["structure_pdb"],
+        "output_types": ["sequence"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["structure_template_provided"],
+        "resource_assumptions": [
+          "gpu_available",
+          "python_environment_ready"
+        ],
+        "model_assumptions": ["backbone_required"],
+        "limits": {
+          "max_length": 2000
+        }
+      },
+      "execution": "python",
+      "cost_score": 0.4,
+      "safety_level": 1,
+      "compat": {
+        "from": ["esmfold.pdb_path", "alphafold.pdb_path"]
+      },
+      "failure_modes": ["invalid_backbone", "missing_backbone"],
+      "preferred_next": ["esmfold", "alphafold"],
       "version": "1.0.0"
     },
     {
