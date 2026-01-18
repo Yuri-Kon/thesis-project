@@ -1,0 +1,141 @@
+{
+  "kg_id": "protein_tool_kg",
+  "version": "1.0.0",
+  "capabilities": [
+    {
+      "capability_id": "structure_prediction",
+      "name": "Structure Prediction",
+      "domain": "protein/structure",
+      "description": "Predict 3D protein structures from sequence inputs."
+    }
+  ],
+  "io_types": [
+    {
+      "io_type_id": "sequence_to_structure",
+      "input_types": ["sequence"],
+      "output_types": ["structure_pdb", "plddt"],
+      "combinable": true,
+      "description": "Single sequence to structure prediction outputs."
+    },
+    {
+      "io_type_id": "sequence_msa_to_structure",
+      "input_types": ["sequence", "msa"],
+      "output_types": ["structure_pdb", "plddt"],
+      "combinable": true,
+      "description": "Sequence + MSA to structure prediction outputs."
+    }
+  ],
+  "constraints": [
+    {
+      "constraint_id": "esmfold_runtime",
+      "preconditions": ["sequence_provided"],
+      "resource_assumptions": [
+        "nextflow_installed",
+        "container_engine_available",
+        "gpu_available"
+      ],
+      "model_assumptions": ["single_chain_only"],
+      "limits": {
+        "max_length": 2000
+      },
+      "description": "ESMFold runtime requirements and limits."
+    },
+    {
+      "constraint_id": "alphafold_runtime",
+      "preconditions": ["sequence_provided", "msa_provided"],
+      "resource_assumptions": [
+        "nextflow_installed",
+        "container_engine_available",
+        "gpu_available"
+      ],
+      "model_assumptions": ["msa_required"],
+      "limits": {},
+      "description": "AlphaFold/OpenFold runtime requirements."
+    }
+  ],
+  "tools": [
+    {
+      "id": "esmfold",
+      "tool_id": "esmfold",
+      "name": "ESMFold",
+      "domain": "protein/structure",
+      "description": "Fast single-sequence structure prediction without MSA.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": ["sequence"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided"],
+        "resource_assumptions": [
+          "nextflow_installed",
+          "container_engine_available",
+          "gpu_available"
+        ],
+        "model_assumptions": ["single_chain_only"],
+        "limits": {
+          "max_length": 2000
+        }
+      },
+      "execution": "nextflow",
+      "cost_score": 0.6,
+      "safety_level": 1,
+      "compat": {
+        "from": ["protein_mpnn.sequence"]
+      },
+      "failure_modes": ["timeout", "nan_output"],
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "alphafold",
+      "tool_id": "alphafold",
+      "name": "AlphaFold",
+      "domain": "protein/structure",
+      "description": "High-accuracy structure prediction requiring MSA.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_msa_to_structure",
+        "inputs": {
+          "sequence": "str",
+          "msa_path": "path"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": ["sequence", "msa"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided", "msa_provided"],
+        "resource_assumptions": [
+          "nextflow_installed",
+          "container_engine_available",
+          "gpu_available"
+        ],
+        "model_assumptions": ["msa_required"],
+        "limits": {}
+      },
+      "execution": "nextflow",
+      "cost_score": 0.9,
+      "safety_level": 1,
+      "compat": {
+        "from": []
+      },
+      "failure_modes": ["timeout"],
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    }
+  ]
+}
