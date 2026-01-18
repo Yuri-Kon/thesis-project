@@ -1,0 +1,279 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProteinToolKG Schema",
+  "type": "object",
+  "required": ["kg_id", "version", "tools", "capabilities", "io_types"],
+  "properties": {
+    "kg_id": {
+      "type": "string",
+      "description": "Identifier for this knowledge graph.",
+      "const": "protein_tool_kg"
+    },
+    "version": {
+      "type": "string",
+      "description": "Schema or data version for the KG snapshot."
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/tool"}
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/capability"}
+    },
+    "io_types": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/io_type"}
+    },
+    "constraints": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/constraint"}
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional KG-level metadata."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "tool": {
+      "type": "object",
+      "required": [
+        "id",
+        "tool_id",
+        "name",
+        "domain",
+        "description",
+        "capabilities",
+        "io",
+        "constraints",
+        "execution",
+        "cost_score",
+        "safety_level",
+        "version"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique tool identifier used across the system."
+        },
+        "tool_id": {
+          "type": "string",
+          "description": "SciToolKG-aligned tool identifier; should match id."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable tool name."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Tool domain, e.g., protein/design or protein/structure."
+        },
+        "description": {
+          "type": "string",
+          "description": "Tool description that Planner may cite in explanations."
+        },
+        "capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string"},
+          "description": "Capability IDs this tool provides."
+        },
+        "io": {"$ref": "#/$defs/tool_io"},
+        "constraints": {"$ref": "#/$defs/tool_constraints"},
+        "execution": {
+          "type": "string",
+          "enum": ["nextflow", "python", "external_api"],
+          "description": "Execution mode used by Executor."
+        },
+        "cost_score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Normalized cost score; lower is cheaper."
+        },
+        "safety_level": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Tool safety level used for Planner filtering."
+        },
+        "compat": {
+          "type": "object",
+          "properties": {
+            "from": {
+              "type": "array",
+              "items": {"type": "string"},
+              "description": "Preferred upstream sources (step.output references)."
+            }
+          },
+          "additionalProperties": false
+        },
+        "failure_modes": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Known failure patterns for patching or replans."
+        },
+        "preferred_next": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Recommended downstream tools for ranking."
+        },
+        "version": {
+          "type": "string",
+          "description": "Tool version identifier."
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_io": {
+      "type": "object",
+      "required": ["inputs", "outputs", "input_types", "output_types", "combinable"],
+      "properties": {
+        "io_type_id": {
+          "type": "string",
+          "description": "Optional reference to a canonical IOType entry."
+        },
+        "inputs": {
+          "type": "object",
+          "additionalProperties": {"type": "string"},
+          "description": "Required input fields and their primitive types."
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {"type": "string"},
+          "description": "Output fields and their primitive types."
+        },
+        "input_types": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "High-level input type IDs consumed by this tool."
+        },
+        "output_types": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "High-level output type IDs produced by this tool."
+        },
+        "combinable": {
+          "type": "boolean",
+          "description": "Whether outputs can be composed with other tools."
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_constraints": {
+      "type": "object",
+      "required": ["preconditions", "resource_assumptions", "model_assumptions"],
+      "properties": {
+        "preconditions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Required conditions before running the tool."
+        },
+        "resource_assumptions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Resource assumptions such as GPU availability."
+        },
+        "model_assumptions": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Model or data assumptions (e.g., template required)."
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Structured limits such as max_length or timeouts."
+        }
+      },
+      "additionalProperties": false
+    },
+    "capability": {
+      "type": "object",
+      "required": ["capability_id", "name", "domain", "description"],
+      "properties": {
+        "capability_id": {
+          "type": "string",
+          "description": "Unique capability identifier used by tools."
+        },
+        "name": {
+          "type": "string",
+          "description": "Short capability name."
+        },
+        "domain": {
+          "type": "string",
+          "description": "Domain for this capability."
+        },
+        "description": {
+          "type": "string",
+          "description": "Capability semantics for Planner reasoning."
+        }
+      },
+      "additionalProperties": false
+    },
+    "io_type": {
+      "type": "object",
+      "required": ["io_type_id", "input_types", "output_types", "combinable"],
+      "properties": {
+        "io_type_id": {
+          "type": "string",
+          "description": "Identifier for this IOType definition."
+        },
+        "input_types": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Accepted input type IDs for this IOType."
+        },
+        "output_types": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Output type IDs produced by this IOType."
+        },
+        "combinable": {
+          "type": "boolean",
+          "description": "Whether IOType outputs can be chained directly."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional IOType description."
+        }
+      },
+      "additionalProperties": false
+    },
+    "constraint": {
+      "type": "object",
+      "required": ["constraint_id", "preconditions", "resource_assumptions", "model_assumptions"],
+      "properties": {
+        "constraint_id": {
+          "type": "string",
+          "description": "Identifier for reusable constraint templates."
+        },
+        "preconditions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "resource_assumptions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "model_assumptions": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
