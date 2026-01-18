@@ -1055,8 +1055,10 @@ def test_plan_runner_blocks_when_task_input_safety_blocks(
         plan_runner.run_plan(single_step_plan, planned_context)
 
     assert excinfo.value.failure_type == FailureType.SAFETY_BLOCK
-    # 输入阻断后最终应进入 FAILED
-    assert planned_context.status == InternalStatus.FAILED
+    # 输入阻断后进入 WAITING_REPLAN
+    assert planned_context.status == InternalStatus.WAITING_REPLAN
+    assert planned_context.pending_action is not None
+    assert planned_context.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
     assert planned_context.step_results == {}
     assert planned_context.safety_events[-1].action == "block"
 
@@ -1092,4 +1094,6 @@ def test_plan_runner_blocks_on_final_safety(
     # 步骤已执行，但最终安全阻断
     assert "S1" in planned_context.step_results
     assert planned_context.safety_events[-1].action == "block"
-    assert planned_context.status == InternalStatus.FAILED
+    assert planned_context.status == InternalStatus.WAITING_REPLAN
+    assert planned_context.pending_action is not None
+    assert planned_context.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
