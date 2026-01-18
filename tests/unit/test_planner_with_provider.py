@@ -88,7 +88,7 @@ class TestPlannerWithoutProvider:
         assert plan.task_id == sample_task.task_id
         assert len(plan.steps) == 1
         assert plan.steps[0].id == "S1"
-        assert plan.steps[0].tool == "dummy_tool"  # 注册表中的第一个工具
+        assert plan.steps[0].tool == "esmfold"  # 注册表中的第一个工具
 
     def test_plan_preserves_constraints(self, sample_task):
         """默认计划应该保留任务约束"""

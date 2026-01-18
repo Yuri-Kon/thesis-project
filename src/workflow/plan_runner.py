@@ -327,7 +327,11 @@ class PlanRunner:
             # 返回原始 plan(为未来支持 Patch/Replan 预留接口)
             return plan
         except PlanRunError as exc:
-            if context.status == InternalStatus.WAITING_REPLAN and max_replans > 0:
+            if (
+                context.status == InternalStatus.WAITING_REPLAN
+                and max_replans > 0
+                and not _should_require_replan_confirm(exc)
+            ):
                 replanned_plan = self._perform_replan(plan, context, record, exc)
                 return self.run_plan(
                     replanned_plan,
@@ -337,7 +341,11 @@ class PlanRunner:
                     max_replans=max_replans - 1,
                     resume_from_existing=True,
                 )
-            self._mark_failed(context, record, reason="plan_error")
+            if not (
+                context.status == InternalStatus.WAITING_REPLAN
+                and _should_require_replan_confirm(exc)
+            ):
+                self._mark_failed(context, record, reason="plan_error")
             raise
         except Exception:
             self._mark_failed(context, record, reason="unhandled_exception")
@@ -521,3 +529,8 @@ class PlanRunner:
             InternalStatus.FAILED,
             reason=reason,
         )
+
+
+def _should_require_replan_confirm(error: PlanRunError) -> bool:
+    """SafetyAgent blocks must wait for HITL replan confirmation."""
+    return error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK"}

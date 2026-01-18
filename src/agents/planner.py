@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Set
 
+from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider
 from src.models.contracts import (
     PatchRequest,
@@ -36,7 +37,7 @@ class PlannerAgent:
     """最小可用 PlannerAgent: 根据任务目标生成一个单步 Plan
 
     当前实现：支持可选的 LLM Provider 生成计划，或使用默认的单步计划
-    后续将接入 KG 和 LLM 实现智能规划
+    默认工具注册表来自 ProteinToolKG（读取失败时回退到内置 dummy 列表）。
     """
 
     def __init__(
@@ -47,12 +48,12 @@ class PlannerAgent:
         """初始化 PlannerAgent
 
         Args:
-            tool_registry: 可用工具注册表，默认使用内置 dummy 列表
+            tool_registry: 可用工具注册表，默认从 ProteinToolKG 读取
             llm_provider: 可选的 LLM Provider，用于生成计划
         """
-        self._tool_registry: List[ToolSpec] = list(
-            tool_registry or _DEFAULT_TOOL_REGISTRY
-        )
+        if tool_registry is None:
+            tool_registry = _load_default_tool_registry()
+        self._tool_registry: List[ToolSpec] = list(tool_registry)
         self._llm_provider = llm_provider
 
     def plan(self, task: ProteinDesignTask) -> Plan:
@@ -383,3 +384,38 @@ _DEFAULT_TOOL_REGISTRY: Sequence[ToolSpec] = (
         safety_level=0,
     ),
 )
+
+
+def _load_tool_specs_from_kg() -> Sequence[ToolSpec]:
+    try:
+        kg = load_tool_kg()
+    except ToolKGError:
+        return ()
+    tools = kg.get("tools", [])
+    if not isinstance(tools, list):
+        return ()
+
+    specs: List[ToolSpec] = []
+    for tool in tools:
+        tool_id = tool.get("id")
+        io_spec = tool.get("io", {})
+        inputs = tuple(io_spec.get("inputs", {}).keys())
+        outputs = tuple(io_spec.get("outputs", {}).keys())
+        if not tool_id or not inputs or not outputs:
+            continue
+        specs.append(
+            ToolSpec(
+                id=tool_id,
+                capabilities=tuple(tool.get("capabilities", [])),
+                inputs=inputs,
+                outputs=outputs,
+                cost=tool.get("cost_score", 1.0),
+                safety_level=tool.get("safety_level", 1),
+            )
+        )
+    return tuple(specs)
+
+
+def _load_default_tool_registry() -> Sequence[ToolSpec]:
+    kg_registry = _load_tool_specs_from_kg()
+    return kg_registry or _DEFAULT_TOOL_REGISTRY

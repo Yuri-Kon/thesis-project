@@ -23,7 +23,7 @@ class TestPlannerAgent:
         
         assert len(plan.steps) == 1
         assert plan.steps[0].id == "S1"
-        assert plan.steps[0].tool == "dummy_tool"
+        assert plan.steps[0].tool == "esmfold"
 
     def test_plan_includes_sequence_from_constraints(self, sample_task: ProteinDesignTask):
         """测试计划包含约束中的序列"""
