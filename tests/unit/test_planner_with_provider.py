@@ -30,18 +30,20 @@ class MockProvider(BaseProvider):
             return self.mock_plan
 
         # 默认 mock: 简单的两步计划
+        primary_tool = tool_registry[0].id if tool_registry else "unknown_tool"
+        secondary_tool = tool_registry[1].id if len(tool_registry) > 1 else primary_tool
         return {
             "task_id": task.task_id,
             "steps": [
                 {
                     "id": "S1",
-                    "tool": "dummy_tool",
+                    "tool": primary_tool,
                     "inputs": {"sequence": task.constraints.get("sequence", "AVILGP")},
                     "metadata": {}
                 },
                 {
                     "id": "S2",
-                    "tool": "dummy_tool_safe",
+                    "tool": secondary_tool,
                     "inputs": {"sequence": "S1.sequence"},
                     "metadata": {}
                 }
@@ -162,11 +164,12 @@ class TestPlannerWithMockProvider:
             def call_planner(self, task, tool_registry):
                 self.received_task = task
                 self.received_registry = tool_registry
+                tool_id = tool_registry[0].id if tool_registry else "unknown_tool"
                 return {
                     "task_id": task.task_id,
                     "steps": [{
                         "id": "S1",
-                        "tool": "dummy_tool",
+                        "tool": tool_id,
                         "inputs": {},
                         "metadata": {}
                     }],
@@ -224,6 +227,85 @@ class TestPlannerWithMockProvider:
         with pytest.raises(Exception):  # 应该抛出验证错误
             planner.plan(sample_task)
 
+    def test_plan_rejects_unknown_tools_from_provider(self, sample_task):
+        """PlannerAgent 应该拒绝不在 KG 注册表中的工具"""
+        config = ProviderConfig(model_name="test")
+
+        class UnknownToolProvider(BaseProvider):
+            def __init__(self, config):
+                self.config = config
+
+            def call_planner(self, task, tool_registry):
+                return {
+                    "task_id": task.task_id,
+                    "steps": [{
+                        "id": "S1",
+                        "tool": "unknown_tool",
+                        "inputs": {},
+                        "metadata": {}
+                    }],
+                    "constraints": {},
+                    "metadata": {}
+                }
+
+        planner = PlannerAgent(llm_provider=UnknownToolProvider(config))
+
+        with pytest.raises(ValueError):
+            planner.plan(sample_task)
+
+    def test_plan_resolves_unknown_tool_by_capability(self, sample_task):
+        """PlannerAgent 应该通过 capability 解析未知工具"""
+        config = ProviderConfig(model_name="test")
+
+        class CapabilityProvider(BaseProvider):
+            def __init__(self, config):
+                self.config = config
+
+            def call_planner(self, task, tool_registry):
+                return {
+                    "task_id": task.task_id,
+                    "steps": [{
+                        "id": "S1",
+                        "tool": "unknown",
+                        "inputs": {"sequence": task.constraints.get("sequence", "")},
+                        "metadata": {"capability": "structure_prediction"}
+                    }],
+                    "constraints": task.constraints,
+                    "metadata": {}
+                }
+
+        planner = PlannerAgent(llm_provider=CapabilityProvider(config))
+        plan = planner.plan(sample_task)
+
+        assert isinstance(plan, Plan)
+        assert plan.steps[0].tool == "esmfold"
+
+    def test_plan_resolves_capability_name_text(self, sample_task):
+        """PlannerAgent 应该解析自然语言 capability 名称"""
+        config = ProviderConfig(model_name="test")
+
+        class CapabilityNameProvider(BaseProvider):
+            def __init__(self, config):
+                self.config = config
+
+            def call_planner(self, task, tool_registry):
+                return {
+                    "task_id": task.task_id,
+                    "steps": [{
+                        "id": "S1",
+                        "tool": "unknown",
+                        "inputs": {"sequence": task.constraints.get("sequence", "")},
+                        "metadata": {"capability": "Structure Prediction"}
+                    }],
+                    "constraints": task.constraints,
+                    "metadata": {}
+                }
+
+        planner = PlannerAgent(llm_provider=CapabilityNameProvider(config))
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[0].tool == "esmfold"
+
     def test_plan_validates_provider_output(self, sample_task):
         """PlannerAgent 应该根据 Plan schema 验证 provider 输出"""
         config = ProviderConfig(model_name="test")
@@ -233,7 +315,7 @@ class TestPlannerWithMockProvider:
             "task_id": sample_task.task_id,
             "steps": [{
                 "id": "S1",
-                "tool": "dummy_tool",
+                "tool": "esmfold",
                 "inputs": {"sequence": "AVILGP"},
                 "metadata": {}
             }],

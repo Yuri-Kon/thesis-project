@@ -142,3 +142,78 @@ def test_openai_provider_streams_content(monkeypatch):
     request_kwargs = calls["request_kwargs"]
     assert request_kwargs["stream"] is True
     assert "response_format" not in request_kwargs
+
+
+def test_openai_provider_includes_tool_details_in_prompt(monkeypatch):
+    task = _sample_task()
+    plan_dict = {
+        "task_id": task.task_id,
+        "steps": [
+            {"id": "S1", "tool": "dummy_tool", "inputs": {}, "metadata": {}}
+        ],
+        "constraints": {},
+        "metadata": {},
+    }
+    calls = _setup_dummy_openai(monkeypatch, response_content=json.dumps(plan_dict))
+
+    config = ProviderConfig(
+        model_name="test-model",
+        api_key="test-key",
+    )
+    provider = provider_module.OpenAICompatibleProvider(config)
+
+    provider.call_planner(task, _sample_registry())
+
+    user_prompt = calls["request_kwargs"]["messages"][1]["content"]
+    assert "可用工具" in user_prompt
+    assert "dummy_tool" in user_prompt
+
+
+def test_openai_provider_stream_ignores_empty_choices(monkeypatch):
+    task = _sample_task()
+    plan_dict = {
+        "task_id": task.task_id,
+        "steps": [
+            {"id": "S1", "tool": "dummy_tool", "inputs": {}, "metadata": {}}
+        ],
+        "constraints": {},
+        "metadata": {},
+    }
+    content = json.dumps(plan_dict)
+    calls = {}
+
+    class DummyCompletions:
+        def create(self, **kwargs):
+            calls["request_kwargs"] = kwargs
+            return iter(
+                [
+                    SimpleNamespace(choices=[]),
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(
+                                delta=SimpleNamespace(content=content, reasoning_content=None)
+                            )
+                        ]
+                    ),
+                ]
+            )
+
+    class DummyOpenAI:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.chat = SimpleNamespace(completions=DummyCompletions())
+
+    monkeypatch.setattr(provider_module, "OPENAI_AVAILABLE", True)
+    monkeypatch.setattr(provider_module, "OpenAI", DummyOpenAI, raising=False)
+
+    config = ProviderConfig(
+        model_name="test-model",
+        api_key="test-key",
+        stream=True,
+        use_response_format=False,
+    )
+    provider = provider_module.OpenAICompatibleProvider(config)
+
+    plan = provider.call_planner(task, _sample_registry())
+
+    assert plan["task_id"] == task.task_id
