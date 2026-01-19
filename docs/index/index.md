@@ -203,6 +203,7 @@
 |-----|------|------|------|
 | `impl.overview.introduction` | 实现层总览 | Section | impl, overview |
 | `impl.techstack.overview` | 技术栈选型 | Block | impl, techstack |
+| `impl.planner.tool_resolution` | Planner 工具解析与 KG-only 约束 | Block | impl, planner, tool_resolution, kg |
 | `impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block | impl, nextflow, control_flow, constraints |
 | `impl.index.codebase_overview` | 实现代码索引与结构化总览 | Section | impl, index, codebase, overview |
 | `impl.llm_provider.guide` | LLM Provider 集成指南 | Section | impl, llm_provider, guide, overview |

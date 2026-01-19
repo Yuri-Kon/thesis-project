@@ -957,6 +957,27 @@ Planner还需要一个 LLM子模块，负责对自然语言任务进行解析，
 
 ---
 
+#### Planner 工具解析与 KG-only 约束
+<!-- SID:impl.planner.tool_resolution -->
+
+Planner 的工具知识 **必须** 来自 ProteinToolKG，LLM 仅提供“意图”或候选信息，不得从 prompt / system message / 内置常量获取工具清单。
+
+**工具解析流程（ToolResolver）**：
+
+1. **直接校验**：若 `PlanStep.tool` 已给出，则必须存在于 KG 的 `Tool.id` 集合中，否则判为非法。
+2. **意图映射**：若 `PlanStep.tool` 缺失或非法，可读取 `PlanStep.metadata` 中的 `capability` / `io_hint` 等线索，使用 KG 查询接口筛选候选：
+   - `find_tools_by_capability(capability, constraints)`
+   - 基于 `io.inputs` 与已知上下文可用输入做可执行性过滤
+3. **排序决策**：在满足 `safety_level` 的前提下，结合 `cost_score`、`preferred_next` 等规则选择最优工具。
+4. **失败策略**：若无候选工具可满足约束，Planner 必须明确失败并返回原因；**不得**生成或猜测 KG 外工具。
+
+**可扩展性约束**：
+
+- 允许在 KG 的 `tool.metadata.aliases` 中维护别名映射，但映射来源必须属于 KG 数据。
+- ToolResolver 逻辑与 LLM Provider 解耦，新增工具或 Provider 不影响解析策略。
+
+---
+
 ### ExecutorAgent与WorkflowEngineAdapter
 
 #### ExecutorAgent(`src/agents/executor.py`)

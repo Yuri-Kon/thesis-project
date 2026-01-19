@@ -938,6 +938,21 @@
       "stability": "stable"
     },
     {
+      "sid": "impl.planner.tool_resolution",
+      "title": "Planner 工具解析与 KG-only 约束",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 961,
+        "marker": "<!-- SID:impl.planner.tool_resolution -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "planner", "tool_resolution", "kg"],
+      "depends_on": ["arch.kg.overview"],
+      "stability": "stable"
+    },
+    {
       "sid": "impl.nextflow.control_flow_constraints",
       "title": "Nextflow 接入边界与控制流约束",
       "doc_key": "impl",
