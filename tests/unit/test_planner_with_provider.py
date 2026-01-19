@@ -185,7 +185,7 @@ class TestPlannerWithMockProvider:
         assert provider.received_registry is not None
         assert len(provider.received_registry) > 0
 
-    def test_plan_with_custom_tool_registry(self, sample_task, mock_provider):
+    def test_plan_with_custom_tool_registry(self, sample_task, mock_provider, monkeypatch):
         """PlannerAgent 应该使用自定义工具注册表"""
         custom_registry = [
             ToolSpec(
@@ -197,6 +197,39 @@ class TestPlannerWithMockProvider:
                 safety_level=0
             )
         ]
+        monkeypatch.setattr(
+            "src.agents.planner.load_tool_kg",
+            lambda: {
+                "capabilities": [
+                    {
+                        "capability_id": "design",
+                        "name": "Design",
+                        "domain": "protein/design",
+                        "description": "custom",
+                    }
+                ],
+                "io_types": [
+                    {
+                        "io_type_id": "sequence_to_result",
+                        "input_types": ["sequence"],
+                        "output_types": ["result"],
+                        "combinable": True,
+                    }
+                ],
+                "tools": [
+                    {
+                        "id": "custom_tool",
+                        "capabilities": ["design"],
+                        "io": {
+                            "io_type_id": "sequence_to_result",
+                            "inputs": {"sequence": "str"},
+                            "outputs": {"result": "str"},
+                        },
+                        "constraints": {},
+                    }
+                ],
+            },
+        )
 
         planner = PlannerAgent(
             tool_registry=custom_registry,
