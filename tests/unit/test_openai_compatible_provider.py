@@ -144,7 +144,7 @@ def test_openai_provider_streams_content(monkeypatch):
     assert "response_format" not in request_kwargs
 
 
-def test_openai_provider_omits_tool_details_from_prompt(monkeypatch):
+def test_openai_provider_includes_tool_details_in_prompt(monkeypatch):
     task = _sample_task()
     plan_dict = {
         "task_id": task.task_id,
@@ -165,8 +165,8 @@ def test_openai_provider_omits_tool_details_from_prompt(monkeypatch):
     provider.call_planner(task, _sample_registry())
 
     user_prompt = calls["request_kwargs"]["messages"][1]["content"]
-    assert "可用工具" not in user_prompt
-    assert "dummy_tool" not in user_prompt
+    assert "可用工具" in user_prompt
+    assert "dummy_tool" in user_prompt
 
 
 def test_openai_provider_stream_ignores_empty_choices(monkeypatch):
