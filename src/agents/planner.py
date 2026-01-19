@@ -80,6 +80,11 @@ class PlannerAgent:
 
         # 验证并返回 Plan 对象
         plan = Plan.model_validate(plan_dict)
+        plan = _resolve_plan_tools(
+            plan,
+            self._tool_registry,
+            task.constraints,
+        )
         _ensure_plan_tools_in_registry(plan, self._tool_registry)
         return plan
 
@@ -409,3 +414,143 @@ def _ensure_plan_tools_in_registry(
             "Plan references tools not registered in ProteinToolKG: "
             f"{sorted(missing)}"
         )
+
+
+def _resolve_plan_tools(
+    plan: Plan,
+    registry: Sequence[ToolSpec],
+    task_constraints: dict,
+) -> Plan:
+    registry_map = {spec.id: spec for spec in registry}
+    available_inputs: Set[str] = set(task_constraints.keys())
+    safety_level = task_constraints.get("safety_level")
+    capability_index = _load_capability_index()
+    resolved_steps: List[PlanStep] = []
+
+    for step in plan.steps:
+        if step.tool not in registry_map:
+            capability = _extract_step_capability(step.metadata)
+            if not capability:
+                raise ValueError(
+                    f"Plan step '{step.id}' references unknown tool "
+                    f"'{step.tool}' without capability metadata"
+                )
+            capability_id = _resolve_capability_id(capability, capability_index)
+            if not capability_id:
+                raise ValueError(
+                    f"Plan step '{step.id}' provides unknown capability "
+                    f"'{capability}' not found in ProteinToolKG"
+                )
+            candidate = _select_tool_by_capability(
+                registry=registry,
+                capability=capability_id,
+                available_inputs=available_inputs,
+                safety_level=safety_level,
+                io_hint=step.metadata.get("io_hint") if step.metadata else None,
+            )
+            new_metadata = {**(step.metadata or {})}
+            new_metadata.update(
+                {
+                    "resolved_from": step.tool,
+                    "resolved_capability": capability_id,
+                    "resolution_strategy": "kg_capability",
+                }
+            )
+            step = step.model_copy(
+                update={
+                    "tool": candidate.id,
+                    "metadata": new_metadata,
+                },
+                deep=True,
+            )
+
+        resolved_steps.append(step)
+        spec = registry_map.get(step.tool)
+        if spec:
+            available_inputs.update(spec.outputs)
+
+    return plan.model_copy(update={"steps": resolved_steps}, deep=True)
+
+
+def _extract_step_capability(metadata: dict | None) -> str:
+    if not metadata:
+        return ""
+    capability = metadata.get("capability")
+    if isinstance(capability, str) and capability:
+        return capability
+    capabilities = metadata.get("capabilities")
+    if isinstance(capabilities, list) and capabilities:
+        first = capabilities[0]
+        if isinstance(first, str):
+            return first
+    return ""
+
+
+def _select_tool_by_capability(
+    registry: Sequence[ToolSpec],
+    capability: str,
+    available_inputs: Set[str],
+    safety_level: int | None,
+    io_hint: dict | None,
+) -> ToolSpec:
+    hint_inputs: Set[str] = set()
+    if isinstance(io_hint, dict):
+        inputs = io_hint.get("inputs")
+        if isinstance(inputs, list):
+            hint_inputs = {val for val in inputs if isinstance(val, str)}
+
+    candidates: List[ToolSpec] = []
+    for spec in registry:
+        if capability not in spec.capabilities:
+            continue
+        if safety_level is not None and spec.safety_level > safety_level:
+            continue
+        if not set(spec.inputs).issubset(available_inputs):
+            continue
+        if hint_inputs and not hint_inputs.issubset(available_inputs):
+            continue
+        candidates.append(spec)
+
+    if not candidates:
+        raise ValueError(
+            f"No KG tool found for capability '{capability}' "
+            f"with inputs {sorted(available_inputs)}"
+        )
+
+    candidates.sort(key=lambda t: (t.cost, t.safety_level, t.id))
+    return candidates[0]
+
+
+def _load_capability_index() -> List[dict]:
+    try:
+        kg = load_tool_kg()
+    except ToolKGError:
+        return []
+    capabilities = kg.get("capabilities", [])
+    if isinstance(capabilities, list):
+        return capabilities
+    return []
+
+
+def _normalize_text(value: str) -> List[str]:
+    normalized = "".join(char.lower() if char.isalnum() else " " for char in value)
+    return [token for token in normalized.split() if token]
+
+
+def _resolve_capability_id(capability: str, index: List[dict]) -> str:
+    if not capability:
+        return ""
+    normalized_tokens = set(_normalize_text(capability))
+    for entry in index:
+        cap_id = entry.get("capability_id")
+        if not isinstance(cap_id, str) or not cap_id:
+            continue
+        if capability == cap_id:
+            return cap_id
+        id_tokens = set(_normalize_text(cap_id))
+        name_tokens = set(_normalize_text(entry.get("name", "")))
+        if id_tokens and id_tokens.issubset(normalized_tokens):
+            return cap_id
+        if name_tokens and name_tokens.issubset(normalized_tokens):
+            return cap_id
+    return ""

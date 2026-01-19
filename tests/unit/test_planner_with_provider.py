@@ -253,6 +253,59 @@ class TestPlannerWithMockProvider:
         with pytest.raises(ValueError):
             planner.plan(sample_task)
 
+    def test_plan_resolves_unknown_tool_by_capability(self, sample_task):
+        """PlannerAgent 应该通过 capability 解析未知工具"""
+        config = ProviderConfig(model_name="test")
+
+        class CapabilityProvider(BaseProvider):
+            def __init__(self, config):
+                self.config = config
+
+            def call_planner(self, task, tool_registry):
+                return {
+                    "task_id": task.task_id,
+                    "steps": [{
+                        "id": "S1",
+                        "tool": "unknown",
+                        "inputs": {"sequence": task.constraints.get("sequence", "")},
+                        "metadata": {"capability": "structure_prediction"}
+                    }],
+                    "constraints": task.constraints,
+                    "metadata": {}
+                }
+
+        planner = PlannerAgent(llm_provider=CapabilityProvider(config))
+        plan = planner.plan(sample_task)
+
+        assert isinstance(plan, Plan)
+        assert plan.steps[0].tool == "esmfold"
+
+    def test_plan_resolves_capability_name_text(self, sample_task):
+        """PlannerAgent 应该解析自然语言 capability 名称"""
+        config = ProviderConfig(model_name="test")
+
+        class CapabilityNameProvider(BaseProvider):
+            def __init__(self, config):
+                self.config = config
+
+            def call_planner(self, task, tool_registry):
+                return {
+                    "task_id": task.task_id,
+                    "steps": [{
+                        "id": "S1",
+                        "tool": "unknown",
+                        "inputs": {"sequence": task.constraints.get("sequence", "")},
+                        "metadata": {"capability": "Structure Prediction"}
+                    }],
+                    "constraints": task.constraints,
+                    "metadata": {}
+                }
+
+        planner = PlannerAgent(llm_provider=CapabilityNameProvider(config))
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[0].tool == "esmfold"
+
     def test_plan_validates_provider_output(self, sample_task):
         """PlannerAgent 应该根据 Plan schema 验证 provider 输出"""
         config = ProviderConfig(model_name="test")

@@ -180,7 +180,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
 规则:
 1. 步骤 ID 必须顺序: S1, S2, S3, 等
-2. 工具名称必须与 ProteinToolKG 中的 tool ID 完全匹配
+2. 优先使用 ProteinToolKG 中的 tool ID；若不确定具体工具ID，请将 tool 设为 "unknown" 并在 metadata 中提供 capability
 3. 使用符号引用 (如 "S1.sequence") 来引用前序步骤的输出
 4. 不要内联或计算实际值 - 保持引用的符号形式
 5. 链接步骤时考虑工具能力、输入和输出
@@ -196,6 +196,8 @@ class OpenAICompatibleProvider(BaseProvider):
         return f"""任务 ID: {task.task_id}
 目标: {task.goal}
 约束: {json.dumps(task.constraints, indent=2)}
+
+注意：如果不确定具体 tool_id，请将 tool 设置为 "unknown"，并在 metadata.capability 中提供能力标识。
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
