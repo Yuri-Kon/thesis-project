@@ -185,8 +185,8 @@ class TestPlannerWithMockProvider:
         assert provider.received_registry is not None
         assert len(provider.received_registry) > 0
 
-    def test_plan_with_custom_tool_registry(self, sample_task, mock_provider, monkeypatch):
-        """PlannerAgent 应该使用自定义工具注册表"""
+    def test_plan_with_custom_tool_registry(self, sample_task, mock_provider):
+        """PlannerAgent 应该拒绝不在默认 KG 中的自定义工具"""
         custom_registry = [
             ToolSpec(
                 id="custom_tool",
@@ -197,50 +197,13 @@ class TestPlannerWithMockProvider:
                 safety_level=0
             )
         ]
-        monkeypatch.setattr(
-            "src.agents.planner.load_tool_kg",
-            lambda: {
-                "capabilities": [
-                    {
-                        "capability_id": "design",
-                        "name": "Design",
-                        "domain": "protein/design",
-                        "description": "custom",
-                    }
-                ],
-                "io_types": [
-                    {
-                        "io_type_id": "sequence_to_result",
-                        "input_types": ["sequence"],
-                        "output_types": ["result"],
-                        "combinable": True,
-                    }
-                ],
-                "tools": [
-                    {
-                        "id": "custom_tool",
-                        "capabilities": ["design"],
-                        "io": {
-                            "io_type_id": "sequence_to_result",
-                            "inputs": {"sequence": "str"},
-                            "outputs": {"result": "str"},
-                        },
-                        "constraints": {},
-                    }
-                ],
-            },
-        )
 
         planner = PlannerAgent(
             tool_registry=custom_registry,
             llm_provider=mock_provider
         )
-
-        plan = planner.plan(sample_task)
-
-        assert isinstance(plan, Plan)
-        # Mock provider 被调用时传入了自定义注册表
-        assert mock_provider.call_count == 1
+        with pytest.raises(ValueError):
+            planner.plan(sample_task)
 
     def test_plan_with_invalid_provider_response(self, sample_task):
         """如果 provider 返回无效计划，PlannerAgent 应该抛出错误"""
