@@ -20,7 +20,7 @@ from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
 from src.workflow.errors import FailureType, PlanRunError, StepRunError
 from src.agents.safety import SafetyAgent
-from src.agents.planner import PlannerAgent
+from src.agents.planner import PlannerAgent, ToolSpec
 
 
 def _resolve_inputs(step: PlanStep, context: WorkflowContext) -> dict:
@@ -479,7 +479,18 @@ def test_run_plan_triggers_patch_after_retry_exhausted(
 
     class CapturingPlanner(PlannerAgent):
         def __init__(self) -> None:
-            super().__init__(tool_registry=[])
+            super().__init__(
+                tool_registry=[
+                    ToolSpec(
+                        id="esmfold",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=1,
+                        safety_level=1,
+                    )
+                ]
+            )
             self.requests = []
 
         def patch(self, request: PatchRequest):  # type: ignore[override]
@@ -560,7 +571,18 @@ def test_run_plan_executes_insert_before_patch_steps(
 
     class InsertBeforePlanner(PlannerAgent):
         def __init__(self) -> None:
-            super().__init__(tool_registry=[])
+            super().__init__(
+                tool_registry=[
+                    ToolSpec(
+                        id="esmfold",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=1,
+                        safety_level=1,
+                    )
+                ]
+            )
             self.requests = []
 
         def patch(self, request: PatchRequest):  # type: ignore[override]
@@ -639,7 +661,18 @@ def test_auto_replan_resolves_pending_action(
 
     class DeterministicReplanPlanner(PlannerAgent):
         def __init__(self) -> None:
-            super().__init__(tool_registry=[])
+            super().__init__(
+                tool_registry=[
+                    ToolSpec(
+                        id="esmfold",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=1,
+                        safety_level=1,
+                    )
+                ]
+            )
 
         def replan(self, request):  # type: ignore[override]
             step = request.original_plan.steps[0]

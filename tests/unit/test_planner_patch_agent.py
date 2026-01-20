@@ -1,5 +1,6 @@
 import pytest
 
+import src.agents.planner as planner_module
 from src.agents.planner import PlannerAgent, ToolSpec
 from src.models.contracts import PatchRequest, Plan, PlanStep, PlanPatch, StepResult, now_iso
 
@@ -31,6 +32,59 @@ def _build_registry():
             safety_level=3,
         ),
     ]
+
+
+def _mock_kg_for_registry():
+    return {
+        "capabilities": [
+            {
+                "capability_id": "fold",
+                "name": "Fold",
+                "domain": "protein/structure",
+                "description": "Test folding capability.",
+            }
+        ],
+        "io_types": [
+            {
+                "io_type_id": "sequence_to_structure",
+                "input_types": ["sequence"],
+                "output_types": ["structure"],
+                "combinable": True,
+            }
+        ],
+        "tools": [
+            {
+                "id": "t_fail",
+                "capabilities": ["fold"],
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"structure": "path"},
+                },
+                "constraints": {},
+            },
+            {
+                "id": "t_alt_high",
+                "capabilities": ["fold"],
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"structure": "path"},
+                },
+                "constraints": {},
+            },
+            {
+                "id": "t_alt_low",
+                "capabilities": ["fold"],
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"structure": "path"},
+                },
+                "constraints": {},
+            },
+        ],
+    }
 
 
 def _step_result(step_id: str, outputs: dict) -> StepResult:
@@ -68,7 +122,12 @@ def _build_request():
     )
 
 
-def test_patch_returns_replace_step_with_cheapest_candidate():
+def test_patch_returns_replace_step_with_cheapest_candidate(monkeypatch):
+    monkeypatch.setattr(
+        planner_module,
+        "load_tool_kg",
+        lambda: _mock_kg_for_registry(),
+    )
     agent = PlannerAgent(tool_registry=_build_registry())
     request = _build_request()
 
@@ -82,7 +141,7 @@ def test_patch_returns_replace_step_with_cheapest_candidate():
     assert op.step.tool == "t_alt_low"  # 选择 cost 最低的候选
 
 
-def test_patch_raises_when_no_compatible_tool():
+def test_patch_raises_when_no_compatible_tool(monkeypatch):
     # registry 中的候选需要额外输入，无法满足
     registry = [
         ToolSpec(
@@ -102,6 +161,11 @@ def test_patch_raises_when_no_compatible_tool():
             safety_level=1,
         ),
     ]
+    monkeypatch.setattr(
+        planner_module,
+        "load_tool_kg",
+        lambda: _mock_kg_for_registry(),
+    )
     agent = PlannerAgent(tool_registry=registry)
     request = _build_request()
 

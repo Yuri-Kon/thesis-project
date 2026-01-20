@@ -58,6 +58,23 @@ class TestPlannerAgent:
         
         assert plan.constraints == sample_task.constraints
 
+    def test_plan_includes_kg_explanation(self, sample_task: ProteinDesignTask):
+        """Planner 计划应包含基于 KG 的解释信息"""
+        planner = PlannerAgent()
+        plan = planner.plan(sample_task)
+
+        explanation = plan.metadata.get("kg_explanation")
+        assert isinstance(explanation, dict)
+        steps = explanation.get("steps", [])
+        assert steps
+
+        step_entry = steps[0]
+        assert step_entry.get("tool_id") == plan.steps[0].tool
+        assert step_entry.get("capabilities")
+        io_type = step_entry.get("io_type", {})
+        assert io_type.get("io_type_id") is not None
+        assert "constraints" in step_entry
+
     def test_plan_step_has_required_fields(self, sample_task: ProteinDesignTask):
         """测试计划步骤包含必需字段"""
         planner = PlannerAgent()

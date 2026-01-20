@@ -14,7 +14,7 @@ from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.workflow.context import WorkflowContext
 from src.workflow.patch_runner import PatchRunner
 from src.workflow.errors import FailureType
-from src.agents.planner import PlannerAgent
+from src.agents.planner import PlannerAgent, ToolSpec
 
 
 class FakeStepRunner:
@@ -61,7 +61,18 @@ class FakeStepRunner:
 
 class FakePlanner(PlannerAgent):
     def __init__(self) -> None:
-        super().__init__(tool_registry=[])
+        super().__init__(
+            tool_registry=[
+                ToolSpec(
+                    id="esmfold",
+                    capabilities=("structure_prediction",),
+                    inputs=("sequence",),
+                    outputs=("pdb_path", "plddt"),
+                    cost=1,
+                    safety_level=1,
+                )
+            ]
+        )
         self.requests = []
 
     def patch(self, request):  # type: ignore[override]
@@ -166,7 +177,18 @@ def test_patch_runner_enters_waiting_replan_on_patch_error(sample_task):
 
     class FailingPlanner(PlannerAgent):
         def __init__(self) -> None:
-            super().__init__(tool_registry=[])
+            super().__init__(
+                tool_registry=[
+                    ToolSpec(
+                        id="esmfold",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=1,
+                        safety_level=1,
+                    )
+                ]
+            )
 
         def patch(self, request):  # type: ignore[override]
             raise RuntimeError("planner patch failed")

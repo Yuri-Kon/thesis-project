@@ -86,6 +86,7 @@ class PlannerAgent:
             task.constraints,
         )
         _ensure_plan_tools_in_registry(plan, self._tool_registry)
+        plan = _attach_kg_explanation(plan)
         return plan
 
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
@@ -114,12 +115,13 @@ class PlannerAgent:
             metadata={},
         )
 
-        return Plan(
+        plan = Plan(
             task_id=task.task_id,
             steps=[step],
             constraints=task.constraints,
             metadata={},
         )
+        return _attach_kg_explanation(plan)
 
     def plan_with_status(
         self,
@@ -193,11 +195,15 @@ class PlannerAgent:
             target=target_step.id,
             step=patched_step,
         )
-        return PlanPatch(
+        patch = PlanPatch(
             task_id=request.task_id,
             operations=[op],
             metadata={"strategy": "cost_first"},
         )
+        patch.metadata["kg_explanation"] = _build_kg_explanation_for_steps(
+            [patched_step]
+        )
+        return patch
 
     # --- B4: 再规划 ---
     def replan(self, request: ReplanRequest) -> Plan:
@@ -245,12 +251,13 @@ class PlannerAgent:
                 new_steps[idx] = replanned_step
                 break
 
-        return Plan(
+        replanned = Plan(
             task_id=request.task_id,
             steps=new_steps,
             constraints=request.original_plan.constraints,
             metadata={"strategy": "replace_failed_step", "reason": request.reason},
         )
+        return _attach_kg_explanation(replanned)
 
     def _mark_failed(
         self,
@@ -414,6 +421,63 @@ def _ensure_plan_tools_in_registry(
             "Plan references tools not registered in ProteinToolKG: "
             f"{sorted(missing)}"
         )
+
+
+def _attach_kg_explanation(plan: Plan) -> Plan:
+    explanation = _build_kg_explanation_for_steps(plan.steps)
+    metadata = {**(plan.metadata or {})}
+    metadata["kg_explanation"] = explanation
+    return plan.model_copy(update={"metadata": metadata}, deep=True)
+
+
+def _build_kg_explanation_for_steps(steps: Sequence[PlanStep]) -> dict:
+    kg = load_tool_kg()
+    tools = {tool.get("id"): tool for tool in kg.get("tools", []) if tool.get("id")}
+    capabilities = {
+        cap.get("capability_id"): cap
+        for cap in kg.get("capabilities", [])
+        if cap.get("capability_id")
+    }
+    io_types = {
+        io_type.get("io_type_id"): io_type
+        for io_type in kg.get("io_types", [])
+        if io_type.get("io_type_id")
+    }
+
+    step_entries: List[dict] = []
+    for step in steps:
+        tool = tools.get(step.tool)
+        if tool is None:
+            raise ValueError(
+                f"Tool '{step.tool}' not found in ProteinToolKG for explanation"
+            )
+        capability_entries: List[dict] = []
+        for cap_id in tool.get("capabilities", []):
+            cap = capabilities.get(cap_id, {})
+            capability_entries.append(
+                {
+                    "capability_id": cap_id,
+                    "name": cap.get("name"),
+                    "domain": cap.get("domain"),
+                }
+            )
+        io_type_id = tool.get("io", {}).get("io_type_id")
+        io_type = io_types.get(io_type_id, {})
+        step_entries.append(
+            {
+                "step_id": step.id,
+                "tool_id": step.tool,
+                "capabilities": capability_entries,
+                "io_type": {
+                    "io_type_id": io_type_id,
+                    "input_types": io_type.get("input_types", []),
+                    "output_types": io_type.get("output_types", []),
+                    "combinable": io_type.get("combinable"),
+                },
+                "constraints": tool.get("constraints", {}),
+            }
+        )
+    return {"steps": step_entries}
 
 
 def _resolve_plan_tools(

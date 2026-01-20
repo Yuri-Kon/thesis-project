@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
-from src.agents.planner import PlannerAgent
+from src.agents.planner import PlannerAgent, ToolSpec
 from src.models.contracts import Plan, PlanStep, now_iso
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.tools.visualization.adapter import VisualizationToolAdapter
@@ -27,7 +27,18 @@ class RecordingStepRunner:
 
 class FailingPlanner(PlannerAgent):
     def __init__(self) -> None:
-        super().__init__(tool_registry=[])
+        super().__init__(
+            tool_registry=[
+                ToolSpec(
+                    id="esmfold",
+                    capabilities=("structure_prediction",),
+                    inputs=("sequence",),
+                    outputs=("pdb_path", "plddt"),
+                    cost=1,
+                    safety_level=1,
+                )
+            ]
+        )
 
     def patch(self, request):  # type: ignore[override]
         raise RuntimeError("planner patch failed")
