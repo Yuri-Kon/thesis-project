@@ -1,0 +1,18 @@
+{
+  "providers": {
+    "nvidia_nim": {
+      "provider_type": "nvidia_nim",
+      "description": "NVIDIA NIM Biology Models",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NIM_API_KEY",
+      "timeout": 60,
+      "max_retries": 3,
+      "extra": {
+        "supported_models": [
+          "nvidia/esmfold",
+          "nvidia/esm2nv"
+        ]
+      }
+    }
+  }
+}
