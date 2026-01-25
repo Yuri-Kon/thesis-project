@@ -181,6 +181,8 @@ def test_run_step_basic_fields_and_outputs_contract(empty_context, monkeypatch):
     assert result.task_id == empty_context.task.task_id
     assert result.tool == step.tool
     assert result.status == "success"
+    assert result.inputs["x"] == 1
+    assert result.inputs["y"] == "text"
 
     # outputs 约定
     assert "dummy_output" in result.outputs
@@ -279,6 +281,56 @@ def test_run_step_uses_adapter_path(empty_context):
     assert adapter.received_inputs == {"value": 42}
     assert result.outputs["dummy_output"] == "ok"
     assert result.metrics.get("exec_type") == "adapter_local"
+
+
+def test_run_step_fallbacks_to_local_tool_when_nim_missing(empty_context, monkeypatch):
+    """当 NIM 工具不可用时，StepRunner 应回退到本地工具"""
+    from src.workflow import step_runner as step_runner_module
+
+    class LocalESMFoldAdapter(BaseToolAdapter):
+        tool_id = "esmfold"
+        adapter_id = "esmfold_local"
+
+        def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict:
+            return _resolve_inputs(step, context)
+
+        def run_local(self, inputs: dict) -> tuple[dict, dict]:
+            return {"pdb_path": "/tmp/fallback.pdb"}, {"exec_type": "nextflow"}
+
+    register_adapter(LocalESMFoldAdapter())
+
+    mock_kg = {
+        "tools": [
+            {
+                "id": "nim_esmfold",
+                "capabilities": ["structure_prediction"],
+                "execution": {"backend": "remote_model_service"},
+                "io": {"inputs": {"sequence": "str"}, "outputs": {"pdb_path": "path"}},
+            },
+            {
+                "id": "esmfold",
+                "capabilities": ["structure_prediction"],
+                "execution": "nextflow",
+                "io": {"inputs": {"sequence": "str"}, "outputs": {"pdb_path": "path"}},
+            },
+        ]
+    }
+
+    monkeypatch.setattr(step_runner_module, "load_tool_kg", lambda: mock_kg)
+
+    step = PlanStep(
+        id="S1",
+        tool="nim_esmfold",
+        inputs={"sequence": "ACDEFG"},
+        metadata={},
+    )
+
+    runner = StepRunner()
+    result = runner.run_step(step, empty_context)
+
+    assert result.status == "success"
+    assert result.tool == "esmfold"
+    assert result.metrics.get("fallback_from") == "nim_esmfold"
 
 
 def test_run_step_missing_adapter_returns_failed_result(empty_context):

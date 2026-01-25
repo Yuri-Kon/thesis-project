@@ -212,6 +212,45 @@ class TestSummarizerAgent:
         assert "plddt_mean" not in result.scores
         assert "confidence" not in result.scores
 
+    def test_summarizer_records_execution_providers(
+        self, sample_workflow_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试汇总器记录执行后端与 provider 信息"""
+        from src.models.contracts import now_iso
+
+        summarizer = SummarizerAgent()
+        context = sample_workflow_context
+
+        step_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="nim_esmfold",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={"pdb_path": "/path/to/task123.pdb"},
+            metrics={
+                "exec_type": "nvidia_nim",
+                "provider": "nvidia_nim",
+                "model_id": "nvidia/esmfold",
+            },
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+        context.step_results["S1"] = step_result
+
+        report_dir = tmp_path / "reports"
+        report_dir.mkdir(parents=True, exist_ok=True)
+
+        result = summarizer.summarize(context)
+
+        execution_steps = result.metadata.get("execution_steps", [])
+        assert execution_steps
+        assert execution_steps[0]["tool"] == "nim_esmfold"
+        assert execution_steps[0]["provider"] == "nvidia_nim"
+
     def test_summarizer_combines_multiple_step_results(
         self, sample_workflow_context: WorkflowContext, sample_step_result: StepResult, tmp_path: Path
     ):
