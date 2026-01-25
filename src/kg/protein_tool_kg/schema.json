@@ -84,8 +84,15 @@
         "io": {"$ref": "#/$defs/tool_io"},
         "constraints": {"$ref": "#/$defs/tool_constraints"},
         "execution": {
-          "type": "string",
-          "enum": ["nextflow", "python", "external_api"],
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["nextflow", "python", "external_api"]
+            },
+            {
+              "$ref": "#/$defs/execution_config"
+            }
+          ],
           "description": "Execution mode used by Executor."
         },
         "cost_score": {
@@ -162,6 +169,29 @@
         "combinable": {
           "type": "boolean",
           "description": "Whether outputs can be composed with other tools."
+        }
+      },
+      "additionalProperties": false
+    },
+    "execution_config": {
+      "type": "object",
+      "required": ["backend"],
+      "properties": {
+        "backend": {
+          "type": "string",
+          "description": "Execution backend identifier (e.g. remote_model_service)."
+        },
+        "provider": {
+          "type": "string",
+          "description": "Optional provider name for the backend."
+        },
+        "model_id": {
+          "type": "string",
+          "description": "Optional model identifier for remote backends."
+        },
+        "sync_mode": {
+          "type": "boolean",
+          "description": "Whether the execution is synchronous."
         }
       },
       "additionalProperties": false

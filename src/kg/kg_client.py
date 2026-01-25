@@ -53,6 +53,35 @@ def find_tools_by_capability(
     return filtered
 
 
+def find_tools_by_backend(
+    backend: str,
+    provider: str | None = None,
+    *,
+    path: Path | None = None,
+) -> List[dict]:
+    """Find tools by execution backend and optional provider."""
+    tools = get_tool_nodes(path)
+    matched: List[dict] = []
+
+    for tool in tools:
+        execution = tool.get("execution")
+        if isinstance(execution, str):
+            if provider is not None:
+                continue
+            if execution == backend:
+                matched.append(tool)
+            continue
+
+        if isinstance(execution, dict):
+            if execution.get("backend") != backend:
+                continue
+            if provider is not None and execution.get("provider") != provider:
+                continue
+            matched.append(tool)
+
+    return matched
+
+
 def find_compatible_next(tool: dict, *, path: Path | None = None) -> List[dict]:
     outputs = set(tool.get("io", {}).get("outputs", {}).keys())
     if not outputs:
