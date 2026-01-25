@@ -11,6 +11,11 @@ from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType, StepRunError
 
 
+class MockNvidiaNIMClient:
+    def call_sync(self, _payload: dict) -> dict:
+        return {"pdb": "ATOM 1", "plddt": 90.0}
+
+
 @pytest.fixture
 def context() -> WorkflowContext:
     from src.models.contracts import ProteinDesignTask
@@ -135,3 +140,18 @@ def test_run_local_missing_plddt_uses_bfactor(tmp_path: Path) -> None:
     )
 
     assert outputs["plddt"] == pytest.approx(69.955, rel=1e-3)
+
+
+@pytest.mark.unit
+def test_nim_adapter_with_mock(tmp_path: Path) -> None:
+    adapter = NIMESMFoldAdapter(
+        client=MockNvidiaNIMClient(),
+        output_dir=tmp_path / "pdb",
+    )
+
+    outputs, metrics = adapter.run_local(
+        {"sequence": "ACDEFG", "task_id": "task123", "step_id": "S1"}
+    )
+
+    assert Path(outputs["pdb_path"]).exists()
+    assert metrics["provider"] == "nvidia_nim"

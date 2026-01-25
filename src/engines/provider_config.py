@@ -33,7 +33,7 @@ def _default_provider_configs() -> Dict[str, ProviderConfig]:
         "nvidia_nim": ProviderConfig(
             provider_type="nvidia_nim",
             description="NVIDIA NIM Biology Models",
-            base_url="https://integrate.api.nvidia.com/v1",
+            base_url="https://health.api.nvidia.com/v1/biology",
             api_key_env="NIM_API_KEY",
             timeout=60.0,
             max_retries=3,

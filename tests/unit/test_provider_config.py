@@ -41,7 +41,7 @@ def test_load_provider_config_fallback_default(tmp_path):
 
     assert "nvidia_nim" in configs
     config = configs["nvidia_nim"]
-    assert config.base_url == "https://integrate.api.nvidia.com/v1"
+    assert config.base_url == "https://health.api.nvidia.com/v1/biology"
     assert config.api_key_env == "NIM_API_KEY"
     assert "supported_models" in config.extra
 
