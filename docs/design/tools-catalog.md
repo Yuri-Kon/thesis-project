@@ -33,14 +33,25 @@ depends_on: [impl]
 - 类型：蛋白质结构预测
 - 输入：单条氨基酸序列(FASTA / string)
 - 输出：PDB 文件、置信度(pLDDT)
-- 执行方式：nextflow（v0.x 唯一方式，blocking）
-  - 仅通过 Nextflow 调度容器，不提供 docker run/compose 路径
-- 运行假设：
+- 执行方式：支持两种路径（按优先级）
+  1. **NVIDIA NIM 远程调用**（推荐，Week 5 优先）
+     - 通过 `nim_esmfold` 工具调用 NVIDIA NIM Biology API
+     - 无需本地 GPU，简化部署
+     - 依赖 `NIM_API_KEY` / `NVIDIA_API_KEY` 环境变量
+  2. **本地 Nextflow**（备选）
+     - 仅通过 Nextflow 调度容器，不提供 docker run/compose 路径
+     - 需要本地 GPU
+- 运行假设（本地 Nextflow 路径）：
   - Nextflow 已安装，可通过 `nextflow --info` 验证
   - profile: `docker` / `podman`（Fedora 开发环境默认 podman）
   - 容器引擎：Docker 或 Podman
   - GPU 必须存在（系统不负责 GPU 管理）
-- 模块位置：`nf/modules/esmfold.nf`
+- 运行假设（NIM 路径）：
+  - 网络可用
+  - API Key 已配置（`NVIDIA_API_KEY` 环境变量）
+- 模块位置：
+  - NIM 路径：`src/engines/nim_client.py`、`src/adapters/nim_adapter.py`
+  - Nextflow 路径：`nf/modules/esmfold.nf`
 - 产物目录约定：`output/pdb/`、`output/metrics/`、`output/artifacts/`（文件名包含 `task_id`）
 - 非目标：
   - batch / 多序列
@@ -49,8 +60,48 @@ depends_on: [impl]
 - 备注:
   - 轻量，无需 MSA
   - 适合作为第一个真实结构工具
-  - 同类结构预测工具在 v0.x 统一通过 Nextflow 接入
-- 控制流与执行边界：见 `docs/design/system-implementation-design.md` 的“Nextflow 接入边界与控制流约束”
+  - NIM 路径优先用于开发与演示，Nextflow 路径用于本地高性能计算
+- 控制流与执行边界：见 `docs/design/system-implementation-design.md` 的"Nextflow 接入边界与控制流约束"
+
+#### NIM ESMFold
+<!-- SID:tools.nim_esmfold.spec -->
+
+- 类型：蛋白质结构预测（远程）
+- 输入：`{"sequence": str}` 单条氨基酸序列
+- 输出：
+  - `pdb_path`: PDB 文件路径
+  - `plddt`: 置信度分数（float）
+  - `pdb_string`: PDB 内容字符串
+- 执行方式：`remote_model_service`（通过 NVIDIA NIM API）
+- 执行配置：
+  ```json
+  {
+    "backend": "remote_model_service",
+    "provider": "nvidia_nim",
+    "model_id": "nvidia/esmfold",
+    "sync_mode": true
+  }
+  ```
+- 运行约束：
+  - 前置条件：`sequence_provided`
+  - 资源假设：`network_available`、`nim_api_key_configured`
+  - 限制：`max_length: 400`（序列最大长度）
+- 成本评分：`0.3`（相对较低，适合快速迭代）
+- 安全级别：`1`（无特殊风险）
+- 失败码映射（见 `src/workflow/errors.py`）：
+  | FailureCode | FailureType | 触发场景 | 恢复动作 |
+  |-------------|-------------|----------|----------|
+  | NIM_AUTH_FAILED | NON_RETRYABLE | API key 无效/过期 | HITL（凭证问题） |
+  | NIM_QUOTA_EXCEEDED | RETRYABLE | API 配额/速率限制 | 带退避重试，然后 patch 到替代工具 |
+  | NIM_MODEL_NOT_FOUND | NON_RETRYABLE | 请求的模型不可用 | Patch 到替代工具 |
+  | NIM_INVALID_INPUT | NON_RETRYABLE | 输入验证失败 | Patch step 输入 |
+  | NIM_MODEL_ERROR | RETRYABLE | 模型内部错误 | 重试，然后 replan |
+- 模块位置：`src/engines/nim_client.py`、`src/adapters/nim_adapter.py`
+- 配置文件：`configs/model_providers.json`
+- 备注：
+  - 当 `NVIDIA_API_KEY` 存在时自动注册到 adapter registry
+  - 与本地 `esmfold` 工具能力兼容，可作为替代选项
+  - Planner 可根据 KG 选择 `protein_mpnn → esmfold` 或 `protein_mpnn → nim_esmfold`
 
 #### AlphaFold / OpenFold
 <!-- SID:tools.alphafold.spec -->
@@ -246,5 +297,11 @@ depends_on: [impl]
   - 不应影响系统整体架构
   - 同类工具可并存，供后续选择
 - 结构预测类工具：
-  - v0.x 统一通过 Nextflow 容器方式接入
+  - 支持多种执行后端：`nextflow`（本地）、`remote_model_service`（远程 API）
+  - 同一能力可由多个工具提供（如 `esmfold` 和 `nim_esmfold` 均提供 `structure_prediction`）
+  - Planner 通过 ProteinToolKG 选择合适的工具路径
+- 远程模型服务（`remote_model_service`）：
+  - 通过 Provider 配置系统管理 API 凭证与端点（见 `configs/model_providers.json`）
+  - 失败码需映射到统一的 `FailureCode` 体系
+  - 支持自动回退到本地工具（如 NIM 不可用时回退到 Nextflow）
 <!-- SID:tools.adapter.constraints END -->

@@ -89,8 +89,11 @@ src/
 | Adapter 注册表 | `src/adapters/registry.py` | 工具适配器注册与查找 | `register_adapter` |
 | 内置注册 | `src/adapters/builtins.py` | 默认适配器注册入口 | `ensure_builtin_adapters` |
 | 工具适配器 | `src/adapters/*.py` | ProteinMPNN/ESMFold/RDKit 等 | `run_local`/`run_remote` |
+| NIM 适配器 | `src/adapters/nim_adapter.py` | NVIDIA NIM ESMFold 适配器 | `NIMESMFoldAdapter` |
 | Nextflow 后端 | `src/engines/nextflow_adapter.py` | 单步执行后端封装 | Nextflow 进程调度 |
 | 远程模型调用 | `src/engines/remote_model_service.py` | 远程 submit/poll/download | `RemoteModelInvocationService` |
+| NIM 客户端 | `src/engines/nim_client.py` | NVIDIA NIM API 客户端 | `NvidiaNIMClient`、`call_sync` |
+| Provider 配置 | `src/engines/provider_config.py` | 远程模型提供商配置管理 | `ProviderConfig`、`load_provider_config` |
 | 可视化工具 | `src/tools/visualization/` | 可视化适配与流程 | `adapter.py`、`pipeline.py` |
 
 ### 4.5 LLM Provider 层
@@ -137,13 +140,18 @@ src/
 | 远程工具调用 | `src/engines/remote_model_service.py` | submit → poll → download |
 | 快照恢复 | `src/workflow/recovery.py` | `restore_context_from_snapshot` |
 
-## 6. 近期新增模块索引（Issue #75 - #77）
+## 6. 近期新增模块索引（Issue #75 - #77, #101 - #108）
 
 | Issue | 模块/功能 | 入口/路径 | 关联实现文档 |
 | --- | --- | --- | --- |
 | #75 | LLM Provider 插件化 | `src/llm/`、`src/agents/planner.py` | `docs/impl/issue_75_implementation_summary.md`、`docs/impl/llm_provider_guide.md` |
 | #76 | 远程模型调用 | `src/engines/remote_model_service.py`、`src/adapters/remote_esmfold_adapter.py` | `docs/impl/remote_model_invocation.md` |
 | #77 | 快照恢复 | `src/workflow/recovery.py`、`src/storage/snapshot_store.py` | `docs/impl/snapshot-recovery.md` |
+| #101 | ESMFold 可用性（NIM 路径） | `src/engines/nim_client.py`、`src/adapters/nim_adapter.py` | `docs/impl/remote_model_invocation.md` |
+| #102 | KG 工具定义扩展 | `src/kg/protein_tool_kg.json`、`src/kg/kg_client.py` | `docs/design/tools-catalog.md` |
+| #105 | NIM 失败码分类 | `src/workflow/errors.py` | `docs/impl/remote_model_invocation.md` |
+| #107 | ProteinMPNN 适配器 | `src/adapters/protein_mpnn_adapter.py` | - |
+| #108 | Provider 配置系统 | `src/engines/provider_config.py`、`configs/model_providers.json` | `docs/impl/remote_model_invocation.md` |
 
 ## 7. 增量维护清单
 
@@ -164,3 +172,4 @@ src/
 | 日期 | 变更 |
 | --- | --- |
 | 2026-01-11 | 初始版本，建立代码结构快览与模块/流程索引 |
+| 2026-01-25 | 新增 Issue #101-#108 模块索引（NIM 集成、Provider 配置、失败码分类） |
