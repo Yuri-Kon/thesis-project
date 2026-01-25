@@ -36,6 +36,30 @@ class TestPlannerAgent:
         assert "sequence" in step.inputs
         assert step.inputs["sequence"] == sample_task.constraints.get("sequence")
 
+    def test_plan_creates_de_novo_template(self):
+        """de novo 任务应生成两步模板计划"""
+        task = ProteinDesignTask(
+            task_id="test_denovo",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [40, 60],
+                "structure_template_pdb": "data/template.pdb",
+            },
+            metadata={},
+        )
+        planner = PlannerAgent()
+        plan = planner.plan(task)
+
+        assert len(plan.steps) == 2
+        assert [step.id for step in plan.steps] == ["S1", "S2"]
+        assert plan.steps[0].tool == "protein_mpnn"
+        assert plan.steps[1].tool == "esmfold"
+        assert plan.steps[0].inputs["pdb_path"] == "data/template.pdb"
+        assert plan.steps[0].inputs["length_range"] == [40, 60]
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.explanation
+        assert "ProteinToolKG" in plan.explanation
+
     def test_plan_uses_default_sequence_when_missing(self):
         """测试当约束中没有序列时使用默认序列"""
         task = ProteinDesignTask(

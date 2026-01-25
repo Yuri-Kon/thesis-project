@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Iterable, List, Optional, Sequence, Set
 
@@ -95,6 +96,9 @@ class PlannerAgent:
         生成一个单步骤计划，调用第一个可用工具（或 dummy_tool）
         保持与原始 PlannerAgent 行为一致
         """
+        if _is_de_novo_task(task):
+            plan = _build_de_novo_plan(task, self._tool_registry)
+            return _attach_kg_explanation(plan)
         if not self._tool_registry:
             raise ValueError(
                 "Tool registry is empty; cannot build default plan."
@@ -602,6 +606,203 @@ def _prefers_remote_tools(task_constraints: dict) -> bool:
         or task_constraints.get("use_remote_tools")
         or task_constraints.get("use_nim")
     )
+
+
+_DE_NOVO_GOAL_TYPE = "de_novo_design"
+
+
+def _extract_goal_type(task: ProteinDesignTask) -> str:
+    for container in (task.constraints, task.metadata):
+        if isinstance(container, dict):
+            goal_block = container.get("goal")
+            if isinstance(goal_block, dict):
+                goal_type = goal_block.get("type")
+                if isinstance(goal_type, str) and goal_type:
+                    return goal_type
+            goal_type = container.get("goal_type")
+            if isinstance(goal_type, str) and goal_type:
+                return goal_type
+
+    goal_value = task.goal
+    if isinstance(goal_value, str):
+        stripped = goal_value.strip()
+        if stripped == _DE_NOVO_GOAL_TYPE:
+            return stripped
+        if stripped.startswith("{") and stripped.endswith("}"):
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                return ""
+            if isinstance(parsed, dict):
+                goal_type = parsed.get("type")
+                if isinstance(goal_type, str) and goal_type:
+                    return goal_type
+    return ""
+
+
+def _is_de_novo_task(task: ProteinDesignTask) -> bool:
+    return _extract_goal_type(task) == _DE_NOVO_GOAL_TYPE
+
+
+def _extract_length_range(constraints: dict) -> List[int] | None:
+    value = constraints.get("length_range")
+    if isinstance(value, (list, tuple)) and len(value) == 2:
+        try:
+            return [int(value[0]), int(value[1])]
+        except (TypeError, ValueError):
+            return None
+
+    value = constraints.get("length")
+    if isinstance(value, (int, float)):
+        length = int(value)
+        if length > 0:
+            return [length, length]
+    return None
+
+
+def _extract_template_pdb(constraints: dict) -> str | None:
+    for key in ("structure_template_pdb", "pdb_path"):
+        value = constraints.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _build_de_novo_plan(
+    task: ProteinDesignTask,
+    registry: Sequence[ToolSpec],
+) -> Plan:
+    constraints = task.constraints or {}
+    available_inputs: Set[str] = set(constraints.keys())
+    template_pdb = _extract_template_pdb(constraints)
+    if template_pdb:
+        available_inputs.add("pdb_path")
+
+    safety_level = constraints.get("safety_level")
+    prefer_remote = _prefers_remote_tools(constraints)
+
+    try:
+        sequence_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="sequence_design",
+            available_inputs=available_inputs,
+            safety_level=safety_level,
+            io_hint=None,
+            prefer_remote=prefer_remote,
+        )
+    except ValueError:
+        fallback_inputs = _collect_registry_inputs(registry)
+        sequence_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="sequence_design",
+            available_inputs=fallback_inputs,
+            safety_level=safety_level,
+            io_hint=None,
+            prefer_remote=prefer_remote,
+        )
+
+    available_inputs.update(sequence_tool.outputs)
+
+    try:
+        structure_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="structure_prediction",
+            available_inputs=available_inputs,
+            safety_level=safety_level,
+            io_hint={"inputs": ["sequence"]},
+            prefer_remote=prefer_remote,
+        )
+    except ValueError:
+        fallback_inputs = _collect_registry_inputs(registry)
+        structure_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="structure_prediction",
+            available_inputs=fallback_inputs,
+            safety_level=safety_level,
+            io_hint={"inputs": ["sequence"]},
+            prefer_remote=prefer_remote,
+        )
+
+    step_inputs: dict = {
+        "goal": task.goal,
+    }
+    length_range = _extract_length_range(constraints)
+    if length_range:
+        step_inputs["length_range"] = length_range
+    if template_pdb:
+        step_inputs["pdb_path"] = template_pdb
+
+    steps = [
+        PlanStep(
+            id="S1",
+            tool=sequence_tool.id,
+            inputs=step_inputs,
+            metadata={},
+        ),
+        PlanStep(
+            id="S2",
+            tool=structure_tool.id,
+            inputs={"sequence": "S1.sequence"},
+            metadata={},
+        ),
+    ]
+
+    explanation = _build_de_novo_explanation(sequence_tool.id, structure_tool.id)
+
+    return Plan(
+        task_id=task.task_id,
+        steps=steps,
+        constraints=task.constraints,
+        metadata={},
+        explanation=explanation,
+    )
+
+
+def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) -> str:
+    kg = load_tool_kg()
+    tools = {tool.get("id"): tool for tool in kg.get("tools", []) if tool.get("id")}
+    capabilities = {
+        cap.get("capability_id"): cap
+        for cap in kg.get("capabilities", [])
+        if cap.get("capability_id")
+    }
+
+    sequence_tool = tools.get(sequence_tool_id, {})
+    structure_tool = tools.get(structure_tool_id, {})
+
+    def format_caps(tool: dict) -> str:
+        cap_ids = tool.get("capabilities", [])
+        labels = []
+        for cap_id in cap_ids:
+            cap_entry = capabilities.get(cap_id, {})
+            name = cap_entry.get("name")
+            if name:
+                labels.append(f"{cap_id}({name})")
+            else:
+                labels.append(str(cap_id))
+        return ", ".join(labels) if labels else "unknown"
+
+    seq_name = sequence_tool.get("name") or sequence_tool_id
+    seq_desc = sequence_tool.get("description") or ""
+    seq_caps = format_caps(sequence_tool)
+
+    struct_name = structure_tool.get("name") or structure_tool_id
+    struct_desc = structure_tool.get("description") or ""
+    struct_caps = format_caps(structure_tool)
+
+    compat_from = structure_tool.get("compat", {}).get("from", [])
+    compat_note = ""
+    if isinstance(compat_from, list) and compat_from:
+        compat_note = f"KG compat.from={', '.join(str(item) for item in compat_from)}"
+
+    parts = [
+        "de_novo_design 任务采用序列设计→结构预测两步链路。",
+        f"ProteinToolKG 显示 {seq_name}({sequence_tool_id}) 能力={seq_caps}。{seq_desc}",
+        f"ProteinToolKG 显示 {struct_name}({structure_tool_id}) 能力={struct_caps}。{struct_desc}",
+    ]
+    if compat_note:
+        parts.append(compat_note)
+    return " ".join(part for part in parts if part)
 
 
 def _remote_rank(tool_id: str, prefer_remote: bool) -> int:

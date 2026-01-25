@@ -46,6 +46,7 @@ class Plan(BaseModel):
     steps: List[PlanStep]
     constraints: Dict = Field(default_factory=dict)
     metadata: Dict = Field(default_factory=dict)
+    explanation: Optional[str] = None
 
 
 class RiskFlag(BaseModel):
