@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-01-11",
+  "generated_at": "2026-01-25",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 77,
+  "total_specs": 82,
   "documents": [
     {
       "doc_key": "arch",
@@ -1139,8 +1139,8 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 237,
-        "line_end": 250,
+        "line_start": 288,
+        "line_end": 307,
         "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
         "marker_end": "<!-- SID:tools.adapter.constraints END -->"
       },
@@ -1282,6 +1282,66 @@
       "level": "Section",
       "tags": ["impl", "remote_model_invocation", "rest_api"],
       "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.nim_esmfold.spec",
+      "title": "NIM ESMFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 67,
+        "marker": "<!-- SID:tools.nim_esmfold.spec -->"
+      },
+      "level": "Block",
+      "tags": ["tools", "nim_esmfold", "structure_prediction", "nvidia_nim"],
+      "depends_on": ["tools.esmfold.spec"],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.nim_failure_codes",
+      "title": "NVIDIA NIM 失败码定义",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 241,
+        "marker": "<!-- SID:impl.remote_model_invocation.nim_failure_codes -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "remote_model_invocation", "nvidia_nim", "failure_codes"],
+      "depends_on": ["impl.remote_model_invocation.overview"],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.nvidia_nim",
+      "title": "NVIDIA NIM 集成",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 330,
+        "marker": "<!-- SID:impl.remote_model_invocation.nvidia_nim -->"
+      },
+      "level": "Section",
+      "tags": ["impl", "remote_model_invocation", "nvidia_nim"],
+      "depends_on": ["impl.remote_model_invocation.overview"],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.provider_config",
+      "title": "Provider 配置系统",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 364,
+        "marker": "<!-- SID:impl.remote_model_invocation.provider_config -->"
+      },
+      "level": "Block",
+      "tags": ["impl", "remote_model_invocation", "provider_config", "nvidia_nim"],
+      "depends_on": ["impl.remote_model_invocation.nvidia_nim"],
       "stability": "stable"
     }
   ]

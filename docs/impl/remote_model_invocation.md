@@ -5,6 +5,8 @@
 
 为了支持远程 ESMFold 服务调用，系统新增了通用的 `RemoteModelInvocationService` 抽象层。该层提供统一的 submit/poll/download 接口，默认实现 REST 客户端，并保留 SSH/SDK 扩展点。
 
+**Week 5 扩展**：新增 NVIDIA NIM 作为首选远程调用后端，通过 `NvidiaNIMClient` 和 `NIMESMFoldAdapter` 实现。
+
 ## 架构设计
 
 ### 核心组件
@@ -25,14 +27,32 @@
      - `GET /job/{job_id}` - 查询作业状态
      - `GET /results/{job_id}` - 获取作业结果
 
-3. **BaseToolAdapter 扩展** (`src/adapters/base_tool_adapter.py`)
+3. **NvidiaNIMClient** (`src/engines/nim_client.py`) - Week 5 新增
+   - NVIDIA NIM Biology API 客户端
+   - 支持 `call_sync()` 同步调用 NIM 端点
+   - 从 `ProviderConfig` 读取配置（API key、base URL、超时等）
+   - HTTP 错误映射到 `FailureCode`（见 Issue #105）
+
+4. **ProviderConfig** (`src/engines/provider_config.py`) - Week 5 新增
+   - 远程模型服务提供商配置数据类
+   - 从 `configs/model_providers.json` 加载配置
+   - 支持环境变量解析 API Key
+   - 配置文件不存在时回退到内置默认值
+
+5. **BaseToolAdapter 扩展** (`src/adapters/base_tool_adapter.py`)
    - 新增 `run_remote()` 方法（可选实现）
    - 保持向后兼容性（`run_local()` 保持不变）
 
-4. **RemoteESMFoldAdapter** (`src/adapters/remote_esmfold_adapter.py`)
+6. **RemoteESMFoldAdapter** (`src/adapters/remote_esmfold_adapter.py`)
    - ESMFold 远程适配器示例实现
    - 将 `run_local()` 委托给 `run_remote()`
    - 与现有 StepRunner 无缝集成
+
+7. **NIMESMFoldAdapter** (`src/adapters/nim_adapter.py`) - Week 5 新增
+   - 继承 `BaseToolAdapter`
+   - 输入转换：`{"sequence": "..."}` → NIM 格式
+   - 输出转换：NIM 响应 → `{"pdb_path": ..., "plddt": ..., "pdb_string": ...}`
+   - 当 `NVIDIA_API_KEY` 环境变量存在时自动注册
 
 ## 工作流程
 
@@ -217,6 +237,24 @@ outputs = {
 
 所有错误通过 `StepRunError` 异常抛出，与现有的失败处理流程（retry/patch/replan）无缝集成。
 
+### NVIDIA NIM 特定失败码
+<!-- SID:impl.remote_model_invocation.nim_failure_codes -->
+
+NIM 客户端定义了专用的失败码（在 `src/workflow/errors.py`）：
+
+| FailureCode | FailureType | HTTP 状态码 | 触发场景 | 恢复动作 |
+|-------------|-------------|-------------|----------|----------|
+| `NIM_AUTH_FAILED` | NON_RETRYABLE | 401, 403 | API key 无效/过期 | HITL（凭证问题） |
+| `NIM_QUOTA_EXCEEDED` | RETRYABLE | 429 | API 配额/速率限制 | 带退避重试，然后 patch 到替代工具 |
+| `NIM_MODEL_NOT_FOUND` | NON_RETRYABLE | 404 | 请求的模型不可用 | Patch 到替代工具 |
+| `NIM_INVALID_INPUT` | NON_RETRYABLE | 400, 422 | 输入验证失败（如序列过长） | Patch step 输入 |
+| `NIM_MODEL_ERROR` | RETRYABLE | 500+ | 模型内部错误 | 重试，然后 replan |
+
+这些失败码与通用失败处理流程集成：
+- `RETRYABLE` 类型会触发自动重试（带指数退避）
+- 重试耗尽后，可 patch 到替代工具（如 `esmfold` 本地路径）
+- `NON_RETRYABLE` 类型直接触发 HITL 或 patch 流程
+
 ## 扩展点
 
 ### 实现自定义远程服务
@@ -285,3 +323,201 @@ pytest tests/unit/test_remote_esmfold_adapter.py -v
 - ✅ REST 实现可正常 submit/poll/download
 - ✅ 具备可测试的 mock 入口
 - ✅ 所有单元测试通过（251/252 通过，1个失败与本功能无关）
+
+---
+
+## NVIDIA NIM 集成（Week 5 扩展）
+<!-- SID:impl.remote_model_invocation.nvidia_nim -->
+
+### 概述
+
+NVIDIA NIM（NVIDIA Inference Microservices）提供托管的生物信息学模型 API，包括 ESMFold。系统通过 `NvidiaNIMClient` 和 `NIMESMFoldAdapter` 实现 NIM 集成。
+
+### 架构
+
+```
+┌─────────────┐
+│  StepRunner │
+└──────┬──────┘
+       │
+       │ run_local(inputs)
+       ▼
+┌──────────────────┐
+│ NIMESMFoldAdapter│
+└────────┬─────────┘
+         │
+         │ call_sync(inputs)
+         ▼
+┌────────────────────┐     ┌─────────────────┐
+│  NvidiaNIMClient   │────►│  ProviderConfig │
+└─────────┬──────────┘     └─────────────────┘
+          │                        ▲
+          │ HTTP POST              │ load from
+          ▼                        │
+┌─────────────────────────┐  ┌─────────────────────────┐
+│ NVIDIA NIM API          │  │ configs/model_providers │
+│ integrate.api.nvidia.com│  │ .json                   │
+└─────────────────────────┘  └─────────────────────────┘
+```
+
+### Provider 配置系统
+<!-- SID:impl.remote_model_invocation.provider_config -->
+
+#### ProviderConfig 数据类
+
+```python
+@dataclass
+class ProviderConfig:
+    provider_type: str           # e.g. "nvidia_nim"
+    description: str = ""
+    base_url: str = ""
+    api_key_env: str = ""        # 环境变量名，如 "NVIDIA_API_KEY"
+    timeout: float = 60.0
+    max_retries: int = 3
+    extra: Dict[str, Any] = field(default_factory=dict)
+
+    def get_api_key(self) -> str:
+        """从环境变量获取 API Key"""
+```
+
+#### 配置文件格式
+
+`configs/model_providers.json`:
+
+```json
+{
+  "providers": {
+    "nvidia_nim": {
+      "provider_type": "nvidia_nim",
+      "description": "NVIDIA NIM Biology Models",
+      "base_url": "https://integrate.api.nvidia.com/v1",
+      "api_key_env": "NVIDIA_API_KEY",
+      "timeout": 60,
+      "max_retries": 3,
+      "extra": {
+        "supported_models": ["nvidia/esmfold", "nvidia/esm2nv"]
+      }
+    }
+  }
+}
+```
+
+#### 配置加载
+
+```python
+from src.engines.provider_config import load_provider_config, get_provider_config
+
+# 加载所有配置
+configs = load_provider_config()
+
+# 获取特定提供商配置
+nim_config = get_provider_config("nvidia_nim")
+api_key = nim_config.get_api_key()  # 从 NVIDIA_API_KEY 环境变量获取
+```
+
+### NIM Client 使用示例
+
+```python
+from src.engines.nim_client import NvidiaNIMClient
+
+# 创建客户端（自动加载配置）
+client = NvidiaNIMClient()
+
+# 同步调用 ESMFold
+result = client.call_sync(
+    model_id="nvidia/esmfold",
+    inputs={"sequence": "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV"}
+)
+
+# 结果包含
+# - pdb_string: PDB 结构内容
+# - plddt: 置信度分数
+```
+
+### NIM ESMFold Adapter 使用
+
+```python
+from src.adapters.nim_adapter import NIMESMFoldAdapter
+from pathlib import Path
+
+# 创建适配器
+adapter = NIMESMFoldAdapter(output_dir=Path("output/nim"))
+
+# 执行预测
+outputs, metrics = adapter.run_local({
+    "sequence": "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV",
+    "task_id": "task_001",
+    "step_id": "S1",
+})
+
+# outputs 包含：
+# - pdb_path: 保存的 PDB 文件路径
+# - plddt: 置信度分数
+# - pdb_string: PDB 内容字符串
+
+# metrics 包含：
+# - provider: "nvidia_nim"
+# - model_id: "nvidia/esmfold"
+# - exec_type: "remote"
+# - duration_ms: 执行时间
+```
+
+### 自动注册
+
+在 `src/adapters/builtins.py` 中，当检测到 `NVIDIA_API_KEY` 环境变量时，会自动注册 `NIMESMFoldAdapter`：
+
+```python
+def ensure_builtin_adapters():
+    # ... 其他注册 ...
+
+    # NIM ESMFold（当 API key 存在时）
+    if os.getenv("NVIDIA_API_KEY"):
+        from src.adapters.nim_adapter import NIMESMFoldAdapter
+        register_adapter("nim_esmfold", NIMESMFoldAdapter)
+```
+
+### 相关文件
+
+- `src/engines/nim_client.py` - NIM API 客户端
+- `src/engines/provider_config.py` - Provider 配置系统
+- `src/adapters/nim_adapter.py` - NIM ESMFold 适配器
+- `configs/model_providers.json` - 提供商配置文件
+- `tests/unit/test_nim_client.py` - NIM 客户端测试
+- `tests/unit/test_nim_adapter.py` - NIM 适配器测试
+
+### 与 KG 集成
+
+ProteinToolKG 中新增 `nim_esmfold` 工具定义：
+
+```json
+{
+  "id": "nim_esmfold",
+  "name": "NIM ESMFold",
+  "capabilities": ["structure_prediction"],
+  "io": {
+    "inputs": {"sequence": "str"},
+    "outputs": {"pdb_path": "path", "plddt": "float", "pdb_string": "str"}
+  },
+  "constraints": {
+    "preconditions": ["sequence_provided"],
+    "resource_assumptions": ["network_available", "nim_api_key_configured"],
+    "limits": {"max_length": 400}
+  },
+  "execution": {
+    "backend": "remote_model_service",
+    "provider": "nvidia_nim",
+    "model_id": "nvidia/esmfold",
+    "sync_mode": true
+  },
+  "cost_score": 0.3,
+  "safety_level": 1
+}
+```
+
+Planner 可通过 KG 选择工具路径：
+- `protein_mpnn` → `esmfold`（本地 Nextflow）
+- `protein_mpnn` → `nim_esmfold`（NIM 远程）
+
+查询接口：
+- `find_tools_by_capability("structure_prediction")` → 返回 `esmfold` 和 `nim_esmfold`
+- `find_tools_by_backend("remote_model_service", "nvidia_nim")` → 返回 `nim_esmfold`
