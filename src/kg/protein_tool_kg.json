@@ -123,6 +123,49 @@
       "version": "1.0.0"
     },
     {
+      "id": "nim_esmfold",
+      "tool_id": "nim_esmfold",
+      "name": "NIM ESMFold",
+      "domain": "protein/structure",
+      "description": "Remote ESMFold via NVIDIA NIM.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float",
+          "pdb_string": "str"
+        },
+        "input_types": ["sequence"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided"],
+        "resource_assumptions": ["network_available", "nim_api_key_configured"],
+        "model_assumptions": ["single_chain_only"],
+        "limits": {
+          "max_length": 400
+        }
+      },
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "nvidia_nim",
+        "model_id": "nvidia/esmfold",
+        "sync_mode": true
+      },
+      "cost_score": 0.3,
+      "safety_level": 1,
+      "compat": {
+        "from": ["protein_mpnn.sequence"]
+      },
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
       "id": "protein_mpnn",
       "tool_id": "protein_mpnn",
       "name": "ProteinMPNN",
@@ -160,7 +203,7 @@
         "from": ["esmfold.pdb_path", "alphafold.pdb_path"]
       },
       "failure_modes": ["invalid_backbone", "missing_backbone"],
-      "preferred_next": ["esmfold", "alphafold"],
+      "preferred_next": ["esmfold", "nim_esmfold", "alphafold"],
       "version": "1.0.0"
     },
     {
