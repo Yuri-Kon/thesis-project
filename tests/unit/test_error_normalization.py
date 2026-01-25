@@ -65,6 +65,15 @@ def test_failure_code_enum_values() -> None:
     assert FailureCode.REMOTE_DOWNLOAD_HTTP_4XX.value == "REMOTE_DOWNLOAD_HTTP_4XX"
     assert FailureCode.REMOTE_DOWNLOAD_HTTP_5XX.value == "REMOTE_DOWNLOAD_HTTP_5XX"
 
+    # NVIDIA NIM 调用失败
+    assert FailureCode.NIM_API_KEY_MISSING.value == "NIM_API_KEY_MISSING"
+    assert FailureCode.NIM_HTTP_4XX.value == "NIM_HTTP_4XX"
+    assert FailureCode.NIM_HTTP_5XX.value == "NIM_HTTP_5XX"
+    assert FailureCode.NIM_TIMEOUT.value == "NIM_TIMEOUT"
+    assert FailureCode.NIM_NETWORK_ERROR.value == "NIM_NETWORK_ERROR"
+    assert FailureCode.NIM_INVALID_RESPONSE.value == "NIM_INVALID_RESPONSE"
+    assert FailureCode.NIM_UNEXPECTED_ERROR.value == "NIM_UNEXPECTED_ERROR"
+
 
 def test_build_error_meta_basic() -> None:
     """测试 build_error_meta 基础功能"""

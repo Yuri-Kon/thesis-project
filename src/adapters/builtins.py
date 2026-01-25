@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import os
+
 from src.adapters.dummy_adapter import DummyToolAdapter
 from src.adapters.esmfold_adapter import ESMFoldAdapter
+from src.adapters.nim_adapter import NIMESMFoldAdapter
 from src.adapters.protein_mpnn_adapter import ProteinMPNNAdapter
 from src.adapters.registry import get_adapter, register_adapter
 from src.tools.visualization.adapter import VisualizationToolAdapter
@@ -27,10 +30,17 @@ def ensure_builtin_adapters() -> None:
         get_adapter(VisualizationToolAdapter.tool_id)
     except KeyError:
         register_adapter(VisualizationToolAdapter())
-    try:
-        get_adapter(ESMFoldAdapter.tool_id)
-    except KeyError:
-        register_adapter(ESMFoldAdapter())
+    nim_api_key = os.getenv("NIM_API_KEY")
+    if nim_api_key:
+        try:
+            get_adapter(NIMESMFoldAdapter.tool_id)
+        except KeyError:
+            register_adapter(NIMESMFoldAdapter())
+    else:
+        try:
+            get_adapter(ESMFoldAdapter.tool_id)
+        except KeyError:
+            register_adapter(ESMFoldAdapter(), adapter_id="nim_esmfold")
     try:
         get_adapter(ProteinMPNNAdapter.tool_id)
     except KeyError:
