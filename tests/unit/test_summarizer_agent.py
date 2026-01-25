@@ -1,9 +1,26 @@
 """SummarizerAgent单元测试"""
+import json
 import pytest
 from pathlib import Path
-from src.agents.summarizer import SummarizerAgent
+from src.agents.summarizer import (
+    SummarizerAgent,
+    generate_de_novo_report,
+    write_de_novo_reports,
+    _is_de_novo_task,
+    _render_de_novo_markdown,
+    DeNovoReport,
+)
 from src.workflow.context import WorkflowContext
-from src.models.contracts import DesignResult, StepResult
+from src.models.contracts import (
+    DesignResult,
+    StepResult,
+    ProteinDesignTask,
+    Plan,
+    PlanStep,
+    SafetyResult,
+    RiskFlag,
+    now_iso,
+)
 
 
 @pytest.mark.unit
@@ -413,3 +430,379 @@ class TestSummarizerAgent:
         assert result.structure_pdb_path == "/path/to/alphafold_structure.pdb"
         assert result.scores["plddt_mean"] == 0.95
         assert result.scores["confidence"] == "very_high"
+
+
+@pytest.mark.unit
+class TestDeNovoReport:
+    """De Novo 设计报告测试类"""
+
+    @pytest.fixture
+    def de_novo_task(self) -> ProteinDesignTask:
+        """创建 de novo 设计任务"""
+        return ProteinDesignTask(
+            task_id="denovo_test_001",
+            goal="de_novo_design",
+            constraints={
+                "goal_type": "de_novo_design",
+                "length_range": [50, 100],
+            },
+            metadata={},
+        )
+
+    @pytest.fixture
+    def de_novo_context(self, de_novo_task: ProteinDesignTask) -> WorkflowContext:
+        """创建 de novo 设计的工作流上下文"""
+        plan = Plan(
+            task_id=de_novo_task.task_id,
+            steps=[
+                PlanStep(id="S1", tool="protein_mpnn", inputs={"goal": "de_novo_design"}),
+                PlanStep(id="S2", tool="esmfold", inputs={"sequence": "S1.sequence"}),
+            ],
+            constraints=de_novo_task.constraints,
+            metadata={},
+        )
+        return WorkflowContext(
+            task=de_novo_task,
+            plan=plan,
+            step_results={},
+            safety_events=[],
+        )
+
+    def test_is_de_novo_task_with_goal_type(self, de_novo_task: ProteinDesignTask):
+        """测试通过 goal_type 识别 de novo 任务"""
+        assert _is_de_novo_task(de_novo_task) is True
+
+    def test_is_de_novo_task_with_goal_string(self):
+        """测试通过 goal 字符串识别 de novo 任务"""
+        task = ProteinDesignTask(
+            task_id="test_001",
+            goal="de_novo_design",
+            constraints={},
+            metadata={},
+        )
+        assert _is_de_novo_task(task) is True
+
+    def test_is_de_novo_task_returns_false_for_other_tasks(self, sample_task: ProteinDesignTask):
+        """测试非 de novo 任务返回 False"""
+        assert _is_de_novo_task(sample_task) is False
+
+    def test_generate_de_novo_report_success(
+        self, de_novo_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试成功场景的 de novo 报告生成"""
+        context = de_novo_context
+
+        # 添加序列设计步骤结果
+        mpnn_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="success",
+            inputs={"goal": "de_novo_design", "length_range": [50, 100]},
+            outputs={
+                "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR" * 2,
+                "sequence_score": -2.5,
+            },
+            metrics={"exec_type": "python"},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+        context.step_results["S1"] = mpnn_result
+
+        # 添加结构预测步骤结果
+        esmfold_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S2",
+            tool="esmfold",
+            status="success",
+            inputs={"sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR" * 2},
+            outputs={
+                "pdb_path": "/path/to/structure.pdb",
+                "metrics": {
+                    "plddt_mean": 0.88,
+                    "confidence": "high",
+                },
+            },
+            metrics={"exec_type": "nextflow"},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+        context.step_results["S2"] = esmfold_result
+
+        report = generate_de_novo_report(context)
+
+        # 验证基本信息
+        assert report.task_id == "denovo_test_001"
+        assert report.status == "success"
+        assert report.design_goal == "de_novo_design"
+
+        # 验证工具链
+        assert report.tool_chain.sequence_design_tool == "protein_mpnn"
+        assert report.tool_chain.structure_prediction_tool == "esmfold"
+
+        # 验证步骤摘要
+        assert len(report.step_summaries) == 2
+        assert report.step_summaries[0].step_id == "S1"
+        assert report.step_summaries[1].step_id == "S2"
+
+        # 验证成功报告
+        assert report.success_report is not None
+        assert report.success_report.sequence_length == 70
+        assert report.success_report.structure_pdb_path == "/path/to/structure.pdb"
+        assert report.success_report.plddt_mean == 0.88
+        assert report.success_report.confidence == "high"
+
+        # 验证没有失败报告
+        assert report.failure_report is None
+
+    def test_generate_de_novo_report_failure(
+        self, de_novo_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试失败场景的 de novo 报告生成"""
+        context = de_novo_context
+
+        # 添加失败的步骤结果
+        failed_result = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="failed",
+            failure_type="tool_execution_error",
+            error_message="CUDA out of memory",
+            inputs={"goal": "de_novo_design"},
+            outputs={},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+        context.step_results["S1"] = failed_result
+
+        report = generate_de_novo_report(context)
+
+        # 验证状态
+        assert report.status == "failed"
+
+        # 验证失败报告
+        assert report.failure_report is not None
+        assert report.failure_report.failed_step_id == "S1"
+        assert report.failure_report.failed_tool == "protein_mpnn"
+        assert report.failure_report.failure_type == "tool_execution_error"
+        assert report.failure_report.error_message == "CUDA out of memory"
+        assert len(report.failure_report.suggested_next_steps) > 0
+
+    def test_generate_de_novo_report_with_safety_block(
+        self, de_novo_context: WorkflowContext
+    ):
+        """测试安全阻断场景的 de novo 报告生成"""
+        context = de_novo_context
+
+        # 添加安全事件
+        safety_event = SafetyResult(
+            task_id=context.task.task_id,
+            phase="input",
+            scope="task",
+            risk_flags=[
+                RiskFlag(
+                    level="block",
+                    code="BIOSECURITY_RISK",
+                    message="检测到潜在的生物安全风险序列",
+                    scope="input",
+                )
+            ],
+            action="block",
+            timestamp=now_iso(),
+        )
+        context.safety_events.append(safety_event)
+
+        report = generate_de_novo_report(context)
+
+        # 验证状态
+        assert report.status == "failed"
+
+        # 验证失败报告包含安全信息
+        assert report.failure_report is not None
+        assert report.failure_report.safety_action == "block"
+        assert "生物安全风险" in report.failure_report.safety_reason
+
+    def test_write_de_novo_reports(
+        self, de_novo_context: WorkflowContext, tmp_path: Path
+    ):
+        """测试写入 de novo 报告文件"""
+        context = de_novo_context
+
+        # 添加成功的步骤结果
+        context.step_results["S1"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="success",
+            outputs={"sequence": "MKFLKFSLLTAV"},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        report = generate_de_novo_report(context)
+        report_dir = tmp_path / "reports"
+
+        json_path, md_path = write_de_novo_reports(report, report_dir)
+
+        # 验证文件创建
+        assert json_path.exists()
+        assert md_path.exists()
+
+        # 验证 JSON 内容
+        json_content = json.loads(json_path.read_text())
+        assert json_content["task_id"] == "denovo_test_001"
+        assert json_content["status"] == "success"
+
+        # 验证 Markdown 内容
+        md_content = md_path.read_text()
+        assert "# De Novo 蛋白设计报告" in md_content
+        assert "denovo_test_001" in md_content
+        assert "✅" in md_content  # 成功状态
+
+    def test_render_de_novo_markdown_success(self, de_novo_context: WorkflowContext):
+        """测试成功场景的 Markdown 渲染"""
+        context = de_novo_context
+        context.step_results["S1"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="success",
+            outputs={"sequence": "MKFLKFSLLTAV"},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        report = generate_de_novo_report(context)
+        md_content = _render_de_novo_markdown(report)
+
+        # 验证 Markdown 结构
+        assert "## 任务概览" in md_content
+        assert "## 工具链" in md_content
+        assert "## 执行步骤" in md_content
+        assert "## 设计结果" in md_content
+        assert "✅ success" in md_content
+
+    def test_render_de_novo_markdown_failure(self, de_novo_context: WorkflowContext):
+        """测试失败场景的 Markdown 渲染"""
+        context = de_novo_context
+        context.step_results["S1"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="failed",
+            failure_type="tool_execution_error",
+            error_message="Connection timeout",
+            outputs={},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        report = generate_de_novo_report(context)
+        md_content = _render_de_novo_markdown(report)
+
+        # 验证 Markdown 结构
+        assert "## 失败分析" in md_content
+        assert "### 建议的下一步" in md_content
+        assert "❌ failed" in md_content
+        assert "Connection timeout" in md_content
+
+    def test_summarizer_generates_de_novo_reports(
+        self, de_novo_context: WorkflowContext, tmp_path: Path, monkeypatch
+    ):
+        """测试 SummarizerAgent 为 de novo 任务生成专用报告"""
+        import src.agents.summarizer as summarizer_module
+
+        context = de_novo_context
+
+        # 添加步骤结果
+        context.step_results["S1"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="success",
+            outputs={"sequence": "MKFLKFSLLTAV" * 5},
+            metrics={"exec_type": "python"},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+        context.step_results["S2"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S2",
+            tool="esmfold",
+            status="success",
+            outputs={
+                "pdb_path": "/path/to/output.pdb",
+                "metrics": {"plddt_mean": 0.85},
+            },
+            metrics={"exec_type": "nextflow"},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        # 使用临时目录
+        report_dir = tmp_path / "nf" / "output" / "reports"
+        monkeypatch.setattr(
+            summarizer_module,
+            "Path",
+            lambda p: tmp_path / p if p == "output/reports" else Path(p),
+        )
+
+        summarizer = SummarizerAgent()
+        result = summarizer.summarize(context)
+
+        # 验证 de novo 报告路径在 metadata 中
+        assert "de_novo_json_path" in result.metadata
+        assert "de_novo_markdown_path" in result.metadata
+        assert result.metadata["report_source"] == "de_novo_markdown"
+
+        # 验证报告文件存在
+        json_path = Path(result.metadata["de_novo_json_path"])
+        md_path = Path(result.metadata["de_novo_markdown_path"])
+        assert json_path.exists()
+        assert md_path.exists()
+
+    def test_de_novo_report_partial_success(self, de_novo_context: WorkflowContext):
+        """测试部分成功场景（第一步成功，第二步失败）"""
+        context = de_novo_context
+
+        # S1 成功
+        context.step_results["S1"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S1",
+            tool="protein_mpnn",
+            status="success",
+            outputs={"sequence": "MKFLKFSLLTAV"},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        # S2 失败
+        context.step_results["S2"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S2",
+            tool="esmfold",
+            status="failed",
+            failure_type="tool_execution_error",
+            error_message="GPU unavailable",
+            outputs={},
+            metrics={},
+            risk_flags=[],
+            timestamp=now_iso(),
+        )
+
+        report = generate_de_novo_report(context)
+
+        # 验证部分成功状态
+        assert report.status == "partial"
+
+        # 验证同时包含成功和失败信息
+        assert report.success_report is not None
+        assert report.success_report.final_sequence == "MKFLKFSLLTAV"
+        assert report.failure_report is not None
+        assert report.failure_report.failed_step_id == "S2"
