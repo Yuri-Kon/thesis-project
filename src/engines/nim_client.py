@@ -42,7 +42,7 @@ class NvidiaNIMClient:
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message="NIM API key is missing",
-                code=FailureCode.NIM_API_KEY_MISSING.value,
+                code=FailureCode.NIM_AUTH_FAILED.value,
             )
 
         invoke_url = _build_invoke_url(self.base_url, self.model_id)
@@ -78,15 +78,26 @@ class NvidiaNIMClient:
             raise
         except httpx.HTTPStatusError as exc:
             status_code = exc.response.status_code
-            failure_code = (
-                FailureCode.NIM_HTTP_5XX
-                if status_code >= 500
-                else FailureCode.NIM_HTTP_4XX
-            )
+            if status_code in {401, 403}:
+                failure_code = FailureCode.NIM_AUTH_FAILED
+                failure_type = FailureType.NON_RETRYABLE
+            elif status_code == 429:
+                failure_code = FailureCode.NIM_QUOTA_EXCEEDED
+                failure_type = FailureType.RETRYABLE
+            elif status_code == 404:
+                failure_code = FailureCode.NIM_MODEL_NOT_FOUND
+                failure_type = FailureType.NON_RETRYABLE
+            elif status_code in {400, 422}:
+                failure_code = FailureCode.NIM_INVALID_INPUT
+                failure_type = FailureType.NON_RETRYABLE
+            elif status_code >= 500:
+                failure_code = FailureCode.NIM_MODEL_ERROR
+                failure_type = FailureType.RETRYABLE
+            else:
+                failure_code = FailureCode.NIM_INVALID_INPUT
+                failure_type = FailureType.NON_RETRYABLE
             raise StepRunError(
-                failure_type=FailureType.RETRYABLE
-                if status_code >= 500
-                else FailureType.NON_RETRYABLE,
+                failure_type=failure_type,
                 message=f"NIM request failed: HTTP {status_code}",
                 code=failure_code.value,
             ) from exc

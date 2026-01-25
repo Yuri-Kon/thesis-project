@@ -18,9 +18,16 @@ from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 
 from src.workflow.context import WorkflowContext
 from src.workflow.plan_runner import PlanRunner, StepRunnerLike
-from src.workflow.errors import FailureType, PlanRunError, StepRunError
+from src.workflow.errors import (
+    FailureCode,
+    FailureType,
+    PlanRunError,
+    StepRunError,
+    build_error_meta,
+)
 from src.agents.safety import SafetyAgent
 from src.agents.planner import PlannerAgent, ToolSpec
+from src.workflow.patch_runner import PatchRunOutcome
 
 
 def _resolve_inputs(step: PlanStep, context: WorkflowContext) -> dict:
@@ -635,8 +642,8 @@ def test_auto_replan_resolves_pending_action(
                     step_id=step.id,
                     tool=step.tool,
                     status="failed",
-                    failure_type=FailureType.SAFETY_BLOCK,
-                    error_message="blocked",
+                    failure_type=FailureType.TOOL_ERROR,
+                    error_message="tool error",
                     error_details={},
                     outputs={},
                     metrics={},
@@ -1130,3 +1137,79 @@ def test_plan_runner_blocks_on_final_safety(
     assert planned_context.status == InternalStatus.WAITING_REPLAN
     assert planned_context.pending_action is not None
     assert planned_context.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
+
+
+def test_failed_step_builds_replan_pending_action_with_nim_option() -> None:
+    """失败步骤触发 WAITING_REPLAN，并包含 NIM 回退选项。"""
+    task = ProteinDesignTask(
+        task_id="test_nim_failure",
+        goal="test",
+        constraints={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(
+                id="S1",
+                tool="esmfold",
+                inputs={"sequence": "ACDEFG"},
+                metadata={},
+            )
+        ],
+    )
+    context = WorkflowContext(
+        task=task,
+        status=InternalStatus.PLANNED,
+        plan=None,
+        step_results={},
+        design_result=None,
+        safety_events=[],
+        pending_action=None,
+    )
+
+    now = now_iso()
+    error_details = build_error_meta(
+        failure_code=FailureCode.NIM_AUTH_FAILED,
+        phase="tool_execution",
+        timestamp=now,
+    )
+    failed_result = StepResult(
+        task_id=task.task_id,
+        step_id="S1",
+        tool="esmfold",
+        status="failed",
+        failure_type=FailureType.NON_RETRYABLE,
+        error_message="NIM auth failed",
+        error_details=error_details,
+        outputs={},
+        metrics={},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now,
+    )
+
+    class DummyPatchRunner:
+        def run_step_with_patch(self, plan, step_index, context, record=None):
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[failed_result],
+                next_step_index=step_index + 1,
+            )
+
+    plan_runner = PlanRunner(
+        safety_agent=SafetyAgent(),
+        patch_runner=DummyPatchRunner(),
+    )
+
+    with pytest.raises(PlanRunError):
+        plan_runner.run_plan(plan, context, finalize_status=False)
+
+    assert context.status == InternalStatus.WAITING_REPLAN
+    assert context.pending_action is not None
+    assert "NIM_AUTH_FAILED" in context.pending_action.explanation
+    assert "switch_to_local_esmfold" in context.pending_action.explanation
+    assert any(
+        flag.code == "NIM_AUTH_FAILED"
+        for event in context.safety_events
+        for flag in event.risk_flags
+    )

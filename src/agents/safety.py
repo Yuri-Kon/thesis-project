@@ -13,6 +13,8 @@ A4 阶段：实现接口框架和伪实现，返回 SafetyResult 占位。
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from src.models.contracts import (
     ProteinDesignTask,
     Plan,
@@ -24,6 +26,7 @@ from src.models.contracts import (
     now_iso,
 )
 from src.workflow.context import WorkflowContext
+from src.workflow.errors import FailureCode
 
 __all__ = ["SafetyAgent"]
 
@@ -45,6 +48,9 @@ class SafetyAgent:
     Attributes:
         无（A4 阶段暂不需要配置）
     """
+
+    _AMINO_ACIDS = set("ACDEFGHIKLMNPQRSTVWY")
+    _DEFAULT_PLDDT_THRESHOLD = 0.7
 
     def check_task_input(
         self, task: ProteinDesignTask, plan: Plan | None = None
@@ -129,13 +135,59 @@ class SafetyAgent:
             A4 阶段返回占位结果，action 为 "allow"，risk_flags 为空
             如果 action 为 "block"，调用方应该考虑触发重规划
         """
-        # A4: 伪实现，返回占位结果
+        risk_flags: list[RiskFlag] = []
+        action = "allow"
+
+        if step_result.status == "failed":
+            risk_flags.append(
+                self._build_failure_flag(
+                    step,
+                    step_result,
+                    failure_code=self._extract_failure_code(step_result),
+                    failure_reason=step_result.error_message or "step execution failed",
+                )
+            )
+            action = "block"
+        elif step.tool == "protein_mpnn":
+            sequence = step_result.outputs.get("sequence")
+            if not self._is_valid_sequence(sequence):
+                risk_flags.append(
+                    self._build_failure_flag(
+                        step,
+                        step_result,
+                        failure_code="PROTEIN_MPNN_INVALID_SEQUENCE",
+                        failure_reason="ProteinMPNN did not produce a valid sequence",
+                        extra_details={"sequence": sequence},
+                    )
+                )
+                action = "block"
+        elif step.tool == "esmfold":
+            plddt = self._extract_plddt(step_result)
+            if plddt is not None:
+                threshold = self._resolve_plddt_threshold(context, plddt)
+                if plddt < threshold:
+                    risk_flags.append(
+                        self._build_failure_flag(
+                            step,
+                            step_result,
+                            failure_code="ESMFOLD_LOW_PLDDT",
+                            failure_reason=(
+                                f"ESMFold pLDDT below threshold: {plddt} < {threshold}"
+                            ),
+                            extra_details={
+                                "plddt": plddt,
+                                "threshold": threshold,
+                            },
+                        )
+                    )
+                    action = "block"
+
         return SafetyResult(
             task_id=context.task.task_id,
             phase="step",
             scope=f"step:{step.id}",
-            risk_flags=[],
-            action="allow",
+            risk_flags=risk_flags,
+            action=action,
             timestamp=now_iso(),
         )
 
@@ -168,4 +220,73 @@ class SafetyAgent:
             risk_flags=[],
             action="allow",
             timestamp=now_iso(),
+        )
+
+    def _is_valid_sequence(self, sequence: object) -> bool:
+        if not isinstance(sequence, str) or not sequence:
+            return False
+        return all(residue in self._AMINO_ACIDS for residue in sequence)
+
+    def _extract_plddt(self, step_result: StepResult) -> Optional[float]:
+        outputs = step_result.outputs or {}
+        if isinstance(outputs.get("plddt"), (int, float)):
+            return float(outputs["plddt"])
+        metrics = outputs.get("metrics")
+        if isinstance(metrics, dict) and isinstance(metrics.get("plddt_mean"), (int, float)):
+            return float(metrics["plddt_mean"])
+        return None
+
+    def _resolve_plddt_threshold(
+        self,
+        context: WorkflowContext,
+        plddt_value: float,
+    ) -> float:
+        raw = (
+            context.task.constraints.get("plddt_threshold")
+            or context.task.constraints.get("min_plddt")
+            or self._DEFAULT_PLDDT_THRESHOLD
+        )
+        try:
+            threshold = float(raw)
+        except (TypeError, ValueError):
+            threshold = self._DEFAULT_PLDDT_THRESHOLD
+        if plddt_value > 1.0 and threshold <= 1.0:
+            return threshold * 100
+        return threshold
+
+    def _extract_failure_code(self, step_result: StepResult) -> str:
+        failure_code = ""
+        if isinstance(step_result.error_details, dict):
+            value = step_result.error_details.get("failure_code")
+            if isinstance(value, FailureCode):
+                failure_code = value.value
+            elif isinstance(value, str):
+                failure_code = value
+        return failure_code or "STEP_EXECUTION_FAILED"
+
+    def _build_failure_flag(
+        self,
+        step: PlanStep,
+        step_result: StepResult,
+        *,
+        failure_code: str,
+        failure_reason: str,
+        extra_details: Optional[dict] = None,
+    ) -> RiskFlag:
+        details = {
+            "failure_code": failure_code,
+            "failure_reason": failure_reason,
+            "failure_type": step_result.failure_type,
+            "step_id": step.id,
+            "tool": step.tool,
+        }
+        if extra_details:
+            details.update(extra_details)
+        return RiskFlag(
+            level="block",
+            code=failure_code,
+            message=failure_reason,
+            scope="step",
+            step_id=step.id,
+            details=details,
         )

@@ -30,17 +30,16 @@ def ensure_builtin_adapters() -> None:
         get_adapter(VisualizationToolAdapter.tool_id)
     except KeyError:
         register_adapter(VisualizationToolAdapter())
+    try:
+        get_adapter(ESMFoldAdapter.tool_id)
+    except KeyError:
+        register_adapter(ESMFoldAdapter())
     nim_api_key = os.getenv("NIM_API_KEY")
     if nim_api_key:
         try:
             get_adapter(NIMESMFoldAdapter.tool_id)
         except KeyError:
             register_adapter(NIMESMFoldAdapter())
-    else:
-        try:
-            get_adapter(ESMFoldAdapter.tool_id)
-        except KeyError:
-            register_adapter(ESMFoldAdapter(), adapter_id="nim_esmfold")
     try:
         get_adapter(ProteinMPNNAdapter.tool_id)
     except KeyError:

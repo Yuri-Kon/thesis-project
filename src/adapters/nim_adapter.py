@@ -19,7 +19,7 @@ __all__ = ["NIMESMFoldAdapter"]
 class NIMESMFoldAdapter(BaseToolAdapter):
     """ESMFold adapter via NVIDIA NIM (sync)."""
 
-    tool_id = "esmfold"
+    tool_id = "nim_esmfold"
     adapter_id = "nim_esmfold"
 
     def __init__(
