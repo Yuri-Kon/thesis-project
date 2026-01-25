@@ -52,7 +52,7 @@
    - 继承 `BaseToolAdapter`
    - 输入转换：`{"sequence": "..."}` → NIM 格式
    - 输出转换：NIM 响应 → `{"pdb_path": ..., "plddt": ..., "pdb_string": ...}`
-   - 当 `NVIDIA_API_KEY` 环境变量存在时自动注册
+   - 当 `NIM_API_KEY` 环境变量存在时自动注册
 
 ## 工作流程
 
@@ -371,7 +371,7 @@ class ProviderConfig:
     provider_type: str           # e.g. "nvidia_nim"
     description: str = ""
     base_url: str = ""
-    api_key_env: str = ""        # 环境变量名，如 "NVIDIA_API_KEY"
+    api_key_env: str = ""        # 环境变量名，如 "NIM_API_KEY"
     timeout: float = 60.0
     max_retries: int = 3
     extra: Dict[str, Any] = field(default_factory=dict)
@@ -391,7 +391,7 @@ class ProviderConfig:
       "provider_type": "nvidia_nim",
       "description": "NVIDIA NIM Biology Models",
       "base_url": "https://integrate.api.nvidia.com/v1",
-      "api_key_env": "NVIDIA_API_KEY",
+      "api_key_env": "NIM_API_KEY",
       "timeout": 60,
       "max_retries": 3,
       "extra": {
@@ -412,7 +412,7 @@ configs = load_provider_config()
 
 # 获取特定提供商配置
 nim_config = get_provider_config("nvidia_nim")
-api_key = nim_config.get_api_key()  # 从 NVIDIA_API_KEY 环境变量获取
+api_key = nim_config.get_api_key()  # 从 NIM_API_KEY 环境变量获取
 ```
 
 ### NIM Client 使用示例
@@ -464,14 +464,14 @@ outputs, metrics = adapter.run_local({
 
 ### 自动注册
 
-在 `src/adapters/builtins.py` 中，当检测到 `NVIDIA_API_KEY` 环境变量时，会自动注册 `NIMESMFoldAdapter`：
+在 `src/adapters/builtins.py` 中，当检测到 `NIM_API_KEY` 环境变量时，会自动注册 `NIMESMFoldAdapter`：
 
 ```python
 def ensure_builtin_adapters():
     # ... 其他注册 ...
 
     # NIM ESMFold（当 API key 存在时）
-    if os.getenv("NVIDIA_API_KEY"):
+    if os.getenv("NIM_API_KEY"):
         from src.adapters.nim_adapter import NIMESMFoldAdapter
         register_adapter("nim_esmfold", NIMESMFoldAdapter)
 ```
