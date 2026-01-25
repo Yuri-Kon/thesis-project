@@ -86,7 +86,9 @@ class StepResult(BaseModel):
     error_message: Optional[str] = None
     # 可选错误细节，用于附加上下文（例如 trace_id / 原始异常消息等）
     error_details: Dict = Field(default_factory=dict)
+    inputs: Dict = Field(default_factory=dict)
     outputs: Dict = Field(default_factory=dict)
+    artifacts: Dict = Field(default_factory=dict)
     metrics: Dict = Field(default_factory=dict)
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     logs_path: Optional[str] = None

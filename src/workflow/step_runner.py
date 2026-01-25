@@ -10,7 +10,7 @@ step_runner.py
 - 根据统一数据契约生成 StepResult, 并写入：
     - task_id / step_id / tool
     - status
-    - outputs / metrics
+    - inputs / outputs / artifacts / metrics
     - risk_flags
     - logs_path
     - timestamp
@@ -23,7 +23,9 @@ from time import perf_counter, sleep
 from typing import Any, Callable, Dict
 
 from src.models.contracts import PlanStep, StepResult
+from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.adapters.registry import get_adapter
+from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.workflow.context import WorkflowContext
 from src.agents.safety import SafetyAgent
 from src.workflow.errors import (
@@ -98,7 +100,7 @@ class StepRunner:
         - 返回一个StepResult实例，并满足:
             - task_id == context.task.task_id
             - step_id == step.id
-            - tool == step.tool
+            - tool == step.tool（若发生 fallback 则记录实际执行的 tool）
             - status == "success"（若输入解析失败则返回 failed）
             - metrics:
                 - 至少包含：
@@ -188,7 +190,9 @@ class StepRunner:
                     phase="safety_precheck",
                     timestamp=now_iso,
                 ),
+                inputs={},
                 outputs={},
+                artifacts={},
                 metrics={
                     "exec_type": "safety_precheck",
                     "duration_ms": duration_ms,
@@ -200,7 +204,7 @@ class StepRunner:
         
         # 获取适配器
         try:
-            adapter = get_adapter(step.tool)
+            adapter, resolved_tool_id, adapter_meta = self._resolve_adapter(step)
         except KeyError as exc:
             duration_ms = int((perf_counter() - t0) * 1000)
             now_iso = datetime.now(timezone.utc).isoformat()
@@ -218,7 +222,9 @@ class StepRunner:
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
                 ),
+                inputs={},
                 outputs={},
+                artifacts={},
                 metrics={
                     "exec_type": "adapter_lookup",
                     "duration_ms": duration_ms,
@@ -237,7 +243,7 @@ class StepRunner:
             return StepResult(
                 task_id=context.task.task_id,
                 step_id=step.id,
-                tool=step.tool,
+                tool=resolved_tool_id,
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE,
                 error_message=str(exc),
@@ -248,7 +254,9 @@ class StepRunner:
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
                 ),
+                inputs={},
                 outputs={},
+                artifacts={},
                 metrics={
                     "exec_type": "input_resolution",
                     "duration_ms": duration_ms,
@@ -263,6 +271,16 @@ class StepRunner:
             outputs_payload, adapter_metrics = adapter.run_local(resolved_inputs)
             self._validate_outputs(step, outputs_payload)
         except StepRunError as exc:
+            fallback_result = self._try_fallback_after_error(
+                step=step,
+                context=context,
+                resolved_inputs=resolved_inputs,
+                error=exc,
+                requested_tool=resolved_tool_id,
+                start_time=t0,
+            )
+            if fallback_result is not None:
+                return fallback_result
             duration_ms = int((perf_counter() - t0) * 1000)
             now_iso = datetime.now(timezone.utc).isoformat()
             # 工具失败（可重试/不可重试由 failure_type 决定）
@@ -271,7 +289,7 @@ class StepRunner:
             return StepResult(
                 task_id=context.task.task_id,
                 step_id=step.id,
-                tool=step.tool,
+                tool=resolved_tool_id,
                 status="failed",
                 failure_type=exc.failure_type,
                 error_message=str(exc),
@@ -282,10 +300,13 @@ class StepRunner:
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
                 ),
+                inputs=resolved_inputs,
                 outputs={},
+                artifacts={},
                 metrics={
                     "exec_type": "tool_execution",
                     "duration_ms": duration_ms,
+                    **adapter_meta,
                 },
                 risk_flags=[],
                 logs_path=None,
@@ -297,7 +318,7 @@ class StepRunner:
             return StepResult(
                 task_id=context.task.task_id,
                 step_id=step.id,
-                tool=step.tool,
+                tool=resolved_tool_id,
                 status="failed",
                 failure_type=FailureType.TOOL_ERROR,
                 error_message=f"Unexpected tool exception: {exc}",
@@ -308,92 +329,28 @@ class StepRunner:
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
                 ),
+                inputs=resolved_inputs,
                 outputs={},
+                artifacts={},
                 metrics={
                     "exec_type": "tool_execution",
                     "duration_ms": duration_ms,
+                    **adapter_meta,
                 },
                 risk_flags=[],
                 logs_path=None,
                 timestamp=now_iso,
             )
-
-        # 计算执行时间
-        duration_ms = int((perf_counter() - t0) * 1000)
-
-        # 生成 ISO 8601 时间戳
-        now_iso = datetime.now(timezone.utc).isoformat()
-
-        metrics_payload = dict(adapter_metrics or {})
-        metrics_payload.setdefault("exec_type", "adapter_local")
-        metrics_payload.setdefault("duration_ms", duration_ms)
-
-        # A4: 安全检查 - 步骤执行后
-        # 先构造一个临时的 StepResult 用于安全检查
-        temp_result = StepResult(
-            task_id=context.task.task_id,
-            step_id=step.id,
-            tool=step.tool,
-            status="success",
-            failure_type=None,
-            error_message=None,
-            error_details={},
-            outputs=outputs_payload,
-            metrics=metrics_payload,
-            risk_flags=[],
-            logs_path=None,
-            timestamp=now_iso,
+        return self._build_success_result(
+            step=step,
+            context=context,
+            tool_id=resolved_tool_id,
+            resolved_inputs=resolved_inputs,
+            outputs_payload=outputs_payload,
+            adapter_metrics=adapter_metrics,
+            start_time=t0,
+            metrics_extra=adapter_meta,
         )
-        
-        post_safety_result = self._safety_agent.check_post_step(
-            step, temp_result, context
-        )
-        self._add_safety_event(context, post_safety_result)
-        if post_safety_result.action == "block":
-            duration_ms = int((perf_counter() - t0) * 1000)
-            now_iso = datetime.now(timezone.utc).isoformat()
-            return StepResult(
-                task_id=context.task.task_id,
-                step_id=step.id,
-                tool=step.tool,
-                status="failed",
-                failure_type=FailureType.SAFETY_BLOCK,
-                error_message=f"SafetyAgent blocked step {step.id} after execution",
-                error_details=build_error_meta(
-                    failure_code=FailureCode.SAFETY_POST_BLOCK,
-                    phase="safety_postcheck",
-                    timestamp=now_iso,
-                ),
-                outputs=temp_result.outputs,
-                metrics={
-                    "exec_type": "safety_postcheck",
-                    "duration_ms": duration_ms,
-                },
-                risk_flags=post_safety_result.risk_flags,
-                logs_path=None,
-                timestamp=now_iso,
-            )
-        
-        # 从 post_safety_result 中提取 risk_flags
-        risk_flags = post_safety_result.risk_flags
-
-        # 构造最终的 StepResult，包含安全检查结果
-        result = StepResult(
-            task_id=context.task.task_id,
-            step_id=step.id,
-            tool=step.tool,
-            status="success",
-            failure_type=None,
-            error_message=None,
-            error_details={},
-            outputs=outputs_payload,
-            metrics=metrics_payload,
-            risk_flags=risk_flags,
-            logs_path=None,
-            timestamp=now_iso,
-        )
-
-        return result
 
     def _normalize_failure_type(self, failure_type: Any) -> FailureType | None:
         """容忍 str/枚举/None 的混合输入，统一为 FailureType"""
@@ -512,3 +469,304 @@ class StepRunner:
         if py_type is None:
             return True  # 未知类型名时不强校验，保持宽松
         return isinstance(value, py_type)
+
+    def _resolve_adapter(
+        self, step: PlanStep
+    ) -> tuple[BaseToolAdapter, str, dict]:
+        """解析适配器，必要时回退到本地工具"""
+        try:
+            adapter = get_adapter(step.tool)
+            return adapter, step.tool, {}
+        except KeyError:
+            fallback_tool = self._select_fallback_tool(step)
+            if not fallback_tool:
+                raise
+            adapter = get_adapter(fallback_tool)
+            return (
+                adapter,
+                fallback_tool,
+                {
+                    "requested_tool": step.tool,
+                    "fallback_from": step.tool,
+                    "fallback_reason": "adapter_missing",
+                },
+            )
+
+    def _try_fallback_after_error(
+        self,
+        *,
+        step: PlanStep,
+        context: WorkflowContext,
+        resolved_inputs: Dict[str, Any],
+        error: StepRunError,
+        requested_tool: str,
+        start_time: float,
+    ) -> StepResult | None:
+        if not self._should_fallback_from_error(step, error):
+            return None
+
+        fallback_tool = self._select_fallback_tool(step)
+        if not fallback_tool or fallback_tool == requested_tool:
+            return None
+
+        try:
+            adapter = get_adapter(fallback_tool)
+        except KeyError:
+            return None
+
+        try:
+            outputs_payload, adapter_metrics = adapter.run_local(resolved_inputs)
+            self._validate_outputs(step, outputs_payload)
+        except StepRunError as exc:
+            duration_ms = int((perf_counter() - start_time) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            error_code = getattr(exc, "code", None)
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=fallback_tool,
+                status="failed",
+                failure_type=exc.failure_type,
+                error_message=str(exc),
+                error_details=build_error_meta(
+                    failure_code=error_code or FailureCode.TOOL_EXECUTION_ERROR,
+                    phase="tool_execution",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
+                inputs=resolved_inputs,
+                outputs={},
+                artifacts={},
+                metrics={
+                    "exec_type": "tool_execution",
+                    "duration_ms": duration_ms,
+                    "fallback_from": requested_tool,
+                    "fallback_reason": "nim_unavailable",
+                    "requested_tool": step.tool,
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
+        except Exception as exc:
+            duration_ms = int((perf_counter() - start_time) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=fallback_tool,
+                status="failed",
+                failure_type=FailureType.TOOL_ERROR,
+                error_message=f"Unexpected tool exception: {exc}",
+                error_details=build_error_meta(
+                    failure_code=FailureCode.TOOL_UNEXPECTED_ERROR,
+                    phase="tool_execution",
+                    timestamp=now_iso,
+                    exception_type=type(exc).__name__,
+                    exception_message=str(exc),
+                ),
+                inputs=resolved_inputs,
+                outputs={},
+                artifacts={},
+                metrics={
+                    "exec_type": "tool_execution",
+                    "duration_ms": duration_ms,
+                    "fallback_from": requested_tool,
+                    "fallback_reason": "nim_unavailable",
+                    "requested_tool": step.tool,
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
+
+        return self._build_success_result(
+            step=step,
+            context=context,
+            tool_id=fallback_tool,
+            resolved_inputs=resolved_inputs,
+            outputs_payload=outputs_payload,
+            adapter_metrics=adapter_metrics,
+            start_time=start_time,
+            metrics_extra={
+                "fallback_from": requested_tool,
+                "fallback_reason": "nim_unavailable",
+                "requested_tool": step.tool,
+            },
+        )
+
+    def _should_fallback_from_error(self, step: PlanStep, error: StepRunError) -> bool:
+        tool_entry = self._lookup_tool_entry(step.tool)
+        if not tool_entry or not _is_remote_execution(tool_entry.get("execution")):
+            return False
+        code = getattr(error, "code", None)
+        return code in {
+            FailureCode.NIM_AUTH_FAILED.value,
+            FailureCode.NIM_API_KEY_MISSING.value,
+            FailureCode.NIM_NETWORK_ERROR.value,
+            FailureCode.NIM_TIMEOUT.value,
+        }
+
+    def _select_fallback_tool(self, step: PlanStep) -> str | None:
+        tool_entry = self._lookup_tool_entry(step.tool)
+        if not tool_entry:
+            return None
+        if not _is_remote_execution(tool_entry.get("execution")):
+            return None
+        capabilities = tool_entry.get("capabilities", [])
+        if not isinstance(capabilities, list) or not capabilities:
+            return None
+        required_inputs = set(step.inputs.keys())
+        candidates: list[str] = []
+        for tool in self._iter_tools():
+            tool_id = tool.get("id")
+            if not tool_id or tool_id == step.tool:
+                continue
+            if _is_remote_execution(tool.get("execution")):
+                continue
+            tool_caps = tool.get("capabilities", [])
+            if not isinstance(tool_caps, list) or not tool_caps:
+                continue
+            if not set(tool_caps).intersection(capabilities):
+                continue
+            io_inputs = tool.get("io", {}).get("inputs", {})
+            if isinstance(io_inputs, dict):
+                if not set(io_inputs.keys()).issubset(required_inputs):
+                    continue
+            try:
+                get_adapter(tool_id)
+            except KeyError:
+                continue
+            candidates.append(tool_id)
+        if not candidates:
+            return None
+        if "esmfold" in candidates:
+            return "esmfold"
+        return sorted(candidates)[0]
+
+    def _lookup_tool_entry(self, tool_id: str) -> Dict[str, Any] | None:
+        for tool in self._iter_tools():
+            if tool.get("id") == tool_id:
+                return tool
+        return None
+
+    def _iter_tools(self) -> list[dict]:
+        try:
+            kg = load_tool_kg()
+        except ToolKGError:
+            return []
+        tools = kg.get("tools", [])
+        if isinstance(tools, list):
+            return tools
+        return []
+
+    def _extract_artifacts(self, outputs: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(outputs, dict):
+            return {}
+        artifacts: Dict[str, Any] = {}
+        if "artifacts" in outputs:
+            artifacts_value = outputs.get("artifacts")
+            if isinstance(artifacts_value, dict):
+                artifacts.update(artifacts_value)
+            else:
+                artifacts["artifacts"] = artifacts_value
+        if "pdb_path" in outputs and "pdb_path" not in artifacts:
+            artifacts["pdb_path"] = outputs.get("pdb_path")
+        return artifacts
+
+    def _build_success_result(
+        self,
+        *,
+        step: PlanStep,
+        context: WorkflowContext,
+        tool_id: str,
+        resolved_inputs: Dict[str, Any],
+        outputs_payload: Dict[str, Any],
+        adapter_metrics: Dict[str, Any] | None,
+        start_time: float,
+        metrics_extra: Dict[str, Any] | None = None,
+    ) -> StepResult:
+        duration_ms = int((perf_counter() - start_time) * 1000)
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        metrics_payload = dict(adapter_metrics or {})
+        metrics_payload.setdefault("exec_type", "adapter_local")
+        metrics_payload.setdefault("duration_ms", duration_ms)
+        if metrics_extra:
+            metrics_payload.update(metrics_extra)
+
+        artifacts_payload = self._extract_artifacts(outputs_payload)
+
+        temp_result = StepResult(
+            task_id=context.task.task_id,
+            step_id=step.id,
+            tool=tool_id,
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            inputs=resolved_inputs,
+            outputs=outputs_payload,
+            artifacts=artifacts_payload,
+            metrics=metrics_payload,
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso,
+        )
+
+        post_safety_result = self._safety_agent.check_post_step(
+            step, temp_result, context
+        )
+        self._add_safety_event(context, post_safety_result)
+        if post_safety_result.action == "block":
+            duration_ms = int((perf_counter() - start_time) * 1000)
+            now_iso = datetime.now(timezone.utc).isoformat()
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=tool_id,
+                status="failed",
+                failure_type=FailureType.SAFETY_BLOCK,
+                error_message=f"SafetyAgent blocked step {step.id} after execution",
+                error_details=build_error_meta(
+                    failure_code=FailureCode.SAFETY_POST_BLOCK,
+                    phase="safety_postcheck",
+                    timestamp=now_iso,
+                ),
+                inputs=resolved_inputs,
+                outputs=temp_result.outputs,
+                artifacts=artifacts_payload,
+                metrics={
+                    "exec_type": "safety_postcheck",
+                    "duration_ms": duration_ms,
+                },
+                risk_flags=post_safety_result.risk_flags,
+                logs_path=None,
+                timestamp=now_iso,
+            )
+
+        risk_flags = post_safety_result.risk_flags
+
+        return StepResult(
+            task_id=context.task.task_id,
+            step_id=step.id,
+            tool=tool_id,
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            inputs=resolved_inputs,
+            outputs=outputs_payload,
+            artifacts=artifacts_payload,
+            metrics=metrics_payload,
+            risk_flags=risk_flags,
+            logs_path=None,
+            timestamp=now_iso,
+        )
+
+
+def _is_remote_execution(execution: Any) -> bool:
+    if isinstance(execution, dict):
+        return execution.get("backend") == "remote_model_service"
+    return False

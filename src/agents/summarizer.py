@@ -26,13 +26,25 @@ class SummarizerAgent:
 
         # 简单策略：从 step_results 中提取信息
         seq_len = None
+        final_sequence = None
         structure_pdb_path = None
         structure_scores = {}  # 与结构相关的评分指标
+        execution_steps: list[dict] = []
 
-        for r in context.step_results.values():
+        if context.plan is not None:
+            ordered_step_ids = [step.id for step in context.plan.steps]
+        else:
+            ordered_step_ids = list(context.step_results.keys())
+
+        for step_id in ordered_step_ids:
+            r = context.step_results.get(step_id)
+            if r is None:
+                continue
             # 提取序列长度
             if "sequence_length" in r.outputs:
                 seq_len = r.outputs["sequence_length"]
+            if "sequence" in r.outputs:
+                final_sequence = r.outputs["sequence"]
 
             # 提取结构预测结果（通用方式，不限于特定工具）
             # 只要 outputs 包含 pdb_path，就认为是结构预测工具的输出
@@ -54,7 +66,20 @@ class SummarizerAgent:
                     if "confidence" in metrics:
                         structure_scores["confidence"] = metrics["confidence"]
 
+            execution_steps.append(
+                {
+                    "step_id": r.step_id,
+                    "tool": r.tool,
+                    "exec_type": r.metrics.get("exec_type"),
+                    "provider": r.metrics.get("provider"),
+                    "model_id": r.metrics.get("model_id"),
+                    "backend": r.metrics.get("backend"),
+                }
+            )
+
         scores = {}
+        if seq_len is None and final_sequence is not None:
+            seq_len = len(final_sequence)
         if seq_len is not None:
             scores["sequence_length"] = seq_len
         # 合并结构预测的分数
@@ -71,9 +96,15 @@ class SummarizerAgent:
             task_id,
         )
 
+        if final_sequence is None:
+            final_sequence = context.task.constraints.get("sequence")
+
+        plan_metadata = context.plan.metadata if context.plan else {}
+        plan_version = plan_metadata.get("plan_version") or plan_metadata.get("version")
+
         design = DesignResult(
             task_id=task_id,
-            sequence=context.task.constraints.get("sequence"),
+            sequence=final_sequence,
             structure_pdb_path=structure_pdb_path,  # ESMFold 生成的 PDB 文件
             scores=scores,
             risk_flags=[],
@@ -84,6 +115,9 @@ class SummarizerAgent:
                 "artifacts": visualization_artifacts,
                 "summary_report_path": str(summary_report_path),
                 "report_source": report_source,
+                "plan_metadata": plan_metadata,
+                "plan_version": plan_version,
+                "execution_steps": execution_steps,
             },
         )
         
