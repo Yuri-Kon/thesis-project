@@ -82,7 +82,7 @@ from src.llm.base_llm_provider import ProviderConfig
 
 config = ProviderConfig(
     model_name="nvidia/llama-3.1-nemotron-70b-instruct",
-    api_key=os.getenv("NVIDIA_API_KEY"),
+    api_key=os.getenv("NIM_API_KEY"),
     timeout=30,
     max_tokens=2000
 )
@@ -147,7 +147,7 @@ openai          benchmark_multistep  5        1.892      ✓
 export OPENAI_API_KEY="sk-..."
 
 # NVIDIA Nemotron
-export NVIDIA_API_KEY="nvapi-..."
+export NIM_API_KEY="nvapi-..."
 export NVIDIA_API_ENDPOINT="https://integrate.api.nvidia.com/v1"
 ```
 

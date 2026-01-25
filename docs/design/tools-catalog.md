@@ -37,7 +37,7 @@ depends_on: [impl]
   1. **NVIDIA NIM 远程调用**（推荐，Week 5 优先）
      - 通过 `nim_esmfold` 工具调用 NVIDIA NIM Biology API
      - 无需本地 GPU，简化部署
-     - 依赖 `NIM_API_KEY` / `NVIDIA_API_KEY` 环境变量
+     - 依赖 `NIM_API_KEY` 环境变量
   2. **本地 Nextflow**（备选）
      - 仅通过 Nextflow 调度容器，不提供 docker run/compose 路径
      - 需要本地 GPU
@@ -48,7 +48,7 @@ depends_on: [impl]
   - GPU 必须存在（系统不负责 GPU 管理）
 - 运行假设（NIM 路径）：
   - 网络可用
-  - API Key 已配置（`NVIDIA_API_KEY` 环境变量）
+  - API Key 已配置（`NIM_API_KEY` 环境变量）
 - 模块位置：
   - NIM 路径：`src/engines/nim_client.py`、`src/adapters/nim_adapter.py`
   - Nextflow 路径：`nf/modules/esmfold.nf`
@@ -99,7 +99,7 @@ depends_on: [impl]
 - 模块位置：`src/engines/nim_client.py`、`src/adapters/nim_adapter.py`
 - 配置文件：`configs/model_providers.json`
 - 备注：
-  - 当 `NVIDIA_API_KEY` 存在时自动注册到 adapter registry
+  - 当 `NIM_API_KEY` 存在时自动注册到 adapter registry
   - 与本地 `esmfold` 工具能力兼容，可作为替代选项
   - Planner 可根据 KG 选择 `protein_mpnn → esmfold` 或 `protein_mpnn → nim_esmfold`
 
