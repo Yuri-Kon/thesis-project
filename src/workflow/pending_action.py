@@ -136,6 +136,7 @@ def enter_waiting_state(
             "action_type": pending_action.action_type.value,
             "reason": reason or "entering_waiting_state",
             "candidate_count": len(pending_action.candidates),
+            "explanation": pending_action.explanation,
         },
     )
     write_event_log(waiting_enter_event)

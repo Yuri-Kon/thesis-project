@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 from typing import Protocol
 from src.agents.planner import PlannerAgent
 from src.models.contracts import (
@@ -192,6 +193,9 @@ class PlanRunner:
                     failure_type=FailureType.SAFETY_BLOCK,
                     message="SafetyAgent blocked task input before execution",
                     code="SAFETY_TASK_INPUT_BLOCK",
+                    explanation=self._build_basic_replan_explanation(
+                        "safety_block (task input blocked)"
+                    ),
                 )
 
             # 若 context.plan 为 None, 则设置为当前 plan
@@ -234,6 +238,7 @@ class PlanRunner:
                     )
 
                 failed_result: StepResult | None = None
+                blocked_by_safety = False
                 for step_result in outcome.step_results:
                     pending_patch = pending_patches.pop(step_result.step_id, None)
                     if pending_patch and "patch" not in step_result.metrics:
@@ -253,30 +258,42 @@ class PlanRunner:
                         else None,
                     )
                     if step_result.status == "failed":
+                        blocked_by_safety = self._add_failed_step_safety_event(
+                            step_result,
+                            plan,
+                            context,
+                        )
                         failed_result = step_result
 
                 if failed_result is not None:
                     failure_reason = "step_failed"
                     if failed_result.metrics.get("retry_exhausted"):
                         failure_reason = "retry_exhausted"
-                    if (
-                        self._coerce_failure_type(failed_result.failure_type)
-                        == FailureType.SAFETY_BLOCK
-                    ):
+                    request_failure_type = self._coerce_failure_type(
+                        failed_result.failure_type
+                    )
+                    request_code = None
+                    if blocked_by_safety or request_failure_type == FailureType.SAFETY_BLOCK:
                         failure_reason = "safety_block"
+                        request_failure_type = FailureType.SAFETY_BLOCK
+                        request_code = "SAFETY_POST_BLOCK"
+                    explanation = self._build_replan_explanation(
+                        failure_reason,
+                        failed_result,
+                    )
                     self._request_replan(
                         context,
                         record,
                         reason=failure_reason,
-                        failure_type=self._coerce_failure_type(
-                            failed_result.failure_type
-                        ),
+                        failure_type=request_failure_type,
                         message=(
                             f"Step {failed_result.step_id} failed "
                             f"(failure_type={failed_result.failure_type}, "
                             f"error={failed_result.error_message})"
                         ),
                         step_id=failed_result.step_id,
+                        explanation=explanation,
+                        code=request_code,
                     )
 
                 if (
@@ -306,6 +323,9 @@ class PlanRunner:
                     failure_type=FailureType.SAFETY_BLOCK,
                     message="SafetyAgent blocked final result",
                     code="SAFETY_FINAL_BLOCK",
+                    explanation=self._build_basic_replan_explanation(
+                        "safety_block (final result blocked)"
+                    ),
                 )
 
             # A3: 执行完成后，推进 SUMMARIZING（必要时继续 DONE）
@@ -358,6 +378,72 @@ class PlanRunner:
         else:
             context.safety_events.append(event)
 
+    def _add_failed_step_safety_event(
+        self,
+        step_result: StepResult,
+        plan: Plan,
+        context: WorkflowContext,
+    ) -> bool:
+        step = next((s for s in plan.steps if s.id == step_result.step_id), None)
+        if step is None:
+            return False
+        safety_result = self._safety_agent.check_post_step(step, step_result, context)
+        self._add_safety_event(context, safety_result)
+        if safety_result.risk_flags:
+            step_result.risk_flags = safety_result.risk_flags
+        return safety_result.action == "block"
+
+    def _build_replan_explanation(
+        self,
+        reason: str,
+        failed_result: StepResult,
+    ) -> str:
+        failure_context = self._summarize_failure_result(failed_result)
+        options = self._build_replan_options(failure_context.get("failure_code"))
+        payload = {
+            "reason": reason,
+            "failure": failure_context,
+            "options": options,
+        }
+        return (
+            f"replan requested: {reason}; "
+            f"context={json.dumps(payload, ensure_ascii=True)}"
+        )
+
+    def _build_basic_replan_explanation(self, reason: str) -> str:
+        payload = {
+            "reason": reason,
+            "options": ["replan", "cancel"],
+        }
+        return (
+            f"replan requested: {reason}; "
+            f"context={json.dumps(payload, ensure_ascii=True)}"
+        )
+
+    def _build_replan_options(self, failure_code: object) -> list[str]:
+        options = ["replan", "cancel"]
+        if isinstance(failure_code, str) and failure_code.startswith("NIM_"):
+            options.append("switch_to_local_esmfold")
+        return options
+
+    def _summarize_failure_result(self, result: StepResult) -> dict:
+        failure_code = None
+        failure_reason = result.error_message
+        if result.risk_flags:
+            failure_code = result.risk_flags[0].code
+            if result.risk_flags[0].message:
+                failure_reason = result.risk_flags[0].message
+        if not failure_code and isinstance(result.error_details, dict):
+            failure_code = result.error_details.get("failure_code")
+        return {
+            "step_id": result.step_id,
+            "tool": result.tool,
+            "failure_type": result.failure_type,
+            "failure_code": failure_code,
+            "failure_reason": failure_reason,
+            "risk_flags": [flag.model_dump() for flag in result.risk_flags],
+        }
+
     def _coerce_failure_type(self, value) -> FailureType:
         """将 StepResult.failure_type 统一为 FailureType 枚举"""
         if isinstance(value, FailureType):
@@ -398,6 +484,7 @@ class PlanRunner:
         message: str,
         code: str | None = None,
         step_id: str | None = None,
+        explanation: str | None = None,
     ) -> None:
         """触发 WAITING_REPLAN，并抛出 PlanRunError 交给上层处理"""
         if context.status != InternalStatus.WAITING_REPLAN:
@@ -406,13 +493,14 @@ class PlanRunner:
                 action_type=PendingActionType.REPLAN_CONFIRM,
                 candidates=[],
                 default_suggestion=None,
-                explanation=f"replan requested: {reason}",
+                explanation=explanation or f"replan requested: {reason}",
             )
             enter_waiting_state(
                 context,
                 record,
                 pending_action,
                 InternalStatus.WAITING_REPLAN,
+                reason=reason,
             )
             transition_task_status(
                 context,
@@ -533,4 +621,7 @@ class PlanRunner:
 
 def _should_require_replan_confirm(error: PlanRunError) -> bool:
     """SafetyAgent blocks must wait for HITL replan confirmation."""
-    return error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK"}
+    return (
+        error.failure_type == FailureType.SAFETY_BLOCK
+        or error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK", "SAFETY_POST_BLOCK"}
+    )

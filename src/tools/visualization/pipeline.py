@@ -170,7 +170,11 @@ def _load_biopython():
 
 
 def compute_pdb_metrics(pdb_path: Path) -> dict[str, Any]:
-    parser_cls, is_aa = _load_biopython()
+    try:
+        parser_cls, is_aa = _load_biopython()
+    except RuntimeError:
+        return _compute_metrics_fallback(pdb_path)
+
     parser = parser_cls(QUIET=True)
     structure = parser.get_structure("structure", str(pdb_path))
 
@@ -203,6 +207,52 @@ def compute_pdb_metrics(pdb_path: Path) -> dict[str, Any]:
     return {
         "chain_ids": chain_ids,
         "residue_count": residue_count,
+        "per_residue_bfactor_avg": per_residue_bfactor_avg,
+    }
+
+
+def _compute_metrics_fallback(pdb_path: Path) -> dict[str, Any]:
+    chain_ids: list[str] = []
+    residue_map: dict[tuple[str, int, str], list[float]] = {}
+
+    for line in Path(pdb_path).read_text(encoding="utf-8").splitlines():
+        if not (line.startswith("ATOM") or line.startswith("HETATM")):
+            continue
+        if len(line) < 66:
+            continue
+        chain_id = line[21].strip() or "_"
+        res_name = line[17:20].strip()
+        res_seq_str = line[22:26].strip()
+        try:
+            res_seq = int(res_seq_str)
+        except ValueError:
+            continue
+        bfactor_str = line[60:66].strip()
+        try:
+            bfactor = float(bfactor_str)
+        except ValueError:
+            bfactor = 0.0
+
+        if chain_id not in chain_ids:
+            chain_ids.append(chain_id)
+        key = (chain_id, res_seq, res_name)
+        residue_map.setdefault(key, []).append(bfactor)
+
+    per_residue_bfactor_avg = []
+    for (chain_id, res_seq, res_name), bfactors in residue_map.items():
+        avg = sum(bfactors) / len(bfactors) if bfactors else 0.0
+        per_residue_bfactor_avg.append(
+            {
+                "res_index": res_seq,
+                "res_id": res_name,
+                "chain_id": chain_id,
+                "bfactor_avg": avg,
+            }
+        )
+
+    return {
+        "chain_ids": chain_ids,
+        "residue_count": len(residue_map),
         "per_residue_bfactor_avg": per_residue_bfactor_avg,
     }
 

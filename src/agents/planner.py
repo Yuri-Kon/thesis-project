@@ -488,6 +488,7 @@ def _resolve_plan_tools(
     registry_map = {spec.id: spec for spec in registry}
     available_inputs: Set[str] = set(task_constraints.keys())
     safety_level = task_constraints.get("safety_level")
+    prefer_remote = _prefers_remote_tools(task_constraints)
     capability_index = _load_capability_index()
     resolved_steps: List[PlanStep] = []
 
@@ -511,6 +512,7 @@ def _resolve_plan_tools(
                 available_inputs=available_inputs,
                 safety_level=safety_level,
                 io_hint=step.metadata.get("io_hint") if step.metadata else None,
+                prefer_remote=prefer_remote,
             )
             new_metadata = {**(step.metadata or {})}
             new_metadata.update(
@@ -556,6 +558,7 @@ def _select_tool_by_capability(
     available_inputs: Set[str],
     safety_level: int | None,
     io_hint: dict | None,
+    prefer_remote: bool,
 ) -> ToolSpec:
     hint_inputs: Set[str] = set()
     if isinstance(io_hint, dict):
@@ -581,8 +584,31 @@ def _select_tool_by_capability(
             f"with inputs {sorted(available_inputs)}"
         )
 
-    candidates.sort(key=lambda t: (t.cost, t.safety_level, t.id))
+    candidates.sort(
+        key=lambda t: (
+            _remote_rank(t.id, prefer_remote),
+            t.cost,
+            t.safety_level,
+            t.id,
+        )
+    )
     return candidates[0]
+
+
+def _prefers_remote_tools(task_constraints: dict) -> bool:
+    return bool(
+        task_constraints.get("prefer_remote")
+        or task_constraints.get("prefer_nim")
+        or task_constraints.get("use_remote_tools")
+        or task_constraints.get("use_nim")
+    )
+
+
+def _remote_rank(tool_id: str, prefer_remote: bool) -> int:
+    is_remote = tool_id.startswith("nim_")
+    if prefer_remote:
+        return 0 if is_remote else 1
+    return 0 if not is_remote else 1
 
 
 def _load_capability_index() -> List[dict]:

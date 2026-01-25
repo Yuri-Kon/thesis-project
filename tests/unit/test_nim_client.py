@@ -45,7 +45,7 @@ def test_call_sync_missing_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
         client.call_sync({"sequence": "ACDEFG"})
 
     assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
-    assert exc_info.value.code == "NIM_API_KEY_MISSING"
+    assert exc_info.value.code == "NIM_AUTH_FAILED"
 
 
 def test_call_sync_http_5xx() -> None:
@@ -70,7 +70,7 @@ def test_call_sync_http_5xx() -> None:
         client.call_sync({"sequence": "ACDEFG"})
 
     assert exc_info.value.failure_type == FailureType.RETRYABLE
-    assert exc_info.value.code == "NIM_HTTP_5XX"
+    assert exc_info.value.code == "NIM_MODEL_ERROR"
 
 
 def test_call_sync_http_4xx() -> None:
@@ -95,7 +95,108 @@ def test_call_sync_http_4xx() -> None:
         client.call_sync({"sequence": "ACDEFG"})
 
     assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
-    assert exc_info.value.code == "NIM_HTTP_4XX"
+    assert exc_info.value.code == "NIM_INVALID_INPUT"
+
+
+@pytest.mark.parametrize("status_code", [401, 403])
+def test_call_sync_http_auth_failed(status_code: int) -> None:
+    mock_response = Mock()
+    mock_response.status_code = status_code
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Auth failed",
+        request=Mock(),
+        response=mock_response,
+    )
+
+    mock_client = Mock()
+    mock_client.post.return_value = mock_response
+
+    client = NvidiaNIMClient(
+        base_url="https://health.api.nvidia.com/v1/biology/nvidia/esmfold",
+        api_key="token",
+        client=mock_client,
+    )
+
+    with pytest.raises(StepRunError) as exc_info:
+        client.call_sync({"sequence": "ACDEFG"})
+
+    assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
+    assert exc_info.value.code == "NIM_AUTH_FAILED"
+
+
+def test_call_sync_http_quota_exceeded() -> None:
+    mock_response = Mock()
+    mock_response.status_code = 429
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Rate limited",
+        request=Mock(),
+        response=mock_response,
+    )
+
+    mock_client = Mock()
+    mock_client.post.return_value = mock_response
+
+    client = NvidiaNIMClient(
+        base_url="https://health.api.nvidia.com/v1/biology/nvidia/esmfold",
+        api_key="token",
+        client=mock_client,
+    )
+
+    with pytest.raises(StepRunError) as exc_info:
+        client.call_sync({"sequence": "ACDEFG"})
+
+    assert exc_info.value.failure_type == FailureType.RETRYABLE
+    assert exc_info.value.code == "NIM_QUOTA_EXCEEDED"
+
+
+def test_call_sync_http_model_not_found() -> None:
+    mock_response = Mock()
+    mock_response.status_code = 404
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Model missing",
+        request=Mock(),
+        response=mock_response,
+    )
+
+    mock_client = Mock()
+    mock_client.post.return_value = mock_response
+
+    client = NvidiaNIMClient(
+        base_url="https://health.api.nvidia.com/v1/biology/nvidia/esmfold",
+        api_key="token",
+        client=mock_client,
+    )
+
+    with pytest.raises(StepRunError) as exc_info:
+        client.call_sync({"sequence": "ACDEFG"})
+
+    assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
+    assert exc_info.value.code == "NIM_MODEL_NOT_FOUND"
+
+
+def test_call_sync_http_invalid_input() -> None:
+    mock_response = Mock()
+    mock_response.status_code = 422
+    mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+        "Invalid input",
+        request=Mock(),
+        response=mock_response,
+    )
+
+    mock_client = Mock()
+    mock_client.post.return_value = mock_response
+
+    client = NvidiaNIMClient(
+        base_url="https://health.api.nvidia.com/v1/biology/nvidia/esmfold",
+        api_key="token",
+        client=mock_client,
+    )
+
+    with pytest.raises(StepRunError) as exc_info:
+        client.call_sync({"sequence": "ACDEFG"})
+
+    assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
+    assert exc_info.value.code == "NIM_INVALID_INPUT"
 
 
 def test_call_sync_timeout() -> None:

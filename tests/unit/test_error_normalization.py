@@ -73,6 +73,11 @@ def test_failure_code_enum_values() -> None:
     assert FailureCode.NIM_NETWORK_ERROR.value == "NIM_NETWORK_ERROR"
     assert FailureCode.NIM_INVALID_RESPONSE.value == "NIM_INVALID_RESPONSE"
     assert FailureCode.NIM_UNEXPECTED_ERROR.value == "NIM_UNEXPECTED_ERROR"
+    assert FailureCode.NIM_AUTH_FAILED.value == "NIM_AUTH_FAILED"
+    assert FailureCode.NIM_QUOTA_EXCEEDED.value == "NIM_QUOTA_EXCEEDED"
+    assert FailureCode.NIM_MODEL_NOT_FOUND.value == "NIM_MODEL_NOT_FOUND"
+    assert FailureCode.NIM_INVALID_INPUT.value == "NIM_INVALID_INPUT"
+    assert FailureCode.NIM_MODEL_ERROR.value == "NIM_MODEL_ERROR"
 
 
 def test_build_error_meta_basic() -> None:
