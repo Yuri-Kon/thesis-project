@@ -224,7 +224,9 @@
 | SID | 标题 | 级别 | 标签 |
 |-----|------|------|------|
 | `tools.executor.overview` | Executor 可选择的工具 | Section | tools, executor |
+| `tools.protgpt2.spec` | ProtGPT2 (PLM) 工具规约 | Block | tools, protgpt2, sequence_generation, plm |
 | `tools.esmfold.spec` | ESMFold 工具规约 | Block | tools, esmfold, structure_prediction |
+| `tools.nim_esmfold.spec` | NIM ESMFold 工具规约 | Block | tools, nim_esmfold, structure_prediction, nvidia_nim |
 | `tools.alphafold.spec` | AlphaFold/OpenFold 工具规约 | Block | tools, alphafold, structure_prediction |
 | `tools.adapter.constraints` | ToolAdapter 设计原则与约束 | Spec-Item | tools, adapter, constraints |
 
@@ -237,14 +239,14 @@
 | architecture.md | 5 | 3 | 8 | 16 |
 | agent-design.md | 8 | 9 | 9 | 26 |
 | core-algorithm-spec.md | 2 | 6 | 3 | 11 |
-| system-implementation-design.md | 2 | 4 | 5 | 11 |
+| system-implementation-design.md | 2 | 5 | 5 | 12 |
 | implementation_index.md | 1 | 0 | 0 | 1 |
 | llm_provider_guide.md | 1 | 1 | 0 | 2 |
 | snapshot-recovery.md | 1 | 2 | 0 | 3 |
-| remote_model_invocation.md | 2 | 1 | 0 | 3 |
-| tools-catalog.md | 1 | 2 | 1 | 4 |
+| remote_model_invocation.md | 3 | 3 | 0 | 6 |
+| tools-catalog.md | 1 | 4 | 1 | 6 |
 | hitl-extension.md | 0 | 0 | 0 | 0 (differential index) |
-| **总计** | **23** | **28** | **26** | **77** |
+| **总计** | **24** | **33** | **26** | **83** |
 
 **注**: hitl-extension.md 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 
@@ -254,9 +256,9 @@
 
 | 粒度 | 数量 | 占比 |
 |------|------|------|
-| Section | 23 | 30% |
-| Block | 28 | 36% |
-| Spec-Item | 26 | 34% |
+| Section | 24 | 29% |
+| Block | 33 | 40% |
+| Spec-Item | 26 | 31% |
 
 ---
 
@@ -311,6 +313,7 @@ jq '.specs[] | select(.sid == "arch.contracts.pending_action")' index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.1 | 2026-02-01 | 新增 ProtGPT2 工具规约，更新 tools 索引与统计（总计 83） |
 | 1.0 | 2026-01-11 | 索引 77 个规范，覆盖 10 个文档（新增 Remote Model Invocation 索引） |
 
 ---

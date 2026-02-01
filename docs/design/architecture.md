@@ -90,7 +90,7 @@ Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从
 - PlannerAgent(LLM): 大脑，负责读任务、查数据库，设计"怎么走这条流水线"的plan
 - ProteinToolKG: 工具知识图谱，记录有哪些工具，能做什么，输入输出格式，安全/成本等
 - ExecutorAgent: 执行者，按照Plan按步骤调用具体工具
-- 具体工具：ProteinMPNN、ESMFold、RDKitProps等
+- 具体工具：ProteinMPNN、ProtGPT2(PLM)、ESMFold、RDKitProps等
 - SafetyAgent: 安全者，负责判断这些序列/结构/分子是不是危险的或是否超出约束
 - SummarizerAgent: 写总结报告的，帮人类读懂JSON
 - DataStore: 所有过程中的输入、输出、日志、Plan版本
@@ -111,13 +111,13 @@ Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从
    Planner拿到 `ProteinDesignTask`之后，会首先：
    - 查找ProteinToolKG: 根据需求寻找系统里有什么工具链可以支持
    - 从KG拿到信息：
-     - 哪个工具负责生成序列(ProteinMPNN、ESM-IF1等);
+     - 哪个工具负责生成序列(ProteinMPNN、ProtGPT2(PLM)、ESM-IF1等);
      - 哪个工具负责结构预测(ESMFold、AlpaFold3...);
      - 哪个工具负责性质估算(RDKitProps等)
      - 每个工具的输入/输出的Schema、运行成本、安全标签等
 4. PlannerAgent生成与个Plan JSON
    在这些信息的基础上，Planner会输出一个Plan,比如:  
-   - S1: 调用ProteinMPNN, 输入[任务约束+template结构]，输出候选序列20条
+   - S1: 调用ProtGPT2(PLM)或ProteinMPNN, 输入[任务约束+template结构]，输出候选序列20条
    - S2: 调用ESMFold，对每条序列预测结构
    - S3: 调用RDKitProps, 计算稳定性/溶解度等指标
    - S4: 根据指标排序并列出top-K作为final推荐
@@ -136,7 +136,7 @@ Executor/StepRunner 只依赖基础层接口，不关心具体工具实现，从
    - 把任务状态改为 `RUNNING`;
    - 把Plan版本/开始时间记录到日志
 7. 执行S1: 序列生成工具
-   - Executor调用 `ToolAdapter(ProteinMPNN)`, 把Plan定义的参数输入进去;
+   - Executor调用 `ToolAdapter(ProtGPT2/ProteinMPNN)`, 把Plan定义的参数输入进去;
    - 工具跑完返回一批候选序列
    - Executor把这些序列写入DataStore
 8. 执行S2: 结构预测工具

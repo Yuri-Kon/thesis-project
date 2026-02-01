@@ -161,7 +161,9 @@
 | SID | 说明 | 粒度 |
 |-----|------|------|
 | `SID:tools.executor.overview` | Executor 可选工具总览 | Section |
+| `SID:tools.protgpt2.spec` | ProtGPT2 (PLM) 工具规约 | Block |
 | `SID:tools.esmfold.spec` | ESMFold 工具规约 | Block |
+| `SID:tools.nim_esmfold.spec` | NIM ESMFold 工具规约 | Block |
 | `SID:tools.alphafold.spec` | AlphaFold/OpenFold 工具规约 | Block |
 | `SID:tools.adapter.constraints` | ToolAdapter 设计原则与约束 | Spec-Item |
 

@@ -3,7 +3,7 @@
 
 ## 概述
 
-为了支持远程 ESMFold 服务调用，系统新增了通用的 `RemoteModelInvocationService` 抽象层。该层提供统一的 submit/poll/download 接口，默认实现 REST 客户端，并保留 SSH/SDK 扩展点。
+为了支持远程模型服务调用（ESMFold、PLM 等），系统新增了通用的 `RemoteModelInvocationService` 抽象层。该层提供统一的 submit/poll/download 接口，默认实现 REST 客户端，并保留 SSH/SDK 扩展点。
 
 **Week 5 扩展**：新增 NVIDIA NIM 作为首选远程调用后端，通过 `NvidiaNIMClient` 和 `NIMESMFoldAdapter` 实现。
 
@@ -521,3 +521,44 @@ Planner 可通过 KG 选择工具路径：
 查询接口：
 - `find_tools_by_capability("structure_prediction")` → 返回 `esmfold` 和 `nim_esmfold`
 - `find_tools_by_backend("remote_model_service", "nvidia_nim")` → 返回 `nim_esmfold`
+
+## PLM（ProtGPT2）远程调用（SSH）
+
+ProtGPT2 作为初始序列生成器可复用相同的远程调用机制：
+
+- 适配器：`ProtGPT2Adapter` 可实现 `run_remote()` 并委托给 `SSHModelInvocationService`
+- 远端能力：部署 Hugging Face 推理脚本（加载 `nferruz/ProtGPT2`）
+- 输出约定：`sequence` / `candidates` / `artifacts` 与本地路径一致
+
+### 远程调用示例（SSH）
+
+```json
+{
+  "task_id": "task_001",
+  "step_id": "S1",
+  "inputs": {
+    "goal": "generate de novo enzyme",
+    "length_range": [120, 200],
+    "num_candidates": 20
+  }
+}
+```
+
+**执行配置（KG/Provider 示例）**：
+```json
+{
+  "id": "protgpt2",
+  "name": "ProtGPT2 (PLM)",
+  "capabilities": ["sequence_generation"],
+  "execution": {
+    "backend": "remote_model_service",
+    "provider": "ssh",
+    "model_id": "nferruz/ProtGPT2",
+    "sync_mode": false
+  }
+}
+```
+
+Planner 可根据 KG 选择路径：
+- `protgpt2`（SSH 远程） → `esmfold`
+- `protgpt2`（本地 python） → `esmfold`

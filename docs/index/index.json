@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-01-25",
+  "generated_at": "2026-02-01",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 82,
+  "total_specs": 83,
   "documents": [
     {
       "doc_key": "arch",
@@ -18,7 +18,9 @@
       "path": "docs/design/agent-design.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["arch"]
+      "depends_on": [
+        "arch"
+      ]
     },
     {
       "doc_key": "algo",
@@ -26,7 +28,10 @@
       "path": "docs/design/core-algorithm-spec.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["arch", "agent"]
+      "depends_on": [
+        "arch",
+        "agent"
+      ]
     },
     {
       "doc_key": "impl",
@@ -34,7 +39,10 @@
       "path": "docs/design/system-implementation-design.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["arch", "agent"]
+      "depends_on": [
+        "arch",
+        "agent"
+      ]
     },
     {
       "doc_key": "impl_index",
@@ -42,7 +50,9 @@
       "path": "docs/impl/implementation_index.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["impl"]
+      "depends_on": [
+        "impl"
+      ]
     },
     {
       "doc_key": "impl_llm_provider",
@@ -50,7 +60,9 @@
       "path": "docs/impl/llm_provider_guide.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["impl"]
+      "depends_on": [
+        "impl"
+      ]
     },
     {
       "doc_key": "impl_snapshot_recovery",
@@ -58,7 +70,9 @@
       "path": "docs/impl/snapshot-recovery.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["impl"]
+      "depends_on": [
+        "impl"
+      ]
     },
     {
       "doc_key": "impl_remote_model_invocation",
@@ -66,7 +80,9 @@
       "path": "docs/impl/remote_model_invocation.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["impl"]
+      "depends_on": [
+        "impl"
+      ]
     },
     {
       "doc_key": "tools",
@@ -74,7 +90,9 @@
       "path": "docs/design/tools-catalog.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["impl"]
+      "depends_on": [
+        "impl"
+      ]
     },
     {
       "doc_key": "hitl",
@@ -82,7 +100,12 @@
       "path": "docs/design/hitl-extension.md",
       "status": "stable",
       "version": "1.0",
-      "depends_on": ["arch", "agent", "impl", "algo"]
+      "depends_on": [
+        "arch",
+        "agent",
+        "impl",
+        "algo"
+      ]
     }
   ],
   "specs": [
@@ -97,7 +120,11 @@
         "marker": "<!-- SID:arch.overview.layers -->"
       },
       "level": "Section",
-      "tags": ["arch", "overview", "layers"],
+      "tags": [
+        "arch",
+        "overview",
+        "layers"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -112,7 +139,10 @@
         "marker": "<!-- SID:arch.components.overview -->"
       },
       "level": "Section",
-      "tags": ["arch", "components"],
+      "tags": [
+        "arch",
+        "components"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -127,7 +157,12 @@
         "marker": "<!-- SID:arch.execution.nextflow_boundary -->"
       },
       "level": "Block",
-      "tags": ["arch", "execution", "nextflow", "boundary"],
+      "tags": [
+        "arch",
+        "execution",
+        "nextflow",
+        "boundary"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -142,7 +177,11 @@
         "marker": "<!-- SID:arch.flow.end_to_end -->"
       },
       "level": "Section",
-      "tags": ["arch", "flow", "runtime"],
+      "tags": [
+        "arch",
+        "flow",
+        "runtime"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -157,7 +196,10 @@
         "marker": "<!-- SID:arch.dataflow.overview -->"
       },
       "level": "Section",
-      "tags": ["arch", "dataflow"],
+      "tags": [
+        "arch",
+        "dataflow"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -172,7 +214,11 @@
         "marker": "<!-- SID:arch.kg.overview -->"
       },
       "level": "Block",
-      "tags": ["arch", "kg", "knowledge_graph"],
+      "tags": [
+        "arch",
+        "kg",
+        "knowledge_graph"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -189,7 +235,12 @@
         "marker_end": "<!-- SID:arch.contracts.pending_action END -->"
       },
       "level": "Spec-Item",
-      "tags": ["arch", "contracts", "hitl", "pending_action"],
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "pending_action"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -206,7 +257,12 @@
         "marker_end": "<!-- SID:arch.contracts.decision END -->"
       },
       "level": "Spec-Item",
-      "tags": ["arch", "contracts", "hitl", "decision"],
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "decision"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -223,7 +279,12 @@
         "marker_end": "<!-- SID:arch.contracts.task_snapshot END -->"
       },
       "level": "Spec-Item",
-      "tags": ["arch", "contracts", "hitl", "snapshot"],
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "snapshot"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -238,7 +299,11 @@
         "marker": "<!-- SID:arch.contracts.plan -->"
       },
       "level": "Spec-Item",
-      "tags": ["arch", "contracts", "planning"],
+      "tags": [
+        "arch",
+        "contracts",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -253,7 +318,11 @@
         "marker": "<!-- SID:fsm.lifecycle.overview -->"
       },
       "level": "Section",
-      "tags": ["fsm", "lifecycle", "state_machine"],
+      "tags": [
+        "fsm",
+        "lifecycle",
+        "state_machine"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -268,7 +337,11 @@
         "marker": "<!-- SID:fsm.states.definitions -->"
       },
       "level": "Block",
-      "tags": ["fsm", "states", "definitions"],
+      "tags": [
+        "fsm",
+        "states",
+        "definitions"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -283,7 +356,12 @@
         "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
       },
       "level": "Spec-Item",
-      "tags": ["fsm", "states", "hitl", "planning"],
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -298,7 +376,12 @@
         "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
       },
       "level": "Spec-Item",
-      "tags": ["fsm", "states", "hitl", "execution"],
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "execution"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -313,7 +396,12 @@
         "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
       },
       "level": "Spec-Item",
-      "tags": ["fsm", "states", "hitl", "planning"],
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -330,8 +418,14 @@
         "marker_end": "<!-- SID:fsm.transitions.overview END -->"
       },
       "level": "Spec-Item",
-      "tags": ["fsm", "transitions", "state_machine"],
-      "depends_on": ["fsm.states.definitions"],
+      "tags": [
+        "fsm",
+        "transitions",
+        "state_machine"
+      ],
+      "depends_on": [
+        "fsm.states.definitions"
+      ],
       "stability": "stable"
     },
     {
@@ -345,7 +439,10 @@
         "marker": "<!-- SID:agent.overview.introduction -->"
       },
       "level": "Section",
-      "tags": ["agent", "overview"],
+      "tags": [
+        "agent",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -360,7 +457,11 @@
         "marker": "<!-- SID:agent.overview.roles -->"
       },
       "level": "Block",
-      "tags": ["agent", "overview", "roles"],
+      "tags": [
+        "agent",
+        "overview",
+        "roles"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -375,7 +476,11 @@
         "marker": "<!-- SID:agent.contracts.overview -->"
       },
       "level": "Section",
-      "tags": ["agent", "contracts", "data_structures"],
+      "tags": [
+        "agent",
+        "contracts",
+        "data_structures"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -390,7 +495,11 @@
         "marker": "<!-- SID:agent.contracts.protein_design_task -->"
       },
       "level": "Block",
-      "tags": ["agent", "contracts", "task"],
+      "tags": [
+        "agent",
+        "contracts",
+        "task"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -405,7 +514,11 @@
         "marker": "<!-- SID:agent.contracts.plan -->"
       },
       "level": "Block",
-      "tags": ["agent", "contracts", "planning"],
+      "tags": [
+        "agent",
+        "contracts",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -420,7 +533,12 @@
         "marker": "<!-- SID:agent.contracts.step_result -->"
       },
       "level": "Block",
-      "tags": ["agent", "contracts", "execution", "result"],
+      "tags": [
+        "agent",
+        "contracts",
+        "execution",
+        "result"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -435,7 +553,11 @@
         "marker": "<!-- SID:agent.contracts.design_result -->"
       },
       "level": "Block",
-      "tags": ["agent", "contracts", "result"],
+      "tags": [
+        "agent",
+        "contracts",
+        "result"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -450,7 +572,12 @@
         "marker": "<!-- SID:agent.contracts.safety_result -->"
       },
       "level": "Block",
-      "tags": ["agent", "contracts", "safety", "result"],
+      "tags": [
+        "agent",
+        "contracts",
+        "safety",
+        "result"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -465,8 +592,15 @@
         "marker": "<!-- SID:agent.hitl.overview -->"
       },
       "level": "Section",
-      "tags": ["agent", "hitl", "overview"],
-      "depends_on": ["arch.contracts.pending_action", "arch.contracts.decision"],
+      "tags": [
+        "agent",
+        "hitl",
+        "overview"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "arch.contracts.decision"
+      ],
       "stability": "stable"
     },
     {
@@ -482,8 +616,15 @@
         "marker_end": "<!-- SID:agent.hitl.universal_constraints END -->"
       },
       "level": "Spec-Item",
-      "tags": ["agent", "hitl", "constraints"],
-      "depends_on": ["arch.contracts.pending_action", "fsm.states.definitions"],
+      "tags": [
+        "agent",
+        "hitl",
+        "constraints"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "fsm.states.definitions"
+      ],
       "stability": "stable"
     },
     {
@@ -497,7 +638,11 @@
         "marker": "<!-- SID:planner.interface.overview -->"
       },
       "level": "Section",
-      "tags": ["planner", "interface", "agent"],
+      "tags": [
+        "planner",
+        "interface",
+        "agent"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -512,7 +657,11 @@
         "marker": "<!-- SID:planner.hitl.responsibilities -->"
       },
       "level": "Section",
-      "tags": ["planner", "hitl", "responsibilities"],
+      "tags": [
+        "planner",
+        "hitl",
+        "responsibilities"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -527,8 +676,14 @@
         "marker": "<!-- SID:planner.hitl.plan_confirm -->"
       },
       "level": "Block",
-      "tags": ["planner", "hitl", "planning"],
-      "depends_on": ["fsm.states.waiting_plan_confirm"],
+      "tags": [
+        "planner",
+        "hitl",
+        "planning"
+      ],
+      "depends_on": [
+        "fsm.states.waiting_plan_confirm"
+      ],
       "stability": "stable"
     },
     {
@@ -544,7 +699,11 @@
         "marker_end": "<!-- SID:planner.responsibilities.must END -->"
       },
       "level": "Spec-Item",
-      "tags": ["planner", "responsibilities", "must"],
+      "tags": [
+        "planner",
+        "responsibilities",
+        "must"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -561,7 +720,11 @@
         "marker_end": "<!-- SID:planner.responsibilities.must_not END -->"
       },
       "level": "Spec-Item",
-      "tags": ["planner", "responsibilities", "must_not"],
+      "tags": [
+        "planner",
+        "responsibilities",
+        "must_not"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -576,7 +739,11 @@
         "marker": "<!-- SID:executor.hitl.responsibilities -->"
       },
       "level": "Section",
-      "tags": ["executor", "hitl", "responsibilities"],
+      "tags": [
+        "executor",
+        "hitl",
+        "responsibilities"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -591,8 +758,15 @@
         "marker": "<!-- SID:executor.hitl.patch_confirm -->"
       },
       "level": "Block",
-      "tags": ["executor", "hitl", "execution", "patch"],
-      "depends_on": ["fsm.states.waiting_patch_confirm"],
+      "tags": [
+        "executor",
+        "hitl",
+        "execution",
+        "patch"
+      ],
+      "depends_on": [
+        "fsm.states.waiting_patch_confirm"
+      ],
       "stability": "stable"
     },
     {
@@ -608,7 +782,11 @@
         "marker_end": "<!-- SID:executor.responsibilities.must END -->"
       },
       "level": "Spec-Item",
-      "tags": ["executor", "responsibilities", "must"],
+      "tags": [
+        "executor",
+        "responsibilities",
+        "must"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -625,7 +803,11 @@
         "marker_end": "<!-- SID:executor.responsibilities.must_not END -->"
       },
       "level": "Spec-Item",
-      "tags": ["executor", "responsibilities", "must_not"],
+      "tags": [
+        "executor",
+        "responsibilities",
+        "must_not"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -640,7 +822,11 @@
         "marker": "<!-- SID:safety.hitl.responsibilities -->"
       },
       "level": "Section",
-      "tags": ["safety", "hitl", "responsibilities"],
+      "tags": [
+        "safety",
+        "hitl",
+        "responsibilities"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -655,8 +841,14 @@
         "marker": "<!-- SID:safety.hitl.replan_trigger -->"
       },
       "level": "Block",
-      "tags": ["safety", "hitl", "planning"],
-      "depends_on": ["fsm.states.waiting_replan_confirm"],
+      "tags": [
+        "safety",
+        "hitl",
+        "planning"
+      ],
+      "depends_on": [
+        "fsm.states.waiting_replan_confirm"
+      ],
       "stability": "stable"
     },
     {
@@ -672,7 +864,11 @@
         "marker_end": "<!-- SID:safety.responsibilities.must END -->"
       },
       "level": "Spec-Item",
-      "tags": ["safety", "responsibilities", "must"],
+      "tags": [
+        "safety",
+        "responsibilities",
+        "must"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -689,7 +885,11 @@
         "marker_end": "<!-- SID:safety.responsibilities.must_not END -->"
       },
       "level": "Spec-Item",
-      "tags": ["safety", "responsibilities", "must_not"],
+      "tags": [
+        "safety",
+        "responsibilities",
+        "must_not"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -704,7 +904,11 @@
         "marker": "<!-- SID:summarizer.hitl.responsibilities -->"
       },
       "level": "Section",
-      "tags": ["summarizer", "hitl", "responsibilities"],
+      "tags": [
+        "summarizer",
+        "hitl",
+        "responsibilities"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -721,7 +925,11 @@
         "marker_end": "<!-- SID:summarizer.responsibilities.must END -->"
       },
       "level": "Spec-Item",
-      "tags": ["summarizer", "responsibilities", "must"],
+      "tags": [
+        "summarizer",
+        "responsibilities",
+        "must"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -738,7 +946,11 @@
         "marker_end": "<!-- SID:summarizer.responsibilities.must_not END -->"
       },
       "level": "Spec-Item",
-      "tags": ["summarizer", "responsibilities", "must_not"],
+      "tags": [
+        "summarizer",
+        "responsibilities",
+        "must_not"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -753,7 +965,10 @@
         "marker": "<!-- SID:algo.scope.overview -->"
       },
       "level": "Section",
-      "tags": ["algo", "scope"],
+      "tags": [
+        "algo",
+        "scope"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -768,7 +983,10 @@
         "marker": "<!-- SID:algo.definitions.overview -->"
       },
       "level": "Section",
-      "tags": ["algo", "definitions"],
+      "tags": [
+        "algo",
+        "definitions"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -783,8 +1001,15 @@
         "marker": "<!-- SID:planner.contracts.io_overview -->"
       },
       "level": "Block",
-      "tags": ["planner", "contracts", "io"],
-      "depends_on": ["agent.contracts.protein_design_task", "agent.contracts.plan"],
+      "tags": [
+        "planner",
+        "contracts",
+        "io"
+      ],
+      "depends_on": [
+        "agent.contracts.protein_design_task",
+        "agent.contracts.plan"
+      ],
       "stability": "stable"
     },
     {
@@ -798,7 +1023,11 @@
         "marker": "<!-- SID:planner.contracts.candidate_schema -->"
       },
       "level": "Block",
-      "tags": ["planner", "contracts", "candidate"],
+      "tags": [
+        "planner",
+        "contracts",
+        "candidate"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -813,7 +1042,12 @@
         "marker": "<!-- SID:planner.contracts.plan_candidate -->"
       },
       "level": "Spec-Item",
-      "tags": ["planner", "contracts", "candidate", "planning"],
+      "tags": [
+        "planner",
+        "contracts",
+        "candidate",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -828,7 +1062,12 @@
         "marker": "<!-- SID:planner.contracts.patch_candidate -->"
       },
       "level": "Spec-Item",
-      "tags": ["planner", "contracts", "candidate", "execution"],
+      "tags": [
+        "planner",
+        "contracts",
+        "candidate",
+        "execution"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -843,7 +1082,12 @@
         "marker": "<!-- SID:planner.contracts.replan_candidate -->"
       },
       "level": "Spec-Item",
-      "tags": ["planner", "contracts", "candidate", "planning"],
+      "tags": [
+        "planner",
+        "contracts",
+        "candidate",
+        "planning"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -858,7 +1102,11 @@
         "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
       },
       "level": "Block",
-      "tags": ["planner", "algorithm", "tool_retrieval"],
+      "tags": [
+        "planner",
+        "algorithm",
+        "tool_retrieval"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -873,8 +1121,14 @@
         "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
       },
       "level": "Block",
-      "tags": ["planner", "algorithm", "scoring"],
-      "depends_on": ["planner.contracts.candidate_schema"],
+      "tags": [
+        "planner",
+        "algorithm",
+        "scoring"
+      ],
+      "depends_on": [
+        "planner.contracts.candidate_schema"
+      ],
       "stability": "stable"
     },
     {
@@ -888,8 +1142,14 @@
         "marker": "<!-- SID:planner.algorithm.hitl_gate -->"
       },
       "level": "Block",
-      "tags": ["planner", "algorithm", "hitl"],
-      "depends_on": ["planner.algorithm.candidate_scoring"],
+      "tags": [
+        "planner",
+        "algorithm",
+        "hitl"
+      ],
+      "depends_on": [
+        "planner.algorithm.candidate_scoring"
+      ],
       "stability": "stable"
     },
     {
@@ -903,8 +1163,15 @@
         "marker": "<!-- SID:planner.algorithm.decision_application -->"
       },
       "level": "Block",
-      "tags": ["planner", "algorithm", "hitl", "decision"],
-      "depends_on": ["arch.contracts.decision"],
+      "tags": [
+        "planner",
+        "algorithm",
+        "hitl",
+        "decision"
+      ],
+      "depends_on": [
+        "arch.contracts.decision"
+      ],
       "stability": "stable"
     },
     {
@@ -918,7 +1185,10 @@
         "marker": "<!-- SID:impl.overview.introduction -->"
       },
       "level": "Section",
-      "tags": ["impl", "overview"],
+      "tags": [
+        "impl",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -933,7 +1203,10 @@
         "marker": "<!-- SID:impl.techstack.overview -->"
       },
       "level": "Block",
-      "tags": ["impl", "techstack"],
+      "tags": [
+        "impl",
+        "techstack"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -948,8 +1221,15 @@
         "marker": "<!-- SID:impl.planner.tool_resolution -->"
       },
       "level": "Block",
-      "tags": ["impl", "planner", "tool_resolution", "kg"],
-      "depends_on": ["arch.kg.overview"],
+      "tags": [
+        "impl",
+        "planner",
+        "tool_resolution",
+        "kg"
+      ],
+      "depends_on": [
+        "arch.kg.overview"
+      ],
       "stability": "stable"
     },
     {
@@ -963,8 +1243,15 @@
         "marker": "<!-- SID:impl.nextflow.control_flow_constraints -->"
       },
       "level": "Block",
-      "tags": ["impl", "nextflow", "control_flow", "constraints"],
-      "depends_on": ["arch.execution.nextflow_boundary"],
+      "tags": [
+        "impl",
+        "nextflow",
+        "control_flow",
+        "constraints"
+      ],
+      "depends_on": [
+        "arch.execution.nextflow_boundary"
+      ],
       "stability": "stable"
     },
     {
@@ -978,7 +1265,10 @@
         "marker": "<!-- SID:api.rest.overview -->"
       },
       "level": "Section",
-      "tags": ["api", "rest"],
+      "tags": [
+        "api",
+        "rest"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -993,8 +1283,14 @@
         "marker": "<!-- SID:api.rest.create_task -->"
       },
       "level": "Spec-Item",
-      "tags": ["api", "rest", "task"],
-      "depends_on": ["agent.contracts.protein_design_task"],
+      "tags": [
+        "api",
+        "rest",
+        "task"
+      ],
+      "depends_on": [
+        "agent.contracts.protein_design_task"
+      ],
       "stability": "stable"
     },
     {
@@ -1008,8 +1304,15 @@
         "marker": "<!-- SID:api.rest.get_pending_actions -->"
       },
       "level": "Spec-Item",
-      "tags": ["api", "rest", "hitl", "pending_actions"],
-      "depends_on": ["arch.contracts.pending_action"],
+      "tags": [
+        "api",
+        "rest",
+        "hitl",
+        "pending_actions"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action"
+      ],
       "stability": "stable"
     },
     {
@@ -1023,8 +1326,15 @@
         "marker": "<!-- SID:api.rest.submit_decision -->"
       },
       "level": "Spec-Item",
-      "tags": ["api", "rest", "hitl", "decision"],
-      "depends_on": ["arch.contracts.decision"],
+      "tags": [
+        "api",
+        "rest",
+        "hitl",
+        "decision"
+      ],
+      "depends_on": [
+        "arch.contracts.decision"
+      ],
       "stability": "stable"
     },
     {
@@ -1038,8 +1348,14 @@
         "marker": "<!-- SID:api.rest.get_report -->"
       },
       "level": "Spec-Item",
-      "tags": ["api", "rest", "report"],
-      "depends_on": ["agent.contracts.design_result"],
+      "tags": [
+        "api",
+        "rest",
+        "report"
+      ],
+      "depends_on": [
+        "agent.contracts.design_result"
+      ],
       "stability": "stable"
     },
     {
@@ -1053,7 +1369,11 @@
         "marker": "<!-- SID:obs.observability.overview -->"
       },
       "level": "Block",
-      "tags": ["obs", "observability", "overview"],
+      "tags": [
+        "obs",
+        "observability",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1068,7 +1388,11 @@
         "marker": "<!-- SID:obs.eventlog.schema -->"
       },
       "level": "Block",
-      "tags": ["obs", "eventlog", "observability"],
+      "tags": [
+        "obs",
+        "eventlog",
+        "observability"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1083,8 +1407,15 @@
         "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
       },
       "level": "Spec-Item",
-      "tags": ["obs", "eventlog", "observability", "hitl"],
-      "depends_on": ["fsm.states.definitions"],
+      "tags": [
+        "obs",
+        "eventlog",
+        "observability",
+        "hitl"
+      ],
+      "depends_on": [
+        "fsm.states.definitions"
+      ],
       "stability": "stable"
     },
     {
@@ -1098,7 +1429,30 @@
         "marker": "<!-- SID:tools.executor.overview -->"
       },
       "level": "Section",
-      "tags": ["tools", "executor"],
+      "tags": [
+        "tools",
+        "executor"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.protgpt2.spec",
+      "title": "ProtGPT2 (PLM) 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 31,
+        "marker": "<!-- SID:tools.protgpt2.spec -->"
+      },
+      "level": "Block",
+      "tags": [
+        "tools",
+        "protgpt2",
+        "sequence_generation",
+        "plm"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1109,11 +1463,15 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 31,
+        "line": 77,
         "marker": "<!-- SID:tools.esmfold.spec -->"
       },
       "level": "Block",
-      "tags": ["tools", "esmfold", "structure_prediction"],
+      "tags": [
+        "tools",
+        "esmfold",
+        "structure_prediction"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1124,11 +1482,15 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 44,
+        "line": 153,
         "marker": "<!-- SID:tools.alphafold.spec -->"
       },
       "level": "Block",
-      "tags": ["tools", "alphafold", "structure_prediction"],
+      "tags": [
+        "tools",
+        "alphafold",
+        "structure_prediction"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1139,13 +1501,17 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 288,
-        "line_end": 307,
+        "line_start": 335,
+        "line_end": 357,
         "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
         "marker_end": "<!-- SID:tools.adapter.constraints END -->"
       },
       "level": "Spec-Item",
-      "tags": ["tools", "adapter", "constraints"],
+      "tags": [
+        "tools",
+        "adapter",
+        "constraints"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1160,8 +1526,16 @@
         "marker": "<!-- SID:impl.index.codebase_overview -->"
       },
       "level": "Section",
-      "tags": ["impl", "index", "codebase", "overview"],
-      "depends_on": ["impl.overview.introduction", "impl.techstack.overview"],
+      "tags": [
+        "impl",
+        "index",
+        "codebase",
+        "overview"
+      ],
+      "depends_on": [
+        "impl.overview.introduction",
+        "impl.techstack.overview"
+      ],
       "stability": "stable"
     },
     {
@@ -1175,7 +1549,12 @@
         "marker": "<!-- SID:impl.llm_provider.guide -->"
       },
       "level": "Section",
-      "tags": ["impl", "llm_provider", "guide", "overview"],
+      "tags": [
+        "impl",
+        "llm_provider",
+        "guide",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1190,7 +1569,12 @@
         "marker": "<!-- SID:impl.llm_provider.external_providers -->"
       },
       "level": "Block",
-      "tags": ["impl", "llm_provider", "external", "openai_compatible"],
+      "tags": [
+        "impl",
+        "llm_provider",
+        "external",
+        "openai_compatible"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1205,7 +1589,11 @@
         "marker": "<!-- SID:impl.snapshot_recovery.overview -->"
       },
       "level": "Section",
-      "tags": ["impl", "snapshot_recovery", "overview"],
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1220,7 +1608,12 @@
         "marker": "<!-- SID:impl.snapshot_recovery.snapshot_schema -->"
       },
       "level": "Block",
-      "tags": ["impl", "snapshot_recovery", "snapshot", "schema"],
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "snapshot",
+        "schema"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1235,7 +1628,12 @@
         "marker": "<!-- SID:impl.snapshot_recovery.recovery_flow -->"
       },
       "level": "Block",
-      "tags": ["impl", "snapshot_recovery", "recovery", "flow"],
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "recovery",
+        "flow"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1250,7 +1648,11 @@
         "marker": "<!-- SID:impl.remote_model_invocation.overview -->"
       },
       "level": "Section",
-      "tags": ["impl", "remote_model_invocation", "overview"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "overview"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1265,7 +1667,11 @@
         "marker": "<!-- SID:impl.remote_model_invocation.components -->"
       },
       "level": "Block",
-      "tags": ["impl", "remote_model_invocation", "components"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "components"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1280,7 +1686,11 @@
         "marker": "<!-- SID:impl.remote_model_invocation.rest_api -->"
       },
       "level": "Section",
-      "tags": ["impl", "remote_model_invocation", "rest_api"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "rest_api"
+      ],
       "depends_on": [],
       "stability": "stable"
     },
@@ -1291,12 +1701,19 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 67,
+        "line": 113,
         "marker": "<!-- SID:tools.nim_esmfold.spec -->"
       },
       "level": "Block",
-      "tags": ["tools", "nim_esmfold", "structure_prediction", "nvidia_nim"],
-      "depends_on": ["tools.esmfold.spec"],
+      "tags": [
+        "tools",
+        "nim_esmfold",
+        "structure_prediction",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "tools.esmfold.spec"
+      ],
       "stability": "stable"
     },
     {
@@ -1310,8 +1727,15 @@
         "marker": "<!-- SID:impl.remote_model_invocation.nim_failure_codes -->"
       },
       "level": "Block",
-      "tags": ["impl", "remote_model_invocation", "nvidia_nim", "failure_codes"],
-      "depends_on": ["impl.remote_model_invocation.overview"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "nvidia_nim",
+        "failure_codes"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.overview"
+      ],
       "stability": "stable"
     },
     {
@@ -1325,8 +1749,14 @@
         "marker": "<!-- SID:impl.remote_model_invocation.nvidia_nim -->"
       },
       "level": "Section",
-      "tags": ["impl", "remote_model_invocation", "nvidia_nim"],
-      "depends_on": ["impl.remote_model_invocation.overview"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.overview"
+      ],
       "stability": "stable"
     },
     {
@@ -1340,8 +1770,15 @@
         "marker": "<!-- SID:impl.remote_model_invocation.provider_config -->"
       },
       "level": "Block",
-      "tags": ["impl", "remote_model_invocation", "provider_config", "nvidia_nim"],
-      "depends_on": ["impl.remote_model_invocation.nvidia_nim"],
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "provider_config",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.nvidia_nim"
+      ],
       "stability": "stable"
     }
   ]

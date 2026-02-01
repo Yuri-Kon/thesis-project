@@ -25,7 +25,53 @@ depends_on: [impl]
 
 ---
 
-### 1.1 结构预测类(Structure Prediction)
+### 1.1 序列生成类(Sequence Generation)
+
+#### ProtGPT2 (PLM, Hugging Face)
+<!-- SID:tools.protgpt2.spec -->
+
+- 类型：初始序列生成（de novo / protein LM）
+- 输入：
+  - `goal`: 设计目标描述（可选）
+  - `length_range`: [min, max]
+  - `num_candidates`: 生成候选数量
+  - `prompt`: 可选提示（模板片段/引导片段）
+- 输出：
+  - `sequence`: 选定的一条候选序列
+  - `candidates`: 候选序列列表（可含 perplexity / score）
+  - `artifacts`: 生成的 FASTA / JSON 文件路径
+- 执行方式：支持两种路径（按优先级）
+  1. **本地 Hugging Face (python)**
+     - `transformers` + `torch` 本地推理
+     - model_id: `nferruz/ProtGPT2`
+  2. **SSH 远程主机 (remote_model_service)**
+     - 通过 `SSHModelInvocationService` 提交作业并下载结果
+     - 远端部署 Hugging Face 模型与推理脚本
+- 运行假设（本地路径）：
+  - 可访问 Hugging Face 模型权重（缓存或镜像）
+  - 可用 CPU/GPU（GPU 提升吞吐）
+- 运行假设（SSH 路径）：
+  - SSH key 已配置，可无交互访问远程主机
+  - 远端环境包含 `transformers`/`torch` 与 ProtGPT2 权重
+- 执行配置（SSH 示例）：
+  ```json
+  {
+    "backend": "remote_model_service",
+    "provider": "ssh",
+    "model_id": "nferruz/ProtGPT2",
+    "sync_mode": false
+  }
+  ```
+- 产物目录约定：`output/sequences/`、`output/artifacts/`
+- 非目标：
+  - 结构/功能条件精确控制
+  - 多序列批处理优化（可由上层批量调度实现）
+- 备注：
+  - 作为“初始序列生成器”，下游可接 ESMFold / ProteinMPNN
+  - 生成候选可先做长度、字符合法性与低复杂度过滤
+
+### 1.2 结构预测类(Structure Prediction)
+
 
 #### ESMFold
 <!-- SID:tools.esmfold.spec -->
@@ -116,7 +162,7 @@ depends_on: [impl]
 
 ---
 
-### 1.2 序列与结构质量评估
+### 1.3 序列与结构质量评估
 
 #### BioPython(PDB / Seq 模块)
 
@@ -140,7 +186,7 @@ depends_on: [impl]
 
 ---
 
-### 1.3 结构与理化性质评估
+### 1.4 结构与理化性质评估
 
 #### DSSP
 
@@ -268,6 +314,7 @@ depends_on: [impl]
 <!-- SID:tools.integration_priority -->
 
 ### P0（近期最值得接入）
+- ProtGPT2（PLM 初始序列生成）
 - ESMFold（Executor）
 - Mol*（Summarizer / Visualization）
 - Matplotlib 或 Plotly（指标可视化）
@@ -296,6 +343,9 @@ depends_on: [impl]
 - 工具替换：
   - 不应影响系统整体架构
   - 同类工具可并存，供后续选择
+- 序列生成类工具：
+  - 支持多种执行后端：`python`（本地 Hugging Face）、`remote_model_service`（SSH 远程）
+  - 输出至少包含 `sequence` 与 `candidates`，并生成可追溯 artifacts
 - 结构预测类工具：
   - 支持多种执行后端：`nextflow`（本地）、`remote_model_service`（远程 API）
   - 同一能力可由多个工具提供（如 `esmfold` 和 `nim_esmfold` 均提供 `structure_prediction`）
