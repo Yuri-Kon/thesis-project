@@ -18,6 +18,7 @@ from .contracts import (
 
 # 任务 & 步骤状态定义
 
+
 class ExternalStatus(str, Enum):
     """对外语义状态(ExternalStatus)
 
@@ -84,9 +85,10 @@ def to_external_status(status: InternalStatus) -> ExternalStatus:
         return mapped
     return ExternalStatus[status.name]
 
+
 class StepStatus(str, Enum):
     """单个步骤的生命周期状态
-    
+
     - PENDING: 在 Plan 中但尚未执行
     - RUNNING: 正在执行
     - SUCCEEDED: 执行成功
@@ -100,11 +102,13 @@ class StepStatus(str, Enum):
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
+
 # 持久化用 Record 模型
+
 
 class TaskRecord(BaseModel):
     """用于持久化的任务记录
-    
+
     这个模型代表数据库里的 task 表/集合中的一行/一条
     """
 
@@ -132,6 +136,7 @@ class TaskRecord(BaseModel):
     # 安全事件汇总
     safety_events: List[SafetyResult] = Field(default_factory=list)
 
+
 class StepRecord(BaseModel):
     """用于持久化的步骤执行记录"""
 
@@ -154,6 +159,7 @@ class StepRecord(BaseModel):
 
 
 # 从运行期上下文推导状态的帮助函数
+
 
 def derive_task_status(
     task: ProteinDesignTask,
@@ -179,11 +185,11 @@ def derive_task_status(
 
     if has_failed_step or has_block_safety:
         return InternalStatus.FAILED
-    
+
     # 还没有 Plan ⇒ CREATED
     if plan is None:
         return InternalStatus.CREATED
-    
+
     # 有 Plan 且已经至少成功/跳过了一些步骤 ⇒ RUNNING
     has_any_finished_step = any(
         r.status in ("success", "skipped") for r in step_results.values()
@@ -191,9 +197,10 @@ def derive_task_status(
 
     if has_any_finished_step:
         return InternalStatus.RUNNING
-    
+
     # 有 Plan 但还没有执行任何一步 ⇒ PLANNED
     return InternalStatus.PLANNED
+
 
 def step_result_to_record(result: StepResult) -> StepRecord:
     """将 StepResult 转化为 StepRecord 方便写入持久化层"""
@@ -217,10 +224,7 @@ def step_result_to_record(result: StepResult) -> StepRecord:
         finished_at=result.timestamp,
         metrics=result.metrics,
         risk_flags={
-            "max_level": max(
-                (flag.level for flag in result.risk_flags),
-                default="ok"
-            )
+            "max_level": max((flag.level for flag in result.risk_flags), default="ok")
         }
         if result.risk_flags
         else {},
