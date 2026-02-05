@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-02-01",
+  "generated_at": "2026-02-05",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 83,
+  "total_specs": 96,
   "documents": [
     {
       "doc_key": "arch",
@@ -31,6 +31,19 @@
       "depends_on": [
         "arch",
         "agent"
+      ]
+    },
+    {
+      "doc_key": "de_novo_workflow",
+      "title": "De Novo Workflow：分层与模块化设计",
+      "path": "docs/design/de-novo-workflow.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "arch",
+        "agent",
+        "algo",
+        "tools"
       ]
     },
     {
@@ -1779,6 +1792,253 @@
       "depends_on": [
         "impl.remote_model_invocation.nvidia_nim"
       ],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.overview.scope",
+      "title": "范围与定位",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 11,
+        "marker": "<!-- SID:workflow.overview.scope -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "overview",
+        "scope"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.design.goals",
+      "title": "设计目标与约束",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 19,
+        "marker": "<!-- SID:workflow.design.goals -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "design",
+        "goals"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.layers.six_stage",
+      "title": "六阶段分层",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 28,
+        "marker": "<!-- SID:workflow.layers.six_stage -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "layers",
+        "six_stage"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.sequence_exploration",
+      "title": "序列探索（Sequence Exploration）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 34,
+        "marker": "<!-- SID:workflow.stage.sequence_exploration -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "sequence_exploration"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.structure_projection",
+      "title": "结构映射（Structure Projection）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 43,
+        "marker": "<!-- SID:workflow.stage.structure_projection -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "structure_projection"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.quality_gate",
+      "title": "结构与序列质量门禁（Quality Gate）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 52,
+        "marker": "<!-- SID:workflow.stage.quality_gate -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "quality_gate"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.structure_refinement",
+      "title": "结构条件下的序列精修（Structure-conditioned Refinement）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 60,
+        "marker": "<!-- SID:workflow.stage.structure_refinement -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "structure_refinement"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.objective_scoring",
+      "title": "目标/功能/物性评估（Objective Scoring）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 69,
+        "marker": "<!-- SID:workflow.stage.objective_scoring -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "objective_scoring"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.stage.patch_replan_control",
+      "title": "Patch/Replan 控制层（Control Layer）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 78,
+        "marker": "<!-- SID:workflow.stage.patch_replan_control -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "patch_replan_control"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.modules.interface",
+      "title": "模块化接口与可替换原则",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 86,
+        "marker": "<!-- SID:workflow.modules.interface -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "modules",
+        "interface"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.loops.and_crosscut",
+      "title": "可循环步骤与贯穿步骤",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 104,
+        "marker": "<!-- SID:workflow.loops.and_crosscut -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "loops",
+        "crosscut"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.integration.responsibilities",
+      "title": "分工映射（Planner/Executor/Safety）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 138,
+        "marker": "<!-- SID:workflow.integration.responsibilities -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "integration",
+        "responsibilities"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "workflow.examples.template",
+      "title": "示例流程模板（非线性）",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 146,
+        "marker": "<!-- SID:workflow.examples.template -->"
+      },
+      "level": "Section",
+      "tags": [
+        "workflow",
+        "examples",
+        "template"
+      ],
+      "depends_on": [],
       "stability": "stable"
     }
   ]
