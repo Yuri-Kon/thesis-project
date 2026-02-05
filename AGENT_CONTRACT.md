@@ -8,7 +8,15 @@ It defines invairants that MUST be respected by any LLM-based coding agent (Code
 If any agent instruction conflicts with this document,
 THIS DOCUMENT TAKES PRECEDENCE.
 
----
+______________________________________________________________________
+
+## 0. Project Directory
+
+The Project is managed with Git. The usual working directory is the current one, and this directory(thesis-project.dev) is a worktree of ../thesis-project, which is on master branch.
+
+The design documents are located in ../thesis-project.design, which is also a worktree.
+
+Search in ../thesis-project.design every time before planning to code.
 
 ## 1. System Nature
 
@@ -21,7 +29,7 @@ by architecture, contracts, and lifecycle rules.
 
 Any code change MUST preserve System-level consistency.
 
----
+______________________________________________________________________
 
 ## 2. FSM Is the Single Source of Truth
 
@@ -49,7 +57,7 @@ FSM definitions and allowed transitions are defined in design documents(`archite
 If code behavior diverges from design documents,
 **design documents win**.
 
----
+______________________________________________________________________
 
 ### 3.1 PlannerAgent
 
@@ -91,11 +99,12 @@ If code behavior diverges from design documents,
 
 Role boundaries are **hard constraints**, not suggestions.
 
----
+______________________________________________________________________
 
 ## 4. Contract-First Data Model
 
 ### 4.1 Schemas are stable contracts
+
 - Core data models (Pydantic / schema definitions) are system contracts.
 - Agents MUST NOT:
   - rename existing fields,
@@ -103,6 +112,7 @@ Role boundaries are **hard constraints**, not suggestions.
   - change field semantics.
 
 ### 4.2 Extension rules
+
 - Extensions MUST be additive and backward-compatible.
 - Prefer:
   - optional fields,
@@ -110,32 +120,35 @@ Role boundaries are **hard constraints**, not suggestions.
   - `metrics`.
 
 ### 4.3 Step references are first-class
+
 - References such as `"S1.sequence"` are part of the contract.
 - They MUST:
   - remain symbolic at the planning level,
   - be resolved by execution/adaptation logic,
   - NOT be prematurely inlined by planners.
 
----
+______________________________________________________________________
 
 ## 5. Failure Handling Is Controlled Flow
 
 Failure is **expected**, not exceptional.
 
 ### 5.1 Standard recovery order
+
 On step failure, agents MUST follow:
 
 1. retry (bounded, with limits)
-2. patch (minimal local modification)
-3. replan (regenerate suffix, preserve successful prefix)
+1. patch (minimal local modification)
+1. replan (regenerate suffix, preserve successful prefix)
 
 ### 5.2 No premature task failure
+
 - A step failure does NOT automatically mean task failure.
 - `FAILED` is only valid when:
   - recovery paths are exhausted, or
   - SafetyAgent issues a permanent block.
 
----
+______________________________________________________________________
 
 ## 6. Design Documents Are Authoritative
 
@@ -143,6 +156,7 @@ Authoritative design documents are maintained separately
 (e.g. in a design worktree).
 
 Agents MUST consult design documents before:
+
 - introducing new states,
 - modifying FSM logic,
 - changing agent responsibilities,
@@ -158,11 +172,12 @@ prefer deterministic spec slicing when available (e.g. via the docslice
 skill under `.claude/skills/doc-slicer/`) and retrieve only the needed
 SID/topic fragments instead of full-document reads.
 
----
+______________________________________________________________________
 
 ## 7. Minimal Change Principle
 
 When intent is unclear:
+
 - prefer minimal, conservative changes,
 - avoid introducing new abstractions,
 - do not invent new agent behaviors,
@@ -171,7 +186,7 @@ When intent is unclear:
 Agents MUST NOT "optimize" or "simplify" the system
 at the cost of violating architecture.
 
----
+______________________________________________________________________
 
 ## 8. This Contract Is Non-Negotiable
 
