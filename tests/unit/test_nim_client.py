@@ -255,5 +255,5 @@ def test_call_sync_uses_provider_config_defaults(
 
     mock_client.post.assert_called_once()
     args, kwargs = mock_client.post.call_args
-    assert args[0] == "https://integrate.api.nvidia.com/v1/biology/nvidia/esmfold"
+    assert args[0] == "https://health.api.nvidia.com/v1/biology/nvidia/esmfold"
     assert kwargs["headers"]["Authorization"] == "Bearer test-token"

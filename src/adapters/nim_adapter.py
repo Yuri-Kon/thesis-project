@@ -21,6 +21,7 @@ class NIMESMFoldAdapter(BaseToolAdapter):
 
     tool_id = "nim_esmfold"
     adapter_id = "nim_esmfold"
+    max_sequence_length = 400
 
     def __init__(
         self,
@@ -79,6 +80,15 @@ class NIMESMFoldAdapter(BaseToolAdapter):
                 failure_type=FailureType.NON_RETRYABLE,
                 message="Missing required input 'sequence'",
                 code=FailureCode.INPUT_RESOLUTION_FAILED.value,
+            )
+        if isinstance(sequence, str) and len(sequence) > self.max_sequence_length:
+            raise StepRunError(
+                failure_type=FailureType.NON_RETRYABLE,
+                message=(
+                    "Sequence length exceeds NIM limit "
+                    f"({len(sequence)} > {self.max_sequence_length})"
+                ),
+                code=FailureCode.NIM_INVALID_INPUT.value,
             )
 
         payload = {"sequence": sequence}
