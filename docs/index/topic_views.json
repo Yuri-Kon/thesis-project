@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated_at": "2025-12-31",
+  "generated_at": "2026-02-05",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -477,6 +477,120 @@
       "high_specs": 6,
       "medium_specs": 1
     },
+    "de_novo_workflow": {
+      "title": "De Novo Workflow",
+      "description": "de novo 工作流分层、模块化与循环控制规范",
+      "use_case": "设计或扩展 de novo 流程、能力模块与重规划机制时注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "workflow.overview.scope",
+          "title": "范围与定位",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "说明 de novo 工作流的适用范围与定位"
+        },
+        {
+          "sid": "workflow.design.goals",
+          "title": "设计目标与约束",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "明确模块化与可重规划的设计目标"
+        },
+        {
+          "sid": "workflow.layers.six_stage",
+          "title": "六阶段分层",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "critical",
+          "rationale": "核心分层框架，定义 de novo 主干能力"
+        },
+        {
+          "sid": "workflow.stage.sequence_exploration",
+          "title": "序列探索",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "候选序列生成能力的规范定义"
+        },
+        {
+          "sid": "workflow.stage.structure_projection",
+          "title": "结构映射",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "序列到结构映射的能力定义"
+        },
+        {
+          "sid": "workflow.stage.quality_gate",
+          "title": "质量门禁",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "硬性质量过滤与可行性门禁"
+        },
+        {
+          "sid": "workflow.stage.structure_refinement",
+          "title": "结构精修",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "结构条件下的序列优化步骤"
+        },
+        {
+          "sid": "workflow.stage.objective_scoring",
+          "title": "目标打分",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "多目标评分与排序阶段定义"
+        },
+        {
+          "sid": "workflow.stage.patch_replan_control",
+          "title": "Patch/Replan 控制层",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "critical",
+          "rationale": "贯穿式修补与重规划控制机制"
+        },
+        {
+          "sid": "workflow.modules.interface",
+          "title": "模块化接口与可替换原则",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "能力模块的最小 I/O 契约与替换规则"
+        },
+        {
+          "sid": "workflow.loops.and_crosscut",
+          "title": "可循环步骤与贯穿步骤",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "critical",
+          "rationale": "定义循环与贯穿机制，避免单一流水线"
+        },
+        {
+          "sid": "workflow.integration.responsibilities",
+          "title": "分工映射",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "Planner/Executor/Safety 的职责映射"
+        },
+        {
+          "sid": "workflow.examples.template",
+          "title": "示例流程模板",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "非线性流程的参考模板"
+        }
+      ],
+      "total_specs": 13,
+      "critical_specs": 3,
+      "high_specs": 10
+    },
     "observability": {
       "title": "Observability & Monitoring",
       "description": "可观测性相关规范，包括事件日志、快照、状态机追踪和 API 监控",
@@ -672,8 +786,8 @@
     }
   },
   "summary": {
-    "total_topics": 7,
-    "total_unique_specs": 56,
+    "total_topics": 8,
+    "total_unique_specs": 70,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

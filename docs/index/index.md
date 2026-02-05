@@ -12,9 +12,9 @@
 ## 索引总览
 
 **版本**: 1.0
-**生成日期**: 2026-01-11
-**总规范数**: 77
-**文档数**: 10
+**生成日期**: 2026-02-05
+**总规范数**: 96
+**文档数**: 11
 
 ---
 
@@ -25,6 +25,7 @@
 | `arch` | 系统总体架构 | [docs/design/architecture.md](../design/architecture.md) | stable | - |
 | `agent` | Agent设计文档 | [docs/design/agent-design.md](../design/agent-design.md) | stable | arch |
 | `algo` | 核心算法规范 | [docs/design/core-algorithm-spec.md](../design/core-algorithm-spec.md) | stable | arch, agent |
+| `de_novo_workflow` | De Novo Workflow：分层与模块化设计 | [docs/design/de-novo-workflow.md](../design/de-novo-workflow.md) | stable | arch, agent, algo, tools |
 | `impl` | 系统实现设计 | [docs/design/system-implementation-design.md](../design/system-implementation-design.md) | stable | arch, agent |
 | `impl_index` | 实现代码索引与结构化总览 | [docs/impl/implementation_index.md](../impl/implementation_index.md) | stable | impl |
 | `impl_llm_provider` | LLM Provider 集成指南 | [docs/impl/llm_provider_guide.md](../impl/llm_provider_guide.md) | stable | impl |
@@ -158,7 +159,29 @@
 
 ---
 
-### 8. `algo` Domain（算法规范）
+### 8. `workflow` Domain（de novo 工作流）
+
+**SSOT 文档**: de-novo-workflow.md
+
+| SID | 标题 | 级别 | 标签 |
+|-----|------|------|------|
+| `workflow.overview.scope` | 范围与定位 | Section | workflow, overview, scope |
+| `workflow.design.goals` | 设计目标与约束 | Section | workflow, design, goals |
+| `workflow.layers.six_stage` | 六阶段分层 | Section | workflow, layers, six_stage |
+| `workflow.stage.sequence_exploration` | 序列探索 | Block | workflow, stage, sequence_exploration |
+| `workflow.stage.structure_projection` | 结构映射 | Block | workflow, stage, structure_projection |
+| `workflow.stage.quality_gate` | 质量门禁 | Block | workflow, stage, quality_gate |
+| `workflow.stage.structure_refinement` | 结构精修 | Block | workflow, stage, structure_refinement |
+| `workflow.stage.objective_scoring` | 目标打分 | Block | workflow, stage, objective_scoring |
+| `workflow.stage.patch_replan_control` | Patch/Replan 控制层 | Block | workflow, stage, patch_replan_control |
+| `workflow.modules.interface` | 模块化接口与可替换原则 | Section | workflow, modules, interface |
+| `workflow.loops.and_crosscut` | 可循环步骤与贯穿步骤 | Section | workflow, loops, crosscut |
+| `workflow.integration.responsibilities` | 分工映射 | Section | workflow, integration, responsibilities |
+| `workflow.examples.template` | 示例流程模板 | Section | workflow, examples, template |
+
+---
+
+### 9. `algo` Domain（算法规范）
 
 **SSOT 文档**: core-algorithm-spec.md
 
@@ -169,7 +192,7 @@
 
 ---
 
-### 9. `api` Domain（REST API）
+### 10. `api` Domain（REST API）
 
 **SSOT 文档**: system-implementation-design.md
 
@@ -183,7 +206,7 @@
 
 ---
 
-### 10. `obs` Domain（可观测性）
+### 11. `obs` Domain（可观测性）
 
 **SSOT 文档**: system-implementation-design.md
 
@@ -195,7 +218,7 @@
 
 ---
 
-### 11. `impl` Domain（实现层）
+### 12. `impl` Domain（实现层）
 
 **SSOT 文档**: system-implementation-design.md
 
@@ -217,7 +240,7 @@
 
 ---
 
-### 12. `tools` Domain（工具集成）
+### 13. `tools` Domain（工具集成）
 
 **SSOT 文档**: tools-catalog.md
 

@@ -18,6 +18,7 @@
 | `safety` | agent-design.md | SafetyAgent 接口与职责边界 |
 | `summarizer` | agent-design.md | SummarizerAgent 接口与职责边界 |
 | `tools` | tools-catalog.md | 工具清单、ToolAdapter 约束、集成优先级 |
+| `workflow` | de-novo-workflow.md | de novo 工作流分层、模块化与循环控制 |
 | `api` | system-implementation-design.md | REST API 端点定义与契约 |
 | `obs` | system-implementation-design.md | 可观测性（EventLog）、日志模式与约束 |
 | `storage` | system-implementation-design.md | 数据存储与持久化（尚未完整标注 SID） |
@@ -156,6 +157,26 @@
 
 ---
 
+### `workflow` Domain（SSOT: de-novo-workflow.md）
+
+| SID | 说明 | 粒度 |
+|-----|------|------|
+| `SID:workflow.overview.scope` | de novo 工作流范围与定位 | Section |
+| `SID:workflow.design.goals` | 分层设计目标与约束 | Section |
+| `SID:workflow.layers.six_stage` | 六阶段分层概述 | Section |
+| `SID:workflow.stage.sequence_exploration` | 序列探索阶段定义 | Block |
+| `SID:workflow.stage.structure_projection` | 结构映射阶段定义 | Block |
+| `SID:workflow.stage.quality_gate` | 质量门禁阶段定义 | Block |
+| `SID:workflow.stage.structure_refinement` | 结构条件精修阶段定义 | Block |
+| `SID:workflow.stage.objective_scoring` | 目标打分阶段定义 | Block |
+| `SID:workflow.stage.patch_replan_control` | Patch/Replan 控制层定义 | Block |
+| `SID:workflow.modules.interface` | 模块化接口与可替换原则 | Section |
+| `SID:workflow.loops.and_crosscut` | 循环步骤与贯穿步骤 | Section |
+| `SID:workflow.integration.responsibilities` | Planner/Executor/Safety 分工映射 | Section |
+| `SID:workflow.examples.template` | 非线性流程模板 | Section |
+
+---
+
 ### `tools` Domain（SSOT: tools-catalog.md）
 
 | SID | 说明 | 粒度 |
@@ -272,6 +293,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.1 | 2026-02-05 | 新增 workflow Domain 与 de-novo-workflow.md 的核心 SID 列表 |
 | 1.0 | 2025-12-31 | 初始版本，定义 12 个 Domain 的 SSOT 文档映射与核心 SID 列表 |
 
 ---
