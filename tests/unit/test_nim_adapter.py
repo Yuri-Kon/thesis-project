@@ -115,6 +115,19 @@ def test_run_local_missing_sequence() -> None:
     assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
 
 
+def test_run_local_sequence_too_long() -> None:
+    mock_client = Mock()
+    adapter = NIMESMFoldAdapter(client=mock_client)
+    sequence = "M" * (adapter.max_sequence_length + 1)
+
+    with pytest.raises(StepRunError) as exc_info:
+        adapter.run_local({"sequence": sequence, "task_id": "task123", "step_id": "S1"})
+
+    assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
+    assert exc_info.value.code == "NIM_INVALID_INPUT"
+    mock_client.call_sync.assert_not_called()
+
+
 def test_run_local_missing_pdb() -> None:
     mock_client = Mock()
     mock_client.call_sync.return_value = {"plddt": 90.0}

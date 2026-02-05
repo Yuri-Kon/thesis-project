@@ -6,9 +6,17 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from src.models.contracts import ProteinDesignTask, Decision, DecisionChoice, PendingActionStatus
+from src.models.contracts import (
+    ProteinDesignTask,
+    Decision,
+    DecisionChoice,
+    PendingActionStatus,
+)
 from src.models.db import TaskRecord
-from src.models.validation import DecisionValidationError, validate_decision_for_pending_action
+from src.models.validation import (
+    DecisionValidationError,
+    validate_decision_for_pending_action,
+)
 from src.workflow.workflow import run_task_sync
 from src.workflow.decision_apply import (
     apply_plan_confirm_decision,
@@ -34,8 +42,11 @@ class TaskCreateRequest(BaseModel):
 
 class DecisionSubmitRequest(BaseModel):
     """提交人工决策的请求体"""
+
     choice: DecisionChoice = Field(..., description="决策选择")
-    selected_candidate_id: Optional[str] = Field(None, description="当choice为accept时必填")
+    selected_candidate_id: Optional[str] = Field(
+        None, description="当choice为accept时必填"
+    )
     decided_by: str = Field(..., description="决策者标识")
     comment: Optional[str] = Field(None, description="可选的决策备注")
 
@@ -86,15 +97,16 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
     # 查找包含该 pending_action 的任务
     record = None
     for task_record in TASK_STORE.values():
-        if (task_record.pending_action
-            and task_record.pending_action.pending_action_id == pending_action_id):
+        if (
+            task_record.pending_action
+            and task_record.pending_action.pending_action_id == pending_action_id
+        ):
             record = task_record
             break
 
     if record is None:
         raise HTTPException(
-            status_code=404,
-            detail=f"pending_action {pending_action_id} not found"
+            status_code=404, detail=f"pending_action {pending_action_id} not found"
         )
 
     pending_action = record.pending_action
@@ -103,13 +115,13 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
     if pending_action is None:
         raise HTTPException(
             status_code=404,
-            detail=f"pending_action {pending_action_id} not found in task record"
+            detail=f"pending_action {pending_action_id} not found in task record",
         )
 
     if pending_action.status != PendingActionStatus.PENDING:
         raise HTTPException(
             status_code=409,
-            detail=f"PendingAction {pending_action_id} is not in PENDING status (current: {pending_action.status.value})"
+            detail=f"PendingAction {pending_action_id} is not in PENDING status (current: {pending_action.status.value})",
         )
 
     # 构造 Decision 对象
@@ -161,7 +173,7 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unsupported action type: {pending_action.action_type.value}"
+                detail=f"Unsupported action type: {pending_action.action_type.value}",
             )
     except DecisionConflictError as e:
         # 决策冲突：已决策或状态不匹配
@@ -170,7 +182,9 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
         # 其他决策应用失败
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to apply decision: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to apply decision: {str(e)}"
+        )
 
     # 返回更新后的 TaskRecord
     return record

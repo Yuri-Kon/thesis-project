@@ -100,15 +100,12 @@ class PlannerAgent:
             plan = _build_de_novo_plan(task, self._tool_registry)
             return _attach_kg_explanation(plan)
         if not self._tool_registry:
-            raise ValueError(
-                "Tool registry is empty; cannot build default plan."
-            )
+            raise ValueError("Tool registry is empty; cannot build default plan.")
         tool_id = self._tool_registry[0].id
 
         # 从任务约束中提取 sequence，或使用默认值
         sequence = task.constraints.get(
-            "sequence",
-            "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"
+            "sequence", "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"
         )
 
         # 构建单步计划
@@ -415,15 +412,12 @@ def _load_default_tool_registry() -> Sequence[ToolSpec]:
     return _load_tool_specs_from_kg()
 
 
-def _ensure_plan_tools_in_registry(
-    plan: Plan, registry: Sequence[ToolSpec]
-) -> None:
+def _ensure_plan_tools_in_registry(plan: Plan, registry: Sequence[ToolSpec]) -> None:
     registry_ids = {spec.id for spec in registry}
     missing = {step.tool for step in plan.steps if step.tool not in registry_ids}
     if missing:
         raise ValueError(
-            "Plan references tools not registered in ProteinToolKG: "
-            f"{sorted(missing)}"
+            f"Plan references tools not registered in ProteinToolKG: {sorted(missing)}"
         )
 
 

@@ -11,6 +11,7 @@ from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
 
+
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
     """同步执行一次完整任务"""
     ensure_builtin_adapters()

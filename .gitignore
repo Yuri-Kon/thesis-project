@@ -1,4 +1,4 @@
-# dev 分支专用
+# Master 分支专用
 
 # 需要忽略的文件
 
@@ -9,7 +9,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx
+*.idx 
 *.ilg
 *.ind
 *.ist
@@ -46,15 +46,9 @@ ppt/
 Thumbs.db
 
 # 4. vscode工作环境
-output/
-data/outputs/
-data/logs/
-data/raw/
-__pycache__/
-weights/
-.nextflow/
-.nextflow.log
 
+.vscode/
+*.code-workspace
 
 # 5. 转化得到的文件
 
@@ -92,49 +86,26 @@ venv/
 .env.*
 *.egg-info/
 
-# 11. 日志与中间数据
+# 11. 日志与中间数据 
 
 data/logs/
 data/outputs/
 output/
 data/inputs/tmp/
 *.log
-logs/
 
 #  12. Nextflow / workflow 相关中间文件
 .nextflow/
 .nextflow.log
 nf/work/
 nf/.nextflow/
-nf/output/
-weights/
 
-# 13. 其他内容
-output/
-plan/
+# 13. 不需要上传到master的文件
 docs/
+plan/
+shared/
 drafts/
-ppt/
-resources/papers/
-data/outputs/
-data/logs/
-data/snapshots/
-.coverage
-htmlcov/
 .idea/
-.vscode/
+data/
 work/
-*.log.*
-
-# allow demo placeholders
-!/output/
-/output/*
-!/output/demo/
-/output/demo/*
-!/output/demo/.gitkeep
-!/output/demo/pdb/
-/output/demo/pdb/*
-!/output/demo/pdb/.gitkeep
-
-# Demo 输出目录
-demo_output/
+.nextflow.log.*
