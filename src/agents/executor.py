@@ -1,46 +1,160 @@
 from __future__ import annotations
 
-from typing import Dict
-
-from src.models.contracts import Plan, WorkflowContext, StepResult, RiskFlag, now_iso
+from src.models.contracts import DesignResult, Plan, StepResult
+from src.models.db import (
+    InternalStatus,
+    TaskRecord,
+    TERMINAL_INTERNAL_STATUSES,
+    derive_task_status,
+)
+from src.agents.summarizer import SummarizerAgent
+from src.workflow.context import WorkflowContext
+from src.workflow.step_runner import StepRunner
+from src.workflow.plan_runner import PlanRunner
+from src.workflow.status import transition_task_status
 
 
 class ExecutorAgent:
-    """最小可用 ExecutorAgent：顺序执行 Plan，每一步生成一个假的 StepResult."""
+    """计划执行者与调度器，负责执行 Plan 并调用工具适配器
+
+    当前实现：
+    - 使用 StepRunner 执行单个步骤，支持输入解析（包括引用语义）
+    - 使用 PlanRunner 执行完整计划，包含安全检查、状态管理等功能
+    - 通过 AdapterRegistry 调用工具（ESMFold、ProteinMPNN等）
+    """
+
+    def __init__(self, plan_runner: PlanRunner | None = None):
+        """初始化 ExecutorAgent
+
+        Args:
+            plan_runner: 可选的 PlanRunner 实例。如果为 None，则创建默认实例。
+        """
+        self.step_runner = StepRunner()
+        # 使用 PlanRunner 来执行完整计划，它包含安全检查、状态管理等功能
+        self.plan_runner = plan_runner or PlanRunner(step_runner=self.step_runner)
 
     def run_step(self, step_id: str, context: WorkflowContext) -> StepResult:
-        assert context.plan is not None
+        """执行单个步骤
+
+        使用 StepRunner 来执行步骤，支持输入解析（包括引用语义），并通过适配器调用工具。
+
+        Args:
+            step_id: 步骤ID
+            context: 工作流上下文
+
+        Returns:
+            StepResult: 步骤执行结果
+
+        Raises:
+            AssertionError: 当 context.plan 为 None 时
+            StopIteration: 当 step_id 不存在时
+            ValueError: 当输入引用无法解析时
+        """
+        assert context.plan is not None, "Plan must be set in context"
         step = next(s for s in context.plan.steps if s.id == step_id)
 
-        # 假执行逻辑：根据输入生成一点“输出”，不调用任何外部模型
-        sequence = step.inputs.get("sequence", "")
-        outputs: Dict = {
-            "note": f"dummy execution for step {step.id} with tool {step.tool}",
-            "sequence_length": len(sequence),
-        }
-        metrics: Dict = {
-            "runtime_ms": 1,
-            "backend": "dummy_executor",
-        }
+        # 使用 StepRunner 执行步骤，它会处理输入解析和执行逻辑
+        result = self.step_runner.run_step(step, context)
 
-        result = StepResult(
-            task_id=context.task.task_id,
-            step_id=step.id,
-            tool=step.tool,
-            status="success",
-            outputs=outputs,
-            metrics=metrics,
-            risk_flags=[],
-            logs_path=None,
-            timestamp=now_iso(),
-        )
+        # 将结果添加到上下文中
+        # 使用增强版 WorkflowContext 的 add_step_result 方法（如果可用），否则直接操作字典
+        if hasattr(context, "add_step_result"):
+            context.add_step_result(result)
+        else:
+            context.step_results[step.id] = result
 
-        context.step_results[step.id] = result
         return result
 
-    def run_plan(self, plan: Plan, context: WorkflowContext) -> Plan:
-        # 顺序执行所有 step，目前不做重试/patch/replan
-        context.plan = plan
-        for step in plan.steps:
-            self.run_step(step.id, context)
-        return plan
+    def run_plan(
+        self,
+        plan: Plan,
+        context: WorkflowContext,
+        *,
+        record: TaskRecord | None = None,
+        finalize_status: bool = True,
+        max_replans: int = 1,
+        resume_from_existing: bool = False,
+    ) -> Plan:
+        """执行完整计划
+
+        使用 PlanRunner 来执行计划，它包含安全检查、状态管理等功能。
+
+        Args:
+            plan: 执行计划
+            context: 工作流上下文
+            record: 可选的任务记录，用于同步更新持久化状态
+            finalize_status: 是否在 SUMMARIZING 后自动置为 DONE
+            max_replans: 允许触发再规划的最大次数
+            resume_from_existing: 是否跳过已完成步骤（用于恢复）
+
+        Returns:
+            Plan: 执行后的计划（当前实现不做修改）
+        """
+        # 使用 PlanRunner 执行计划，它包含安全检查、状态管理等功能
+        return self.plan_runner.run_plan(
+            plan,
+            context,
+            record=record,
+            finalize_status=finalize_status,
+            max_replans=max_replans,
+            resume_from_existing=resume_from_existing,
+        )
+
+    def summarize_and_finalize(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        summarizer: SummarizerAgent,
+    ) -> DesignResult:
+        """运行 Summarizer 并驱动 SUMMARIZING → DONE/FAILED 状态变更。"""
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.SUMMARIZING,
+            reason="plan_execution_completed",
+        )
+        try:
+            design = summarizer.summarize(context)
+        except Exception:
+            self._mark_failed_if_needed(context, record, reason="summarizer_error")
+            raise
+
+        context.design_result = design
+        if record is not None:
+            record.design_result = design
+
+        final_status = derive_task_status(
+            context.task,
+            context.plan,
+            context.step_results,
+            context.safety_events,
+            context.design_result,
+        )
+        final_reason = (
+            "summarizer_completed"
+            if final_status == InternalStatus.DONE
+            else "workflow_failed"
+        )
+        transition_task_status(
+            context,
+            record,
+            final_status,
+            reason=final_reason,
+        )
+        return design
+
+    def _mark_failed_if_needed(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        *,
+        reason: str,
+    ) -> None:
+        if context.status in TERMINAL_INTERNAL_STATUSES:
+            return
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.FAILED,
+            reason=reason,
+        )

@@ -1,0 +1,689 @@
+#!/usr/bin/env python3
+"""
+docslice - Deterministic Specification Slicer
+
+A read-only, deterministic document slicer for extracting specification fragments
+by SID (Section Identifier) or topic from design documents.
+
+This tool is the core of the skill execution mechanism for Claude Code,
+providing precise specification context retrieval.
+"""
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Any
+from dataclasses import dataclass
+from collections import defaultdict
+
+
+@dataclass
+class Fragment:
+    """Represents an extracted specification fragment."""
+    sid: str
+    title: str
+    doc_key: str
+    path: str
+    content: str
+    line_range: Optional[Tuple[int, int]] = None
+    level: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class DocSlice:
+    """Main docslice implementation."""
+
+    def __init__(self, repo_root: Optional[Path] = None):
+        """Initialize docslice with repository root."""
+        if repo_root is None:
+            script_path = Path(__file__).resolve()
+            repo_root = None
+
+            # Prefer a design worktree found in any ancestor.
+            for parent in script_path.parents:
+                if (parent / "docs" / "index" / "index.json").exists():
+                    repo_root = parent
+                    break
+
+            if repo_root is None:
+                main_repo = None
+                for parent in script_path.parents:
+                    if (parent / ".git").exists():
+                        main_repo = parent
+                        break
+
+                if main_repo is not None:
+                    design_worktree = main_repo.parent / "thesis-project.design"
+                    if (design_worktree / "docs" / "index" / "index.json").exists():
+                        repo_root = design_worktree
+                    else:
+                        repo_root = main_repo
+
+            if repo_root is None:
+                repo_root = script_path.parent
+
+        self.repo_root = repo_root
+        self.index_dir = repo_root / "docs" / "index"
+        self.index_path = self.index_dir / "index.json"
+        self.topic_views_path = self.index_dir / "topic_views.json"
+
+        # Load indices
+        self.index_data = self._load_json(self.index_path)
+        self.topic_views = self._load_json(self.topic_views_path)
+
+        # Build lookup tables
+        self.sid_lookup = {spec['sid']: spec for spec in self.index_data.get('specs', [])}
+        self.doc_lookup = {doc['doc_key']: doc for doc in self.index_data.get('documents', [])}
+
+    def _load_json(self, path: Path) -> Dict:
+        """Load and parse JSON file."""
+        if not path.exists():
+            raise FileNotFoundError(f"Required index file not found: {path}")
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in {path}: {e}")
+
+    def _read_file_lines(self, rel_path: str) -> List[str]:
+        """Read file and return lines (1-indexed storage)."""
+        file_path = self.repo_root / rel_path
+        if not file_path.exists():
+            raise FileNotFoundError(f"Document not found: {file_path}")
+
+        with open(file_path, 'r', encoding='utf-8') as f:
+            # Store with 1-indexed (prepend empty string at index 0)
+            return [''] + f.read().splitlines()
+
+    def _extract_content_by_locator(self, spec: Dict, lines: List[str]) -> Tuple[str, Optional[Tuple[int, int]]]:
+        """Extract content based on locator information."""
+        locator = spec.get('locator', {})
+        locator_type = locator.get('type')
+
+        if locator_type == 'comment':
+            # Single-line marker, extract section until next same-level heading or SID
+            return self._extract_section(lines, locator['line'], spec.get('level'))
+        elif locator_type == 'inline':
+            # Inline marker, extract single line or small context
+            return self._extract_inline(lines, locator['line'])
+        elif locator_type == 'begin_end':
+            # Bounded block with BEGIN/END, use line_start and line_end from locator
+            content, line_range, used_fallback, reason = self._extract_begin_end_with_fallback(spec, lines)
+            if used_fallback:
+                print(
+                    f"Warning: Falling back to marker scan for SID {spec['sid']} ({reason})",
+                    file=sys.stderr
+                )
+            return content, line_range
+        else:
+            raise ValueError(f"Unknown locator type: {locator_type}")
+
+    def _extract_section(self, lines: List[str], start_line: int, level: str) -> Tuple[str, Tuple[int, int]]:
+        """Extract section content starting from SID marker line."""
+        # Start from the line with the SID marker
+        content_lines = []
+        current_line = start_line
+
+        # Determine heading level to watch for (to know when section ends)
+        heading_pattern = None
+        if level == 'Section':
+            # Section: stop at next same or higher heading level
+            heading_pattern = re.compile(r'^##?\s')
+        elif level == 'Block':
+            # Block: stop at next same or higher heading level
+            heading_pattern = re.compile(r'^#{1,3}\s')
+        # For Spec-Item, we'll read until next SID marker
+
+        # Find the heading line, preferring the closest heading above the SID marker.
+        heading_line = None
+        for i in range(start_line, 0, -1):
+            if lines[i].startswith('#'):
+                heading_line = i
+                break
+        if heading_line is None:
+            for i in range(start_line + 1, len(lines)):
+                if lines[i].startswith('#'):
+                    heading_line = i
+                    break
+
+        if heading_line:
+            start_extraction = heading_line
+            if level in ('Section', 'Block'):
+                heading_level = len(re.match(r'^(#+)', lines[heading_line]).group(1))
+                heading_pattern = re.compile(r'^#{1,' + str(heading_level) + r'}\s')
+        else:
+            start_extraction = start_line
+
+        # Extract until heading boundary; Spec-Item also stops at next SID marker
+        for i in range(start_extraction, len(lines)):
+            line = lines[i]
+
+            # Spec-Item: stop at next SID marker (unless it's the current one)
+            if level == 'Spec-Item':
+                if i != start_line and re.search(r'<!--\s*SID:[a-z][a-z0-9_.]*\s*-->', line):
+                    break
+
+            # Stop at next heading of same or higher level
+            if i != heading_line and heading_pattern and heading_pattern.match(line):
+                break
+
+            content_lines.append(line)
+
+        end_line = start_extraction + len(content_lines) - 1
+        return '\n'.join(content_lines).strip(), (start_extraction, end_line)
+
+    def _extract_inline(self, lines: List[str], line_num: int) -> Tuple[str, Tuple[int, int]]:
+        """Extract inline content (typically a single line or table row)."""
+        if line_num >= len(lines):
+            raise ValueError(f"Line number {line_num} out of range")
+
+        # For inline markers, extract a small context around the line
+        # Check if it's part of a table or list
+        start = line_num
+        end = line_num
+
+        # Look backwards to find the start of the block (table, list, etc.)
+        for i in range(line_num - 1, max(0, line_num - 10), -1):
+            line = lines[i].strip()
+            if not line or line.startswith('#'):
+                start = i + 1
+                break
+            start = i
+
+        # Look forwards to find the end of the block
+        for i in range(line_num + 1, min(len(lines), line_num + 10)):
+            line = lines[i].strip()
+            if not line or line.startswith('#'):
+                end = i - 1
+                break
+            end = i
+
+        content_lines = [lines[i] for i in range(start, end + 1)]
+        return '\n'.join(content_lines).strip(), (start, end)
+
+    def _extract_line_range(self, lines: List[str], line_start: int, line_end: int) -> Tuple[str, Tuple[int, int]]:
+        """Extract content from a specific line range."""
+        if line_start >= len(lines) or line_end >= len(lines):
+            raise ValueError(f"Line range {line_start}-{line_end} out of range")
+
+        content_lines = [lines[i] for i in range(line_start, line_end + 1)]
+
+        # Remove BEGIN/END markers if present
+        filtered_lines = []
+        for line in content_lines:
+            # Skip lines that are only SID markers
+            if re.match(r'^\s*<!--\s*SID:[a-z][a-z0-9_.]*\s+(BEGIN|END)\s*-->\s*$', line):
+                continue
+            filtered_lines.append(line)
+
+        return '\n'.join(filtered_lines).strip(), (line_start, line_end)
+
+    def _extract_begin_end_with_fallback(
+        self,
+        spec: Dict,
+        lines: List[str]
+    ) -> Tuple[str, Tuple[int, int], bool, str]:
+        """Extract begin/end block with fallback to marker scan."""
+        sid = spec['sid']
+        locator = spec.get('locator', {})
+        line_start = locator.get('line_start')
+        line_end = locator.get('line_end')
+
+        begin_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+BEGIN\s*-->')
+        end_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+END\s*-->')
+
+        fallback_reason = ""
+        if line_start is None or line_end is None:
+            fallback_reason = "missing line range"
+        elif line_start < 1 or line_end < 1 or line_start >= len(lines) or line_end >= len(lines):
+            fallback_reason = "line range out of bounds"
+        elif line_start > line_end:
+            fallback_reason = "line range reversed"
+        elif not begin_pattern.search(lines[line_start]) or not end_pattern.search(lines[line_end]):
+            fallback_reason = "marker not at expected lines"
+        else:
+            content, line_range = self._extract_line_range(lines, line_start, line_end)
+            if content.strip():
+                return content, line_range, False, ""
+            fallback_reason = "empty content"
+
+        content, line_range = self._extract_bounded_block(lines, sid)
+        return content, line_range, True, fallback_reason
+
+    def _extract_bounded_block(self, lines: List[str], sid: str) -> Tuple[str, Tuple[int, int]]:
+        """Extract content between BEGIN and END markers."""
+        begin_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+BEGIN\s*-->')
+        end_pattern = re.compile(rf'<!--\s*SID:{re.escape(sid)}\s+END\s*-->')
+
+        begin_line = None
+        end_line = None
+
+        for i, line in enumerate(lines):
+            if i == 0:
+                continue  # Skip index 0 (empty placeholder)
+
+            if begin_pattern.search(line):
+                begin_line = i
+            elif end_pattern.search(line) and begin_line is not None:
+                end_line = i
+                break
+
+        if begin_line is None:
+            raise ValueError(f"BEGIN marker not found for SID: {sid}")
+        if end_line is None:
+            raise ValueError(f"END marker not found for SID: {sid}")
+
+        # Extract content between markers (inclusive of marker lines, or exclusive?)
+        # Let's include the lines but not the markers themselves
+        content_lines = []
+        for i in range(begin_line, end_line + 1):
+            line = lines[i]
+            # Skip the marker lines themselves
+            if not (begin_pattern.search(line) or end_pattern.search(line)):
+                content_lines.append(line)
+
+        return '\n'.join(content_lines).strip(), (begin_line, end_line)
+
+    def extract_by_sid(self, sid: str) -> Fragment:
+        """Extract fragment by SID."""
+        # Remove 'SID:' prefix if present
+        if sid.startswith('SID:'):
+            sid = sid[4:]
+
+        spec = self.sid_lookup.get(sid)
+        if not spec:
+            raise ValueError(f"SID not found: {sid}")
+
+        # Load the document
+        lines = self._read_file_lines(spec['path'])
+
+        # Extract content
+        content, line_range = self._extract_content_by_locator(spec, lines)
+
+        return Fragment(
+            sid=spec['sid'],
+            title=spec['title'],
+            doc_key=spec['doc_key'],
+            path=spec['path'],
+            content=content,
+            line_range=line_range,
+            level=spec.get('level'),
+            tags=spec.get('tags')
+        )
+
+    def extract_by_ref(self, ref: str) -> Fragment:
+        """Extract fragment by DOC:doc_key#anchor reference."""
+        # Parse DOC:<doc_key>#<anchor>
+        match = re.match(r'DOC:([a-z]+)#(.+)', ref)
+        if not match:
+            raise ValueError(f"Invalid reference format: {ref}. Expected DOC:<doc_key>#<anchor>")
+
+        doc_key, anchor = match.groups()
+
+        # Get document info
+        doc = self.doc_lookup.get(doc_key)
+        if not doc:
+            raise ValueError(f"Document not found: {doc_key}")
+
+        # Load document lines
+        lines = self._read_file_lines(doc['path'])
+
+        # Find heading with matching anchor
+        # Anchors are typically lowercase with spaces replaced by hyphens
+        # But the reference might have the exact Chinese text, so we'll be flexible
+        anchor_normalized = anchor.lower().replace(' ', '-')
+
+        heading_line = None
+        for i, line in enumerate(lines):
+            if i == 0:
+                continue
+
+            # Check if line is a heading
+            if line.startswith('#'):
+                # Extract heading text
+                heading_text = re.sub(r'^#+\s*', '', line).strip()
+
+                # Try exact match first
+                if heading_text == anchor:
+                    heading_line = i
+                    break
+
+                # Try normalized match
+                heading_normalized = heading_text.lower().replace(' ', '-')
+                if heading_normalized == anchor_normalized:
+                    heading_line = i
+                    break
+
+        if heading_line is None:
+            raise ValueError(f"Anchor not found in {doc_key}: {anchor}")
+
+        # Extract section content (until next same-level heading)
+        heading_level = len(re.match(r'^(#+)', lines[heading_line]).group(1))
+        heading_pattern = re.compile(r'^#{1,' + str(heading_level) + r'}\s')
+
+        content_lines = [lines[heading_line]]
+        for i in range(heading_line + 1, len(lines)):
+            line = lines[i]
+            # Stop at next same or higher level heading
+            if heading_pattern.match(line):
+                break
+            content_lines.append(line)
+
+        end_line = heading_line + len(content_lines) - 1
+        content = '\n'.join(content_lines).strip()
+
+        return Fragment(
+            sid=f"ref:{ref}",
+            title=anchor,
+            doc_key=doc_key,
+            path=doc['path'],
+            content=content,
+            line_range=(heading_line, end_line)
+        )
+
+    def extract_by_topic(self, topic: str, max_lines: Optional[int] = None,
+                        max_chars: Optional[int] = None) -> List[Fragment]:
+        """Extract fragments by topic with optional size constraints."""
+        topic_data = self.topic_views.get('topics', {}).get(topic)
+        if not topic_data:
+            raise ValueError(f"Topic not found: {topic}")
+
+        fragments = []
+        total_lines = 0
+        total_chars = 0
+
+        for spec_ref in topic_data.get('specs', []):
+            sid = spec_ref['sid']
+
+            try:
+                fragment = self.extract_by_sid(sid)
+
+                # Check size constraints
+                fragment_lines = fragment.content.count('\n') + 1
+                fragment_chars = len(fragment.content)
+
+                if max_lines and (total_lines + fragment_lines > max_lines):
+                    print(f"Warning: Stopping at SID {sid} due to max_lines limit", file=sys.stderr)
+                    break
+
+                if max_chars and (total_chars + fragment_chars > max_chars):
+                    print(f"Warning: Stopping at SID {sid} due to max_chars limit", file=sys.stderr)
+                    break
+
+                fragments.append(fragment)
+                total_lines += fragment_lines
+                total_chars += fragment_chars
+
+            except Exception as e:
+                print(f"Warning: Failed to extract {sid}: {e}", file=sys.stderr)
+                continue
+
+        return fragments
+
+    def lint(self) -> List[str]:
+        """Validate document structure and return list of errors."""
+        errors = []
+
+        # Track SID uniqueness across all documents
+        sid_locations = defaultdict(list)
+        sid_paired = set()  # Track SIDs that have BEGIN/END pairs
+        doc_lines = {}
+
+        # Check each document
+        for doc in self.index_data.get('documents', []):
+            try:
+                lines = self._read_file_lines(doc['path'])
+            except FileNotFoundError:
+                errors.append(f"Document file not found: {doc['path']}")
+                continue
+
+            doc_lines[doc['path']] = lines
+            doc_key = doc['doc_key']
+
+            # Track BEGIN/END pairing
+            begin_markers = {}  # sid -> line_number
+
+            for i, line in enumerate(lines):
+                if i == 0:
+                    continue
+
+                # Find all SID markers
+                sid_matches = list(re.finditer(
+                    r'<!--\s*SID:([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)\s*(BEGIN|END)?\s*-->',
+                    line
+                ))
+
+                for match in sid_matches:
+                    sid = match.group(1)
+                    marker_type = match.group(2)
+
+                    # Validate SID format
+                    parts = sid.split('.')
+                    if len(parts) != 3:
+                        errors.append(f"{doc['path']}:{i} - Invalid SID format (must be domain.topic.name): {sid}")
+
+                    # Check BEGIN/END pairing
+                    if marker_type == 'BEGIN':
+                        if sid in begin_markers:
+                            errors.append(
+                                f"{doc['path']}:{i} - Duplicate BEGIN marker for SID: {sid} "
+                                f"(previous at line {begin_markers[sid]})"
+                            )
+                        begin_markers[sid] = i
+                    elif marker_type == 'END':
+                        if sid not in begin_markers:
+                            errors.append(f"{doc['path']}:{i} - END marker without BEGIN for SID: {sid}")
+                        else:
+                            # Successfully paired - record location once using BEGIN line
+                            begin_line = begin_markers[sid]
+                            sid_locations[sid].append(f"{doc['path']}:{begin_line}")
+                            sid_paired.add(sid)
+                            del begin_markers[sid]
+                    else:
+                        # Simple marker (no BEGIN/END)
+                        sid_locations[sid].append(f"{doc['path']}:{i}")
+
+            # Check for unpaired BEGIN markers
+            for sid, line_num in begin_markers.items():
+                errors.append(f"{doc['path']}:{line_num} - BEGIN marker without END for SID: {sid}")
+
+        # Check for duplicate SIDs across documents
+        for sid, locations in sid_locations.items():
+            if len(locations) > 1:
+                errors.append(f"Duplicate SID '{sid}' found at: {', '.join(locations)}")
+
+        # Validate index.json consistency and locator resolution
+        for spec in self.index_data.get('specs', []):
+            sid = spec['sid']
+            locator = spec.get('locator', {})
+            locator_type = locator.get('type')
+            path = spec.get('path')
+
+            # Check if SID was found in actual documents
+            if sid not in sid_locations:
+                errors.append(f"SID in index.json but not found in documents: {sid}")
+                continue
+
+            if not path:
+                errors.append(f"SID missing path in index.json: {sid}")
+                continue
+
+            lines = doc_lines.get(path)
+            if not lines:
+                errors.append(f"Document not loaded for SID '{sid}': {path}")
+                continue
+
+            try:
+                if locator_type in ('comment', 'inline'):
+                    line_num = locator.get('line')
+                    if line_num is None:
+                        errors.append(f"SID missing locator line: {sid}")
+                    elif line_num >= len(lines):
+                        errors.append(f"SID locator line out of range for {sid}: {line_num}")
+                elif locator_type == 'begin_end':
+                    line_start = locator.get('line_start')
+                    line_end = locator.get('line_end')
+                    if line_start is None or line_end is None:
+                        errors.append(f"SID missing begin/end lines: {sid}")
+                        continue
+
+                    content, line_range, used_fallback, reason = self._extract_begin_end_with_fallback(spec, lines)
+                    if used_fallback:
+                        print(
+                            f"Warning: Falling back to marker scan for SID {sid} ({reason})",
+                            file=sys.stderr
+                        )
+                    if not content.strip():
+                        errors.append(f"SID resolved to empty content: {sid}")
+                    if not line_range:
+                        errors.append(f"SID missing resolved line range: {sid}")
+                    continue
+                else:
+                    errors.append(f"Unknown locator type for {sid}: {locator_type}")
+
+                content, line_range = self._extract_content_by_locator(spec, lines)
+                if not content.strip():
+                    errors.append(f"SID resolved to empty content: {sid}")
+                if not line_range:
+                    errors.append(f"SID missing resolved line range: {sid}")
+            except Exception as exc:
+                errors.append(f"SID failed to resolve: {sid} ({exc})")
+
+        # Validate topic views
+        for topic_name, topic in self.topic_views.get('topics', {}).items():
+            for entry in topic.get('specs', []):
+                topic_sid = entry.get('sid')
+                if not topic_sid:
+                    errors.append(f"Topic '{topic_name}' contains an entry without sid")
+                    continue
+                spec = self.sid_lookup.get(topic_sid)
+                if not spec:
+                    errors.append(f"Topic '{topic_name}' references missing SID: {topic_sid}")
+                    continue
+                if spec.get('stability') == 'deprecated':
+                    errors.append(f"Topic '{topic_name}' references deprecated SID: {topic_sid}")
+
+        # Validate depends_on references
+        for spec in self.index_data.get('specs', []):
+            sid = spec['sid']
+            for dep in spec.get('depends_on', []):
+                if dep not in self.sid_lookup:
+                    errors.append(f"SID depends_on missing: {sid} -> {dep}")
+
+        return errors
+
+
+def format_fragment(fragment: Fragment, show_metadata: bool = True) -> str:
+    """Format fragment for output."""
+    lines = []
+
+    if show_metadata:
+        lines.append(f"# SID: {fragment.sid}")
+        lines.append(f"# Title: {fragment.title}")
+        lines.append(f"# Document: {fragment.doc_key} ({fragment.path})")
+        if fragment.line_range:
+            lines.append(f"# Lines: {fragment.line_range[0]}-{fragment.line_range[1]}")
+        if fragment.level:
+            lines.append(f"# Level: {fragment.level}")
+        if fragment.tags:
+            lines.append(f"# Tags: {', '.join(fragment.tags)}")
+        lines.append("")
+
+    lines.append(fragment.content)
+
+    return '\n'.join(lines)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='docslice - Deterministic Specification Slicer',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  docslice --sid SID:arch.contracts.pending_action
+  docslice --sid arch.contracts.pending_action
+  docslice --ref DOC:arch#分层架构
+  docslice --topic hitl
+  docslice --topic hitl --max-lines 500
+  docslice --lint
+        """
+    )
+
+    # Mutually exclusive command group
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--sid', metavar='SID', help='Extract by SID (e.g., SID:arch.contracts.pending_action or arch.contracts.pending_action)')
+    group.add_argument('--ref', metavar='REF', help='Extract by reference (e.g., DOC:arch#分层架构)')
+    group.add_argument('--topic', metavar='TOPIC', help='Extract by topic (e.g., hitl, planning)')
+    group.add_argument('--lint', action='store_true', help='Validate document structure')
+
+    # Options for --topic
+    parser.add_argument('--max-lines', type=int, metavar='N', help='Maximum number of lines for topic extraction')
+    parser.add_argument('--max-chars', type=int, metavar='N', help='Maximum number of characters for topic extraction')
+
+    # General options
+    parser.add_argument('--no-metadata', action='store_true', help='Suppress metadata in output')
+    parser.add_argument('--repo-root', type=Path, metavar='PATH', help='Repository root directory (default: auto-detect)')
+
+    args = parser.parse_args()
+
+    try:
+        # Initialize docslice
+        docslice = DocSlice(repo_root=args.repo_root)
+
+        # Execute command
+        if args.sid:
+            fragment = docslice.extract_by_sid(args.sid)
+            print(format_fragment(fragment, show_metadata=not args.no_metadata))
+            return 0
+
+        elif args.ref:
+            fragment = docslice.extract_by_ref(args.ref)
+            print(format_fragment(fragment, show_metadata=not args.no_metadata))
+            return 0
+
+        elif args.topic:
+            fragments = docslice.extract_by_topic(
+                args.topic,
+                max_lines=args.max_lines,
+                max_chars=args.max_chars
+            )
+
+            if not fragments:
+                print(f"No fragments found for topic: {args.topic}", file=sys.stderr)
+                return 1
+
+            for i, fragment in enumerate(fragments):
+                if i > 0:
+                    print("\n" + "="*80 + "\n")
+                print(format_fragment(fragment, show_metadata=not args.no_metadata))
+
+            # Print summary
+            total_lines = sum(f.content.count('\n') + 1 for f in fragments)
+            total_chars = sum(len(f.content) for f in fragments)
+            print(f"\n# Topic: {args.topic}", file=sys.stderr)
+            print(f"# Fragments: {len(fragments)}", file=sys.stderr)
+            print(f"# Total lines: {total_lines}", file=sys.stderr)
+            print(f"# Total chars: {total_chars}", file=sys.stderr)
+            return 0
+
+        elif args.lint:
+            errors = docslice.lint()
+
+            if not errors:
+                print("✓ No errors found. All documents are valid.")
+                return 0
+            else:
+                print(f"✗ Found {len(errors)} error(s):\n", file=sys.stderr)
+                for error in errors:
+                    print(f"  - {error}", file=sys.stderr)
+                return 1
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

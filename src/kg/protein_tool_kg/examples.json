@@ -1,0 +1,124 @@
+{
+  "kg_id": "protein_tool_kg",
+  "version": "1.0.0",
+  "capabilities": [
+    {
+      "capability_id": "structure_prediction",
+      "name": "Structure Prediction",
+      "domain": "protein/structure",
+      "description": "Predict 3D structure from a single protein sequence."
+    },
+    {
+      "capability_id": "sequence_design",
+      "name": "Sequence Design",
+      "domain": "protein/design",
+      "description": "Design amino acid sequences given a structural backbone."
+    }
+  ],
+  "io_types": [
+    {
+      "io_type_id": "sequence_to_structure",
+      "input_types": ["sequence"],
+      "output_types": ["structure_pdb", "plddt"],
+      "combinable": true,
+      "description": "Predict structural outputs from a protein sequence."
+    },
+    {
+      "io_type_id": "structure_to_sequence",
+      "input_types": ["structure_pdb"],
+      "output_types": ["sequence"],
+      "combinable": true,
+      "description": "Design sequences from a structural input."
+    }
+  ],
+  "constraints": [
+    {
+      "constraint_id": "gpu_required",
+      "preconditions": ["sequence_length <= 2000"],
+      "resource_assumptions": ["gpu_available", "nextflow_installed"],
+      "model_assumptions": ["single_chain_only"],
+      "limits": {
+        "max_length": 2000
+      },
+      "description": "GPU-backed inference with sequence length limits."
+    }
+  ],
+  "tools": [
+    {
+      "id": "esmfold",
+      "tool_id": "esmfold",
+      "name": "ESMFold",
+      "domain": "protein/structure",
+      "description": "Fast single-sequence structure prediction without MSA.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": ["sequence"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided"],
+        "resource_assumptions": ["gpu_available", "nextflow_installed"],
+        "model_assumptions": ["single_chain_only"],
+        "limits": {
+          "max_length": 2000
+        }
+      },
+      "execution": "nextflow",
+      "cost_score": 0.6,
+      "safety_level": 1,
+      "compat": {
+        "from": ["protein_mpnn.sequence"]
+      },
+      "failure_modes": ["timeout", "nan_output"],
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "protein_mpnn",
+      "tool_id": "protein_mpnn",
+      "name": "ProteinMPNN",
+      "domain": "protein/design",
+      "description": "Sequence design from backbone coordinates.",
+      "capabilities": ["sequence_design"],
+      "io": {
+        "io_type_id": "structure_to_sequence",
+        "inputs": {
+          "pdb_path": "path"
+        },
+        "outputs": {
+          "sequence": "str",
+          "sequence_score": "float"
+        },
+        "input_types": ["structure_pdb"],
+        "output_types": ["sequence"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["pdb_available"],
+        "resource_assumptions": ["gpu_available"],
+        "model_assumptions": ["backbone_complete"],
+        "limits": {
+          "max_length": 2000
+        }
+      },
+      "execution": "python",
+      "cost_score": 0.4,
+      "safety_level": 1,
+      "compat": {
+        "from": ["esmfold.pdb_path"]
+      },
+      "failure_modes": ["invalid_backbone"],
+      "preferred_next": ["esmfold"],
+      "version": "1.0.0"
+    }
+  ]
+}

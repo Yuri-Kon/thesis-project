@@ -2,11 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ProteinDesignTask",
   "type": "object",
-  "required": ["task_id", "goal", "constrains"],
+  "required": ["task_id", "goal", "constraints"],
   "properties": {
     "task_id": {"type": "string"},
     "goal": {"type": "string", "description": "自然语言目标"},
-    "constrains": {
+    "constraints": {
       "type": "object",
       "properties": {
         "length_ranges": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},

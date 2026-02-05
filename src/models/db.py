@@ -8,33 +8,45 @@ from pydantic import BaseModel, Field
 from .contracts import (
     ProteinDesignTask,
     Plan,
+    PendingAction,
     StepResult,
     DesignResult,
     SafetyResult,
+    Decision,
     now_iso,
 )
 
 # 任务 & 步骤状态定义
 
-class TaskStatus(str, Enum):
-    """任务生命周期状态
-    
-    对齐状态机设计
 
-    - CREATED: 任务已经在API层创建，但尚未进入规划流程
-    - PLANNING: PlannerAgent 正在生成初始Plan
-    - PLANNED: 初始 Plan 已经生成，等待执行
-    - RUNNING: ExecutorAgent 正在按照 Plan 执行步骤
-    - WAITING_PATCH: 某一步骤多次重试失败，等待Planner生成局部PlanPatch
-    - PATCHING: PlannerAgent 正在根据 PatchRequest 生成PlanPatch
-    - WAITING_REPLAN: 当前 Plan 无法局部修复，等待PlannerAgent生成新的子计划
-    - REPLANNING: PlannerAgent 正在根据 ReplanRequest 重新规划未完成子计划
-    - SUMMARIZING: SummarizerAgent 正在汇总结果并生成 DesignResult
-    - DONE: 任务成功完成，DesignResult 已生成并持久化
-    - FAILED: 任务执行失败且无法继续
+class ExternalStatus(str, Enum):
+    """对外语义状态(ExternalStatus)
+
+    对齐 architecture.md 定义的 FSM 状态。
     """
+
     CREATED = "CREATED"
     PLANNING = "PLANNING"
+    WAITING_PLAN_CONFIRM = "WAITING_PLAN_CONFIRM"
+    PLANNED = "PLANNED"
+    RUNNING = "RUNNING"
+    WAITING_PATCH_CONFIRM = "WAITING_PATCH_CONFIRM"
+    WAITING_REPLAN_CONFIRM = "WAITING_REPLAN_CONFIRM"
+    SUMMARIZING = "SUMMARIZING"
+    DONE = "DONE"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+
+class InternalStatus(str, Enum):
+    """内部执行状态(InternalStatus)
+
+    保留 PATCHING / REPLANNING / WAITING_* 等细粒度状态。
+    """
+
+    CREATED = "CREATED"
+    PLANNING = "PLANNING"
+    WAITING_PLAN_CONFIRM = "WAITING_PLAN_CONFIRM"
     PLANNED = "PLANNED"
     RUNNING = "RUNNING"
     WAITING_PATCH = "WAITING_PATCH"
@@ -44,12 +56,39 @@ class TaskStatus(str, Enum):
     SUMMARIZING = "SUMMARIZING"
     DONE = "DONE"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
-TERMINAL_STATES = {TaskStatus.DONE, TaskStatus.FAILED}
+
+TERMINAL_EXTERNAL_STATUSES = {
+    ExternalStatus.DONE,
+    ExternalStatus.FAILED,
+    ExternalStatus.CANCELLED,
+}
+TERMINAL_INTERNAL_STATUSES = {
+    InternalStatus.DONE,
+    InternalStatus.FAILED,
+    InternalStatus.CANCELLED,
+}
+
+_INTERNAL_TO_EXTERNAL = {
+    InternalStatus.WAITING_PATCH: ExternalStatus.WAITING_PATCH_CONFIRM,
+    InternalStatus.PATCHING: ExternalStatus.WAITING_PATCH_CONFIRM,
+    InternalStatus.WAITING_REPLAN: ExternalStatus.WAITING_REPLAN_CONFIRM,
+    InternalStatus.REPLANNING: ExternalStatus.WAITING_REPLAN_CONFIRM,
+}
+
+
+def to_external_status(status: InternalStatus) -> ExternalStatus:
+    """将 InternalStatus 映射为对外语义状态."""
+    mapped = _INTERNAL_TO_EXTERNAL.get(status)
+    if mapped is not None:
+        return mapped
+    return ExternalStatus[status.name]
+
 
 class StepStatus(str, Enum):
     """单个步骤的生命周期状态
-    
+
     - PENDING: 在 Plan 中但尚未执行
     - RUNNING: 正在执行
     - SUCCEEDED: 执行成功
@@ -63,16 +102,19 @@ class StepStatus(str, Enum):
     FAILED = "FAILED"
     SKIPPED = "SKIPPED"
 
+
 # 持久化用 Record 模型
+
 
 class TaskRecord(BaseModel):
     """用于持久化的任务记录
-    
+
     这个模型代表数据库里的 task 表/集合中的一行/一条
     """
 
     id: str
-    status: TaskStatus
+    status: ExternalStatus
+    internal_status: Optional[InternalStatus] = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
@@ -85,8 +127,15 @@ class TaskRecord(BaseModel):
     plan: Optional[Plan] = None
     design_result: Optional[DesignResult] = None
 
+    # 若处于 WAITING_*，记录当前待决策对象
+    pending_action: Optional[PendingAction] = None
+
+    # 决策记录（用于审计和回放）
+    decisions: List[Decision] = Field(default_factory=list)
+
     # 安全事件汇总
     safety_events: List[SafetyResult] = Field(default_factory=list)
+
 
 class StepRecord(BaseModel):
     """用于持久化的步骤执行记录"""
@@ -111,46 +160,47 @@ class StepRecord(BaseModel):
 
 # 从运行期上下文推导状态的帮助函数
 
+
 def derive_task_status(
     task: ProteinDesignTask,
     plan: Optional[Plan],
     step_results: Dict[str, StepResult],
     safety_events: List[SafetyResult],
     design_result: Optional[DesignResult],
-) -> TaskStatus:
-    """根据当前上下文粗略推导 TaskStatus
+) -> InternalStatus:
+    """根据当前上下文粗略推导 InternalStatus
 
     约定：
     - 只返回 CREATED / PLANNED / RUNNING / DONE / FAILED 这五种状态
-    - 细粒度的 PLANNING / WAITING_PATCH / REPLANNING / SUMMARIZING 由LangGraph工作流在节点执行时
-    显式设置，不在这里推导
+    - 细粒度状态由工作流显式设置，不在这里推导
     """
 
     # 已有最终结果 ⇒ DONE
     if design_result is not None:
-        return TaskStatus.DONE
+        return InternalStatus.DONE
 
     # 强错误：有失败步骤 或 有 action == "block" 的安全事件 ⇒ FAILED
     has_failed_step = any(r.status == "failed" for r in step_results.values())
     has_block_safety = any(evt.action == "block" for evt in safety_events)
 
     if has_failed_step or has_block_safety:
-        return TaskStatus.FAILED
-    
+        return InternalStatus.FAILED
+
     # 还没有 Plan ⇒ CREATED
     if plan is None:
-        return TaskStatus.CREATED
-    
+        return InternalStatus.CREATED
+
     # 有 Plan 且已经至少成功/跳过了一些步骤 ⇒ RUNNING
     has_any_finished_step = any(
         r.status in ("success", "skipped") for r in step_results.values()
     )
 
     if has_any_finished_step:
-        return TaskStatus.RUNNING
-    
+        return InternalStatus.RUNNING
+
     # 有 Plan 但还没有执行任何一步 ⇒ PLANNED
-    return TaskStatus.PLANNED
+    return InternalStatus.PLANNED
+
 
 def step_result_to_record(result: StepResult) -> StepRecord:
     """将 StepResult 转化为 StepRecord 方便写入持久化层"""
@@ -174,10 +224,7 @@ def step_result_to_record(result: StepResult) -> StepRecord:
         finished_at=result.timestamp,
         metrics=result.metrics,
         risk_flags={
-            "max_level": max(
-                (flag.level for flag in result.risk_flags),
-                default="ok"
-            )
+            "max_level": max((flag.level for flag in result.risk_flags), default="ok")
         }
         if result.risk_flags
         else {},

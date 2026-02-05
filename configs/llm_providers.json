@@ -1,0 +1,50 @@
+{
+  "providers": {
+    "baseline": {
+      "provider_type": "baseline",
+      "description": "Deterministic single-step baseline",
+      "model_name": "baseline"
+    },
+    "openai": {
+      "provider_type": "openai_compatible",
+      "description": "OpenAI-compatible provider (e.g. GPT-4)",
+      "model_name": "gpt-4o-mini",
+      "api_key_env": "OPENAI_API_KEY",
+      "timeout": 30,
+      "max_tokens": 2000,
+      "temperature": 0.7,
+      "top_p": 1.0,
+      "use_response_format": true
+    },
+    "nemotron": {
+      "provider_type": "openai_compatible",
+      "description": "NVIDIA Nemotron via NIM",
+      "model_name": "nvidia/nemotron-3-nano-30b-a3b",
+      "api_key_env": "NIM_API_KEY",
+      "endpoint": "https://integrate.api.nvidia.com/v1",
+      "timeout": 120,
+      "max_tokens": 16384,
+      "temperature": 1.0,
+      "top_p": 1.0,
+      "stream": true,
+      "extra_body": {
+        "reasoning_budget": 16384,
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        }
+      },
+      "use_response_format": false
+    },
+    "deepseek-reasoner": {
+      "provider_type": "openai_compatible",
+      "description": "DeepSeek Reasoner",
+      "model_name": "deepseek-reasoner",
+      "api_key_env": "DEEP_API_KEY",
+      "endpoint": "https://api.deepseek.com/v1",
+      "timeout": 300,
+      "max_tokens": 8192,
+      "temperature": 1.0,
+      "use_response_format": true
+    }
+  }
+}
