@@ -16,6 +16,19 @@ The Project is managed with Git. The usual working directory is the current one,
 
 The design documents are located in ../thesis-project.design, which is also a worktree.
 
+Design worktree layout (for quick lookup):
+- docs/: authoritative design documents and indices
+  - docs/design/: core architecture and system specs (architecture, agent design, FSM, tools catalog, workflows, etc.)
+  - docs/design/diagrams/: architecture diagrams in .mmd and .svg
+  - docs/impl/: implementation guides and operational specs
+  - docs/index/: document index and SSOT maps (index.md, index.json, topic_views.json, etc.)
+  - docs/demo/: demo notes and references (README.md)
+  - docs/proposal/: proposal source (main.tex)
+  - docs/proposal-fix/: proposal edit artifacts (proposal.odt)
+- plan/: dated planning indexes (e.g., index(1.14-2.03).md)
+- shared/format/: shared document templates (proposal-format.docx)
+- requirements.txt: Python requirements for the design worktree
+
 Search in ../thesis-project.design every time before planning to code.
 
 ## 1. System Nature
