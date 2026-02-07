@@ -13,6 +13,22 @@
           "nvidia/esm2nv"
         ]
       }
+    },
+    "plm_rest": {
+      "provider_type": "plm_rest",
+      "description": "PLM remote REST service provider",
+      "base_url": "http://localhost:8100",
+      "api_key_env": "PLM_REST_API_TOKEN",
+      "timeout": 60,
+      "max_retries": 3,
+      "extra": {
+        "endpoints": {
+          "predict": "/predict",
+          "job": "/job/{id}",
+          "results": "/results/{id}"
+        },
+        "auth_header": "Authorization: Bearer <token>"
+      }
     }
   }
 }

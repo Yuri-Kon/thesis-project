@@ -83,3 +83,12 @@ def test_get_provider_config_missing_provider(tmp_path, monkeypatch):
 
     with pytest.raises(KeyError):
         provider_config.get_provider_config("missing")
+
+
+def test_default_model_providers_contains_plm_rest():
+    configs = load_provider_config(provider_config.DEFAULT_PROVIDER_CONFIG_PATH)
+
+    assert "plm_rest" in configs
+    plm = configs["plm_rest"]
+    assert plm.provider_type == "plm_rest"
+    assert plm.base_url == "http://localhost:8100"
