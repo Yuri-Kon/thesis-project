@@ -17,8 +17,8 @@ Before modifying code, Codex MUST read any comply with:
 1. `AGENT_CONTRACT.md`: Define system-level invariants (FSM, agent boundaries, contracts)
 1. Authoritative design specs via deterministic slicing (preferred):
 
-- Use the docslice skill at `.claude/skills/doc-slicer/`
-- Script: `.claude/skills/doc-slicer/scripts/docslice`
+- Use the docslice skill at `.agents/skills/doc-slicer/`
+- Script: `.agents/skills/doc-slicer/scripts/docslice`
 - Retrieve only the needed fragments by `--sid`, `--topic`, or `--ref`
 - If the first slice is incomplete or misses the target, expand scope and retry
   (e.g., increase `--max-lines`/`--max-chars`, or try a broader `--ref`/`--topic`)

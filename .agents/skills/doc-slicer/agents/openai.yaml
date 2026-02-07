@@ -1,0 +1,4 @@
+interface:
+  display_name: "Doc Slicer"
+  short_description: "Deterministic spec slicing by SID/topic/ref"
+  default_prompt: "Use $doc-slicer to retrieve exact design spec fragments by SID, topic, or DOC reference."

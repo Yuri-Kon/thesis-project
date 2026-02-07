@@ -62,6 +62,30 @@ class DocSlice:
                         repo_root = main_repo
 
             if repo_root is None:
+                cwd = Path.cwd().resolve()
+
+                # Fallback: detect design worktree from current working directory.
+                for parent in [cwd, *cwd.parents]:
+                    if (parent / "docs" / "index" / "index.json").exists():
+                        repo_root = parent
+                        break
+
+            if repo_root is None:
+                cwd_main_repo = None
+                cwd = Path.cwd().resolve()
+                for parent in [cwd, *cwd.parents]:
+                    if (parent / ".git").exists():
+                        cwd_main_repo = parent
+                        break
+
+                if cwd_main_repo is not None:
+                    design_worktree = cwd_main_repo.parent / "thesis-project.design"
+                    if (design_worktree / "docs" / "index" / "index.json").exists():
+                        repo_root = design_worktree
+                    else:
+                        repo_root = cwd_main_repo
+
+            if repo_root is None:
                 repo_root = script_path.parent
 
         self.repo_root = repo_root
