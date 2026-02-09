@@ -13,6 +13,12 @@
       "name": "Sequence Design",
       "domain": "protein/design",
       "description": "Design amino acid sequences from a structural backbone or template."
+    },
+    {
+      "capability_id": "sequence_generation",
+      "name": "Sequence Generation",
+      "domain": "protein/design",
+      "description": "Generate initial de novo protein sequence candidates from goals or prompts."
     }
   ],
   "io_types": [
@@ -29,6 +35,13 @@
       "output_types": ["sequence"],
       "combinable": true,
       "description": "Design sequences from structural backbone inputs."
+    },
+    {
+      "io_type_id": "goal_to_sequence_candidates",
+      "input_types": ["goal"],
+      "output_types": ["sequence", "sequence_candidates"],
+      "combinable": true,
+      "description": "Generate candidate protein sequences from goal and optional prompt constraints."
     },
     {
       "io_type_id": "sequence_msa_to_structure",
@@ -204,6 +217,51 @@
       },
       "failure_modes": ["invalid_backbone", "missing_backbone"],
       "preferred_next": ["esmfold", "nim_esmfold", "alphafold"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "protgpt2",
+      "tool_id": "protgpt2",
+      "name": "ProtGPT2",
+      "domain": "protein/design",
+      "description": "PLM-based de novo sequence generator via remote ProtGPT2 REST service.",
+      "capabilities": ["sequence_generation"],
+      "io": {
+        "io_type_id": "goal_to_sequence_candidates",
+        "inputs": {
+          "goal": "str"
+        },
+        "outputs": {
+          "sequence": "str",
+          "candidates": "list",
+          "artifacts": "dict"
+        },
+        "input_types": ["goal"],
+        "output_types": ["sequence", "sequence_candidates"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["goal_provided"],
+        "resource_assumptions": ["network_available", "plm_rest_service_available"],
+        "model_assumptions": ["protgpt2_ready"],
+        "limits": {
+          "max_new_tokens": 512,
+          "num_candidates_max": 64
+        }
+      },
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "plm_rest",
+        "model_id": "nferruz/ProtGPT2",
+        "sync_mode": true
+      },
+      "cost_score": 0.35,
+      "safety_level": 1,
+      "compat": {
+        "from": []
+      },
+      "failure_modes": ["timeout", "invalid_generation"],
+      "preferred_next": ["esmfold", "nim_esmfold", "protein_mpnn"],
       "version": "1.0.0"
     },
     {
