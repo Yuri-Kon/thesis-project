@@ -17,7 +17,7 @@ def test_find_tools_by_backend_remote_model_service() -> None:
     tools = find_tools_by_backend("remote_model_service", "nvidia_nim")
     tool_ids = {tool["id"] for tool in tools}
 
-    assert tool_ids == {"nim_esmfold"}
+    assert tool_ids == {"nim_esmfold", "protein_mpnn"}
 
 
 def test_find_tools_by_backend_plm_rest() -> None:
