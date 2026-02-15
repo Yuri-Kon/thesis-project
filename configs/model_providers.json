@@ -10,7 +10,8 @@
       "extra": {
         "supported_models": [
           "nvidia/esmfold",
-          "nvidia/esm2nv"
+          "nvidia/esm2nv",
+          "ipd/proteinmpnn/predict"
         ]
       }
     },

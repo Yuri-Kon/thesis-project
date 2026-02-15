@@ -201,19 +201,24 @@
       "constraints": {
         "preconditions": ["structure_template_provided"],
         "resource_assumptions": [
-          "gpu_available",
-          "python_environment_ready"
+          "network_available",
+          "nim_api_key_configured"
         ],
         "model_assumptions": ["backbone_required"],
         "limits": {
           "max_length": 2000
         }
       },
-      "execution": "python",
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "nvidia_nim",
+        "model_id": "ipd/proteinmpnn/predict",
+        "sync_mode": true
+      },
       "cost_score": 0.4,
       "safety_level": 1,
       "compat": {
-        "from": ["esmfold.pdb_path", "alphafold.pdb_path"]
+        "from": ["esmfold.pdb_path", "nim_esmfold.pdb_path", "alphafold.pdb_path"]
       },
       "failure_modes": ["invalid_backbone", "missing_backbone"],
       "preferred_next": ["esmfold", "nim_esmfold", "alphafold"],
