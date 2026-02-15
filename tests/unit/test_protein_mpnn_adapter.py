@@ -228,3 +228,63 @@ def test_run_local_auto_falls_back_to_python_without_api_key(tmp_path: Path) -> 
     assert metrics["exec_type"] == "python"
     assert len(outputs["candidates"]) >= 1
     mock_client.call_sync.assert_not_called()
+
+
+def test_run_local_nvidia_nim_default_keeps_full_atom_records(tmp_path: Path) -> None:
+    pdb_path = tmp_path / "template_large.pdb"
+    atom_lines = [
+        f"ATOM  {i:5d}  CA  ALA A{i:4d}      11.485 -52.270  -9.149  1.00 68.72           C"
+        for i in range(1, 251)
+    ]
+    pdb_path.write_text("\n".join(atom_lines) + "\n", encoding="utf-8")
+
+    mock_client = Mock()
+    mock_client.api_key = "test-token"
+    mock_client.call_sync.return_value = {
+        "mfasta": ">T=0.1, sample=1, score=0.5\nACDEFGHIK\n"
+    }
+    adapter = ProteinMPNNAdapter(
+        artifacts_dir=tmp_path,
+        execution_mode="nvidia_nim",
+        nim_client=mock_client,
+    )
+
+    adapter.run_local({"pdb_path": str(pdb_path), "task_id": "task123", "step_id": "S1"})
+
+    payload = mock_client.call_sync.call_args[0][0]
+    assert payload["input_pdb"].count("\n") + 1 == 250
+
+
+def test_run_local_auto_fallbacks_to_python_when_nim_fails(tmp_path: Path) -> None:
+    pdb_path = tmp_path / "template.pdb"
+    pdb_path.write_text(
+        "ATOM      1  N   MET A   1      11.485 -52.270  -9.149  1.00 68.72           N\n",
+        encoding="utf-8",
+    )
+    mock_client = Mock()
+    mock_client.api_key = "test-token"
+    mock_client.call_sync.side_effect = StepRunError(
+        failure_type=FailureType.RETRYABLE,
+        message="nim timeout",
+        code="NIM_TIMEOUT",
+    )
+    adapter = ProteinMPNNAdapter(
+        artifacts_dir=tmp_path,
+        execution_mode="auto",
+        nim_client=mock_client,
+    )
+
+    outputs, metrics = adapter.run_local(
+        {
+            "pdb_path": str(pdb_path),
+            "length_range": [6, 8],
+            "task_id": "task123",
+            "step_id": "S1",
+        }
+    )
+
+    assert metrics["exec_type"] == "python"
+    assert metrics["fallback_from"] == "nvidia_nim"
+    assert metrics["fallback_error_code"] == "NIM_TIMEOUT"
+    assert len(outputs["candidates"]) >= 1
+    mock_client.call_sync.assert_called_once()

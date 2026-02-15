@@ -48,7 +48,7 @@ class ProteinMPNNAdapter(BaseToolAdapter):
         default_num_candidates: int = 5,
         nim_client: NvidiaNIMClient | None = None,
         nim_model_id: str = "ipd/proteinmpnn/predict",
-        nim_max_atom_lines: int = 200,
+        nim_max_atom_lines: int | None = None,
         nim_ca_only: bool = False,
         nim_use_soluble_model: bool = False,
         nim_sampling_temp: Optional[List[float]] = None,
@@ -65,7 +65,13 @@ class ProteinMPNNAdapter(BaseToolAdapter):
         self.nim_model_id = nim_model_id
         self._nim_client_injected = nim_client is not None
         self.nim_client = nim_client or NvidiaNIMClient(model_id=nim_model_id)
-        self.nim_max_atom_lines = max(int(nim_max_atom_lines), 1)
+        if nim_max_atom_lines is None:
+            self.nim_max_atom_lines: int | None = None
+        else:
+            normalized_max_lines = int(nim_max_atom_lines)
+            self.nim_max_atom_lines = (
+                normalized_max_lines if normalized_max_lines > 0 else None
+            )
         self.nim_ca_only = bool(nim_ca_only)
         self.nim_use_soluble_model = bool(nim_use_soluble_model)
         self.nim_sampling_temp = nim_sampling_temp or [0.1]
@@ -152,6 +158,15 @@ class ProteinMPNNAdapter(BaseToolAdapter):
         if mode == "nextflow":
             return self._run_nextflow(inputs)
         if mode == "nvidia_nim":
+            if self.execution_mode == "auto":
+                try:
+                    return self._run_nvidia_nim(inputs)
+                except StepRunError as exc:
+                    outputs, metrics = self._run_python(inputs)
+                    metrics["fallback_from"] = "nvidia_nim"
+                    metrics["fallback_reason"] = str(exc)
+                    metrics["fallback_error_code"] = exc.code
+                    return outputs, metrics
             return self._run_nvidia_nim(inputs)
 
         return self._run_python(inputs)
@@ -368,7 +383,7 @@ def _generate_candidates(
     return candidates
 
 
-def _read_pdb_for_nim(pdb_path: str, *, max_atom_lines: int) -> str:
+def _read_pdb_for_nim(pdb_path: str, *, max_atom_lines: int | None) -> str:
     path = Path(pdb_path)
     if not path.exists():
         raise StepRunError(
@@ -379,6 +394,8 @@ def _read_pdb_for_nim(pdb_path: str, *, max_atom_lines: int) -> str:
     pdb_text = path.read_text(encoding="utf-8")
     atom_lines = [line for line in pdb_text.splitlines() if line.startswith("ATOM")]
     if atom_lines:
+        if max_atom_lines is None:
+            return "\n".join(atom_lines)
         return "\n".join(atom_lines[:max_atom_lines])
     if pdb_text.strip():
         return pdb_text
