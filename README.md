@@ -1,7 +1,7 @@
 # thesis-project（master worktree）
 
 > 本目录是 `master` 分支的工作树（worktree）。
-> 
+>
 > 用途：作为项目的稳定基线与对外可读入口，不用于高频实验开发。
 
 ## 1. 项目是什么
@@ -39,14 +39,14 @@
 - `examples/`：演示入口
 - `configs/`：模型与运行配置
 
-## 3. Worktree 与长线分支（最重要）
+## 3. Worktree 与长线分支
 
 当前仓库采用多 worktree 协作：
 
-| worktree 路径 | 分支 | 角色定位 | 主要内容 |
-|---|---|---|---|
-| `../thesis-project` | `master` | 稳定基线 | 对外可读、已合并能力的稳定快照 |
-| `../thesis-project.dev` | `dev` | 主开发分支 | 功能集成、工具接入、测试推进 |
+| worktree 路径              | 分支     | 角色定位       | 主要内容                         |
+| -------------------------- | -------- | -------------- | -------------------------------- |
+| `../thesis-project`        | `master` | 稳定基线       | 对外可读、已合并能力的稳定快照   |
+| `../thesis-project.dev`    | `dev`    | 主开发分支     | 功能集成、工具接入、测试推进     |
 | `../thesis-project.design` | `design` | 设计与计划分支 | 设计文档、计划书、算法与训练说明 |
 
 ### 分支关系（本地快照）
@@ -56,9 +56,9 @@
 
 结论：
 
-- 想看“当前最稳定代码”看 `master`
-- 想看“最新开发能力”看 `dev`
-- 想看“规范/路线图/算法计划”看 `design`
+- “当前最稳定代码”: `master`
+- “最新开发能力”: `dev`
+- “规范/路线图/算法计划”: `design`
 
 ## 4. 各分支具体内容说明
 
@@ -113,26 +113,26 @@
 
 以下分支常作为阶段性实现分支：
 
-| 分支 | 最近主题 | 合并状态（相对 `dev` / `master`） | 说明 |
-|---|---|---|---|
-| `origin/w6-tools-0/remote-rest-impl` | PLM REST server 参考实现 | 已合入 `dev` / 未合入 `master` | Week6 工具接入基础 |
-| `origin/w6-infra-1/remote-protgpt2-impl` | 远程 PLM 实现统一与测试 | 已合入 `dev` / 未合入 `master` | 基础设施整合 |
-| `origin/w6-tools-1/adapte-plm` | ProtGPT2 接入 de novo 起始节点 | 已合入 `dev` / 未合入 `master` | 工具链扩展 |
-| `origin/w6-tools-2/proteinmpnn-impl` | ProteinMPNN NIM 接入与回退修复 | 已合入 `dev` / 未合入 `master` | 工具后端增强 |
-| `origin/fix/agent-contract` | 契约文档路径修正 | 已合入 `dev` / 未合入 `master` | 文档一致性修复 |
-| `origin/fix/test-url` | 测试 URL 修复 | 已合入 `master` | 小范围修复 |
-| `origin/feature/de-novo-workflow` | de novo 工作流文档增强 | 未合入 `dev` / 未合入 `master` | 需按当前路线评估再合并 |
-| `origin/feat/auto-index-regen` | 文档索引 SID 修正 | 未合入 `dev` / 未合入 `master` | 设计索引维护分支 |
-| `origin/thesis-paper` | 论文结构草稿 | 未合入 `dev` / 未合入 `master` | 论文产物分支 |
+| 分支                                     | 最近主题                       | 合并状态（相对 `dev` / `master`） | 说明                   |
+| ---------------------------------------- | ------------------------------ | --------------------------------- | ---------------------- |
+| `origin/w6-tools-0/remote-rest-impl`     | PLM REST server 参考实现       | 已合入 `dev` / 未合入 `master`    | Week6 工具接入基础     |
+| `origin/w6-infra-1/remote-protgpt2-impl` | 远程 PLM 实现统一与测试        | 已合入 `dev` / 未合入 `master`    | 基础设施整合           |
+| `origin/w6-tools-1/adapte-plm`           | ProtGPT2 接入 de novo 起始节点 | 已合入 `dev` / 未合入 `master`    | 工具链扩展             |
+| `origin/w6-tools-2/proteinmpnn-impl`     | ProteinMPNN NIM 接入与回退修复 | 已合入 `dev` / 未合入 `master`    | 工具后端增强           |
+| `origin/fix/agent-contract`              | 契约文档路径修正               | 已合入 `dev` / 未合入 `master`    | 文档一致性修复         |
+| `origin/fix/test-url`                    | 测试 URL 修复                  | 已合入 `master`                   | 小范围修复             |
+| `origin/feature/de-novo-workflow`        | de novo 工作流文档增强         | 未合入 `dev` / 未合入 `master`    | 需按当前路线评估再合并 |
+| `origin/feat/auto-index-regen`           | 文档索引 SID 修正              | 未合入 `dev` / 未合入 `master`    | 设计索引维护分支       |
+| `origin/thesis-paper`                    | 论文结构草稿                   | 未合入 `dev` / 未合入 `master`    | 论文产物分支           |
 
 > 说明：topic 分支通常为短生命周期；是否合并取决于当周计划与主线契约一致性。
 
-## 6. 推荐协作流程（实践）
+## 6. 推荐协作流程
 
 1. 先在 `design` 确认需求与约束
-2. 在 `dev` 实现代码与测试
-3. 在 `dev` 完成回归（`uv run pytest ...`）
-4. 通过 PR 合并到 `master` 形成稳定快照
+1. 在 `dev` 实现代码与测试
+1. 在 `dev` 完成回归（`uv run pytest ...`）
+1. 通过 PR 合并到 `master` 形成稳定快照
 
 不建议：
 
@@ -153,17 +153,17 @@ uv run pytest
 ./run_demo.sh
 ```
 
-如果你要查看“最新开发能力”，请切换到 `../thesis-project.dev` worktree。
+如果要查看“最新开发能力”，请切换到 `../thesis-project.dev` worktree。
 
 ## 8. 给新成员的最短路径
 
 建议按顺序阅读：
 
 1. `AGENT_CONTRACT.md`（先看系统不变量）
-2. `AGENTS.md`（看协作与变更边界）
-3. `src/workflow/` + `src/agents/`（看主链路）
-4. `tests/integration/`（看端到端行为）
-5. `../thesis-project.design/plan/`（看阶段目标）
+1. `AGENTS.md`（看协作与变更边界）
+1. `src/workflow/` + `src/agents/`（看主链路）
+1. `tests/integration/`（看端到端行为）
+1. `../thesis-project.design/plan/`（看阶段目标）
 
 ## 9. 维护建议
 
@@ -172,4 +172,3 @@ uv run pytest
 - worktree/分支关系（特别是 `master...dev` 差异）
 - topic 分支合并状态
 - 推荐协作流程中的发布门禁
-
