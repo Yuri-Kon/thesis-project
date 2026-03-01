@@ -1,213 +1,166 @@
 # AGENT_CONTRACT.md
 
-System-level behavioral contract for all automated agents operating in the repository.
+System-level contract for all coding agents in this repository.
 
-This document is tool-agnostic.
-It defines invairants that MUST be respected by any LLM-based coding agent (Codex, Claude Code, Cursor, etc.)
+This file is tool-agnostic and defines non-negotiable invariants.
+If any other instruction conflicts with this contract, this file wins.
 
-If any agent instruction conflicts with this document,
-THIS DOCUMENT TAKES PRECEDENCE.
+## 0. Source Of Truth And Paths
 
-______________________________________________________________________
+- Code workspace: `thesis-project.dev` (this repository)
+- Design workspace: `../thesis-project.design`
+- Authoritative specs live in `../thesis-project.design/docs/design/`
+- Index files for deterministic lookup:
+  - `../thesis-project.design/docs/index/index.json`
+  - `../thesis-project.design/docs/index/topic_views.json`
 
-## 0. Project Directory
+When a change may affect FSM, agent responsibilities, contracts, or execution semantics:
 
-The Project is managed with Git. The usual working directory is the current one, and this directory(thesis-project.dev) is a worktree of ../thesis-project, which is on master branch.
+1. Read this file first.
+2. Retrieve relevant spec fragments with doc-slicer before editing:
+   - `.agents/skills/doc-slicer/scripts/docslice --sid ...`
+   - `.agents/skills/doc-slicer/scripts/docslice --topic ...`
+   - `.agents/skills/doc-slicer/scripts/docslice --ref ...`
 
-The design documents are located in ../thesis-project.design, which is also a worktree.
+## 1. System Invariants
 
-Design worktree layout (for quick lookup):
-- docs/: authoritative design documents and indices
-  - docs/design/: core architecture and system specs (architecture, agent design, FSM, tools catalog, workflows, etc.)
-  - docs/design/diagrams/: architecture diagrams in .mmd and .svg
-  - docs/impl/: implementation guides and operational specs
-  - docs/index/: document index and SSOT maps (index.md, index.json, topic_views.json, etc.)
-  - docs/demo/: demo notes and references (README.md)
-  - docs/proposal/: proposal source (main.tex)
-  - docs/proposal-fix/: proposal edit artifacts (proposal.odt)
-- plan/: dated planning indexes (e.g., index(1.14-2.03).md)
-- shared/format/: shared document templates (proposal-format.docx)
-- requirements.txt: Python requirements for the design worktree
+This is an LLM-driven multi-agent system controlled by an explicit FSM.
+All behavior changes must preserve system consistency.
 
-Search in ../thesis-project.design every time before planning to code.
+### 1.1 FSM authority
 
-## 1. System Nature
+- State must be explicit.
+- Transitions must be legal, validated, and logged.
+- State mutation is owned by workflow control logic only.
+- No skipped states, no hidden transitions, no direct terminal jumps.
+- Terminal states (`DONE`, `FAILED`, `CANCELLED`) are immutable.
 
-This project implements an **LLM-driven, multi-agent system**
-for protein design, governed by an explicit **Finite State Machine(FSM)**.
+### 1.2 Canonical lifecycle
 
-Agents are not helpers or scripts.
-Agents are **system components** whose behavior is constrained
-by architecture, contracts, and lifecycle rules.
+Required state flow:
 
-Any code change MUST preserve System-level consistency.
+- `CREATED -> PLANNING -> WAITING_PLAN_CONFIRM -> PLANNED -> RUNNING`
+- `RUNNING -> WAITING_PATCH_CONFIRM` or `WAITING_REPLAN_CONFIRM`
+- `WAITING_* -> RUNNING` or `FAILED` or `CANCELLED`
+- `RUNNING -> SUMMARIZING -> DONE`
 
-______________________________________________________________________
+`WAITING_*` states mean execution is paused pending human decision.
 
-## 2. FSM Is the Single Source of Truth
+## 2. Agent Boundary Contract
 
-### 2.1 Explicit state management only
+Role boundaries are hard constraints.
 
-- Task state MUST be represented explicitly.
-- No implicit, inferred, or out-of-band state transitions are allowed.
-- Every transition MUST:
-  - be defined in the FSM transition table,
-  - be validated in code,
-  - be logged.
+### 2.1 PlannerAgent
 
-### 2.2 No illegal transitions
+Must:
 
-- Agents MUST NOT:
-  - skip states,
-  - jump directly to terminal states,
-  - mutata state outside the workflow controller.
-- Terminal states(e.g. `DONE`, `FAILED`, `CANCELLED`) are immutable.
+- Produce `Plan`, `PlanPatch`, or `Replan` candidates.
 
-### 2.3 Design authority
+Must not:
 
-FSM definitions and allowed transitions are defined in design documents(`architecture.md` and related specs).
+- Execute tools.
+- Access runtime artifacts directly.
+- Mutate task state directly.
 
-If code behavior diverges from design documents,
-**design documents win**.
+### 2.2 ExecutorAgent
 
-______________________________________________________________________
+Must:
 
-### 3.1 PlannerAgent
+- Be the only component executing tools.
+- Own retries, patch application flow, and replan triggers.
+- Stop execution when entering any `WAITING_*` flow.
 
-- Generates plans and plan variants:
-  - `Plan`
-  - `PlanPatch`
-  - `Replan`
-- MUST NOT:
-  - execute tools,
-  - access runtime artifacts,
-  - mutate task state directly
+Must not:
 
-### 3.2 ExecutorAgent
+- Make human decisions on candidate approval.
+- Continue tool execution while in `WAITING_*`.
 
-- The ONLY agent allowed to:
-  - execute tools,
-  - manage retries,
-  - apply patches,
-  - trigger replans.
-- Owns runtime execution flow.
+### 2.3 SafetyAgent
 
-### 3.3 SafetyAgent
+Must:
 
-- Evaluates safety and legality.
-- Ouputs **evaluation only** (e.g. `ok / warn / block`).
-- MUST NOT:
-  - modify plans,
-  - execute tools,
-  - override execution results.
+- Output evaluation only (`ok`, `warn`, `block`).
 
-### 3.4 SummarizerAgent
+Must not:
 
-- Aggergates execution results and artifacts.
-- Produces human-facing summaries and reports.
-- MUST NOT:
-  - re-run tools,
-  - change plans,
-  - override safety decisions.
+- Execute tools.
+- Modify plans.
+- Override workflow results.
 
-Role boundaries are **hard constraints**, not suggestions.
+### 2.4 SummarizerAgent
 
-______________________________________________________________________
+Must:
 
-## 4. Contract-First Data Model
+- Aggregate outputs and produce user-facing summaries.
 
-### 4.1 Schemas are stable contracts
+Must not:
 
-- Core data models (Pydantic / schema definitions) are system contracts.
-- Agents MUST NOT:
-  - rename existing fields,
-  - remove fields,
-  - change field semantics.
+- Re-run tools.
+- Change plan or state decisions.
 
-### 4.2 Extension rules
+## 3. Contract-First Data Rules
 
-- Extensions MUST be additive and backward-compatible.
-- Prefer:
-  - optional fields,
-  - `metadata`,
-  - `metrics`.
+Schemas are compatibility contracts.
 
-### 4.3 Step references are first-class
+Must not:
 
-- References such as `"S1.sequence"` are part of the contract.
-- They MUST:
-  - remain symbolic at the planning level,
-  - be resolved by execution/adaptation logic,
-  - NOT be prematurely inlined by planners.
+- Rename existing fields.
+- Remove existing fields.
+- Change established field semantics.
 
-______________________________________________________________________
+Allowed extension pattern:
 
-## 5. Failure Handling Is Controlled Flow
+- Additive, backward-compatible changes only.
+- Prefer optional fields, `metadata`, and `metrics`.
 
-Failure is **expected**, not exceptional.
+Step references (for example `S1.sequence`) are first-class and must remain symbolic at planning time.
 
-### 5.1 Standard recovery order
+## 4. Failure Recovery Contract
 
-On step failure, agents MUST follow:
+Failure handling is controlled flow, not ad-hoc behavior.
 
-1. retry (bounded, with limits)
-1. patch (minimal local modification)
-1. replan (regenerate suffix, preserve successful prefix)
+Required order:
 
-### 5.2 No premature task failure
+1. Retry (bounded).
+2. Patch (minimal local change).
+3. Replan (prefer preserving successful prefix).
 
-- A step failure does NOT automatically mean task failure.
-- `FAILED` is only valid when:
-  - recovery paths are exhausted, or
-  - SafetyAgent issues a permanent block.
+A single step failure must not directly set task state to `FAILED`.
+`FAILED` is valid only when recovery is exhausted or safety blocks permanently.
 
-______________________________________________________________________
+## 5. Persistence And Observability
 
-## 6. Design Documents Are Authoritative
+- Every state transition must be logged.
+- Snapshot/log persistence must be completed before entering `WAITING_*`.
+- Recovery must respect latest snapshot and current task state.
 
-Authoritative design documents are maintained separately
-(e.g. in a design worktree).
-
-Agents MUST consult design documents before:
-
-- introducing new states,
-- modifying FSM logic,
-- changing agent responsibilities,
-- altering execution semantics.
-
-When code and design disagree:
-**design documents override code assumptions**.
-
-### 6.1 Spec Access Discipline
-
-To reduce unnecessary context and keep references precise, agents MUST
-prefer deterministic spec slicing when available (e.g. via the docslice
-skill under `.claude/skills/doc-slicer/`) and retrieve only the needed
-SID/topic fragments instead of full-document reads.
-
-______________________________________________________________________
-
-## 7. Minimal Change Principle
+## 6. Change Control
 
 When intent is unclear:
 
-- prefer minimal, conservative changes,
-- avoid introducing new abstractions,
-- do not invent new agent behaviors,
-- add tests to lock in assumptions.
+- Make the minimal safe change.
+- Do not introduce new abstractions or agent behaviors.
+- Do not redesign architecture implicitly.
 
-Agents MUST NOT "optimize" or "simplify" the system
-at the cost of violating architecture.
+If a change may alter FSM, role boundaries, or execution semantics, stop and require explicit confirmation.
 
-______________________________________________________________________
+## 7. Testing Contract
 
-## 8. This Contract Is Non-Negotiable
+When behavior changes, agents must:
 
-This file defines system invariants.
+- Add or update tests.
+- Run relevant tests through `uv` (`uv run pytest ...`).
 
-- Tool-specific instructions (`AGENTS.md`, `CLAUDE.md`, etc.)
-  MAY add operational guidance.
-- Tool-specific instructions MUST NOT weaken or override this contract.
+Minimum coverage focus:
 
-Any automated agent operating in this repository
-is expected to comply with this document.
+- FSM transitions
+- Agent boundary behavior
+- Retry/patch/replan flow
+- Schema compatibility
+
+## 8. Instruction Layering
+
+- Tool-specific files (`AGENTS.md`, `CLAUDE.md`, etc.) may add operational guidance.
+- Tool-specific files must not weaken this contract.
+
+All automated agents operating in this repository are expected to comply.
