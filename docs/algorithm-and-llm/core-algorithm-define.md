@@ -1,57 +1,178 @@
 # 核心算法定义
+
 <!-- SID:algollm.core.algorithm_define -->
 
-## 核心算法是什么
+## 1. 核心命题
 
-一个 "ToolKG 约束下的候选规则-执行-修复闭环"
+本项目的核心命题是：
+**如何在科研工业设计验证环境中，准确生成可执行、可验证、可恢复、可审计的工作流。**
 
-1. Initial Planning 生成候选Plan
-1. 执行中按照 `retry -> patch -> replan` 进行恢复
-1. 用 FSM + PendingAction 把关键节点转化为可审计的 HITL 决策点
+这里的“准确生成”不是指语言表述正确，而是指生成的工作流必须同时满足：
 
-## 结合当前实现, 现在已经实现的
+- 目标对齐：对齐任务目标与约束；
+- 可执行：工具可用、I/O 闭包、参数合法；
+- 可恢复：失败后可按 `retry -> patch -> replan` 继续推进；
+- 可审计：关键分叉点可进入 `WAITING_*` 并留痕；
+- 可复现：相同输入与配置可稳定复现关键路径。
 
-1. 已有核心闭环骨架:\
-   `StepRunner` 已有静态重试(`src/workflow/step_runner.py`), `PatchRunner` 做局部补丁(`src/workflow/patch_runner.py`), `PlanRunner` 做 replan 与状态推进(`src/workflow/plan_runner.py`)
-1. Planner 当前偏向 "最小可用":\
-   默认单步, de novo 是两步模板(`tests/unit/test_planner_agent.py`), patch/replan 主要是 replace_step(`src/agents/planner.py`)
-1. 关键差距在 "候选层":\
-   设计要求 Top-K, score_breakdown, risk/cost gate; 当前 `PendingActionCandidate` 只有最小字段(`src/models/contracts.py`), 距离设计的 candidate scoring/selection 还有距离(`~/文档/thesis/thesis-project.design/docs/design/core-algorithm-spec.md`)
+______________________________________________________________________
 
-## 该算法的主流应用是什么
+## 2. 环境特征与约束
 
-1. 通用 AI Agent: 代码代理, 运维自动化, 企业流程自动化(本质是 "规划 + 工具调用 + 失败恢复 + 人类审批")
-1. 科研工作流: 化学 / 生物多工具编排, 尤其需要审计和人类兜底的场景
-1. 蛋白设计场景: 序列生成/逆折叠/结构预测组合流水线
+科研工业设计验证环境具有四类刚性约束：
 
-## 该算法的理论模型
+- 多工具异构：模型、评分器、远程服务并存，接口和稳定性差异大；
+- 长链路高成本：单次错误会放大时延与资源损耗；
+- 高风险决策点：需要在关键节点引入 HITL 决策；
+- 可追溯要求：流程、决策、结果必须可回放与对账。
 
-可表述为 "约束多目标优化 + 有限状态控制"
+因此，算法必须是“候选集决策 + 状态机控制”的结构，而非单次文本规划。
 
-1. 在工具图上搜索可执行候选(c), 满足 I/O 闭包与安全约束
-1. 对候选做多目标打分, 并设 gate 决定自动执行或 HITL
-1. 执行期按照分层恢复策略: 局部修复(path) 优先, 全局修复(replan) 兜底.
+______________________________________________________________________
 
-## 当前研究现状与改进方向
+## 3. 统一问题建模
 
-1. 现状: LLM Agent 的 "思考 + 行动" 范式已经成熟(ReAct/Toolformer/Reflexion), 但真实环境稳定性仍明显不足(如 OSWorld 基准). 蛋白质方向模型能力很强(ProteinMPNN, ESMFold, RFdifussion, AlphaFold3), 但 "系统级闭环优化+可审计决策" 仍然是短板.
-1. 项目的下一步该补充的应该是 "算法闭环完整性": 先补充 Top-K 候选与打分门控, 再补充 HITL 前端, 再补充实验评估框架
-1. 推荐优先级:
-   - P0: 完成 Week6 前端
-   - P1: 实现 CandidateSetOutput(Top-k, score_breakdown, risk/cost 阈值门控)
-   - P2: 把 patch/replan 从 "最小替换" 升级为 "参数修补 -> 工具替换 -> 结构调整" 的分层策略
-   - P3: 引入可复现实验基准(成功率, 平均 replan 次数, 人工介入率, 端到端时延)
+### 3.1 输入（Workflow Generation Context）
 
-## 参考资料
+- `task_intent`：任务目标、成功标准、优先级；
+- `constraints`：安全级别、成本上限、时间预算、允许/禁用工具；
+- `toolkg_snapshot`：当前工具图与能力事实；
+- `runtime_context`：历史执行结果、失败类型、已成功前缀；
+- `policy`：自动执行阈值与 HITL 门控规则。
+
+### 3.2 输出（Candidate Workflow Set）
+
+- `PlanCandidate[]` / `PatchCandidate[]` / `ReplanCandidate[]`（Top-K）；
+- 每个候选必须包含：
+  - `structured_payload`
+  - `score_breakdown`
+  - `risk_level`
+  - `cost_estimate`
+  - `explanation`
+- `default_recommendation`：系统默认建议与理由。
+
+### 3.3 优化目标
+
+在约束集合 `C` 下，选择最优候选 `c*`：
+
+`c* = argmax Score(c | C, runtime_context)`
+
+其中 `Score` 由多目标组成：成功概率、风险、成本、恢复代价、可解释性。
+
+______________________________________________________________________
+
+## 4. 核心算法框架
+
+### 阶段 0：上下文归一化
+
+- 统一任务输入、约束、工具快照、历史轨迹格式；
+- 解析已成功步骤前缀与不可回退边界。
+
+### 阶段 1：能力分解与工具检索
+
+- 将目标分解为能力子任务（生成、结构映射、质量门禁、打分等）；
+- 在 ToolKG 中检索满足能力与约束的候选工具链。
+
+### 阶段 2：候选工作流合成
+
+采用混合策略生成 Top-K：
+
+- 模板合成（保证稳定下限）；
+- 图搜索合成（保证 I/O 闭包）；
+- LLM 引导合成（提升覆盖与灵活性）。
+
+### 阶段 3：可执行性验证
+
+对每个候选执行硬约束检查：
+
+- 工具存在性；
+- 输入输出闭包；
+- 参数合法性；
+- 资源与风险约束；
+- schema 合法性。
+
+不通过者直接剔除，不进入打分。
+
+### 阶段 4：多目标打分与排序
+
+- 计算 `score_breakdown`（可执行性、风险、成本、预期收益、恢复复杂度）；
+- 形成排序与默认建议。
+
+### 阶段 5：HITL 门控
+
+- 低风险高置信候选可自动推进；
+- 否则生成 `PendingAction` 并进入：
+  - `WAITING_PLAN_CONFIRM`
+  - `WAITING_PATCH_CONFIRM`
+  - `WAITING_REPLAN_CONFIRM`
+
+### 阶段 6：执行与恢复
+
+- 执行由 Executor 驱动；
+- 失败时严格按 `retry -> patch -> replan`；
+- `patch` 失败或高风险时再升级 `replan`。
+
+### 阶段 7：证据闭环
+
+- 持久化候选、决策、状态迁移、执行产物与事件日志；
+- 输出可追溯报告用于审计与训练数据回流。
+
+______________________________________________________________________
+
+## 5. 与 de novo 六阶段流程的映射
+
+本算法不替代六阶段能力分层，而是作为其控制内核：
+
+- 六阶段定义“做什么”（能力层）；
+- 核心算法定义“如何稳定做成”（候选、门控、恢复、审计）。
+
+特别地，`Patch/Replan` 是贯穿控制层，可在任一阶段介入。
+
+______________________________________________________________________
+
+## 6. 计划制作依赖（可直接引用）
+
+后续计划编制应围绕以下四个工作包：
+
+- P0：CandidateSet 能力落地（Top-K + score_breakdown + risk/cost gate）
+- P1：Patch/Replan 分层策略（参数级、工具级、结构级）
+- P2：评估基准与复现清单（成功率/时延/介入率）
+- P3：审计闭环固化（PendingAction-Decision-EventLog 对账）
+
+每个工作包需绑定：
+
+- 代码路径；
+- 验收测试；
+- 可视化或报告产物。
+
+______________________________________________________________________
+
+## 7. 核心验收指标
+
+最低验收口径：
+
+- Workflow schema 合法率；
+- 候选可执行率；
+- 首轮执行成功率；
+- 平均 patch/replan 次数；
+- 人工介入率与恢复成功率；
+- 端到端时延；
+- 审计完整率（状态迁移与决策链可回放）。
+
+______________________________________________________________________
+
+## 8. 边界与非目标
+
+- 不引入绕过 FSM 的隐式状态跳转；
+- 不允许 Planner 在 WAITING\_\* 状态下替代人工决策；
+- 不将“语言流畅”误当作“可执行工作流准确性”。
+
+______________________________________________________________________
+
+## 9. 参考资料
 
 - ReAct: https://openreview.net/forum?id=WE_vluYUL-X
 - Toolformer: https://arxiv.org/abs/2302.04761
 - Reflexion: https://arxiv.org/abs/2303.11366
 - LLM Multi-Agent Survey: https://arxiv.org/abs/2402.01680
-- Recent Multi-Agent Survey (2025): https://arxiv.org/abs/2503.21460
 - OSWorld benchmark: https://arxiv.org/abs/2404.07972
-- ProteinMPNN: https://pubmed.ncbi.nlm.nih.gov/36108050/
-- ESMFold: https://pubmed.ncbi.nlm.nih.gov/36927031/
-- RFdiffusion: https://www.nature.com/articles/s41586-023-06415-8
-- AlphaFold 3: https://www.nature.com/articles/s41586-024-07487-w
-- AlphaFold2 vs ESMFold (2025): https://pubmed.ncbi.nlm.nih.gov/39916697/
