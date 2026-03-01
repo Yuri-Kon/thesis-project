@@ -1,178 +1,118 @@
 # AGENTS.md
 
-Instructions for Codex when operating in this repository.
+Operational instructions for Codex in this repository.
 
-This file defines **Codex-specific operational guidance**.
-It does NOT redefine system behavior or architecture.
+This file defines execution guidance only.
+System invariants are defined in `AGENT_CONTRACT.md` and are non-negotiable.
 
-All system-level invariants are defiend in `AGENT_CONTRACT.md`
-and MUST be respected.
+## 0. Quick Start Checklist (Before Any Change)
 
-______________________________________________________________________
+1. Read `AGENT_CONTRACT.md`.
+2. If touching FSM, agent roles, contracts, or execution semantics, pull design fragments with doc-slicer:
+   - `.agents/skills/doc-slicer/scripts/docslice --sid ...`
+   - `.agents/skills/doc-slicer/scripts/docslice --topic ...`
+   - `.agents/skills/doc-slicer/scripts/docslice --ref ...`
+3. Limit scope to the user request and strictly required edits.
+4. Implement minimal changes.
+5. Add/update tests when behavior changes and run via `uv`.
 
-## 0. Mandatory Reading (Before Any Code Change)
+If instructions conflict, follow this order:
 
-Before modifying code, Codex MUST read any comply with:
+1. `AGENT_CONTRACT.md`
+2. Design documents in `../thesis-project.design/docs/design/`
+3. `AGENTS.md`
 
-1. `AGENT_CONTRACT.md`: Define system-level invariants (FSM, agent boundaries, contracts)
-1. Authoritative design specs via deterministic slicing (preferred):
+## 1. Role In This Project
 
-- Use the docslice skill at `.claude/skills/doc-slicer/`
-- Script: `.claude/skills/doc-slicer/scripts/docslice`
-- Retrieve only the needed fragments by `--sid`, `--topic`, or `--ref`
-- If the first slice is incomplete or misses the target, expand scope and retry
-  (e.g., increase `--max-lines`/`--max-chars`, or try a broader `--ref`/`--topic`)
-- Read full design docs only if docslice still cannot locate or capture the required spec
+Codex is an implementation assistant, not a system designer.
 
-If any instruction conflicts:
-**AGENT_CONTRACT.md and design documents take precedence.**
+Expected:
 
-______________________________________________________________________
+- Implement requested, scoped changes.
+- Preserve architecture and contracts.
+- Update tests for behavior changes.
 
-## 1. Role of Codex in This Project
+Prohibited:
 
-Codex acts as a **coding assistant**, not a system designer.
+- Inventing new system behavior.
+- Introducing new FSM states or new agent roles without explicit spec.
+- Reinterpreting system intent beyond design documents.
 
-Codex is expected to:
+## 2. Project Structure Map (Use This To Scope Edits)
 
-- implement clearly scoped changes,
-- follow existing architecture and contracts,
-- add tests when behavior changes,
-- avoid speculative refactors or redesigns.
+Core runtime:
 
-Codex MUST NOT:
+- `src/workflow/`: task lifecycle, status transitions, decision application, recovery.
+- `src/agents/`: planner, executor, safety, summarizer implementations.
+- `src/models/`: contracts and validation (`contracts.py`, `validation.py`).
+- `src/storage/`: snapshots and logs.
+- `src/adapters/`, `src/tools/`, `src/engines/`: tool adapters and execution backends.
+- `src/api/`: API schemas and endpoints.
 
-- invent new system behavior,
-- introduce new FSM states or agent roles,
-- reinterpret system intent beyond design documents.
+Tests:
 
-______________________________________________________________________
+- `tests/unit/`: unit-level contracts, FSM, agent behavior.
+- `tests/integration/`: workflow integration and recovery flows.
+- `tests/api/`: endpoint contracts.
 
-## 2. Scope Control
+Rule of thumb:
 
-Codex should only modify code that is:
+- Change only the nearest module that owns the behavior.
+- Mirror behavior changes with tests in the corresponding test area.
 
-- explicitly requested by the user, or
-- strictly necessary to complete the requested task.
+## 3. Coding And Logging Expectations
 
-When a change might impact:
+- Primary language: Python.
+- Follow existing style and typing patterns.
+- Prefer small, testable functions.
+- Avoid hidden side effects.
+- Keep structured logging aligned with task state transitions.
+- Never log secrets or credentials.
 
-- FSM transitions,
-- agent responsibilities,
-- execution semantics,
-  Codex MUST stop and ask for confirmation.
+## 4. Tooling
 
-______________________________________________________________________
+- Use `uv` for execution and tests.
+- Use Python 3.12 (`.python-version`).
+- Typical commands:
+  - `uv run pytest ...`
+  - `uv run python ...`
 
-## 3. Coding Expectations
+## 5. Scope Control And Escalation
 
-### 3.1 Language and style
+Edit only:
 
-- Primary language: Python
-- Follow existing project conventions
-- Use type hints where present
-- Prefer small, testable functions
-- Avoid hidden side effects
+- what the user asked for, and
+- what is strictly necessary to make it work safely.
 
-### 3.2 Logging
+If a change may affect FSM transitions, agent responsibilities, or execution semantics:
 
-- Preserve structured logging conventions
-- Logs must remain consistent with task state and execution flow
-- Do NOT log secrets or credentials
+- stop and ask for explicit user confirmation before proceeding.
 
-### 3.3 Tooling (uv)
+## 6. Testing Requirements
 
-- Package manager: uv
-- Python runtime for uv: 3.12 (see `.python-version` / `requires-python`)
-- Run all programs and tests through uv (e.g., `uv run ...`, `uv run pytest`)
+When behavior changes:
 
-______________________________________________________________________
+- add/update tests,
+- run relevant existing tests,
+- prefer focused suites first, then broader suites for cross-cutting changes.
 
-## 4. Testing Requirements
+Minimum validation targets (as applicable):
 
-When Codex changes behavior, it MUST:
+- FSM transition validity,
+- agent boundary isolation,
+- retry/patch/replan behavior,
+- schema compatibility.
 
-- add or update relevant tests,
-- ensure existing tests pass.
+## 7. Issues And PRs
 
-Test areas include (as applicable):
+Only prepare issues/PRs when explicitly requested.
+Use `gh` only after user confirmation.
 
-- FSM transition validation
-- Agent behavior isolation
-- Retry / patch / replan execution flow
-- Schema compatibility
-
-If tests are missing, Codex should:
-
-- add minimal tests that lock expected behavior,
-- avoid overengineering test frameworks.
-
-______________________________________________________________________
-
-## 5. Change Workflow (Expected)
-
-When implementing a feature or fix, Codex should follow:
-
-1. Understand scope from user instruction
-1. Read relevant design documents
-1. Implement minimal necessary changes
-1. Add or update tests
-1. Clearly explain what was changed and why
-
-Large or cross-cutting changes should be broken into:
-
-- small, reviewable commits, or
-- explicitly staged steps (with user confirmation)
-
-______________________________________________________________________
-
-## 6. Issues and PRs (On Request, via gh)
-
-Only draft issues or PRs when the user explicitly asks.
-Use `gh` for submission and get user confirmation before any `gh` command.
-
-Issue content must include:
-
-- Title
-- Goal
-- Project context aligned with repo structure
-- Core work mapped to code structure
-- Acceptance criteria with verifiable checks
-- Impact scope with exact files/paths
-- Dependencies referencing prior issues
-
-PR content must include:
-
-- Base branch: `dev` unless specified
-- Title
-- Summary covering all branch changes and issue goals
-- Background based on issue + dependencies, and why change is needed
-- Key requirements restated from issue core work
-- Changes: list files with 2-3 line summaries; key design decisions with code locations and optional small snippets/diagrams
-- Impact: positive impact; negative impact if any; risk assessment
-- Links to the current issue and relevant past issues
-
-______________________________________________________________________
-
-## 7. Safe Defaults
+## 8. Safe Defaults
 
 If intent is ambiguous:
 
-- prefer minimal changes,
-- do not refactor unrelated code,
-- do not introduce new abstractions,
-- ask the user before proceeding.
-
-Codex should never assume it is allowed to
-"improve" architecture unless explicitly instructed.
-
-______________________________________________________________________
-
-## 8. Summary
-
-- `AGENTS.md` = Codex operational entrypoint
-- `AGENT_CONTRACT.md` = system invariants (non-negotiable)
-- Design documents = architectural authority
-
-Codex is expected to assist implementation,
-not redefine the system.
+- choose minimal, conservative edits,
+- avoid unrelated refactors,
+- avoid new abstractions unless required,
+- ask before architectural changes.

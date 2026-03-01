@@ -9,10 +9,11 @@ from pathlib import Path
 import pytest
 
 from src.adapters.nim_adapter import NIMESMFoldAdapter
-from src.adapters.protein_mpnn_adapter import ProteinMPNNAdapter
+from src.adapters.protgpt2_adapter import ProtGPT2Adapter
 from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.agents.executor import ExecutorAgent
 from src.agents.planner import PlannerAgent
+from src.engines.remote_model_service import JobStatus, RemoteModelInvocationService
 from src.models.contracts import Plan, PlanStep, ProteinDesignTask
 from src.models.db import InternalStatus
 from src.workflow.context import WorkflowContext
@@ -38,6 +39,24 @@ def _restore_registry(snapshot: tuple[dict, dict]) -> None:
     ADAPTER_REGISTRY._by_tool_id.update(tool_snapshot)
     ADAPTER_REGISTRY._by_adapter_id.clear()
     ADAPTER_REGISTRY._by_adapter_id.update(adapter_snapshot)
+
+
+class _MockPLMService(RemoteModelInvocationService):
+    def submit_job(self, payload, task_id, step_id) -> str:
+        return f"mock_plm_{task_id}_{step_id}"
+
+    def poll_status(self, job_id: str) -> JobStatus:
+        return JobStatus.COMPLETED
+
+    def wait_for_completion(self, job_id: str) -> JobStatus:
+        return JobStatus.COMPLETED
+
+    def download_results(self, job_id: str, output_dir: Path):
+        return {
+            "sequence": "ACDEFGHIKLMNPQRSTVWY",
+            "candidates": [{"sequence": "ACDEFGHIKLMNPQRSTVWY", "score": -0.1}],
+            "artifacts": [],
+        }
 
 
 @pytest.fixture
@@ -99,7 +118,7 @@ def test_de_novo_with_nim(
     tmp_path: Path,
     clean_registry: None,
 ) -> None:
-    """Execute a de novo plan (ProteinMPNN -> NIM ESMFold)."""
+    """Execute a de novo plan (ProtGPT2 -> NIM ESMFold)."""
     template_path = tmp_path / "template.pdb"
     template_path.write_text("HEADER    TEMPLATE\nEND\n", encoding="utf-8")
 
@@ -117,13 +136,11 @@ def test_de_novo_with_nim(
     plan = planner.plan(task)
 
     assert len(plan.steps) == 2
-    assert plan.steps[0].tool == "protein_mpnn"
+    assert plan.steps[0].tool == "protgpt2"
     assert plan.steps[1].tool == "nim_esmfold"
     assert plan.steps[1].inputs.get("sequence") == "S1.sequence"
 
-    register_adapter(
-        ProteinMPNNAdapter(artifacts_dir=tmp_path / "artifacts")
-    )
+    register_adapter(ProtGPT2Adapter(service=_MockPLMService(), output_dir=tmp_path / "seq"))
     register_adapter(NIMESMFoldAdapter(output_dir=tmp_path / "pdb"))
 
     context = WorkflowContext(

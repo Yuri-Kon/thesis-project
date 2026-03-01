@@ -17,7 +17,14 @@ def test_find_tools_by_backend_remote_model_service() -> None:
     tools = find_tools_by_backend("remote_model_service", "nvidia_nim")
     tool_ids = {tool["id"] for tool in tools}
 
-    assert tool_ids == {"nim_esmfold"}
+    assert tool_ids == {"nim_esmfold", "protein_mpnn"}
+
+
+def test_find_tools_by_backend_plm_rest() -> None:
+    tools = find_tools_by_backend("remote_model_service", "plm_rest")
+    tool_ids = {tool["id"] for tool in tools}
+
+    assert tool_ids == {"protgpt2"}
 
 
 def test_find_tools_by_backend_nextflow() -> None:
@@ -35,3 +42,10 @@ def test_mpnn_to_nim_esmfold_chain_is_compatible() -> None:
     nim_inputs = set(tools["nim_esmfold"]["io"]["inputs"].keys())
 
     assert nim_inputs.issubset(mpnn_outputs)
+
+
+def test_protgpt2_has_sequence_generation_capability() -> None:
+    tools = find_tools_by_capability("sequence_generation")
+    tool_ids = {tool["id"] for tool in tools}
+
+    assert "protgpt2" in tool_ids

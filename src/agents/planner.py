@@ -668,6 +668,7 @@ def _build_de_novo_plan(
 ) -> Plan:
     constraints = task.constraints or {}
     available_inputs: Set[str] = set(constraints.keys())
+    available_inputs.add("goal")
     template_pdb = _extract_template_pdb(constraints)
     if template_pdb:
         available_inputs.add("pdb_path")
@@ -678,7 +679,7 @@ def _build_de_novo_plan(
     try:
         sequence_tool = _select_tool_by_capability(
             registry=registry,
-            capability="sequence_design",
+            capability="sequence_generation",
             available_inputs=available_inputs,
             safety_level=safety_level,
             io_hint=None,
@@ -688,7 +689,7 @@ def _build_de_novo_plan(
         fallback_inputs = _collect_registry_inputs(registry)
         sequence_tool = _select_tool_by_capability(
             registry=registry,
-            capability="sequence_design",
+            capability="sequence_generation",
             available_inputs=fallback_inputs,
             safety_level=safety_level,
             io_hint=None,
@@ -723,6 +724,12 @@ def _build_de_novo_plan(
     length_range = _extract_length_range(constraints)
     if length_range:
         step_inputs["length_range"] = length_range
+    prompt = constraints.get("prompt")
+    if isinstance(prompt, str) and prompt:
+        step_inputs["prompt"] = prompt
+    num_candidates = constraints.get("num_candidates")
+    if isinstance(num_candidates, int) and num_candidates > 0:
+        step_inputs["num_candidates"] = num_candidates
     if template_pdb:
         step_inputs["pdb_path"] = template_pdb
 
@@ -790,7 +797,7 @@ def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) ->
         compat_note = f"KG compat.from={', '.join(str(item) for item in compat_from)}"
 
     parts = [
-        "de_novo_design 任务采用序列设计→结构预测两步链路。",
+        "de_novo_design 任务采用序列生成→结构预测两步链路。",
         f"ProteinToolKG 显示 {seq_name}({sequence_tool_id}) 能力={seq_caps}。{seq_desc}",
         f"ProteinToolKG 显示 {struct_name}({structure_tool_id}) 能力={struct_caps}。{struct_desc}",
     ]
