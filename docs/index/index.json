@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-02-05",
+  "generated_at": "2026-03-01",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 96,
+  "total_specs": 98,
   "documents": [
     {
       "doc_key": "arch",
@@ -118,6 +118,28 @@
         "agent",
         "impl",
         "algo"
+      ]
+    },
+    {
+      "doc_key": "algocore",
+      "title": "核心算法定义",
+      "path": "docs/algorithm-and-llm/core-algorithm-define.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "algo",
+        "de_novo_workflow"
+      ]
+    },
+    {
+      "doc_key": "llmtrain",
+      "title": "Planner 大模型能力要求与专用训练方案",
+      "path": "docs/algorithm-and-llm/train-llm.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "algo",
+        "impl_llm_provider"
       ]
     }
   ],
@@ -2039,6 +2061,52 @@
         "template"
       ],
       "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "algollm.core.algorithm_define",
+      "title": "核心算法定义",
+      "doc_key": "algocore",
+      "path": "docs/algorithm-and-llm/core-algorithm-define.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:algollm.core.algorithm_define -->"
+      },
+      "level": "Section",
+      "tags": [
+        "algo",
+        "algorithm_llm",
+        "core",
+        "planning"
+      ],
+      "depends_on": [
+        "algo.scope.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "algollm.llm.training_plan",
+      "title": "Planner 大模型能力要求与专用训练方案",
+      "doc_key": "llmtrain",
+      "path": "docs/algorithm-and-llm/train-llm.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:algollm.llm.training_plan -->"
+      },
+      "level": "Section",
+      "tags": [
+        "algo",
+        "algorithm_llm",
+        "llm",
+        "training",
+        "planner"
+      ],
+      "depends_on": [
+        "planner.algorithm.candidate_scoring",
+        "impl.llm_provider.guide"
+      ],
       "stability": "stable"
     }
   ]

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated_at": "2026-02-05",
+  "generated_at": "2026-03-01",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -783,11 +783,37 @@
       "total_specs": 3,
       "critical_specs": 1,
       "high_specs": 2
+    },
+    "algorithm_llm": {
+      "title": "Core Algorithm and LLM Training",
+      "description": "核心算法定义与 Planner 专用大模型训练方案的联合视图",
+      "use_case": "实现核心算法闭环与 LLM 训练相关功能时注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "algollm.core.algorithm_define",
+          "title": "核心算法定义",
+          "doc_key": "algocore",
+          "path": "docs/algorithm-and-llm/core-algorithm-define.md",
+          "priority": "high",
+          "rationale": "核心算法闭环、恢复路径与落地差距的聚合说明"
+        },
+        {
+          "sid": "algollm.llm.training_plan",
+          "title": "Planner 大模型能力要求与专用训练方案",
+          "doc_key": "llmtrain",
+          "path": "docs/algorithm-and-llm/train-llm.md",
+          "priority": "high",
+          "rationale": "Planner 模型能力约束、训练路线与验收指标"
+        }
+      ],
+      "total_specs": 2,
+      "critical_specs": 0,
+      "high_specs": 2
     }
   },
   "summary": {
-    "total_topics": 8,
-    "total_unique_specs": 70,
+    "total_topics": 9,
+    "total_unique_specs": 72,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {
