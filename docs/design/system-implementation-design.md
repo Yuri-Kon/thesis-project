@@ -976,6 +976,79 @@ Planner 的工具知识 **必须** 来自 ProteinToolKG，LLM 仅提供“意图
 - 允许在 KG 的 `tool.metadata.aliases` 中维护别名映射，但映射来源必须属于 KG 数据。
 - ToolResolver 逻辑与 LLM Provider 解耦，新增工具或 Provider 不影响解析策略。
 
+#### Planner 专用模型训练与上线策略（补充）
+<!-- SID:impl.planner.training_and_serving -->
+
+本节用于将 `docs/algorithm-and-llm/llm-read.md` 与 `train-llm.md` 的结论落到实现层。
+
+**目标与边界**：
+
+- 目标：提升 Planner 的结构合法率、候选可执行率、失败后修复质量与线上稳定性。
+- 边界：只替换 Planner 的模型调用层，不改变 FSM、`PendingAction/Decision`、Agent 职责分工。
+- 原则：模型输出始终经过 schema verifier + 约束检查，模型判断不得绕过规则门禁。
+
+**训练数据回流（日志 -> 样本）**：
+
+- 样本来源：Task 输入、ToolKG 快照、候选集合、StepResult、FailureCode、PendingAction/Decision、EventLog、TaskSnapshot。
+- 样本最小字段：
+  - `context`（任务目标、约束、已成功前缀、阶段）
+  - `candidate_set`（Top-K 候选与 `score_breakdown/risk/cost/explanation`）
+  - `selected`（系统/人工选择）
+  - `outcome`（执行结果、失败类型、恢复路径）
+  - `audit_trace`（状态迁移与决策链索引）
+- 数据门禁：
+  - 剔除 schema 不合法样本
+  - 剔除关键字段缺失样本（score/risk/cost/failure）
+  - 对“失败后修复成功”样本加权
+  - 做时间切分与去重，避免泄漏
+
+**训练流程（建议）**：
+
+- 阶段 A（SFT）：优先学习结构化输出与约束遵循（先 Plan，再 Patch/Replan）。
+- 阶段 B（偏好优化）：偏好“成功率高、风险低、改动小”的候选。
+- 阶段 C（失败修复强化）：学习从失败反馈生成高质量 Patch/Replan。
+- 阶段 D（蒸馏与部署优化）：在保证指标的前提下降低时延与成本。
+
+**推理双路与回退触发器**：
+
+- 默认路径：自研 Planner 模型 -> schema/约束检查 -> 自动执行或 HITL 门控。
+- 回退路径：外部强模型兜底（接口保持同一 Planner I/O 契约）。
+- 回退触发（任一命中）：
+  - schema 连续不合法
+  - 候选可执行率下降超阈值
+  - 连续失败超阈值
+  - 风险等级长期偏高
+
+参考伪代码：
+
+```python
+def plan_with_fallback(ctx):
+    result = planner_local.generate(ctx)
+    if violates_gate(result):
+        result = planner_external.generate(ctx)
+    return verify_and_gate(result)
+```
+
+**评估与发布门禁**：
+
+- 离线门槛（建议）：
+  - Schema 合法率 >= 99.5%
+  - 可执行 Plan 率 >= 95%
+  - Patch 最小性命中率 >= 80%
+  - `suffix_replan` 前缀保持率 = 100%
+- 在线门槛（相对外部模型基线）：
+  - 首轮执行成功率提升（目标 >= +10%）
+  - Planner 平均时延下降（目标 >= 30%）
+  - 人工介入率下降且恢复成功率不下降
+  - 审计链完整率不下降（`PendingAction -> Decision -> EventLog`）
+
+进入正式训练与灰度发布前，必须具备四项基础资产：
+
+- A1：训练数据规范（字段字典 + 抽取脚本 + 质量门禁）
+- A2：候选校验器（schema + 约束 + 风险门控）
+- A3：统一 benchmark（离线/在线指标与统计口径）
+- A4：发布门禁清单（回归测试 + 回退策略 + 审计对账）
+
 ---
 
 ### ExecutorAgent与WorkflowEngineAdapter
