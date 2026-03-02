@@ -1,6 +1,10 @@
 """数据契约模型单元测试"""
 import pytest
+from pydantic import ValidationError
 from src.models.contracts import (
+    PendingAction,
+    PendingActionCandidate,
+    PendingActionType,
     ProteinDesignTask,
     Plan,
     PlanStep,
@@ -210,3 +214,82 @@ class TestSafetyResult:
         assert result.task_id == "task_001"
         assert result.phase == "input"
         assert result.action == "allow"
+
+
+@pytest.mark.unit
+class TestCandidateSetContracts:
+    """CandidateSetOutput v1 契约测试。"""
+
+    def test_candidate_payload_syncs_to_structured_payload(self, sample_plan: Plan):
+        candidate = PendingActionCandidate(
+            candidate_id="plan_a",
+            payload=sample_plan,
+        )
+
+        assert candidate.payload == sample_plan
+        assert candidate.structured_payload == sample_plan
+
+    def test_candidate_structured_payload_backfills_payload(self, sample_plan: Plan):
+        candidate = PendingActionCandidate(
+            candidate_id="plan_b",
+            structured_payload=sample_plan,
+        )
+
+        assert candidate.structured_payload == sample_plan
+        assert candidate.payload == sample_plan
+
+    def test_candidate_non_numeric_score_rejected(self, sample_plan: Plan):
+        with pytest.raises(ValueError, match="score_breakdown\\.overall"):
+            PendingActionCandidate(
+                candidate_id="plan_c",
+                payload=sample_plan,
+                score_breakdown={"overall": "high"},  # type: ignore[arg-type]
+            )
+
+    def test_candidate_invalid_risk_or_cost_enum_rejected(self, sample_plan: Plan):
+        with pytest.raises(ValidationError):
+            PendingActionCandidate(
+                candidate_id="plan_d",
+                payload=sample_plan,
+                risk_level="warn",  # type: ignore[arg-type]
+                cost_estimate="low",
+            )
+        with pytest.raises(ValidationError):
+            PendingActionCandidate(
+                candidate_id="plan_e",
+                payload=sample_plan,
+                risk_level="low",
+                cost_estimate="expensive",  # type: ignore[arg-type]
+            )
+
+    def test_pending_action_default_recommendation_compat(self, sample_task, sample_plan):
+        candidate = PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
+        action = PendingAction(
+            pending_action_id="pa_001",
+            task_id=sample_task.task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            candidates=[candidate],
+            explanation="test",
+            default_suggestion="plan_a",
+        )
+
+        assert action.default_suggestion == "plan_a"
+        assert action.default_recommendation == "plan_a"
+
+    def test_pending_action_conflicting_default_fields_rejected(
+        self, sample_task, sample_plan
+    ):
+        candidate = PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
+        with pytest.raises(
+            ValueError,
+            match="default_suggestion and default_recommendation must match",
+        ):
+            PendingAction(
+                pending_action_id="pa_002",
+                task_id=sample_task.task_id,
+                action_type=PendingActionType.PLAN_CONFIRM,
+                candidates=[candidate],
+                explanation="test",
+                default_suggestion="plan_a",
+                default_recommendation="plan_b",
+            )

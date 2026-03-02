@@ -207,19 +207,70 @@ class PendingActionStatus(str, Enum):
 
 
 class PendingActionCandidate(BaseModel):
-    """候选方案的最小封装。
+    """候选方案封装（兼容 CandidateSetOutput v1）。
 
     Attributes:
         candidate_id: 候选唯一标识。
-        payload: 候选承载的对象（Plan 或 PlanPatch）。
+        payload: 兼容字段，等价于 structured_payload。
+        structured_payload: 候选承载的结构化对象（Plan 或 PlanPatch）。
+        score_breakdown: 候选打分拆解（feasibility/objective/risk/cost/overall）。
+        risk_level: 风险等级（low/medium/high）。
+        cost_estimate: 成本等级（low/medium/high）。
+        explanation: 候选解释。
         summary: 候选摘要信息。
         metadata: 额外元数据。
     """
 
     candidate_id: str
-    payload: Plan | PlanPatch
+    payload: Plan | PlanPatch | None = None
+    structured_payload: Plan | PlanPatch | None = None
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    risk_level: Literal["low", "medium", "high"] | None = None
+    cost_estimate: Literal["low", "medium", "high"] | None = None
+    explanation: str | None = None
     summary: Optional[str] = None
     metadata: Dict = Field(default_factory=dict)
+
+    @field_validator("candidate_id")
+    @classmethod
+    def _validate_candidate_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("candidate_id must not be empty")
+        return normalized
+
+    @field_validator("score_breakdown")
+    @classmethod
+    def _validate_score_breakdown(
+        cls, value: Dict[str, float]
+    ) -> Dict[str, float]:
+        normalized: Dict[str, float] = {}
+        for key, score in value.items():
+            if isinstance(score, bool) or not isinstance(score, (int, float)):
+                raise ValueError(f"score_breakdown[{key}] must be numeric")
+            normalized[key] = float(score)
+        return normalized
+
+    @model_validator(mode="after")
+    def _sync_payload_fields(self):
+        payload = self.payload
+        structured_payload = self.structured_payload
+        if payload is None and structured_payload is None:
+            raise ValueError(
+                "either payload or structured_payload must be provided"
+            )
+        if payload is None:
+            self.payload = structured_payload
+            return self
+        if structured_payload is None:
+            self.structured_payload = payload
+            return self
+        if (
+            type(payload) is not type(structured_payload)
+            or payload.model_dump() != structured_payload.model_dump()
+        ):
+            raise ValueError("payload and structured_payload must be equivalent")
+        return self
 
 
 class PendingAction(BaseModel):
@@ -232,7 +283,8 @@ class PendingAction(BaseModel):
         candidates: 候选集合。
         explanation: 解释说明文本。
         status: PendingAction 当前状态。
-        default_suggestion: 默认建议候选 ID。
+        default_suggestion: 兼容字段，等价于 default_recommendation。
+        default_recommendation: 默认建议候选 ID（CandidateSetOutput v1）。
         created_at: 创建时间戳。
         decided_at: 决策完成时间戳。
         created_by: 创建者标识（通常为 system）。
@@ -245,9 +297,23 @@ class PendingAction(BaseModel):
     explanation: str
     status: PendingActionStatus = PendingActionStatus.PENDING
     default_suggestion: Optional[str] = None
+    default_recommendation: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     decided_at: Optional[str] = None
     created_by: str = "system"
+
+    @model_validator(mode="after")
+    def _sync_default_recommendation(self):
+        suggestion = self.default_suggestion
+        recommendation = self.default_recommendation
+        if suggestion and recommendation and suggestion != recommendation:
+            raise ValueError(
+                "default_suggestion and default_recommendation must match"
+            )
+        resolved = recommendation or suggestion
+        self.default_suggestion = resolved
+        self.default_recommendation = resolved
+        return self
 
 
 class DecisionChoice(str, Enum):

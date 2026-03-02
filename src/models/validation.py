@@ -28,6 +28,83 @@ class DecisionValidationError(ValueError):
     """Decision 与 PendingAction 约束冲突时抛出。"""
 
 
+class CandidateSetValidationError(ValueError):
+    """CandidateSetOutput 契约校验失败时抛出。"""
+
+
+REQUIRED_SCORE_BREAKDOWN_FIELDS = frozenset(
+    {"feasibility", "objective", "risk", "cost", "overall"}
+)
+
+
+def validate_candidate_set_output(
+    pending_action: PendingAction,
+    *,
+    require_v1_fields: bool = True,
+    require_default_recommendation: bool = True,
+) -> None:
+    """校验 CandidateSetOutput 契约（用于 Planner/HITL 输出）。
+
+    Args:
+        pending_action: 待校验的 PendingAction 对象。
+        require_v1_fields: 是否要求每个候选必须包含 v1 字段集。
+        require_default_recommendation: 是否要求存在默认推荐候选。
+
+    Raises:
+        CandidateSetValidationError: 候选字段或集合约束不满足。
+    """
+    if not pending_action.candidates:
+        raise CandidateSetValidationError("candidates must not be empty")
+
+    seen_ids: set[str] = set()
+    for candidate in pending_action.candidates:
+        candidate_id = _resolve_candidate_id(candidate)
+        if not candidate_id:
+            raise CandidateSetValidationError("candidate_id is required")
+        if candidate_id in seen_ids:
+            raise CandidateSetValidationError(
+                f"candidate_id {candidate_id} is duplicated"
+            )
+        seen_ids.add(candidate_id)
+        if require_v1_fields:
+            _validate_candidate_v1_fields(candidate, candidate_id)
+
+    default_id = (
+        pending_action.default_recommendation or pending_action.default_suggestion
+    )
+    if require_default_recommendation and not default_id:
+        raise CandidateSetValidationError(
+            "default_recommendation is required for candidate set output"
+        )
+    if default_id and default_id not in seen_ids:
+        raise CandidateSetValidationError(
+            "default_recommendation is not in candidates"
+        )
+
+
+def _validate_candidate_v1_fields(
+    candidate: PendingActionCandidate, candidate_id: str
+) -> None:
+    if candidate.structured_payload is None:
+        raise CandidateSetValidationError(
+            f"{candidate_id}.structured_payload is required"
+        )
+    if not candidate.score_breakdown:
+        raise CandidateSetValidationError(f"{candidate_id}.score_breakdown is required")
+    missing_keys = REQUIRED_SCORE_BREAKDOWN_FIELDS - set(candidate.score_breakdown)
+    if missing_keys:
+        missing = ", ".join(sorted(missing_keys))
+        raise CandidateSetValidationError(
+            f"{candidate_id}.score_breakdown missing keys: {missing}"
+        )
+    if candidate.risk_level is None:
+        raise CandidateSetValidationError(f"{candidate_id}.risk_level is required")
+    if candidate.cost_estimate is None:
+        raise CandidateSetValidationError(f"{candidate_id}.cost_estimate is required")
+    if not candidate.explanation:
+        raise CandidateSetValidationError(f"{candidate_id}.explanation is required")
+
+
 def validate_decision_for_pending_action(
     pending_action: PendingAction,
     decision: Decision,

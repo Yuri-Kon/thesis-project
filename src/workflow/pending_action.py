@@ -42,6 +42,7 @@ def build_pending_action(
     *,
     pending_action_id: Optional[str] = None,
     default_suggestion: Optional[str] = None,
+    default_recommendation: Optional[str] = None,
     explanation: str,
     created_by: str = "system",
 ) -> PendingAction:
@@ -53,6 +54,7 @@ def build_pending_action(
         candidates: 候选集合（可为空）。
         pending_action_id: 可选的 PendingAction ID（默认自动生成）。
         default_suggestion: 默认建议的候选 ID。
+        default_recommendation: CandidateSetOutput v1 默认推荐候选 ID。
         explanation: 解释说明文本。
         created_by: 创建者标识（默认 system）。
 
@@ -66,6 +68,7 @@ def build_pending_action(
         status=PendingActionStatus.PENDING,
         candidates=list(candidates or []),
         default_suggestion=default_suggestion,
+        default_recommendation=default_recommendation,
         explanation=explanation,
         created_at=now_iso(),
         decided_at=None,
@@ -120,6 +123,7 @@ def enter_waiting_state(
             "action_type": pending_action.action_type.value,
             "candidate_ids": [c.candidate_id for c in pending_action.candidates],
             "default_suggestion": pending_action.default_suggestion,
+            "default_recommendation": pending_action.default_recommendation,
         }
     )
 
