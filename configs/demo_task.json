@@ -1,0 +1,16 @@
+{
+  "goal": "Design a stable mini-protein and produce a structure preview",
+  "constraints": {
+    "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR",
+    "length_range": [
+      30,
+      80
+    ],
+    "safety_level": 1
+  },
+  "metadata": {
+    "demo": true,
+    "created_by": "run_demo",
+    "notes": "Minimal API smoke payload"
+  }
+}

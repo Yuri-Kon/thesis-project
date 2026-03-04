@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, List, Mapping, Optional
 
 from src.models.contracts import TaskSnapshot
 
-DEFAULT_SNAPSHOT_DIR = Path("data/snapshots")
+
+def _resolve_default_snapshot_dir() -> Path:
+    explicit = os.getenv("PROTEIN_SNAPSHOT_DIR")
+    if explicit:
+        return Path(explicit)
+    data_dir = os.getenv("PROTEIN_DATA_DIR")
+    if data_dir:
+        return Path(data_dir) / "snapshots"
+    return Path("data/snapshots")
+
+
+DEFAULT_SNAPSHOT_DIR = _resolve_default_snapshot_dir()
 
 
 def append_snapshot(

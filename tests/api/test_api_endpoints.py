@@ -52,6 +52,16 @@ class TestAPIEndpoints:
         assert data["goal"] == "设计一个测试蛋白质"
         assert data["status"] == ExternalStatus.DONE.value
 
+    async def test_health_endpoint(self, client: httpx.AsyncClient):
+        """测试健康检查端点"""
+        response = await client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert "kg_tool_count" in data
+        assert "paths" in data
+        assert "logs" in data["paths"]
+
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
         response = await client.post(

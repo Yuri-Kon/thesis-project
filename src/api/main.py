@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
@@ -25,6 +27,7 @@ from src.workflow.decision_apply import (
     DecisionApplyError,
     DecisionConflictError,
 )
+from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
 from src.workflow.context import WorkflowContext
 
@@ -32,6 +35,34 @@ app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.5.2")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
+RUNTIME_INIT: Optional[RuntimeInitResult] = None
+
+
+def _path_from_env(env_key: str) -> Optional[Path]:
+    raw = os.getenv(env_key)
+    if raw is None or raw == "":
+        return None
+    return Path(raw)
+
+
+def _ensure_runtime_initialized() -> RuntimeInitResult:
+    global RUNTIME_INIT
+    if RUNTIME_INIT is not None:
+        return RUNTIME_INIT
+
+    RUNTIME_INIT = initialize_runtime(
+        kg_path=_path_from_env("PROTEIN_KG_PATH"),
+        output_dir=_path_from_env("PROTEIN_OUTPUT_DIR"),
+        data_dir=_path_from_env("PROTEIN_DATA_DIR"),
+        log_dir=_path_from_env("PROTEIN_LOG_DIR"),
+        snapshot_dir=_path_from_env("PROTEIN_SNAPSHOT_DIR"),
+    )
+    return RUNTIME_INIT
+
+
+@app.on_event("startup")
+async def _startup_init() -> None:
+    _ensure_runtime_initialized()
 
 
 class TaskCreateRequest(BaseModel):
@@ -49,6 +80,23 @@ class DecisionSubmitRequest(BaseModel):
     )
     decided_by: str = Field(..., description="决策者标识")
     comment: Optional[str] = Field(None, description="可选的决策备注")
+
+
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    runtime = _ensure_runtime_initialized()
+    return {
+        "status": "ok",
+        "task_count": len(TASK_STORE),
+        "kg_tool_count": runtime.tool_count,
+        "paths": {
+            "kg": str(runtime.paths.kg_path),
+            "output": str(runtime.paths.output_dir),
+            "data": str(runtime.paths.data_dir),
+            "logs": str(runtime.paths.log_dir),
+            "snapshots": str(runtime.paths.snapshot_dir),
+        },
+    }
 
 
 @app.post("/tasks", response_model=TaskRecord)
