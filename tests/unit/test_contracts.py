@@ -262,6 +262,65 @@ class TestCandidateSetContracts:
                 cost_estimate="expensive",  # type: ignore[arg-type]
             )
 
+    def test_candidate_tool_fields_sync_to_metadata(self, sample_plan: Plan):
+        candidate = PendingActionCandidate(
+            candidate_id="plan_tool_sync",
+            payload=sample_plan,
+            tool_id="esmfold",
+            capability_id="structure_prediction",
+            io_type="sequence_to_structure",
+        )
+
+        assert candidate.tool_id == "esmfold"
+        assert candidate.capability_id == "structure_prediction"
+        assert candidate.io_type == "sequence_to_structure"
+        assert candidate.adapter_mode == "unknown"
+        assert candidate.metadata["tool_id"] == "esmfold"
+        assert candidate.metadata["capability_id"] == "structure_prediction"
+        assert candidate.metadata["io_type"] == "sequence_to_structure"
+        assert candidate.metadata["adapter_mode"] == "unknown"
+
+    def test_candidate_tool_fields_can_backfill_from_metadata(self, sample_plan: Plan):
+        candidate = PendingActionCandidate(
+            candidate_id="plan_tool_meta",
+            payload=sample_plan,
+            metadata={
+                "tool_id": "nim_esmfold",
+                "capability_id": "structure_prediction",
+                "io_type": "sequence_to_structure",
+                "adapter_mode": "remote",
+            },
+        )
+
+        assert candidate.tool_id == "nim_esmfold"
+        assert candidate.capability_id == "structure_prediction"
+        assert candidate.io_type == "sequence_to_structure"
+        assert candidate.adapter_mode == "remote"
+
+    def test_candidate_tool_metadata_conflict_rejected(self, sample_plan: Plan):
+        with pytest.raises(ValueError, match="metadata\\.tool_id must match tool_id"):
+            PendingActionCandidate(
+                candidate_id="plan_tool_conflict",
+                payload=sample_plan,
+                tool_id="esmfold",
+                metadata={"tool_id": "protein_mpnn"},
+            )
+
+    def test_candidate_invalid_adapter_mode_in_metadata_rejected(
+        self, sample_plan: Plan
+    ):
+        with pytest.raises(ValueError, match="metadata\\.adapter_mode must be one of"):
+            PendingActionCandidate(
+                candidate_id="plan_tool_bad_mode",
+                payload=sample_plan,
+                metadata={
+                    "tool_id": "esmfold",
+                    "capability_id": "structure_prediction",
+                    "io_type": "sequence_to_structure",
+                    "adapter_mode": "cloud",
+                },
+            )
+
     def test_pending_action_default_recommendation_compat(self, sample_task, sample_plan):
         candidate = PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
         action = PendingAction(

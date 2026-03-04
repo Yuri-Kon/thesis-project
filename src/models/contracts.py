@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, cast
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
@@ -217,6 +217,10 @@ class PendingActionCandidate(BaseModel):
         risk_level: 风险等级（low/medium/high）。
         cost_estimate: 成本等级（low/medium/high）。
         explanation: 候选解释。
+        tool_id: 工具标识（与 metadata.tool_id 同步）。
+        capability_id: 工具能力标识（与 metadata.capability_id 同步）。
+        io_type: I/O 类型标识（与 metadata.io_type 同步）。
+        adapter_mode: 适配器模式（local/remote/mock/hybrid/unknown）。
         summary: 候选摘要信息。
         metadata: 额外元数据。
     """
@@ -228,6 +232,10 @@ class PendingActionCandidate(BaseModel):
     risk_level: Literal["low", "medium", "high"] | None = None
     cost_estimate: Literal["low", "medium", "high"] | None = None
     explanation: str | None = None
+    tool_id: str | None = None
+    capability_id: str | None = None
+    io_type: str | None = None
+    adapter_mode: Literal["local", "remote", "mock", "hybrid", "unknown"] | None = None
     summary: Optional[str] = None
     metadata: Dict = Field(default_factory=dict)
 
@@ -251,6 +259,16 @@ class PendingActionCandidate(BaseModel):
             normalized[key] = float(score)
         return normalized
 
+    @field_validator("tool_id", "capability_id", "io_type")
+    @classmethod
+    def _validate_tool_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("tool metadata fields must not be empty")
+        return normalized
+
     @model_validator(mode="after")
     def _sync_payload_fields(self):
         payload = self.payload
@@ -271,6 +289,95 @@ class PendingActionCandidate(BaseModel):
         ):
             raise ValueError("payload and structured_payload must be equivalent")
         return self
+
+    @model_validator(mode="after")
+    def _sync_tool_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+
+        self.tool_id = _sync_metadata_field(
+            metadata,
+            field_name="tool_id",
+            field_value=self.tool_id,
+        )
+        self.capability_id = _sync_metadata_field(
+            metadata,
+            field_name="capability_id",
+            field_value=self.capability_id,
+        )
+        self.io_type = _sync_metadata_field(
+            metadata,
+            field_name="io_type",
+            field_value=self.io_type,
+        )
+        self.adapter_mode = _sync_adapter_mode(
+            metadata,
+            field_value=self.adapter_mode,
+        )
+
+        has_any_tooling = any(
+            value is not None for value in (self.tool_id, self.capability_id, self.io_type)
+        )
+        if has_any_tooling and self.adapter_mode is None:
+            self.adapter_mode = "unknown"
+            metadata["adapter_mode"] = self.adapter_mode
+
+        return self
+
+
+def _sync_metadata_field(
+    metadata: Dict[str, Any],
+    *,
+    field_name: str,
+    field_value: str | None,
+) -> str | None:
+    metadata_value = metadata.get(field_name)
+    if metadata_value is None:
+        if field_value is not None:
+            metadata[field_name] = field_value
+        return field_value
+    if not isinstance(metadata_value, str):
+        raise ValueError(f"metadata.{field_name} must be a string")
+    normalized = metadata_value.strip()
+    if not normalized:
+        raise ValueError(f"metadata.{field_name} must not be empty")
+    if field_value is None:
+        return normalized
+    if field_value != normalized:
+        raise ValueError(f"metadata.{field_name} must match {field_name}")
+    metadata[field_name] = field_value
+    return field_value
+
+
+def _sync_adapter_mode(
+    metadata: Dict[str, Any],
+    *,
+    field_value: Literal["local", "remote", "mock", "hybrid", "unknown"] | None,
+) -> Literal["local", "remote", "mock", "hybrid", "unknown"] | None:
+    metadata_value = metadata.get("adapter_mode")
+    if metadata_value is None:
+        if field_value is not None:
+            metadata["adapter_mode"] = field_value
+        return field_value
+    if not isinstance(metadata_value, str):
+        raise ValueError("metadata.adapter_mode must be a string")
+    normalized = metadata_value.strip().lower()
+    allowed = {"local", "remote", "mock", "hybrid", "unknown"}
+    if normalized not in allowed:
+        raise ValueError(
+            "metadata.adapter_mode must be one of "
+            "local, remote, mock, hybrid, unknown"
+        )
+    if field_value is None:
+        metadata["adapter_mode"] = normalized
+        return cast(
+            Literal["local", "remote", "mock", "hybrid", "unknown"],
+            normalized,
+        )
+    if field_value != normalized:
+        raise ValueError("metadata.adapter_mode must match adapter_mode")
+    metadata["adapter_mode"] = field_value
+    return field_value
 
 
 class PendingAction(BaseModel):
