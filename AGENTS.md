@@ -116,3 +116,9 @@ If intent is ambiguous:
 - avoid unrelated refactors,
 - avoid new abstractions unless required,
 - ask before architectural changes.
+
+## 9. Git Commit Message Convention
+
+- Use Conventional Commits for commit messages (for example: `feat(scope): short summary`).
+- Keep the subject line concise and in Conventional Commits format.
+- The commit body may be written in Chinese when needed.
