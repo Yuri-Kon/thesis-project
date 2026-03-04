@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Mapping, TYPE_CHECKING
 
@@ -8,7 +9,19 @@ if TYPE_CHECKING:
     from src.models.event_log import EventLog
 
 # 事件日志默认目录，按 task_id 写入 jsonl 文件
-DEFAULT_LOG_DIR = Path("data/logs")
+
+
+def _resolve_default_log_dir() -> Path:
+    explicit = os.getenv("PROTEIN_LOG_DIR")
+    if explicit:
+        return Path(explicit)
+    data_dir = os.getenv("PROTEIN_DATA_DIR")
+    if data_dir:
+        return Path(data_dir) / "logs"
+    return Path("data/logs")
+
+
+DEFAULT_LOG_DIR = _resolve_default_log_dir()
 
 
 def append_event(
