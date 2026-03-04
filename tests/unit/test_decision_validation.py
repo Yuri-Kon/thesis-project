@@ -131,6 +131,10 @@ def test_candidate_set_v1_validation_passes(sample_task, sample_plan):
                 risk_level="low",
                 cost_estimate="medium",
                 explanation="candidate a is balanced",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
             )
         ],
         default_recommendation="plan_a",
@@ -159,6 +163,10 @@ def test_candidate_set_missing_required_score_key_rejected(sample_task, sample_p
                 risk_level="low",
                 cost_estimate="medium",
                 explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
             )
         ],
         default_recommendation="plan_a",
@@ -192,6 +200,10 @@ def test_candidate_set_default_recommendation_must_exist(sample_task, sample_pla
                 risk_level="low",
                 cost_estimate="medium",
                 explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
             )
         ],
         default_recommendation="plan_x",
@@ -203,6 +215,72 @@ def test_candidate_set_default_recommendation_must_exist(sample_task, sample_pla
         match="default_recommendation is not in candidates",
     ):
         validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_missing_tool_fields_rejected(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_missing_tooling",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="plan_a\\.tool_id is required",
+    ):
+        validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_tooling_defaults_adapter_mode_to_unknown(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_tooling_default_mode",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(pending_action)
+    assert pending_action.candidates[0].adapter_mode == "unknown"
 
 
 @pytest.mark.unit

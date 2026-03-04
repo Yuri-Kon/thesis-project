@@ -35,6 +35,9 @@ class CandidateSetValidationError(ValueError):
 REQUIRED_SCORE_BREAKDOWN_FIELDS = frozenset(
     {"feasibility", "objective", "risk", "cost", "overall"}
 )
+REQUIRED_TOOL_METADATA_WITH_DEFAULTS = frozenset(
+    {"tool_id", "capability_id", "io_type", "adapter_mode"}
+)
 
 
 def validate_candidate_set_output(
@@ -103,6 +106,34 @@ def _validate_candidate_v1_fields(
         raise CandidateSetValidationError(f"{candidate_id}.cost_estimate is required")
     if not candidate.explanation:
         raise CandidateSetValidationError(f"{candidate_id}.explanation is required")
+    _validate_candidate_tool_fields(candidate, candidate_id)
+
+
+def _validate_candidate_tool_fields(
+    candidate: PendingActionCandidate, candidate_id: str
+) -> None:
+    if candidate.tool_id is None:
+        raise CandidateSetValidationError(f"{candidate_id}.tool_id is required")
+    if candidate.capability_id is None:
+        raise CandidateSetValidationError(
+            f"{candidate_id}.capability_id is required"
+        )
+    if candidate.io_type is None:
+        raise CandidateSetValidationError(f"{candidate_id}.io_type is required")
+    if candidate.adapter_mode is None:
+        raise CandidateSetValidationError(f"{candidate_id}.adapter_mode is required")
+
+    metadata = candidate.metadata or {}
+    missing_metadata = [
+        key
+        for key in REQUIRED_TOOL_METADATA_WITH_DEFAULTS
+        if key not in metadata or metadata.get(key) in (None, "")
+    ]
+    if missing_metadata:
+        missing = ", ".join(sorted(missing_metadata))
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata missing tool keys: {missing}"
+        )
 
 
 def validate_decision_for_pending_action(
