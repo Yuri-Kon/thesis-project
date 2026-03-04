@@ -1,93 +1,78 @@
-# ESMFold 远程调用 + HITL + 恢复演示
+# One-Command Demo
 
-本演示脚本覆盖以下链路：
+This repository provides a one-command launcher for the minimal end-to-end demo:
 
-```
-Planner → WAITING_PLAN_CONFIRM → (恢复) → 决策 → Executor(远程 ESMFold) → Summarizer
-```
+- FastAPI input layer (`/docs`, `/health`, `/tasks`)
+- Planner/Executor/Safety/Summarizer workflow chain
+- Runtime resources (ProteinToolKG, logs, snapshots, output dirs)
 
-它演示了：
-- ✅ Planner 生成计划（支持切换 LLM Provider）
-- ✅ 远程 ESMFold 调用（mock/real）
-- ✅ HITL 进入 WAITING_PLAN_CONFIRM
-- ✅ EventLog + Snapshot 恢复
-- ✅ Summarizer 汇总并产出报告
+## Quick Start
 
-## 快速开始（Mock 模式）
-
-无需 GPU 或远程服务：
+From repository root:
 
 ```bash
-python -m pip install -r requirements.txt
-python examples/demo_esmfold_end_to_end.py --mode mock
+./run_demo.sh
 ```
 
-## 真实模式（对接远程 ESMFold 服务）
+What this does:
 
-远程服务需实现 REST API（见 `docs/remote_model_invocation.md`）：
+1. Checks runtime prerequisites (Python 3.12, `uv`, optional Nextflow).
+2. Initializes runtime resources:
+   - `output/`
+   - `data/logs/`
+   - `data/snapshots/`
+   - `src/kg/protein_tool_kg.json` load check
+3. Starts FastAPI service.
+4. Runs smoke check:
+   - `GET /health` must return `200`
+   - `POST /tasks` creates a demo task
+   - `GET /tasks/{id}` observes task status
+   - verifies EventLog file `data/logs/{task_id}.jsonl`
+
+After startup:
+
+- API docs: `http://127.0.0.1:8000/docs`
+- Health: `http://127.0.0.1:8000/health`
+
+## Main Options
 
 ```bash
-python examples/demo_esmfold_end_to_end.py \
-  --mode real \
-  --remote-url http://<host>:<port>
+./run_demo.sh --port 8010 --model-backend mock --mock-tools
 ```
 
-或使用环境变量：
+Useful flags:
+
+- `--host`, `--port`: API bind address
+- `--model-backend`: backend label for demo metadata
+- `--mock-tools` / `--no-mock-tools`: toggle mock mode flag
+- `--data-dir`, `--output-dir`: runtime directories
+- `--kg-path`: ProteinToolKG file path
+- `--smoke-test` / `--no-smoke-test`: enable/disable smoke run
+- `--smoke-task-config`: task payload JSON (default `configs/demo_task.json`)
+- `--exit-after-smoke`: exit after checks (useful in CI)
+
+All arguments are implemented in `scripts/run_demo.py`.
+
+## Cleanup
 
 ```bash
-export ESMFOLD_API_URL="http://<host>:<port>"
-python examples/demo_esmfold_end_to_end.py --mode real
+./run_demo.sh clean
 ```
 
-## Planner Provider 切换（可选）
+This resets:
 
-默认使用内置 Planner（`--planner-provider none`）。
+- `output/`
+- `data/logs/`
+- `data/snapshots/`
 
-示例：使用 Nemotron 规划（需配置 API Key）：
+## Manual Smoke Commands
+
+If you start demo with `--no-smoke-test`, use:
 
 ```bash
-python examples/demo_esmfold_end_to_end.py \
-  --mode mock \
-  --planner-provider nemotron
+curl -sS http://127.0.0.1:8000/health
+curl -sS -X POST http://127.0.0.1:8000/tasks \
+  -H 'content-type: application/json' \
+  -d @configs/demo_task.json
+curl -sS http://127.0.0.1:8000/tasks/<task_id>
 ```
-
-Provider 定义在 `configs/llm_providers.json`，你也可以通过 `--provider-config` 指向自定义配置。
-
-## 输出结构
-
-默认输出目录为 `demo_output/`：
-
-```
-demo_output/
-├── task.json
-├── plan.json
-├── pending_action.json
-├── recovery.json
-├── step_results.json
-├── design_result.json
-└── task_record.json
-```
-
-此外，快照与事件日志会写入：
-
-```
-data/snapshots/{task_id}.jsonl
-data/logs/{task_id}.jsonl
-```
-
-`recovery.json` 会记录恢复时的状态对齐与回放信息。
-
-## 远程服务 API 约定
-
-脚本使用 `RemoteESMFoldAdapter + RESTModelInvocationService`，远程服务需满足：
-
-- `POST /predict`
-- `GET /job/{job_id}`
-- `GET /results/{job_id}`
-
-完整协议详见：`docs/remote_model_invocation.md`
-
-## 相关文档
-
-- `docs/remote_model_invocation.md`
-- `docs/snapshot-recovery.md`
