@@ -236,6 +236,8 @@ class PlanRunner:
                     pending_patches[outcome.pending_patch.target_step_id] = (
                         outcome.pending_patch
                     )
+                if context.status == InternalStatus.WAITING_PATCH:
+                    return plan
 
                 failed_result: StepResult | None = None
                 blocked_by_safety = False
@@ -353,6 +355,8 @@ class PlanRunner:
                 and not _should_require_replan_confirm(exc)
             ):
                 replanned_plan = self._perform_replan(plan, context, record, exc)
+                if context.status == InternalStatus.WAITING_REPLAN:
+                    return replanned_plan
                 return self.run_plan(
                     replanned_plan,
                     context,
@@ -538,7 +542,57 @@ class PlanRunner:
             reason=str(error),
         )
         try:
-            replanned_plan = self._planner.replan(request)
+            try:
+                replan_top_k = self._planner.replan_top_k(
+                    request,
+                    k=_resolve_top_k(context.task.constraints.get("replan_top_k"), default=3),
+                )
+                gate = self._planner.evaluate_top_k_gate(
+                    candidate_kind="replan",
+                    top_k_result=replan_top_k,
+                    task_constraints=context.task.constraints,
+                )
+                if gate.requires_hitl:
+                    waiting_action = build_pending_action(
+                        task_id=context.task.task_id,
+                        action_type=PendingActionType.REPLAN_CONFIRM,
+                        candidates=replan_top_k.candidates,
+                        default_suggestion=replan_top_k.default_recommendation,
+                        default_recommendation=replan_top_k.default_recommendation,
+                        explanation=f"{replan_top_k.explanation} gate={gate.reason}",
+                    )
+                    enter_waiting_state(
+                        context,
+                        record,
+                        waiting_action,
+                        InternalStatus.WAITING_REPLAN,
+                        reason=gate.reason,
+                    )
+                    transition_task_status(
+                        context,
+                        record,
+                        InternalStatus.WAITING_REPLAN,
+                        reason=gate.reason,
+                    )
+                    return plan
+
+                selected = next(
+                    (
+                        candidate
+                        for candidate in replan_top_k.candidates
+                        if candidate.candidate_id == replan_top_k.default_recommendation
+                    ),
+                    replan_top_k.candidates[0] if replan_top_k.candidates else None,
+                )
+                if selected is None:
+                    raise ValueError("replan_top_k returned empty candidates")
+                payload = selected.structured_payload
+                if not isinstance(payload, Plan):
+                    raise ValueError("replan_top_k selected payload is not Plan")
+                replanned_plan = payload
+            except Exception:
+                # 回退到旧 replan()，保持既有 Planner stub 兼容
+                replanned_plan = self._planner.replan(request)
         except Exception as exc:
             transition_task_status(
                 context,
@@ -625,3 +679,13 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
         error.failure_type == FailureType.SAFETY_BLOCK
         or error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK", "SAFETY_POST_BLOCK"}
     )
+
+
+def _resolve_top_k(value: object, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed <= 0:
+        return 1
+    return parsed

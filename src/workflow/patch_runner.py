@@ -3,17 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from src.agents.planner import PlannerAgent
+from src.agents.planner import PlannerAgent, TopKResult
 from src.models.contracts import (
     PendingActionCandidate,
-    PendingActionStatus,
     PendingActionType,
     Plan,
     PlanPatch,
     PlanStep,
     StepResult,
-    now_iso,
 )
+from src.models.validation import validate_candidate_set_output
 from src.models.db import TaskRecord, InternalStatus
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
@@ -101,47 +100,96 @@ class PatchRunner:
                 failed_result=result,
                 context=context,
             )
-            plan_patch = self._planner.patch(patch_request)
+            candidate_set_v1_ready = True
+            try:
+                patch_top_k = self._planner.patch_top_k(
+                    patch_request,
+                    k=_resolve_top_k(context.task.constraints.get("patch_top_k"), default=3),
+                )
+                selected_candidate = next(
+                    (
+                        candidate
+                        for candidate in patch_top_k.candidates
+                        if candidate.candidate_id == patch_top_k.default_recommendation
+                    ),
+                    patch_top_k.candidates[0] if patch_top_k.candidates else None,
+                )
+                if selected_candidate is None:
+                    raise ValueError("patch_top_k returned no candidates")
+                payload = selected_candidate.structured_payload
+                if not isinstance(payload, PlanPatch):
+                    raise ValueError("patch_top_k default candidate is not PlanPatch")
+                plan_patch = payload
+            except Exception:
+                # 回退到旧路径，保持对自定义 Planner.patch 的兼容
+                plan_patch = self._planner.patch(patch_request)
+                patch_candidate = PendingActionCandidate(
+                    candidate_id=f"patch_{step.id.lower()}",
+                    payload=plan_patch,
+                    summary="fallback patch candidate",
+                    metadata={"reason": patch_reason},
+                )
+                patch_top_k = TopKResult(
+                    candidates=[patch_candidate],
+                    default_recommendation=patch_candidate.candidate_id,
+                    explanation="fallback patch_top_k generated from planner.patch",
+                )
+                candidate_set_v1_ready = False
+            gate = self._planner.evaluate_top_k_gate(
+                candidate_kind="patch",
+                top_k_result=patch_top_k,
+                task_constraints=context.task.constraints,
+            )
         except Exception:
             _enter_replan_waiting(context, record, reason="patch_failed")
             raise
 
-        patch_candidate = PendingActionCandidate(
-            candidate_id=f"patch_{step.id.lower()}",
-            payload=plan_patch,
-            summary="auto-generated patch candidate",
-            metadata={"reason": patch_reason},
-        )
-        pending_action = build_pending_action(
-            task_id=context.task.task_id,
-            action_type=PendingActionType.PATCH_CONFIRM,
-            candidates=[patch_candidate],
-            default_suggestion=patch_candidate.candidate_id,
-            explanation="patch candidate generated after step failure",
-        )
-        enter_waiting_state(
-            context,
-            record,
-            pending_action,
-            InternalStatus.WAITING_PATCH,
-        )
+        if gate.requires_hitl:
+            pending_action = build_pending_action(
+                task_id=context.task.task_id,
+                action_type=PendingActionType.PATCH_CONFIRM,
+                candidates=patch_top_k.candidates,
+                default_suggestion=patch_top_k.default_recommendation,
+                default_recommendation=patch_top_k.default_recommendation,
+                explanation=f"{patch_top_k.explanation} gate={gate.reason}",
+            )
+            validate_candidate_set_output(
+                pending_action,
+                require_v1_fields=candidate_set_v1_ready,
+            )
+            enter_waiting_state(
+                context,
+                record,
+                pending_action,
+                InternalStatus.WAITING_PATCH,
+            )
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.WAITING_PATCH,
+                reason=gate.reason,
+            )
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[],
+                next_step_index=step_index,
+            )
+
         transition_task_status(
             context,
             record,
             InternalStatus.WAITING_PATCH,
-            reason=patch_reason,
+            reason="patch_auto_path",
         )
         transition_task_status(
             context,
             record,
             InternalStatus.PATCHING,
-            reason="patch_start",
+            reason="patch_start_auto",
         )
         try:
             patched_plan = apply_patch(plan, plan_patch)
         except Exception:
-            pending_action.status = PendingActionStatus.CANCELLED
-            pending_action.decided_at = now_iso()
             _enter_replan_waiting(context, record, reason="patch_failed")
             raise
 
@@ -280,3 +328,13 @@ def _has_insert_before_target(plan_patch: PlanPatch, target_id: str) -> bool:
         op.op == "insert_step_before" and op.target == target_id
         for op in plan_patch.operations
     )
+
+
+def _resolve_top_k(value: object, *, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed <= 0:
+        return 1
+    return parsed

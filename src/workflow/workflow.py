@@ -4,12 +4,19 @@ from src.adapters.builtins import ensure_builtin_adapters
 from src.models.db import (
     ExternalStatus,
     InternalStatus,
+    TERMINAL_INTERNAL_STATUSES,
     TaskRecord,
 )
 from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
+
+_WAITING_INTERNAL_STATUSES = {
+    InternalStatus.WAITING_PLAN_CONFIRM,
+    InternalStatus.WAITING_PATCH,
+    InternalStatus.WAITING_REPLAN,
+}
 
 
 def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
@@ -46,10 +53,14 @@ def run_task_sync(task: ProteinDesignTask) -> TaskRecord:
 
     # 1. 规划
     plan = planner.plan_with_status(task, ctx, record=record)
+    if ctx.status in _WAITING_INTERNAL_STATUSES:
+        return record
 
     # 2. 执行
     # 注意：PlanRunner 会负责 PLANNED → RUNNING → SUMMARIZING
     executor.run_plan(plan, ctx, record=record, finalize_status=False)
+    if ctx.status in _WAITING_INTERNAL_STATUSES or ctx.status in TERMINAL_INTERNAL_STATUSES:
+        return record
 
     # 3. 汇总
     executor.summarize_and_finalize(ctx, record, summarizer)
