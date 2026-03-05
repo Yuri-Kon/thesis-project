@@ -9,6 +9,7 @@ from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider
 from src.models.contracts import (
     PatchRequest,
+    PendingActionType,
     PendingActionCandidate,
     Plan,
     PlanPatch,
@@ -19,8 +20,10 @@ from src.models.contracts import (
     ReplanRequest,
     StepResult,
 )
+from src.models.validation import validate_candidate_set_output
 from src.models.db import InternalStatus, TaskRecord, TERMINAL_INTERNAL_STATUSES
 from src.workflow.context import WorkflowContext
+from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.workflow.status import transition_task_status
 
 
@@ -46,6 +49,17 @@ class TopKResult:
     candidates: List[PendingActionCandidate]
     default_recommendation: str | None
     explanation: str
+
+
+@dataclass(frozen=True)
+class CandidateGateDecision:
+    """候选门控决策结果。"""
+
+    requires_hitl: bool
+    reason: str
+    selected_candidate_id: str | None
+    confidence: float
+    overall: float
 
 
 @dataclass(frozen=True)
@@ -158,6 +172,24 @@ class PlannerAgent:
             top_k=_normalize_top_k(k),
         )
 
+    def evaluate_top_k_gate(
+        self,
+        *,
+        candidate_kind: Literal["plan", "patch", "replan"],
+        top_k_result: TopKResult,
+        task_constraints: dict,
+    ) -> CandidateGateDecision:
+        """根据 score/risk/cost 阈值判断是否进入 WAITING_*。"""
+        return _evaluate_top_k_gate(
+            candidate_kind=candidate_kind,
+            top_k_result=top_k_result,
+            task_constraints=task_constraints,
+        )
+
+    def score_candidate_payload(self, payload: Plan | PlanPatch) -> dict[str, float]:
+        """对单个候选 payload 打分（用于调试/测试）。"""
+        return _score_payload(payload, self._tool_registry)
+
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
         """向后兼容的默认单步计划
 
@@ -199,7 +231,7 @@ class PlannerAgent:
         *,
         record: TaskRecord | None = None,
     ) -> Plan:
-        """生成 Plan 并驱动 PLANNING → PLANNED 状态变更。"""
+        """生成 Plan 并驱动 PLANNING → PLANNED/WAITING_PLAN_CONFIRM 状态变更。"""
         transition_task_status(
             context,
             record,
@@ -207,7 +239,22 @@ class PlannerAgent:
             reason="task_created",
         )
         try:
-            plan = self.plan(task)
+            top_k_value = _resolve_top_k_value(
+                task.constraints,
+                key="plan_top_k",
+                default=3,
+            )
+            top_k = self.plan_top_k(task, k=top_k_value)
+            gate = self.evaluate_top_k_gate(
+                candidate_kind="plan",
+                top_k_result=top_k,
+                task_constraints=task.constraints,
+            )
+            candidate = _require_default_candidate(top_k, expected_kind="plan")
+            payload = candidate.structured_payload
+            if not isinstance(payload, Plan):
+                raise ValueError("plan_top_k returned non-Plan payload")
+            plan = payload
         except Exception:
             self._mark_failed(context, record, reason="planning_failed")
             raise
@@ -215,6 +262,31 @@ class PlannerAgent:
         context.plan = plan
         if record is not None:
             record.plan = plan
+
+        if gate.requires_hitl:
+            pending_action = build_pending_action(
+                task_id=task.task_id,
+                action_type=PendingActionType.PLAN_CONFIRM,
+                candidates=top_k.candidates,
+                default_suggestion=top_k.default_recommendation,
+                default_recommendation=top_k.default_recommendation,
+                explanation=f"{top_k.explanation} gate={gate.reason}",
+            )
+            validate_candidate_set_output(pending_action)
+            enter_waiting_state(
+                context,
+                record,
+                pending_action,
+                InternalStatus.WAITING_PLAN_CONFIRM,
+                reason=gate.reason,
+            )
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.WAITING_PLAN_CONFIRM,
+                reason=gate.reason,
+            )
+            return plan
 
         transition_task_status(
             context,
@@ -313,6 +385,127 @@ def _find_tool_spec(registry: Sequence[ToolSpec], tool_id: str) -> ToolSpec:
         if spec.id == tool_id:
             return spec
     raise ValueError(f"Tool '{tool_id}' not found in registry")
+
+
+_FORCE_CONFIRM_KEYS = {
+    "plan": "require_plan_confirm",
+    "patch": "require_patch_confirm",
+    "replan": "require_replan_confirm",
+}
+
+_DEFAULT_FORCE_CONFIRM = {
+    "plan": False,
+    "patch": False,
+    "replan": False,
+}
+
+
+def _resolve_top_k_value(
+    constraints: dict,
+    *,
+    key: str,
+    default: int,
+) -> int:
+    raw = constraints.get(key, default)
+    try:
+        parsed = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return _normalize_top_k(parsed)
+
+
+def _evaluate_top_k_gate(
+    *,
+    candidate_kind: Literal["plan", "patch", "replan"],
+    top_k_result: TopKResult,
+    task_constraints: dict,
+) -> CandidateGateDecision:
+    if not top_k_result.candidates:
+        return CandidateGateDecision(
+            requires_hitl=True,
+            reason=f"{candidate_kind}_candidate_empty",
+            selected_candidate_id=None,
+            confidence=0.0,
+            overall=0.0,
+        )
+
+    best = top_k_result.candidates[0]
+    score = best.score_breakdown or {}
+    overall = float(score.get("overall", 0.0))
+    confidence = float(score.get("confidence", overall))
+    risk_level = best.risk_level or "medium"
+    cost_estimate = best.cost_estimate or "medium"
+
+    key = _FORCE_CONFIRM_KEYS[candidate_kind]
+    force_default = _DEFAULT_FORCE_CONFIRM[candidate_kind]
+    force_confirm = bool(task_constraints.get(key, force_default))
+    min_confidence = _safe_float(
+        task_constraints.get("min_candidate_confidence"),
+        default=0.0,
+    )
+    raw_high_cost_min_overall = task_constraints.get("high_cost_min_overall")
+    high_cost_min_overall = (
+        _safe_float(raw_high_cost_min_overall, default=0.75)
+        if raw_high_cost_min_overall is not None
+        else None
+    )
+
+    if force_confirm:
+        return CandidateGateDecision(
+            requires_hitl=True,
+            reason=f"{candidate_kind}_confirm_required",
+            selected_candidate_id=best.candidate_id,
+            confidence=confidence,
+            overall=overall,
+        )
+    if risk_level == "high":
+        return CandidateGateDecision(
+            requires_hitl=True,
+            reason=f"{candidate_kind}_high_risk",
+            selected_candidate_id=best.candidate_id,
+            confidence=confidence,
+            overall=overall,
+        )
+    if confidence < min_confidence:
+        return CandidateGateDecision(
+            requires_hitl=True,
+            reason=f"{candidate_kind}_low_confidence",
+            selected_candidate_id=best.candidate_id,
+            confidence=confidence,
+            overall=overall,
+        )
+    if (
+        cost_estimate == "high"
+        and high_cost_min_overall is not None
+        and overall < high_cost_min_overall
+    ):
+        return CandidateGateDecision(
+            requires_hitl=True,
+            reason=f"{candidate_kind}_high_cost_low_benefit",
+            selected_candidate_id=best.candidate_id,
+            confidence=confidence,
+            overall=overall,
+        )
+
+    return CandidateGateDecision(
+        requires_hitl=False,
+        reason=f"{candidate_kind}_auto_execute",
+        selected_candidate_id=best.candidate_id,
+        confidence=confidence,
+        overall=overall,
+    )
+
+
+def _safe_float(value: object, *, default: float) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed < 0:
+        return 0.0
+    if parsed > 1:
+        return 1.0
+    return parsed
 
 
 def _normalize_top_k(value: int) -> int:
@@ -702,33 +895,66 @@ def _build_candidate_summary(payload: Plan | PlanPatch) -> str:
 def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> dict[str, float]:
     registry_map = {spec.id: spec for spec in registry}
     tool_ids = _extract_payload_tool_ids(payload)
-    costs: List[float] = []
-    safety_levels: List[int] = []
+    risk_scores: List[float] = []
+    cost_scores: List[float] = []
+    readiness_scores: List[float] = []
+    capabilities: Set[str] = set()
+    objective_bonus = 0.0
     for tool_id in tool_ids:
         spec = registry_map.get(tool_id)
         if spec is None:
             continue
-        costs.append(float(spec.cost))
-        safety_levels.append(int(spec.safety_level))
+        tool_risk, tool_cost = _tool_risk_cost_score(spec)
+        risk_scores.append(tool_risk)
+        cost_scores.append(tool_cost)
+        readiness_scores.append(_tool_readiness_score(spec))
+        capabilities.update(spec.capabilities)
+        if "objective_scoring" in spec.capabilities or spec.id == "objective_ranker":
+            objective_bonus = max(objective_bonus, 0.08)
 
-    max_cost = max((float(spec.cost) for spec in registry), default=1.0)
-    max_safety = max((int(spec.safety_level) for spec in registry), default=1)
-    avg_cost = sum(costs) / len(costs) if costs else max_cost
-    avg_safety = sum(safety_levels) / len(safety_levels) if safety_levels else max_safety
+    avg_risk = sum(risk_scores) / len(risk_scores) if risk_scores else 0.55
+    avg_cost = sum(cost_scores) / len(cost_scores) if cost_scores else 0.55
+    tool_readiness = (
+        sum(readiness_scores) / len(readiness_scores) if readiness_scores else 0.5
+    )
+    tool_coverage = _tool_coverage_score(tool_ids, capabilities)
+    fallback_depth = _fallback_depth_score(tool_ids, registry_map, registry)
 
-    normalized_cost = min(avg_cost / max(max_cost, 1e-6), 1.0)
-    normalized_safety = min(avg_safety / max(max_safety, 1), 1.0)
-
-    feasibility = 1.0
-    objective = max(0.0, 1.0 - normalized_cost * 0.4)
-    risk = max(0.0, 1.0 - normalized_safety * 0.6)
-    cost = max(0.0, 1.0 - normalized_cost)
-    overall = 0.35 * feasibility + 0.25 * objective + 0.2 * risk + 0.2 * cost
+    feasibility = min(1.0, max(0.0, 0.5 + 0.25 * tool_coverage + 0.25 * fallback_depth))
+    objective = min(
+        1.0,
+        max(0.0, 1.0 - avg_cost * 0.3 + objective_bonus),
+    )
+    risk = max(0.0, 1.0 - avg_risk)
+    cost = max(0.0, 1.0 - avg_cost)
+    confidence = min(
+        1.0,
+        max(
+            0.0,
+            0.35 * feasibility
+            + 0.25 * tool_readiness
+            + 0.2 * tool_coverage
+            + 0.2 * fallback_depth,
+        ),
+    )
+    overall = (
+        0.2 * feasibility
+        + 0.2 * objective
+        + 0.15 * risk
+        + 0.15 * cost
+        + 0.15 * confidence
+        + 0.075 * tool_readiness
+        + 0.075 * tool_coverage
+    )
     return {
         "feasibility": round(feasibility, 6),
         "objective": round(objective, 6),
         "risk": round(risk, 6),
         "cost": round(cost, 6),
+        "confidence": round(confidence, 6),
+        "tool_readiness": round(tool_readiness, 6),
+        "tool_coverage": round(tool_coverage, 6),
+        "fallback_depth": round(fallback_depth, 6),
         "overall": round(overall, 6),
     }
 
@@ -738,18 +964,17 @@ def _derive_risk_level(
     registry: Sequence[ToolSpec],
 ) -> Literal["low", "medium", "high"]:
     registry_map = {spec.id: spec for spec in registry}
-    levels = [
-        int(registry_map[tool_id].safety_level)
+    risk_scores = [
+        _tool_risk_cost_score(registry_map[tool_id])[0]
         for tool_id in _extract_payload_tool_ids(payload)
         if tool_id in registry_map
     ]
-    if not levels:
+    if not risk_scores:
         return "medium"
-    max_level = max((int(spec.safety_level) for spec in registry), default=1)
-    normalized = (sum(levels) / len(levels)) / max(max_level, 1)
-    if normalized <= 0.34:
+    normalized = sum(risk_scores) / len(risk_scores)
+    if normalized <= 0.33:
         return "low"
-    if normalized <= 0.67:
+    if normalized <= 0.66:
         return "medium"
     return "high"
 
@@ -759,20 +984,104 @@ def _derive_cost_estimate(
     registry: Sequence[ToolSpec],
 ) -> Literal["low", "medium", "high"]:
     registry_map = {spec.id: spec for spec in registry}
-    costs = [
-        float(registry_map[tool_id].cost)
+    cost_scores = [
+        _tool_risk_cost_score(registry_map[tool_id])[1]
         for tool_id in _extract_payload_tool_ids(payload)
         if tool_id in registry_map
     ]
-    if not costs:
+    if not cost_scores:
         return "medium"
-    max_cost = max((float(spec.cost) for spec in registry), default=1.0)
-    normalized = (sum(costs) / len(costs)) / max(max_cost, 1e-6)
-    if normalized <= 0.34:
+    normalized = sum(cost_scores) / len(cost_scores)
+    if normalized <= 0.33:
         return "low"
-    if normalized <= 0.67:
+    if normalized <= 0.66:
         return "medium"
     return "high"
+
+
+def _tool_readiness_score(spec: ToolSpec) -> float:
+    adapter_base = {
+        "local": 0.9,
+        "hybrid": 0.82,
+        "remote": 0.72,
+        "mock": 0.6,
+        "unknown": 0.55,
+    }
+    base = adapter_base.get(spec.adapter_mode, 0.55)
+    priority_bonus = 0.06 if _priority_rank(spec.priority) == 0 else 0.0
+    safety_penalty = min(0.18, max(0, spec.safety_level - 1) * 0.05)
+    return min(1.0, max(0.0, base + priority_bonus - safety_penalty))
+
+
+def _tool_coverage_score(tool_ids: Sequence[str], capabilities: Set[str]) -> float:
+    if not tool_ids:
+        return 0.0
+    return min(1.0, len(capabilities) / max(1, len(tool_ids)))
+
+
+def _fallback_depth_score(
+    tool_ids: Sequence[str],
+    registry_map: dict[str, ToolSpec],
+    registry: Sequence[ToolSpec],
+) -> float:
+    fallback_scores: List[float] = []
+    for tool_id in tool_ids:
+        spec = registry_map.get(tool_id)
+        if spec is None:
+            continue
+        capability = _primary_capability(spec)
+        alternatives = [
+            candidate
+            for candidate in registry
+            if candidate.id != spec.id and capability in candidate.capabilities
+        ]
+        fallback_scores.append(min(1.0, len(alternatives) / 3.0))
+    if not fallback_scores:
+        return 0.0
+    return sum(fallback_scores) / len(fallback_scores)
+
+
+def _tool_risk_cost_score(spec: ToolSpec) -> tuple[float, float]:
+    adapter_risk = {
+        "local": 0.22,
+        "hybrid": 0.32,
+        "remote": 0.44,
+        "mock": 0.15,
+        "unknown": 0.38,
+    }
+    adapter_cost = {
+        "local": 0.42,
+        "hybrid": 0.45,
+        "remote": 0.34,
+        "mock": 0.12,
+        "unknown": 0.48,
+    }
+    capability_risk = {
+        "sequence_generation": 0.08,
+        "sequence_design": 0.05,
+        "structure_prediction": 0.14,
+        "quality_qc": -0.08,
+        "objective_scoring": -0.04,
+    }
+    capability_cost = {
+        "sequence_generation": 0.12,
+        "sequence_design": 0.1,
+        "structure_prediction": 0.2,
+        "quality_qc": 0.05,
+        "objective_scoring": 0.08,
+    }
+    risk = adapter_risk.get(spec.adapter_mode, 0.38)
+    cost = adapter_cost.get(spec.adapter_mode, 0.48)
+    for capability in spec.capabilities:
+        risk += capability_risk.get(capability, 0.0)
+        cost += capability_cost.get(capability, 0.0)
+    # 补充基础安全/资源成本信号
+    risk += max(0, spec.safety_level - 1) * 0.06
+    cost += min(0.35, float(spec.cost) * 0.2)
+    return (
+        min(1.0, max(0.0, risk)),
+        min(1.0, max(0.0, cost)),
+    )
 
 
 def _extract_payload_tool_ids(payload: Plan | PlanPatch) -> List[str]:
