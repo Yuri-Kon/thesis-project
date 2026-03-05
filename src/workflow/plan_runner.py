@@ -2,6 +2,7 @@ from __future__ import annotations
 import json
 from typing import Protocol
 from src.agents.planner import PlannerAgent
+from src.infra.event_log_factory import make_candidate_validation_failed
 from src.models.contracts import (
     PendingActionStatus,
     PendingActionType,
@@ -10,7 +11,13 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
+from src.models.validation import (
+    CandidateExecutionValidationError,
+    validate_plan_executability,
+)
 from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
+from src.models.event_log import ActorType
+from src.storage.log_store import write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
@@ -171,6 +178,8 @@ class PlanRunner:
                 f"does not match Plan.task_id ({plan.task_id})"
             )
         try:
+            self._validate_candidate_before_execution(plan, context)
+
             # A3: 状态更新 - 如果状态为 PLANNED，则更新为 RUNNING
             if context.status == InternalStatus.PLANNED:
                 transition_task_status(
@@ -374,6 +383,48 @@ class PlanRunner:
         except Exception:
             self._mark_failed(context, record, reason="unhandled_exception")
             raise
+
+    def _validate_candidate_before_execution(
+        self,
+        plan: Plan,
+        context: WorkflowContext,
+    ) -> None:
+        """执行前硬门禁：候选不可执行时直接阻断。"""
+        constraints = context.task.constraints if isinstance(context.task.constraints, dict) else {}
+        enforce_flag = constraints.get("enforce_candidate_validation")
+        if isinstance(enforce_flag, bool):
+            should_enforce = enforce_flag
+        else:
+            metadata = plan.metadata if isinstance(plan.metadata, dict) else {}
+            should_enforce = "kg_explanation" in metadata
+        if not should_enforce:
+            return
+
+        try:
+            validate_plan_executability(plan, context.task)
+        except CandidateExecutionValidationError as exc:
+            first_issue = exc.issues[0] if exc.issues else None
+            failure_code = (
+                first_issue.code if first_issue is not None else "CANDIDATE_SCHEMA_INVALID"
+            )
+            write_event_log(
+                make_candidate_validation_failed(
+                    task_id=context.task.task_id,
+                    failure_code=failure_code,
+                    failures=[issue.as_dict() for issue in exc.issues],
+                    actor_type=ActorType.WORKFLOW,
+                    internal_status=context.status,
+                    data={
+                        "plan_task_id": plan.task_id,
+                        "step_count": len(plan.steps),
+                    },
+                )
+            )
+            raise PlanRunError(
+                failure_type=FailureType.NON_RETRYABLE,
+                message=f"Candidate validation hard-failed before execution: {exc}",
+                code=failure_code,
+            ) from exc
 
     def _add_safety_event(self, context: WorkflowContext, event) -> None:
         """安全事件写入上下文，兼容两种 WorkflowContext 形态"""

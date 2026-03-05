@@ -79,6 +79,14 @@ def test_failure_code_enum_values() -> None:
     assert FailureCode.NIM_INVALID_INPUT.value == "NIM_INVALID_INPUT"
     assert FailureCode.NIM_MODEL_ERROR.value == "NIM_MODEL_ERROR"
 
+    # 候选执行前校验失败
+    assert FailureCode.CANDIDATE_SCHEMA_INVALID.value == "CANDIDATE_SCHEMA_INVALID"
+    assert FailureCode.CANDIDATE_TOOL_UNAVAILABLE.value == "CANDIDATE_TOOL_UNAVAILABLE"
+    assert FailureCode.CANDIDATE_IO_CLOSURE_BROKEN.value == "CANDIDATE_IO_CLOSURE_BROKEN"
+    assert FailureCode.CANDIDATE_PARAMS_INVALID.value == "CANDIDATE_PARAMS_INVALID"
+    assert FailureCode.CANDIDATE_RESOURCE_CONSTRAINT.value == "CANDIDATE_RESOURCE_CONSTRAINT"
+    assert FailureCode.CANDIDATE_ADAPTER_UNSUPPORTED.value == "CANDIDATE_ADAPTER_UNSUPPORTED"
+
 
 def test_build_error_meta_basic() -> None:
     """测试 build_error_meta 基础功能"""

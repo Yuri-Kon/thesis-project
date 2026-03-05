@@ -143,3 +143,31 @@ def make_decision_applied(
         decision_id=decision_id,
         data=event_data,
     )
+
+
+def make_candidate_validation_failed(
+    task_id: str,
+    *,
+    failure_code: str,
+    failures: list[dict[str, Any]],
+    actor_type: ActorType = ActorType.WORKFLOW,
+    actor_id: Optional[str] = None,
+    internal_status: Optional[InternalStatus] = None,
+    pending_action_id: Optional[str] = None,
+    data: Optional[Dict[str, Any]] = None,
+) -> EventLog:
+    """创建 CANDIDATE_VALIDATION_FAILED 事件。"""
+    event_data = data.copy() if data else {}
+    event_data["failure_code"] = failure_code
+    event_data["failures"] = failures
+
+    return EventLog(
+        id=str(uuid.uuid4()),
+        task_id=task_id,
+        event_type=EventType.CANDIDATE_VALIDATION_FAILED,
+        actor_type=actor_type,
+        actor_id=actor_id,
+        internal_status=internal_status,
+        pending_action_id=pending_action_id,
+        data=event_data,
+    )
