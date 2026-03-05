@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from src.models.db import ExternalStatus, InternalStatus
 from src.models.event_log import ActorType, EventLog, EventType
 from src.infra.event_log_factory import (
+    make_candidate_validation_failed,
     make_decision_applied,
     make_waiting_enter,
     make_waiting_exit,
@@ -273,6 +274,17 @@ class TestEventLogValidation:
         assert event.pending_action_id == "pa_001"
         assert event.data["choice"] == "accept"
 
+    def test_candidate_validation_failed_requires_failure_payload(self):
+        """CANDIDATE_VALIDATION_FAILED 缺少 failure payload 应校验失败。"""
+        with pytest.raises(ValidationError, match="failure_code"):
+            EventLog(
+                id="evt_019",
+                task_id="task_001",
+                event_type=EventType.CANDIDATE_VALIDATION_FAILED,
+                actor_type=ActorType.WORKFLOW,
+                data={"failures": []},
+            )
+
 
 @pytest.mark.unit
 class TestEventLogFactoryHelpers:
@@ -351,6 +363,24 @@ class TestEventLogFactoryHelpers:
         assert event.new_status == ExternalStatus.PLANNED
         assert event.data["choice"] == "accept"
         assert event.actor_type == ActorType.HUMAN
+
+    def test_make_candidate_validation_failed_creates_valid_event(self):
+        event = make_candidate_validation_failed(
+            task_id="task_001",
+            failure_code="CANDIDATE_TOOL_UNAVAILABLE",
+            failures=[
+                {
+                    "code": "CANDIDATE_TOOL_UNAVAILABLE",
+                    "message": "tool missing",
+                    "step_id": "S1",
+                }
+            ],
+        )
+
+        assert event.task_id == "task_001"
+        assert event.event_type == EventType.CANDIDATE_VALIDATION_FAILED
+        assert event.data["failure_code"] == "CANDIDATE_TOOL_UNAVAILABLE"
+        assert isinstance(event.data["failures"], list)
 
 
 @pytest.mark.unit
