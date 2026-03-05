@@ -1,9 +1,184 @@
 """PlannerAgent单元测试"""
+import json
 import pytest
 import src.agents.planner as planner_module
-from src.agents.planner import PlannerAgent
+from src.agents.planner import PlannerAgent, ToolSpec
 from src.kg.kg_client import ToolKGError
-from src.models.contracts import ProteinDesignTask, Plan, PlanStep, ReplanRequest
+from src.models.contracts import (
+    PatchRequest,
+    Plan,
+    PlanPatch,
+    PlanStep,
+    ProteinDesignTask,
+    ReplanRequest,
+    StepResult,
+    now_iso,
+)
+
+
+def _topk_registry() -> list[ToolSpec]:
+    return [
+        ToolSpec(
+            id="seqgen_local",
+            capabilities=("sequence_generation",),
+            inputs=("goal",),
+            outputs=("sequence",),
+            cost=0.2,
+            safety_level=1,
+            io_type="goal_to_sequence_candidates",
+            adapter_mode="local",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="protgpt2",
+            capabilities=("sequence_generation",),
+            inputs=("goal",),
+            outputs=("sequence", "sequence_candidates"),
+            cost=0.35,
+            safety_level=1,
+            io_type="goal_to_sequence_candidates",
+            adapter_mode="remote",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="esmfold",
+            capabilities=("structure_prediction",),
+            inputs=("sequence",),
+            outputs=("pdb_path", "plddt"),
+            cost=0.6,
+            safety_level=1,
+            io_type="sequence_to_structure",
+            adapter_mode="local",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="nim_esmfold",
+            capabilities=("structure_prediction",),
+            inputs=("sequence",),
+            outputs=("pdb_path", "plddt"),
+            cost=0.3,
+            safety_level=1,
+            io_type="sequence_to_structure",
+            adapter_mode="remote",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="openfold",
+            capabilities=("structure_prediction",),
+            inputs=("sequence",),
+            outputs=("pdb_path", "plddt"),
+            cost=0.8,
+            safety_level=1,
+            io_type="sequence_to_structure",
+            adapter_mode="local",
+            priority="P1",
+        ),
+    ]
+
+
+def _topk_mock_kg() -> dict:
+    return {
+        "capabilities": [
+            {"capability_id": "sequence_generation", "name": "Sequence Generation", "domain": "protein/design"},
+            {"capability_id": "structure_prediction", "name": "Structure Prediction", "domain": "protein/structure"},
+        ],
+        "io_types": [
+            {"io_type_id": "goal_to_sequence_candidates", "input_types": ["goal"], "output_types": ["sequence"], "combinable": True},
+            {"io_type_id": "sequence_to_structure", "input_types": ["sequence"], "output_types": ["structure_pdb", "plddt"], "combinable": True},
+        ],
+        "tools": [
+            {
+                "id": "seqgen_local",
+                "capabilities": ["sequence_generation"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "goal_to_sequence_candidates",
+                    "inputs": {"goal": "str"},
+                    "outputs": {"sequence": "str"},
+                },
+                "execution": "python",
+                "constraints": {},
+            },
+            {
+                "id": "protgpt2",
+                "capabilities": ["sequence_generation"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "goal_to_sequence_candidates",
+                    "inputs": {"goal": "str"},
+                    "outputs": {"sequence": "str", "sequence_candidates": "list"},
+                },
+                "execution": {"backend": "remote_model_service", "provider": "plm_rest"},
+                "constraints": {},
+            },
+            {
+                "id": "esmfold",
+                "capabilities": ["structure_prediction"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"pdb_path": "path", "plddt": "float"},
+                },
+                "execution": "nextflow",
+                "constraints": {},
+            },
+            {
+                "id": "nim_esmfold",
+                "capabilities": ["structure_prediction"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"pdb_path": "path", "plddt": "float"},
+                },
+                "execution": {"backend": "remote_model_service", "provider": "nvidia_nim"},
+                "constraints": {},
+            },
+            {
+                "id": "openfold",
+                "capabilities": ["structure_prediction"],
+                "priority": "P1",
+                "io": {
+                    "io_type_id": "sequence_to_structure",
+                    "inputs": {"sequence": "str"},
+                    "outputs": {"pdb_path": "path", "plddt": "float"},
+                },
+                "execution": "nextflow",
+                "constraints": {},
+            },
+        ],
+    }
+
+
+def _patch_request_for_topk() -> PatchRequest:
+    plan = Plan(
+        task_id="task_topk_patch",
+        steps=[PlanStep(id="S1", tool="esmfold", inputs={"sequence": "S0.sequence"}, metadata={})],
+        constraints={},
+        metadata={},
+    )
+    previous = StepResult(
+        task_id="task_topk_patch",
+        step_id="S0",
+        tool="seqgen_local",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
+        outputs={"sequence": "MKTAYIAK"},
+        metrics={},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    return PatchRequest(
+        task_id=plan.task_id,
+        original_plan=plan,
+        context_step_results=[previous],
+        safety_events=[],
+        reason="unit-test",
+    )
 
 
 @pytest.mark.unit
@@ -134,3 +309,82 @@ class TestPlannerAgent:
 
         assert replanned_plan.task_id == sample_task.task_id
         assert replanned_plan.steps[0].tool != plan.steps[0].tool
+
+    def test_plan_top_k_is_deterministic_with_default_k3(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_plan",
+            goal="de_novo_design",
+            constraints={"length_range": [40, 60]},
+            metadata={},
+        )
+
+        first = planner.plan_top_k(task)
+        second = planner.plan_top_k(task)
+
+        assert len(first.candidates) == 3
+        assert [c.candidate_id for c in first.candidates] == [
+            c.candidate_id for c in second.candidates
+        ]
+        assert first.default_recommendation == first.candidates[0].candidate_id
+        assert first.explanation
+
+        capability_buckets = {
+            candidate.metadata.get("capability_bucket")
+            for candidate in first.candidates
+        }
+        assert len(capability_buckets) >= 2
+
+    def test_patch_top_k_has_v1_fields_and_is_serializable(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        topk = planner.patch_top_k(_patch_request_for_topk(), k=3)
+
+        assert topk.default_recommendation == topk.candidates[0].candidate_id
+        assert 1 <= len(topk.candidates) <= 3
+        for candidate in topk.candidates:
+            assert isinstance(candidate.structured_payload, PlanPatch)
+            assert set(candidate.score_breakdown) == {
+                "feasibility",
+                "objective",
+                "risk",
+                "cost",
+                "overall",
+            }
+            assert candidate.risk_level in {"low", "medium", "high"}
+            assert candidate.cost_estimate in {"low", "medium", "high"}
+            assert candidate.tool_id is not None
+            assert candidate.capability_id is not None
+            assert candidate.io_type is not None
+            assert candidate.adapter_mode is not None
+            json.dumps(candidate.model_dump(mode="json"), ensure_ascii=True)
+
+    def test_replan_top_k_order_is_deterministic(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        original_plan = Plan(
+            task_id="task_topk_replan",
+            steps=[PlanStep(id="S1", tool="esmfold", inputs={"sequence": "MKT"}, metadata={})],
+            constraints={"sequence": "MKT"},
+            metadata={},
+        )
+        request = ReplanRequest(
+            task_id=original_plan.task_id,
+            original_plan=original_plan,
+            failed_steps=["S1"],
+            safety_events=[],
+            reason="unit-test",
+        )
+
+        first = planner.replan_top_k(request, k=3)
+        second = planner.replan_top_k(request, k=3)
+
+        assert [c.candidate_id for c in first.candidates] == [
+            c.candidate_id for c in second.candidates
+        ]
+        assert 1 <= len(first.candidates) <= 3
+        for candidate in first.candidates:
+            assert isinstance(candidate.structured_payload, Plan)
+            payload = candidate.structured_payload
+            assert payload.metadata.get("replan_mode") == "suffix_replan"

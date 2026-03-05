@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider
 from src.models.contracts import (
     PatchRequest,
+    PendingActionCandidate,
     Plan,
     PlanPatch,
     PlanPatchOp,
@@ -30,8 +32,28 @@ class ToolSpec:
     capabilities: Sequence[str]
     inputs: Sequence[str]
     outputs: Sequence[str]
-    cost: int = 1
+    cost: float = 1
     safety_level: int = 1
+    io_type: str | None = None
+    adapter_mode: Literal["local", "remote", "mock", "hybrid", "unknown"] = "unknown"
+    priority: str | None = None
+
+
+@dataclass(frozen=True)
+class TopKResult:
+    """Planner Top-K 候选输出（CandidateSetOutput v1 对齐）。"""
+
+    candidates: List[PendingActionCandidate]
+    default_recommendation: str | None
+    explanation: str
+
+
+@dataclass(frozen=True)
+class _CandidatePayload:
+    payload: Plan | PlanPatch
+    primary_tool_id: str
+    capability_bucket: str
+    note: str
 
 
 class PlannerAgent:
@@ -89,6 +111,52 @@ class PlannerAgent:
         _ensure_plan_tools_in_registry(plan, self._tool_registry)
         plan = _attach_kg_explanation(plan)
         return plan
+
+    def plan_top_k(self, task: ProteinDesignTask, *, k: int = 3) -> TopKResult:
+        """生成 Plan Top-K 候选（默认 K=3）。"""
+        base_plan = self.plan(task)
+        payloads = _build_plan_candidate_payloads(
+            task=task,
+            base_plan=base_plan,
+            registry=self._tool_registry,
+            top_k=_normalize_top_k(k),
+        )
+        return _build_top_k_result(
+            payloads=payloads,
+            registry=self._tool_registry,
+            candidate_kind="plan",
+            top_k=_normalize_top_k(k),
+        )
+
+    def patch_top_k(self, request: PatchRequest, *, k: int = 3) -> TopKResult:
+        """生成 Patch Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
+        _ensure_task_match(request)
+        payloads = _build_patch_candidate_payloads(
+            request=request,
+            registry=self._tool_registry,
+            top_k=_normalize_top_k(k),
+        )
+        return _build_top_k_result(
+            payloads=payloads,
+            registry=self._tool_registry,
+            candidate_kind="patch",
+            top_k=_normalize_top_k(k),
+        )
+
+    def replan_top_k(self, request: ReplanRequest, *, k: int = 3) -> TopKResult:
+        """生成 Replan Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
+        _ensure_replan_task_match(request)
+        payloads = _build_replan_candidate_payloads(
+            request=request,
+            registry=self._tool_registry,
+            top_k=_normalize_top_k(k),
+        )
+        return _build_top_k_result(
+            payloads=payloads,
+            registry=self._tool_registry,
+            candidate_kind="replan",
+            top_k=_normalize_top_k(k),
+        )
 
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
         """向后兼容的默认单步计划
@@ -166,99 +234,22 @@ class PlannerAgent:
         3. 在 registry 中筛选能力相同、输入可满足、成本/安全更优的候选
         4. 选最优候选生成 replace_step PlanPatch，保持 step.id 不变
         """
-        _ensure_task_match(request)
-        target_step = _locate_target_step(request)
-        target_spec = _find_tool_spec(self._tool_registry, target_step.tool)
-
-        available_inputs = _collect_available_inputs(
-            request.context_step_results, target_step
-        )
-        candidate = _select_candidate(
-            registry=self._tool_registry,
-            capability=target_spec.capabilities[0] if target_spec.capabilities else "",
-            available_inputs=available_inputs,
-            exclude_tool=target_step.tool,
-        )
-
-        patched_step = target_step.model_copy(
-            update={
-                "tool": candidate.id,
-                # 追加简单元数据，便于调试
-                "metadata": {
-                    **(target_step.metadata or {}),
-                    "patched_from": target_step.tool,
-                },
-            },
-            deep=True,
-        )
-        op = PlanPatchOp(
-            op="replace_step",
-            target=target_step.id,
-            step=patched_step,
-        )
-        patch = PlanPatch(
-            task_id=request.task_id,
-            operations=[op],
-            metadata={"strategy": "cost_first"},
-        )
-        patch.metadata["kg_explanation"] = _build_kg_explanation_for_steps(
-            [patched_step]
-        )
-        return patch
+        top_k = self.patch_top_k(request, k=1)
+        candidate = _require_default_candidate(top_k, expected_kind="patch")
+        payload = candidate.structured_payload
+        if not isinstance(payload, PlanPatch):
+            raise ValueError("patch_top_k returned non-PlanPatch payload")
+        return payload
 
     # --- B4: 再规划 ---
     def replan(self, request: ReplanRequest) -> Plan:
         """基于 ReplanRequest 生成最小再规划 Plan（替换失败步骤）"""
-        _ensure_replan_task_match(request)
-        if not request.original_plan.steps:
-            raise ValueError("Original plan is empty, cannot replan")
-
-        target_step = _locate_replan_target_step(request)
-        target_spec = _find_tool_spec(self._tool_registry, target_step.tool)
-        available_inputs = _collect_available_inputs([], target_step)
-        try:
-            candidate = _select_candidate(
-                registry=self._tool_registry,
-                capability=target_spec.capabilities[0]
-                if target_spec.capabilities
-                else "",
-                available_inputs=available_inputs,
-                exclude_tool=target_step.tool,
-            )
-        except ValueError:
-            fallback_inputs = _collect_registry_inputs(self._tool_registry)
-            candidate = _select_candidate(
-                registry=self._tool_registry,
-                capability=target_spec.capabilities[0]
-                if target_spec.capabilities
-                else "",
-                available_inputs=fallback_inputs,
-                exclude_tool=target_step.tool,
-            )
-        replanned_step = target_step.model_copy(
-            update={
-                "tool": candidate.id,
-                "metadata": {
-                    **(target_step.metadata or {}),
-                    "replanned_from": target_step.tool,
-                },
-            },
-            deep=True,
-        )
-
-        new_steps = [step.model_copy(deep=True) for step in request.original_plan.steps]
-        for idx, step in enumerate(new_steps):
-            if step.id == target_step.id:
-                new_steps[idx] = replanned_step
-                break
-
-        replanned = Plan(
-            task_id=request.task_id,
-            steps=new_steps,
-            constraints=request.original_plan.constraints,
-            metadata={"strategy": "replace_failed_step", "reason": request.reason},
-        )
-        return _attach_kg_explanation(replanned)
+        top_k = self.replan_top_k(request, k=1)
+        candidate = _require_default_candidate(top_k, expected_kind="replan")
+        payload = candidate.structured_payload
+        if not isinstance(payload, Plan):
+            raise ValueError("replan_top_k returned non-Plan payload")
+        return payload
 
     def _mark_failed(
         self,
@@ -324,6 +315,581 @@ def _find_tool_spec(registry: Sequence[ToolSpec], tool_id: str) -> ToolSpec:
     raise ValueError(f"Tool '{tool_id}' not found in registry")
 
 
+def _normalize_top_k(value: int) -> int:
+    if value <= 0:
+        return 1
+    return value
+
+
+def _require_default_candidate(
+    result: TopKResult,
+    *,
+    expected_kind: str,
+) -> PendingActionCandidate:
+    if not result.candidates or not result.default_recommendation:
+        raise ValueError(f"{expected_kind}_top_k produced no candidates")
+    for candidate in result.candidates:
+        if candidate.candidate_id == result.default_recommendation:
+            return candidate
+    raise ValueError(
+        f"{expected_kind}_top_k default recommendation "
+        f"'{result.default_recommendation}' is missing from candidates"
+    )
+
+
+def _build_plan_candidate_payloads(
+    *,
+    task: ProteinDesignTask,
+    base_plan: Plan,
+    registry: Sequence[ToolSpec],
+    top_k: int,
+) -> List[_CandidatePayload]:
+    if not base_plan.steps:
+        raise ValueError("Plan is empty; cannot build Top-K candidates")
+
+    registry_map = {spec.id: spec for spec in registry}
+    payloads: List[_CandidatePayload] = [
+        _CandidatePayload(
+            payload=base_plan,
+            primary_tool_id=base_plan.steps[0].tool,
+            capability_bucket=(
+                _resolve_step_capability(
+                    base_plan.steps[0], registry_map.get(base_plan.steps[0].tool)
+                )
+                or "unknown"
+            ),
+            note="base",
+        )
+    ]
+
+    available_inputs: Set[str] = set(task.constraints.keys())
+    max_variants_per_step = max(1, top_k * 2)
+    for idx, step in enumerate(base_plan.steps):
+        step_inputs = set(available_inputs)
+        step_spec = registry_map.get(step.tool)
+        capability = _resolve_step_capability(step, step_spec)
+        alternatives = _rank_candidate_tools(
+            registry=registry,
+            capability=capability,
+            available_inputs=step_inputs,
+            exclude_tool=step.tool,
+        )
+        for alternative in alternatives[:max_variants_per_step]:
+            replaced_step = step.model_copy(
+                update={
+                    "tool": alternative.id,
+                    "metadata": {
+                        **(step.metadata or {}),
+                        "candidate_from": step.tool,
+                        "candidate_strategy": "tool_swap",
+                    },
+                },
+                deep=True,
+            )
+            new_steps = [plan_step.model_copy(deep=True) for plan_step in base_plan.steps]
+            new_steps[idx] = replaced_step
+            candidate_plan = base_plan.model_copy(
+                update={
+                    "steps": new_steps,
+                    "metadata": {
+                        **(base_plan.metadata or {}),
+                        "candidate_strategy": "top_k_plan",
+                    },
+                },
+                deep=True,
+            )
+            candidate_plan = _attach_kg_explanation(candidate_plan)
+            payloads.append(
+                _CandidatePayload(
+                    payload=candidate_plan,
+                    primary_tool_id=alternative.id,
+                    capability_bucket=_primary_capability(alternative),
+                    note=f"step:{step.id}:{step.tool}->{alternative.id}",
+                )
+            )
+
+        if step_spec:
+            available_inputs.update(step_spec.outputs)
+
+    return payloads
+
+
+def _build_patch_candidate_payloads(
+    *,
+    request: PatchRequest,
+    registry: Sequence[ToolSpec],
+    top_k: int,
+) -> List[_CandidatePayload]:
+    target_step = _locate_target_step(request)
+    target_spec = _find_tool_spec(registry, target_step.tool)
+    capability = _primary_capability(target_spec)
+
+    available_inputs = _collect_available_inputs(
+        request.context_step_results, target_step
+    )
+    alternatives = _rank_candidate_tools(
+        registry=registry,
+        capability=capability,
+        available_inputs=available_inputs,
+        exclude_tool=target_step.tool,
+    )
+    if not alternatives:
+        fallback_inputs = _collect_registry_inputs(registry)
+        alternatives = _rank_candidate_tools(
+            registry=registry,
+            capability=capability,
+            available_inputs=fallback_inputs,
+            exclude_tool=target_step.tool,
+        )
+    if not alternatives:
+        raise ValueError(
+            f"No alternative tool found for capability '{capability}' "
+            f"with inputs {sorted(available_inputs)}"
+        )
+
+    payloads: List[_CandidatePayload] = []
+    max_candidates = max(1, top_k * 2)
+    for alternative in alternatives[:max_candidates]:
+        patched_step = target_step.model_copy(
+            update={
+                "tool": alternative.id,
+                "metadata": {
+                    **(target_step.metadata or {}),
+                    "patched_from": target_step.tool,
+                },
+            },
+            deep=True,
+        )
+        op = PlanPatchOp(
+            op="replace_step",
+            target=target_step.id,
+            step=patched_step,
+        )
+        patch = PlanPatch(
+            task_id=request.task_id,
+            operations=[op],
+            metadata={"strategy": "cost_first"},
+        )
+        patch.metadata["kg_explanation"] = _build_kg_explanation_for_steps(
+            [patched_step]
+        )
+        payloads.append(
+            _CandidatePayload(
+                payload=patch,
+                primary_tool_id=alternative.id,
+                capability_bucket=_primary_capability(alternative),
+                note=f"target:{target_step.id}:{target_step.tool}->{alternative.id}",
+            )
+        )
+    return payloads
+
+
+def _build_replan_candidate_payloads(
+    *,
+    request: ReplanRequest,
+    registry: Sequence[ToolSpec],
+    top_k: int,
+) -> List[_CandidatePayload]:
+    if not request.original_plan.steps:
+        raise ValueError("Original plan is empty, cannot replan")
+
+    target_step = _locate_replan_target_step(request)
+    target_spec = _find_tool_spec(registry, target_step.tool)
+    capability = _primary_capability(target_spec)
+    available_inputs = _collect_available_inputs([], target_step)
+
+    alternatives = _rank_candidate_tools(
+        registry=registry,
+        capability=capability,
+        available_inputs=available_inputs,
+        exclude_tool=target_step.tool,
+    )
+    if not alternatives:
+        fallback_inputs = _collect_registry_inputs(registry)
+        alternatives = _rank_candidate_tools(
+            registry=registry,
+            capability=capability,
+            available_inputs=fallback_inputs,
+            exclude_tool=target_step.tool,
+        )
+    if not alternatives:
+        raise ValueError(
+            f"No alternative tool found for capability '{capability}' "
+            f"with inputs {sorted(available_inputs)}"
+        )
+
+    target_index = next(
+        idx for idx, step in enumerate(request.original_plan.steps) if step.id == target_step.id
+    )
+    prefix_index = target_index - 1
+
+    payloads: List[_CandidatePayload] = []
+    max_candidates = max(1, top_k * 2)
+    for alternative in alternatives[:max_candidates]:
+        replanned_step = target_step.model_copy(
+            update={
+                "tool": alternative.id,
+                "metadata": {
+                    **(target_step.metadata or {}),
+                    "replanned_from": target_step.tool,
+                },
+            },
+            deep=True,
+        )
+        new_steps = [step.model_copy(deep=True) for step in request.original_plan.steps]
+        new_steps[target_index] = replanned_step
+        replanned = Plan(
+            task_id=request.task_id,
+            steps=new_steps,
+            constraints=request.original_plan.constraints,
+            metadata={
+                "strategy": "replace_failed_step",
+                "reason": request.reason,
+                "replan_mode": "suffix_replan",
+                "preserve_prefix_until_step_index": prefix_index,
+            },
+        )
+        payloads.append(
+            _CandidatePayload(
+                payload=_attach_kg_explanation(replanned),
+                primary_tool_id=alternative.id,
+                capability_bucket=_primary_capability(alternative),
+                note=f"target:{target_step.id}:{target_step.tool}->{alternative.id}",
+            )
+        )
+    return payloads
+
+
+def _build_top_k_result(
+    *,
+    payloads: Sequence[_CandidatePayload],
+    registry: Sequence[ToolSpec],
+    candidate_kind: str,
+    top_k: int,
+) -> TopKResult:
+    if not payloads:
+        raise ValueError(f"No payload candidates generated for {candidate_kind}")
+
+    registry_map = {spec.id: spec for spec in registry}
+    unique_payloads: List[_CandidatePayload] = []
+    seen_fingerprints: Set[str] = set()
+    for payload in payloads:
+        fingerprint = _canonical_payload_fingerprint(
+            payload.payload,
+            payload.primary_tool_id,
+            payload.capability_bucket,
+        )
+        if fingerprint in seen_fingerprints:
+            continue
+        seen_fingerprints.add(fingerprint)
+        unique_payloads.append(payload)
+
+    ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
+    for payload in unique_payloads:
+        score_breakdown = _score_payload(payload.payload, registry)
+        primary_tool = registry_map.get(payload.primary_tool_id)
+        capability_id = payload.capability_bucket or _primary_capability(primary_tool)
+        tool_id = payload.primary_tool_id
+        io_type = primary_tool.io_type if primary_tool and primary_tool.io_type else "unknown"
+        adapter_mode = primary_tool.adapter_mode if primary_tool else "unknown"
+        cost_estimate = _derive_cost_estimate(payload.payload, registry)
+        risk_level = _derive_risk_level(payload.payload, registry)
+        candidate_id = _stable_candidate_id(
+            candidate_kind,
+            payload.payload,
+            payload.primary_tool_id,
+            payload.capability_bucket,
+        )
+        metadata = {
+            "candidate_kind": candidate_kind,
+            "capability_bucket": capability_id,
+            "tool_id": tool_id,
+            "capability_id": capability_id,
+            "io_type": io_type,
+            "adapter_mode": adapter_mode,
+            "generation_note": payload.note,
+        }
+        candidate = PendingActionCandidate(
+            candidate_id=candidate_id,
+            structured_payload=payload.payload,
+            score_breakdown=score_breakdown,
+            risk_level=risk_level,
+            cost_estimate=cost_estimate,
+            explanation=(
+                f"{candidate_kind} candidate with primary tool "
+                f"{tool_id} in capability bucket {capability_id}."
+            ),
+            summary=_build_candidate_summary(payload.payload),
+            tool_id=tool_id,
+            capability_id=capability_id,
+            io_type=io_type,
+            adapter_mode=adapter_mode,
+            metadata=metadata,
+        )
+        priority_rank = _priority_rank(primary_tool.priority if primary_tool else None)
+        sort_key = (
+            -score_breakdown["overall"],
+            priority_rank,
+            capability_id,
+            tool_id,
+            candidate_id,
+        )
+        ranked_rows.append((candidate, sort_key, capability_id))
+
+    ranked_rows.sort(key=lambda row: row[1])
+    selected_rows = _select_diverse_top_k(
+        ranked_rows=ranked_rows,
+        top_k=top_k,
+    )
+    candidates = [row[0] for row in selected_rows]
+    default_recommendation = candidates[0].candidate_id if candidates else None
+    explanation = (
+        f"{candidate_kind} Top-K generated with deterministic sort "
+        f"(requested={top_k}, returned={len(candidates)}). "
+        "Ranking uses overall score desc + stable tie-break; "
+        "selection uses capability-bucket round-robin."
+    )
+    if len(candidates) < top_k:
+        explanation = (
+            f"{explanation} Degraded to available candidates because "
+            "registry constraints did not produce enough unique options."
+        )
+    return TopKResult(
+        candidates=candidates,
+        default_recommendation=default_recommendation,
+        explanation=explanation,
+    )
+
+
+def _select_diverse_top_k(
+    *,
+    ranked_rows: Sequence[Tuple[PendingActionCandidate, Tuple, str]],
+    top_k: int,
+) -> List[Tuple[PendingActionCandidate, Tuple, str]]:
+    bucket_rows: dict[str, List[Tuple[PendingActionCandidate, Tuple, str]]] = {}
+    bucket_order: List[str] = []
+    for row in ranked_rows:
+        bucket = row[2] or "unknown"
+        if bucket not in bucket_rows:
+            bucket_rows[bucket] = []
+            bucket_order.append(bucket)
+        bucket_rows[bucket].append(row)
+
+    selected: List[Tuple[PendingActionCandidate, Tuple, str]] = []
+    while len(selected) < top_k:
+        progressed = False
+        for bucket in bucket_order:
+            rows = bucket_rows[bucket]
+            if not rows:
+                continue
+            selected.append(rows.pop(0))
+            progressed = True
+            if len(selected) >= top_k:
+                break
+        if not progressed:
+            break
+    return selected
+
+
+def _build_candidate_summary(payload: Plan | PlanPatch) -> str:
+    if isinstance(payload, Plan):
+        tools = [step.tool for step in payload.steps]
+        return f"plan_steps={len(payload.steps)} tools={','.join(tools)}"
+    ops = [op.op for op in payload.operations]
+    return f"patch_ops={len(payload.operations)} ops={','.join(ops)}"
+
+
+def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> dict[str, float]:
+    registry_map = {spec.id: spec for spec in registry}
+    tool_ids = _extract_payload_tool_ids(payload)
+    costs: List[float] = []
+    safety_levels: List[int] = []
+    for tool_id in tool_ids:
+        spec = registry_map.get(tool_id)
+        if spec is None:
+            continue
+        costs.append(float(spec.cost))
+        safety_levels.append(int(spec.safety_level))
+
+    max_cost = max((float(spec.cost) for spec in registry), default=1.0)
+    max_safety = max((int(spec.safety_level) for spec in registry), default=1)
+    avg_cost = sum(costs) / len(costs) if costs else max_cost
+    avg_safety = sum(safety_levels) / len(safety_levels) if safety_levels else max_safety
+
+    normalized_cost = min(avg_cost / max(max_cost, 1e-6), 1.0)
+    normalized_safety = min(avg_safety / max(max_safety, 1), 1.0)
+
+    feasibility = 1.0
+    objective = max(0.0, 1.0 - normalized_cost * 0.4)
+    risk = max(0.0, 1.0 - normalized_safety * 0.6)
+    cost = max(0.0, 1.0 - normalized_cost)
+    overall = 0.35 * feasibility + 0.25 * objective + 0.2 * risk + 0.2 * cost
+    return {
+        "feasibility": round(feasibility, 6),
+        "objective": round(objective, 6),
+        "risk": round(risk, 6),
+        "cost": round(cost, 6),
+        "overall": round(overall, 6),
+    }
+
+
+def _derive_risk_level(
+    payload: Plan | PlanPatch,
+    registry: Sequence[ToolSpec],
+) -> Literal["low", "medium", "high"]:
+    registry_map = {spec.id: spec for spec in registry}
+    levels = [
+        int(registry_map[tool_id].safety_level)
+        for tool_id in _extract_payload_tool_ids(payload)
+        if tool_id in registry_map
+    ]
+    if not levels:
+        return "medium"
+    max_level = max((int(spec.safety_level) for spec in registry), default=1)
+    normalized = (sum(levels) / len(levels)) / max(max_level, 1)
+    if normalized <= 0.34:
+        return "low"
+    if normalized <= 0.67:
+        return "medium"
+    return "high"
+
+
+def _derive_cost_estimate(
+    payload: Plan | PlanPatch,
+    registry: Sequence[ToolSpec],
+) -> Literal["low", "medium", "high"]:
+    registry_map = {spec.id: spec for spec in registry}
+    costs = [
+        float(registry_map[tool_id].cost)
+        for tool_id in _extract_payload_tool_ids(payload)
+        if tool_id in registry_map
+    ]
+    if not costs:
+        return "medium"
+    max_cost = max((float(spec.cost) for spec in registry), default=1.0)
+    normalized = (sum(costs) / len(costs)) / max(max_cost, 1e-6)
+    if normalized <= 0.34:
+        return "low"
+    if normalized <= 0.67:
+        return "medium"
+    return "high"
+
+
+def _extract_payload_tool_ids(payload: Plan | PlanPatch) -> List[str]:
+    if isinstance(payload, Plan):
+        return [step.tool for step in payload.steps]
+    tool_ids: List[str] = []
+    for op in payload.operations:
+        if op.step is not None:
+            tool_ids.append(op.step.tool)
+    return tool_ids
+
+
+def _stable_candidate_id(
+    candidate_kind: str,
+    payload: Plan | PlanPatch,
+    primary_tool_id: str,
+    capability_bucket: str,
+) -> str:
+    fingerprint = _canonical_payload_fingerprint(
+        payload,
+        primary_tool_id,
+        capability_bucket,
+    )
+    return f"{candidate_kind}_{fingerprint[:12]}"
+
+
+def _canonical_payload_fingerprint(
+    payload: Plan | PlanPatch,
+    primary_tool_id: str,
+    capability_bucket: str,
+) -> str:
+    canonical_blob = json.dumps(
+        {
+            "payload": payload.model_dump(mode="json"),
+            "primary_tool_id": primary_tool_id,
+            "capability_bucket": capability_bucket,
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha1(canonical_blob.encode("utf-8")).hexdigest()
+
+
+def _resolve_step_capability(step: PlanStep, spec: ToolSpec | None) -> str:
+    if spec is not None and spec.capabilities:
+        return spec.capabilities[0]
+    return _extract_step_capability(step.metadata)
+
+
+def _primary_capability(spec: ToolSpec | None) -> str:
+    if spec is None or not spec.capabilities:
+        return "unknown"
+    return str(spec.capabilities[0])
+
+
+def _rank_candidate_tools(
+    *,
+    registry: Sequence[ToolSpec],
+    capability: str,
+    available_inputs: Set[str],
+    exclude_tool: str,
+) -> List[ToolSpec]:
+    candidates: List[ToolSpec] = []
+    for spec in registry:
+        if spec.id == exclude_tool:
+            continue
+        if capability and capability not in spec.capabilities:
+            continue
+        if not set(spec.inputs).issubset(available_inputs):
+            continue
+        candidates.append(spec)
+    candidates.sort(
+        key=lambda spec: (
+            _priority_rank(spec.priority),
+            spec.cost,
+            spec.safety_level,
+            spec.id,
+        )
+    )
+    return candidates
+
+
+def _priority_rank(priority: str | None) -> int:
+    if not priority:
+        return 9
+    normalized = priority.strip().upper()
+    if normalized == "P0":
+        return 0
+    if normalized.startswith("P") and normalized[1:].isdigit():
+        return int(normalized[1:])
+    return 9
+
+
+def _infer_adapter_mode(
+    execution: object,
+) -> Literal["local", "remote", "mock", "hybrid", "unknown"]:
+    if isinstance(execution, str):
+        normalized = execution.strip().lower()
+        if normalized in {"nextflow", "python", "shell", "local"}:
+            return "local"
+        if normalized in {"mock"}:
+            return "mock"
+        if normalized in {"external_api", "remote_model_service", "remote"}:
+            return "remote"
+        return "unknown"
+    if isinstance(execution, dict):
+        backend = str(execution.get("backend", "")).strip().lower()
+        if backend in {"remote_model_service", "external_api"}:
+            return "remote"
+        if backend in {"nextflow", "python", "local"}:
+            return "local"
+        if backend == "mock":
+            return "mock"
+    return "unknown"
+
+
 def _collect_registry_inputs(registry: Sequence[ToolSpec]) -> Set[str]:
     inputs: Set[str] = set()
     for spec in registry:
@@ -359,23 +925,16 @@ def _select_candidate(
     available_inputs: Set[str],
     exclude_tool: str,
 ) -> ToolSpec:
-    candidates: List[ToolSpec] = []
-    for spec in registry:
-        if spec.id == exclude_tool:
-            continue
-        if capability and capability not in spec.capabilities:
-            continue
-        if not set(spec.inputs).issubset(available_inputs):
-            continue
-        candidates.append(spec)
-
+    candidates = _rank_candidate_tools(
+        registry=registry,
+        capability=capability,
+        available_inputs=available_inputs,
+        exclude_tool=exclude_tool,
+    )
     if not candidates:
         raise ValueError(
             f"No alternative tool found for capability '{capability}' with inputs {sorted(available_inputs)}"
         )
-
-    # 简化策略：按 cost 优先，其次 safety_level
-    candidates.sort(key=lambda t: (t.cost, t.safety_level, t.id))
     return candidates[0]
 
 
@@ -399,8 +958,13 @@ def _load_tool_specs_from_kg() -> Sequence[ToolSpec]:
                 capabilities=tuple(tool.get("capabilities", [])),
                 inputs=inputs,
                 outputs=outputs,
-                cost=tool.get("cost_score", 1.0),
+                cost=float(tool.get("cost_score", 1.0)),
                 safety_level=tool.get("safety_level", 1),
+                io_type=io_spec.get("io_type_id"),
+                adapter_mode=_infer_adapter_mode(tool.get("execution")),
+                priority=tool.get("priority")
+                if isinstance(tool.get("priority"), str)
+                else None,
             )
         )
     if not specs:
@@ -584,6 +1148,7 @@ def _select_tool_by_capability(
 
     candidates.sort(
         key=lambda t: (
+            _priority_rank(t.priority),
             _remote_rank(t.id, prefer_remote),
             t.cost,
             t.safety_level,
