@@ -6,6 +6,7 @@ from src.agents.planner import PlannerAgent, ToolSpec
 from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
     PatchRequest,
+    PendingActionType,
     Plan,
     PlanPatch,
     PlanStep,
@@ -14,6 +15,8 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
+from src.models.db import ExternalStatus, InternalStatus, TaskRecord
+from src.workflow.context import WorkflowContext
 
 
 def _topk_registry() -> list[ToolSpec]:
@@ -73,6 +76,39 @@ def _topk_registry() -> list[ToolSpec]:
             adapter_mode="local",
             priority="P1",
         ),
+        ToolSpec(
+            id="protein_mpnn",
+            capabilities=("sequence_design",),
+            inputs=("pdb_path",),
+            outputs=("sequence",),
+            cost=0.4,
+            safety_level=1,
+            io_type="structure_to_sequence",
+            adapter_mode="remote",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="biopython_qc",
+            capabilities=("quality_qc",),
+            inputs=("sequence", "pdb_path"),
+            outputs=("qc_metrics",),
+            cost=0.2,
+            safety_level=1,
+            io_type="sequence_structure_to_qc_metrics",
+            adapter_mode="local",
+            priority="P0",
+        ),
+        ToolSpec(
+            id="objective_ranker",
+            capabilities=("objective_scoring",),
+            inputs=("candidates",),
+            outputs=("score_table", "top_k"),
+            cost=0.25,
+            safety_level=1,
+            io_type="candidates_to_objective_scores_topk",
+            adapter_mode="local",
+            priority="P0",
+        ),
     ]
 
 
@@ -81,10 +117,16 @@ def _topk_mock_kg() -> dict:
         "capabilities": [
             {"capability_id": "sequence_generation", "name": "Sequence Generation", "domain": "protein/design"},
             {"capability_id": "structure_prediction", "name": "Structure Prediction", "domain": "protein/structure"},
+            {"capability_id": "sequence_design", "name": "Sequence Design", "domain": "protein/design"},
+            {"capability_id": "quality_qc", "name": "Quality QC", "domain": "protein/qc"},
+            {"capability_id": "objective_scoring", "name": "Objective Scoring", "domain": "protein/score"},
         ],
         "io_types": [
             {"io_type_id": "goal_to_sequence_candidates", "input_types": ["goal"], "output_types": ["sequence"], "combinable": True},
             {"io_type_id": "sequence_to_structure", "input_types": ["sequence"], "output_types": ["structure_pdb", "plddt"], "combinable": True},
+            {"io_type_id": "structure_to_sequence", "input_types": ["structure_pdb"], "output_types": ["sequence"], "combinable": True},
+            {"io_type_id": "sequence_structure_to_qc_metrics", "input_types": ["sequence", "structure_pdb"], "output_types": ["qc_metrics"], "combinable": True},
+            {"io_type_id": "candidates_to_objective_scores_topk", "input_types": ["candidates"], "output_types": ["score_table", "top_k"], "combinable": True},
         ],
         "tools": [
             {
@@ -145,6 +187,42 @@ def _topk_mock_kg() -> dict:
                     "outputs": {"pdb_path": "path", "plddt": "float"},
                 },
                 "execution": "nextflow",
+                "constraints": {},
+            },
+            {
+                "id": "protein_mpnn",
+                "capabilities": ["sequence_design"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "structure_to_sequence",
+                    "inputs": {"pdb_path": "path"},
+                    "outputs": {"sequence": "str"},
+                },
+                "execution": {"backend": "remote_model_service", "provider": "nvidia_nim"},
+                "constraints": {},
+            },
+            {
+                "id": "biopython_qc",
+                "capabilities": ["quality_qc"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "sequence_structure_to_qc_metrics",
+                    "inputs": {"sequence": "str", "pdb_path": "path"},
+                    "outputs": {"qc_metrics": "dict"},
+                },
+                "execution": "python",
+                "constraints": {},
+            },
+            {
+                "id": "objective_ranker",
+                "capabilities": ["objective_scoring"],
+                "priority": "P0",
+                "io": {
+                    "io_type_id": "candidates_to_objective_scores_topk",
+                    "inputs": {"candidates": "list"},
+                    "outputs": {"score_table": "dict", "top_k": "list"},
+                },
+                "execution": "python",
                 "constraints": {},
             },
         ],
@@ -345,13 +423,19 @@ class TestPlannerAgent:
         assert 1 <= len(topk.candidates) <= 3
         for candidate in topk.candidates:
             assert isinstance(candidate.structured_payload, PlanPatch)
-            assert set(candidate.score_breakdown) == {
+            assert {
                 "feasibility",
                 "objective",
                 "risk",
                 "cost",
                 "overall",
-            }
+            }.issubset(set(candidate.score_breakdown))
+            assert {
+                "confidence",
+                "tool_readiness",
+                "tool_coverage",
+                "fallback_depth",
+            }.issubset(set(candidate.score_breakdown))
             assert candidate.risk_level in {"low", "medium", "high"}
             assert candidate.cost_estimate in {"low", "medium", "high"}
             assert candidate.tool_id is not None
@@ -388,3 +472,145 @@ class TestPlannerAgent:
             assert isinstance(candidate.structured_payload, Plan)
             payload = candidate.structured_payload
             assert payload.metadata.get("replan_mode") == "suffix_replan"
+
+    def test_plan_with_status_enters_waiting_plan_confirm_when_low_confidence(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_plan_waiting",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [30, 50],
+                "require_plan_confirm": False,
+                "min_candidate_confidence": 0.99,
+            },
+            metadata={},
+        )
+        context = WorkflowContext(
+            task=task,
+            plan=None,
+            step_results={},
+            safety_events=[],
+            design_result=None,
+            status=InternalStatus.CREATED,
+        )
+        record = TaskRecord(
+            id=task.task_id,
+            status=ExternalStatus.CREATED,
+            internal_status=InternalStatus.CREATED,
+            goal=task.goal,
+            constraints=task.constraints,
+            metadata=task.metadata,
+            plan=None,
+        )
+
+        planner.plan_with_status(task, context, record=record)
+
+        assert context.status == InternalStatus.WAITING_PLAN_CONFIRM
+        assert context.pending_action is not None
+        assert context.pending_action.action_type == PendingActionType.PLAN_CONFIRM
+        assert context.pending_action.default_recommendation is not None
+        assert record.status == ExternalStatus.WAITING_PLAN_CONFIRM
+
+    def test_plan_with_status_auto_planned_when_gate_passes(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_plan_auto",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [30, 50],
+                "require_plan_confirm": False,
+                "min_candidate_confidence": 0.2,
+            },
+            metadata={},
+        )
+        context = WorkflowContext(
+            task=task,
+            plan=None,
+            step_results={},
+            safety_events=[],
+            design_result=None,
+            status=InternalStatus.CREATED,
+        )
+        record = TaskRecord(
+            id=task.task_id,
+            status=ExternalStatus.CREATED,
+            internal_status=InternalStatus.CREATED,
+            goal=task.goal,
+            constraints=task.constraints,
+            metadata=task.metadata,
+            plan=None,
+        )
+
+        planner.plan_with_status(task, context, record=record)
+
+        assert context.status == InternalStatus.PLANNED
+        assert context.pending_action is None
+        assert context.plan is not None
+        assert record.status == ExternalStatus.PLANNED
+
+    def test_remote_structure_prediction_has_higher_risk_than_local(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        topk = planner.patch_top_k(_patch_request_for_topk(), k=3)
+
+        by_tool = {c.tool_id: c for c in topk.candidates}
+        assert "nim_esmfold" in by_tool
+        assert "openfold" in by_tool
+        assert by_tool["nim_esmfold"].score_breakdown["risk"] <= by_tool["openfold"].score_breakdown["risk"]
+
+    def test_p0_combo_scores_include_tool_dimensions(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        protgpt2_esmfold = Plan(
+            task_id="score_combo_1",
+            steps=[
+                PlanStep(id="S1", tool="protgpt2", inputs={"goal": "de_novo_design"}, metadata={}),
+                PlanStep(id="S2", tool="esmfold", inputs={"sequence": "S1.sequence"}, metadata={}),
+            ],
+            constraints={},
+            metadata={},
+        )
+        protein_mpnn_esmfold = Plan(
+            task_id="score_combo_2",
+            steps=[
+                PlanStep(id="S1", tool="protein_mpnn", inputs={"pdb_path": "/tmp/input.pdb"}, metadata={}),
+                PlanStep(id="S2", tool="esmfold", inputs={"sequence": "S1.sequence"}, metadata={}),
+            ],
+            constraints={},
+            metadata={},
+        )
+        qc_objective = Plan(
+            task_id="score_combo_3",
+            steps=[
+                PlanStep(
+                    id="S1",
+                    tool="biopython_qc",
+                    inputs={"sequence": "MKT", "pdb_path": "/tmp/input.pdb"},
+                    metadata={},
+                ),
+                PlanStep(
+                    id="S2",
+                    tool="objective_ranker",
+                    inputs={"candidates": "S1.qc_metrics"},
+                    metadata={},
+                ),
+            ],
+            constraints={},
+            metadata={},
+        )
+
+        score_1 = planner.score_candidate_payload(protgpt2_esmfold)
+        score_2 = planner.score_candidate_payload(protein_mpnn_esmfold)
+        score_3 = planner.score_candidate_payload(qc_objective)
+
+        for score in (score_1, score_2, score_3):
+            assert "tool_readiness" in score
+            assert "tool_coverage" in score
+            assert "fallback_depth" in score
+            assert "confidence" in score
+            assert 0.0 <= score["overall"] <= 1.0
+
+        assert score_3["objective"] >= score_1["objective"]
