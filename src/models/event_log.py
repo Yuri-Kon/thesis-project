@@ -15,6 +15,7 @@ class EventType(str, Enum):
     WAITING_ENTER = "WAITING_ENTER"
     WAITING_EXIT = "WAITING_EXIT"
     DECISION_APPLIED = "DECISION_APPLIED"
+    CANDIDATE_VALIDATION_FAILED = "CANDIDATE_VALIDATION_FAILED"
 
 
 class ActorType(str, Enum):
@@ -70,6 +71,8 @@ class EventLog(BaseModel):
             self._validate_waiting_exit()
         elif self.event_type == EventType.DECISION_APPLIED:
             self._validate_decision_applied()
+        elif self.event_type == EventType.CANDIDATE_VALIDATION_FAILED:
+            self._validate_candidate_validation_failed()
 
         return self
 
@@ -134,4 +137,20 @@ class EventLog(BaseModel):
             raise ValueError(
                 f"DECISION_APPLIED requires prev_status to be a WAITING_* state, "
                 f"got {self.prev_status.value}"
+            )
+
+    def _validate_candidate_validation_failed(self) -> None:
+        """验证 CANDIDATE_VALIDATION_FAILED 事件的约束。"""
+        if "failure_code" not in self.data:
+            raise ValueError(
+                "CANDIDATE_VALIDATION_FAILED requires data.failure_code"
+            )
+        if "failures" not in self.data:
+            raise ValueError(
+                "CANDIDATE_VALIDATION_FAILED requires data.failures"
+            )
+        failures = self.data.get("failures")
+        if not isinstance(failures, list):
+            raise ValueError(
+                "CANDIDATE_VALIDATION_FAILED requires data.failures to be a list"
             )
