@@ -15,9 +15,14 @@ from src.models.validation import (
     CandidateExecutionValidationError,
     validate_plan_executability,
 )
-from src.models.db import TaskRecord, InternalStatus, TERMINAL_INTERNAL_STATUSES
+from src.models.db import (
+    TaskRecord,
+    InternalStatus,
+    TERMINAL_INTERNAL_STATUSES,
+    to_external_status,
+)
 from src.models.event_log import ActorType
-from src.storage.log_store import write_event_log
+from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.step_runner import StepRunner
 from src.workflow.patch_runner import PatchRunner, PendingPatch
@@ -258,6 +263,7 @@ class PlanRunner:
                             pending_patch,
                         )
                     context.step_results[step_result.step_id] = step_result
+                    self._emit_step_event(context, step_result)
                     # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
                     step_result.metrics.setdefault(
                         "failure_type", step_result.failure_type
@@ -721,6 +727,28 @@ class PlanRunner:
             record,
             InternalStatus.FAILED,
             reason=reason,
+        )
+
+    def _emit_step_event(
+        self,
+        context: WorkflowContext,
+        step_result: StepResult,
+    ) -> None:
+        event_name = "STEP_FINISHED" if step_result.status != "failed" else "STEP_FAILED"
+        append_event(
+            context.task.task_id,
+            {
+                "event": event_name,
+                "task_id": context.task.task_id,
+                "step_id": step_result.step_id,
+                "tool": step_result.tool,
+                "status": step_result.status,
+                "failure_type": step_result.failure_type,
+                "error_message": step_result.error_message,
+                "timestamp": step_result.timestamp,
+                "state": context.status.value,
+                "external_status": to_external_status(context.status).value,
+            },
         )
 
 
