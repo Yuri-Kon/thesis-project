@@ -35,6 +35,12 @@ class TestAPIEndpoints:
         ) as client:
             yield client
 
+    @pytest.fixture(autouse=True)
+    def clear_task_store(self):
+        TASK_STORE.clear()
+        yield
+        TASK_STORE.clear()
+
     async def test_create_task_endpoint(self, client: httpx.AsyncClient):
         """测试创建任务端点"""
         response = await client.post(
@@ -179,6 +185,131 @@ class TestAPIEndpoints:
         assert created["goal"] == retrieved["goal"]
         assert created["constraints"] == retrieved["constraints"]
         assert created["metadata"] == retrieved["metadata"]
+
+    async def test_get_pending_actions_default_only_pending(
+        self, client: httpx.AsyncClient
+    ):
+        """默认只返回 pending 状态的 PendingAction。"""
+        pending_task_id = "task_pending_list_a"
+        decided_task_id = "task_pending_list_b"
+
+        pending_action = PendingAction(
+            pending_action_id="pa_pending",
+            task_id=pending_task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_a",
+                    payload=Plan(task_id=pending_task_id, steps=[], constraints={}, metadata={}),
+                )
+            ],
+            default_suggestion="plan_a",
+            explanation="please confirm initial plan",
+        )
+        decided_action = PendingAction(
+            pending_action_id="pa_decided",
+            task_id=decided_task_id,
+            action_type=PendingActionType.PATCH_CONFIRM,
+            status=PendingActionStatus.DECIDED,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="patch_a",
+                    payload=PlanPatch(task_id=decided_task_id, operations=[], metadata={}),
+                )
+            ],
+            explanation="already decided",
+        )
+
+        TASK_STORE[pending_task_id] = TaskRecord(
+            id=pending_task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="pending task",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+        TASK_STORE[decided_task_id] = TaskRecord(
+            id=decided_task_id,
+            status=ExternalStatus.WAITING_PATCH_CONFIRM,
+            internal_status=InternalStatus.WAITING_PATCH,
+            goal="decided task",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=decided_action,
+        )
+
+        response = await client.get("/pending-actions")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["pending_action_id"] == "pa_pending"
+        assert data[0]["candidate_count"] == 1
+        assert data[0]["default_suggestion"] == "plan_a"
+        assert "plan_a" in data[0]["summary"]
+
+    async def test_get_pending_actions_supports_status_and_task_filters(
+        self, client: httpx.AsyncClient
+    ):
+        """支持按 status/task_id 过滤 pending action 列表。"""
+        task_id = "task_pending_filter"
+        action = PendingAction(
+            pending_action_id="pa_filter",
+            task_id=task_id,
+            action_type=PendingActionType.REPLAN_CONFIRM,
+            status=PendingActionStatus.DECIDED,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="replan_a",
+                    payload=Plan(task_id=task_id, steps=[], constraints={}, metadata={}),
+                )
+            ],
+            explanation="decided replan",
+        )
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_REPLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_REPLAN,
+            goal="filter task",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=action,
+        )
+
+        response = await client.get(
+            "/pending-actions",
+            params={"status": PendingActionStatus.DECIDED.value, "task_id": task_id},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["pending_action_id"] == "pa_filter"
+        assert data[0]["task_id"] == task_id
+
+    async def test_ui_routes_and_static_assets_available(
+        self, client: httpx.AsyncClient
+    ):
+        """前端 UI 页面和静态资源可访问。"""
+        dashboard_response = await client.get("/ui")
+        assert dashboard_response.status_code == 200
+        assert "HITL PendingAction Dashboard" in dashboard_response.text
+
+        task_view_response = await client.get("/ui/tasks/task_demo_001")
+        assert task_view_response.status_code == 200
+        assert "HITL PendingAction Dashboard" in task_view_response.text
+
+        static_response = await client.get("/static/js/hitl-dashboard.js")
+        assert static_response.status_code == 200
+        assert "ALLOWED_CHOICES" in static_response.text
 
     @pytest.mark.parametrize(
         "external_status,internal_status,action_type",
