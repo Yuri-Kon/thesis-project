@@ -148,9 +148,37 @@ button:disabled {
   padding: 4px 8px;
 }
 
-.candidate-list {
-  margin: 8px 0 0;
-  padding-left: 18px;
+.candidate-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.candidate-table th,
+.candidate-table td {
+  border-top: 1px solid var(--line);
+  text-align: left;
+  padding: 8px;
+  vertical-align: top;
+}
+
+.candidate-table tr:hover {
+  background: #f6faff;
+}
+
+.default-badge {
+  display: inline-block;
+  border: 1px solid #87a7d6;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  color: #1b4a92;
+  background: #eef5ff;
+}
+
+.timeline-link {
+  display: inline-block;
+  margin-top: 8px;
 }
 
 .muted {
@@ -175,6 +203,11 @@ button:disabled {
 
 @media (max-width: 760px) {
   .pending-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .candidate-table {
     display: block;
     overflow-x: auto;
   }

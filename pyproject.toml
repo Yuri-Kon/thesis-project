@@ -21,6 +21,7 @@ dependencies = [
   "openai",
   "httpx",
   "biopython>=1.86",
+  "uvicorn>=0.41.0",
 ]
 
 [build-system]
