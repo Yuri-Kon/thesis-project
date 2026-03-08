@@ -13,22 +13,48 @@ interface PendingActionSummary {
   summary: string;
 }
 
-interface PendingActionCandidate {
-  candidate_id: string;
-  summary?: string | null;
-  explanation?: string | null;
-  risk_level?: string | null;
-  cost_estimate?: string | null;
-  score_breakdown?: Record<string, number>;
-}
-
-interface PendingAction {
+interface PendingActionLite {
   pending_action_id: string;
   action_type: PendingActionType;
   default_suggestion?: string | null;
   default_recommendation?: string | null;
+}
+
+interface PendingActionToolDisplay {
+  tool_id: string | null;
+  capability_id: string | null;
+  io_type: string | null;
+  adapter_mode: string | null;
+  source: string;
+  available: boolean;
+  can_fallback: boolean;
+  availability_hint: string;
+}
+
+interface PendingActionCandidateDisplay {
+  rank: number;
+  candidate_id: string;
+  is_default: boolean;
+  summary: string;
   explanation: string;
-  candidates: PendingActionCandidate[];
+  recommendation_reason: string;
+  risk_level?: string | null;
+  cost_estimate?: string | null;
+  overall_score?: number | null;
+  score_breakdown?: Record<string, number>;
+  tool: PendingActionToolDisplay;
+}
+
+interface PendingActionDetail {
+  pending_action_id: string;
+  task_id: string;
+  action_type: PendingActionType;
+  status: string;
+  created_at: string;
+  default_suggestion?: string | null;
+  explanation: string;
+  recommendation_summary: string;
+  candidates: PendingActionCandidateDisplay[];
 }
 
 interface DesignResult {
@@ -41,9 +67,15 @@ interface TaskRecord {
   status: string;
   internal_status?: string | null;
   goal: string;
-  pending_action?: PendingAction | null;
+  pending_action?: PendingActionLite | null;
   safety_events?: unknown[];
   design_result?: DesignResult | null;
+}
+
+interface TaskTimelineEvent {
+  event_type: string;
+  summary: string;
+  ts?: string | null;
 }
 
 const ALLOWED_CHOICES: Record<PendingActionType, DecisionChoice[]> = {
@@ -52,8 +84,14 @@ const ALLOWED_CHOICES: Record<PendingActionType, DecisionChoice[]> = {
   replan_confirm: ["accept", "continue", "cancel"],
 };
 
-const state: { selectedTaskId: string | null } = {
+const state: {
+  selectedTaskId: string | null;
+  selectedPendingActionId: string | null;
+  lastTaskStatus: string | null;
+} = {
   selectedTaskId: null,
+  selectedPendingActionId: null,
+  lastTaskStatus: null,
 };
 
 function byId<T extends HTMLElement>(id: string): T {
@@ -88,6 +126,12 @@ function setGlobalMessage(message: string, isError = false): void {
   node.className = isError ? "error" : "muted";
 }
 
+function setDecisionProgress(message: string, isError = false): void {
+  const node = byId<HTMLParagraphElement>("decision-progress");
+  node.textContent = message;
+  node.className = isError ? "error" : "muted";
+}
+
 function statusChipClass(status: string): string {
   if (status.startsWith("WAITING_")) {
     return "chip waiting";
@@ -99,6 +143,18 @@ function statusChipClass(status: string): string {
     return "chip active";
   }
   return "chip muted";
+}
+
+function formatScore(value: number | null | undefined): string {
+  if (typeof value !== "number" || Number.isNaN(value)) {
+    return "-";
+  }
+  return value.toFixed(2);
+}
+
+function formatText(value: string | null | undefined): string {
+  const normalized = value?.trim();
+  return normalized ? normalized : "-";
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -144,6 +200,7 @@ function renderPendingActions(items: PendingActionSummary[]): void {
     openButton.textContent = "Open";
     openButton.addEventListener("click", () => {
       state.selectedTaskId = item.task_id;
+      state.selectedPendingActionId = item.pending_action_id;
       byId<HTMLInputElement>("task-id-input").value = item.task_id;
       updateUrlForTask(item.task_id);
       void refreshTaskDetail();
@@ -191,103 +248,325 @@ function renderReservedSections(task: TaskRecord): void {
     "Step timeline area reserved for future execution details.";
 }
 
-function renderTaskDetail(task: TaskRecord): void {
+function renderTaskOverview(task: TaskRecord): void {
   const badge = byId<HTMLSpanElement>("task-state-badge");
   badge.textContent = `${task.status}${task.internal_status ? ` / ${task.internal_status}` : ""}`;
   badge.className = statusChipClass(task.status);
 
   const container = byId<HTMLDivElement>("task-detail");
-  const pending = task.pending_action;
-  const lines: string[] = [
-    `<p><strong>Task ID:</strong> ${task.id}</p>`,
-    `<p><strong>Goal:</strong> ${task.goal}</p>`,
-  ];
+  container.innerHTML = "";
 
-  if (pending) {
-    const defaultSuggestion =
-      pending.default_suggestion ?? pending.default_recommendation ?? "-";
-    lines.push(`<p><strong>Action Type:</strong> ${pending.action_type}</p>`);
-    lines.push(`<p><strong>Default Suggestion:</strong> ${defaultSuggestion}</p>`);
-    lines.push(`<p><strong>Explanation:</strong> ${pending.explanation}</p>`);
+  const idLine = document.createElement("p");
+  idLine.textContent = `Task ID: ${task.id}`;
+  container.appendChild(idLine);
 
-    const candidateLines = pending.candidates.map((candidate) => {
-      const risk = candidate.risk_level ?? "-";
-      const cost = candidate.cost_estimate ?? "-";
-      const summary = candidate.summary ?? candidate.explanation ?? "No summary";
-      return `<li><strong>${candidate.candidate_id}</strong> | risk=${risk} | cost=${cost}<br/>${summary}</li>`;
-    });
-    lines.push(`<ul class="candidate-list">${candidateLines.join("")}</ul>`);
+  const goalLine = document.createElement("p");
+  goalLine.textContent = `Goal: ${task.goal}`;
+  container.appendChild(goalLine);
+
+  if (task.pending_action) {
+    const pendingLine = document.createElement("p");
+    pendingLine.textContent =
+      `PendingAction: ${task.pending_action.pending_action_id} (${task.pending_action.action_type})`;
+    container.appendChild(pendingLine);
   } else {
-    lines.push("<p>No pending action for this task.</p>");
+    const pendingLine = document.createElement("p");
+    pendingLine.textContent = "No pending action for this task.";
+    container.appendChild(pendingLine);
   }
 
-  container.innerHTML = lines.join("");
+  const timelineLink = document.createElement("a");
+  timelineLink.href = `/ui/tasks/${encodeURIComponent(task.id)}/events`;
+  timelineLink.textContent = "Open event timeline";
+  timelineLink.className = "timeline-link";
+  container.appendChild(timelineLink);
+
   renderReservedSections(task);
-  renderDecisionForm(pending ?? null);
 }
 
-function renderDecisionForm(pendingAction: PendingAction | null): void {
+function renderNoPendingAction(): void {
+  state.selectedPendingActionId = null;
+  byId<HTMLSpanElement>("candidate-count").textContent = "0";
+  byId<HTMLParagraphElement>("recommendation-summary").textContent =
+    "No pending action selected.";
+  byId<HTMLDivElement>("candidate-compare-container").innerHTML =
+    "<p>No candidate data for the selected task.</p>";
+  byId<HTMLDivElement>("decision-form-container").innerHTML =
+    "<p>No pending action for the selected task.</p>";
+}
+
+function renderCandidateComparison(detail: PendingActionDetail): void {
+  const counter = byId<HTMLSpanElement>("candidate-count");
+  counter.textContent = String(detail.candidates.length);
+
+  byId<HTMLParagraphElement>("recommendation-summary").textContent =
+    detail.recommendation_summary || detail.explanation;
+
+  const container = byId<HTMLDivElement>("candidate-compare-container");
+  container.innerHTML = "";
+
+  if (!detail.candidates.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "No candidates returned.";
+    container.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement("table");
+  table.className = "candidate-table";
+
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const title of [
+    "Rank",
+    "Candidate",
+    "Overall",
+    "Risk",
+    "Cost",
+    "Tool",
+    "Availability",
+    "Reason",
+    "Summary",
+  ]) {
+    const th = document.createElement("th");
+    th.textContent = title;
+    headRow.appendChild(th);
+  }
+  head.appendChild(headRow);
+  table.appendChild(head);
+
+  const body = document.createElement("tbody");
+  for (const candidate of detail.candidates) {
+    const row = document.createElement("tr");
+
+    const rankCell = document.createElement("td");
+    rankCell.textContent = String(candidate.rank);
+    row.appendChild(rankCell);
+
+    const idCell = document.createElement("td");
+    idCell.textContent = candidate.candidate_id;
+    if (candidate.is_default) {
+      const badge = document.createElement("span");
+      badge.className = "default-badge";
+      badge.textContent = "default";
+      idCell.appendChild(document.createTextNode(" "));
+      idCell.appendChild(badge);
+    }
+    row.appendChild(idCell);
+
+    const overallCell = document.createElement("td");
+    overallCell.textContent = formatScore(candidate.overall_score);
+    row.appendChild(overallCell);
+
+    const riskCell = document.createElement("td");
+    riskCell.textContent = formatText(candidate.risk_level);
+    row.appendChild(riskCell);
+
+    const costCell = document.createElement("td");
+    costCell.textContent = formatText(candidate.cost_estimate);
+    row.appendChild(costCell);
+
+    const toolCell = document.createElement("td");
+    toolCell.textContent = `${formatText(candidate.tool.tool_id)} / ${formatText(candidate.tool.capability_id)} / ${formatText(candidate.tool.io_type)} (${candidate.tool.source})`;
+    row.appendChild(toolCell);
+
+    const availabilityCell = document.createElement("td");
+    const availability = candidate.tool.available ? "ready" : "degraded";
+    const fallbackFlag = candidate.tool.can_fallback ? " fallback" : "";
+    availabilityCell.textContent = `${availability}${fallbackFlag}`;
+    availabilityCell.title = candidate.tool.availability_hint;
+    row.appendChild(availabilityCell);
+
+    const reasonCell = document.createElement("td");
+    reasonCell.textContent = candidate.recommendation_reason;
+    row.appendChild(reasonCell);
+
+    const summaryCell = document.createElement("td");
+    summaryCell.textContent = candidate.summary;
+    row.appendChild(summaryCell);
+
+    body.appendChild(row);
+  }
+
+  table.appendChild(body);
+  container.appendChild(table);
+}
+
+function buildCandidateOptionLabel(candidate: PendingActionCandidateDisplay): string {
+  const source = candidate.tool.source;
+  return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | ${source}`;
+}
+
+function renderDecisionForm(detail: PendingActionDetail): void {
   const container = byId<HTMLDivElement>("decision-form-container");
   container.innerHTML = "";
 
-  if (!pendingAction || !state.selectedTaskId) {
+  if (!state.selectedTaskId || !detail.candidates.length) {
     container.innerHTML = "<p>No pending action for the selected task.</p>";
     return;
   }
 
-  const allowed = ALLOWED_CHOICES[pendingAction.action_type];
-  const defaultSuggestion =
-    pendingAction.default_suggestion ?? pendingAction.default_recommendation ?? "";
+  const allowed = ALLOWED_CHOICES[detail.action_type];
+  const defaultSuggestion = detail.default_suggestion ?? "";
 
   const form = document.createElement("form");
   form.id = "decision-form";
-  form.innerHTML = `
-    <label for="decision-choice">Choice</label>
-    <select id="decision-choice" name="choice">
-      ${allowed.map((choice) => `<option value="${choice}">${choice}</option>`).join("")}
-    </select>
-    <label for="decision-candidate">Candidate (required for accept)</label>
-    <select id="decision-candidate" name="candidate">
-      <option value="">-- Select candidate --</option>
-      ${pendingAction.candidates
-        .map((candidate) => {
-          const selected = candidate.candidate_id === defaultSuggestion ? " selected" : "";
-          return `<option value="${candidate.candidate_id}"${selected}>${candidate.candidate_id}</option>`;
-        })
-        .join("")}
-    </select>
-    <label for="decision-by">Decided By</label>
-    <input id="decision-by" name="decided_by" type="text" value="ui_user" />
-    <label for="decision-comment">Comment</label>
-    <textarea id="decision-comment" name="comment" rows="3" placeholder="optional note"></textarea>
-    <button type="submit">Submit Decision</button>
-  `;
+
+  const choiceLabel = document.createElement("label");
+  choiceLabel.htmlFor = "decision-choice";
+  choiceLabel.textContent = "Choice";
+  form.appendChild(choiceLabel);
+
+  const choiceSelect = document.createElement("select");
+  choiceSelect.id = "decision-choice";
+  choiceSelect.name = "choice";
+  for (const choice of allowed) {
+    const option = document.createElement("option");
+    option.value = choice;
+    option.textContent = choice;
+    choiceSelect.appendChild(option);
+  }
+  form.appendChild(choiceSelect);
+
+  const candidateLabel = document.createElement("label");
+  candidateLabel.htmlFor = "decision-candidate";
+  candidateLabel.textContent = "Candidate (required for accept)";
+  form.appendChild(candidateLabel);
+
+  const candidateSelect = document.createElement("select");
+  candidateSelect.id = "decision-candidate";
+  candidateSelect.name = "candidate";
+  const empty = document.createElement("option");
+  empty.value = "";
+  empty.textContent = "-- Select candidate --";
+  candidateSelect.appendChild(empty);
+  for (const candidate of detail.candidates) {
+    const option = document.createElement("option");
+    option.value = candidate.candidate_id;
+    option.textContent = buildCandidateOptionLabel(candidate);
+    if (candidate.candidate_id === defaultSuggestion) {
+      option.selected = true;
+    }
+    candidateSelect.appendChild(option);
+  }
+  form.appendChild(candidateSelect);
+
+  const byLabel = document.createElement("label");
+  byLabel.htmlFor = "decision-by";
+  byLabel.textContent = "Decided By";
+  form.appendChild(byLabel);
+
+  const decidedByInput = document.createElement("input");
+  decidedByInput.id = "decision-by";
+  decidedByInput.name = "decided_by";
+  decidedByInput.type = "text";
+  decidedByInput.value = "ui_user";
+  form.appendChild(decidedByInput);
+
+  const commentLabel = document.createElement("label");
+  commentLabel.htmlFor = "decision-comment";
+  commentLabel.textContent = "Comment";
+  form.appendChild(commentLabel);
+
+  const commentInput = document.createElement("textarea");
+  commentInput.id = "decision-comment";
+  commentInput.name = "comment";
+  commentInput.rows = 3;
+  commentInput.placeholder = "optional note";
+  form.appendChild(commentInput);
+
+  const submitButton = document.createElement("button");
+  submitButton.type = "submit";
+  submitButton.textContent = "Submit Decision";
+  form.appendChild(submitButton);
 
   container.appendChild(form);
 
-  const choiceNode = byId<HTMLSelectElement>("decision-choice");
-  const candidateNode = byId<HTMLSelectElement>("decision-candidate");
-
   const syncCandidateState = (): void => {
-    const isAccept = choiceNode.value === "accept";
-    candidateNode.disabled = !isAccept;
+    const isAccept = choiceSelect.value === "accept";
+    candidateSelect.disabled = !isAccept;
     if (!isAccept) {
-      candidateNode.value = "";
+      candidateSelect.value = "";
     }
   };
 
   syncCandidateState();
-  choiceNode.addEventListener("change", syncCandidateState);
+  choiceSelect.addEventListener("change", syncCandidateState);
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    void submitDecision(pendingAction.pending_action_id);
+    void submitDecision();
   });
 }
 
-async function submitDecision(pendingActionId: string): Promise<void> {
-  if (!state.selectedTaskId) {
-    setGlobalMessage("Task id is required before submitting decision.", true);
+function findLatestEvent(
+  events: TaskTimelineEvent[],
+  eventType: string,
+): TaskTimelineEvent | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    if (events[index].event_type === eventType) {
+      return events[index];
+    }
+  }
+  return null;
+}
+
+async function refreshLatestProgress(
+  taskId: string,
+  previousStatus?: string | null,
+  currentStatus?: string | null,
+): Promise<void> {
+  const lines: string[] = [];
+  if (previousStatus && currentStatus && previousStatus !== currentStatus) {
+    lines.push(`State updated: ${previousStatus} -> ${currentStatus}.`);
+  }
+
+  try {
+    const events = await getJson<TaskTimelineEvent[]>(`/tasks/${taskId}/events`);
+    const decisionEvent = findLatestEvent(events, "DECISION_APPLIED");
+    const transitionEvent = findLatestEvent(events, "STATE_TRANSITION");
+
+    if (decisionEvent) {
+      lines.push(`Decision event: ${decisionEvent.summary}`);
+    }
+    if (transitionEvent) {
+      lines.push(`Transition event: ${transitionEvent.summary}`);
+    }
+
+    if (!lines.length) {
+      lines.push("No decision/state-transition events found yet.");
+    }
+    setDecisionProgress(lines.join(" "));
+  } catch {
+    if (lines.length) {
+      setDecisionProgress(lines.join(" "));
+      return;
+    }
+    setDecisionProgress("Event timeline is not available yet.");
+  }
+}
+
+async function refreshPendingActionDetail(pendingActionId: string): Promise<void> {
+  try {
+    const detail = await getJson<PendingActionDetail>(
+      `/pending-actions/${encodeURIComponent(pendingActionId)}`,
+    );
+    renderCandidateComparison(detail);
+    renderDecisionForm(detail);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    byId<HTMLParagraphElement>("recommendation-summary").textContent = message;
+    byId<HTMLDivElement>("candidate-compare-container").innerHTML =
+      `<p class="error">${message}</p>`;
+    byId<HTMLDivElement>("decision-form-container").innerHTML =
+      "<p>No pending action for the selected task.</p>";
+    setGlobalMessage(message, true);
+  }
+}
+
+async function submitDecision(): Promise<void> {
+  if (!state.selectedTaskId || !state.selectedPendingActionId) {
+    setGlobalMessage("Task and pending action are required before submitting decision.", true);
     return;
   }
 
@@ -319,13 +598,17 @@ async function submitDecision(pendingActionId: string): Promise<void> {
     payload.comment = commentNode.value.trim();
   }
 
-  const response = await fetch(`/pending-actions/${pendingActionId}/decision`, {
+  const previousStatus = state.lastTaskStatus;
+  const response = await fetch(
+    `/pending-actions/${encodeURIComponent(state.selectedPendingActionId)}/decision`,
+    {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
+    },
+  );
 
   if (!response.ok) {
     const detail = await parseError(response);
@@ -337,8 +620,22 @@ async function submitDecision(pendingActionId: string): Promise<void> {
     return;
   }
 
-  setGlobalMessage("Decision submitted. Refreshing task state.");
-  await Promise.all([refreshPendingActions(), refreshTaskDetail()]);
+  const updatedTask = (await response.json()) as TaskRecord;
+  state.lastTaskStatus = updatedTask.status;
+  renderTaskOverview(updatedTask);
+
+  if (updatedTask.pending_action) {
+    state.selectedPendingActionId = updatedTask.pending_action.pending_action_id;
+    await refreshPendingActionDetail(state.selectedPendingActionId);
+  } else {
+    renderNoPendingAction();
+  }
+
+  setGlobalMessage("Decision submitted. Pending list and state are refreshed.");
+  await Promise.all([
+    refreshPendingActions(),
+    refreshLatestProgress(updatedTask.id, previousStatus, updatedTask.status),
+  ]);
 }
 
 async function refreshPendingActions(): Promise<void> {
@@ -359,12 +656,22 @@ async function refreshTaskDetail(): Promise<void> {
 
   try {
     const task = await getJson<TaskRecord>(`/tasks/${taskId}`);
-    renderTaskDetail(task);
+    const previousStatus = state.lastTaskStatus;
+    state.lastTaskStatus = task.status;
+    renderTaskOverview(task);
+
+    if (task.pending_action) {
+      state.selectedPendingActionId = task.pending_action.pending_action_id;
+      await refreshPendingActionDetail(state.selectedPendingActionId);
+    } else {
+      renderNoPendingAction();
+    }
+
+    await refreshLatestProgress(task.id, previousStatus, task.status);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     byId<HTMLDivElement>("task-detail").innerHTML = `<p class="error">${message}</p>`;
-    byId<HTMLDivElement>("decision-form-container").innerHTML =
-      "<p>No pending action for the selected task.</p>";
+    renderNoPendingAction();
     setGlobalMessage(message, true);
   }
 }
@@ -387,6 +694,8 @@ function bindEvents(): void {
     if (!taskId) {
       setGlobalMessage("Task id is empty. Showing pending actions only.");
       state.selectedTaskId = null;
+      state.selectedPendingActionId = null;
+      state.lastTaskStatus = null;
       return;
     }
     state.selectedTaskId = taskId;
@@ -411,7 +720,9 @@ async function bootstrap(): Promise<void> {
     byId<HTMLInputElement>("task-id-input").value = taskIdFromPath;
   }
 
+  renderNoPendingAction();
   await refreshPendingActions();
+
   if (state.selectedTaskId) {
     await refreshTaskDetail();
   }
