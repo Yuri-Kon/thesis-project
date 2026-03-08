@@ -35,6 +35,39 @@ After startup:
 - Health: `http://127.0.0.1:8000/health`
 - HITL dashboard: `http://127.0.0.1:8000/ui`
 - Event timeline: `http://127.0.0.1:8000/ui/tasks/<task_id>/events`
+- Candidate compare demo (seeded, in-process preview): `uv run python examples/run_hitl_candidate_ui_demo.py`
+
+## Issue #142 Candidate Compare Demo
+
+Run reproducible in-process preview (no extra dependency):
+
+```bash
+uv run python examples/run_hitl_candidate_ui_demo.py
+```
+
+This seeds deterministic demo data:
+
+- `task_id=task_demo_142`
+- `pending_action_id=pa_demo_142`
+
+Optional real HTTP UI serving (requires `uvicorn`):
+
+```bash
+uv run python examples/run_hitl_candidate_ui_demo.py --serve --port 8012
+```
+
+When served, open:
+
+- `http://127.0.0.1:8012/ui/tasks/task_demo_142`
+- `http://127.0.0.1:8012/ui/tasks/task_demo_142/events`
+- `http://127.0.0.1:8012/pending-actions/pa_demo_142`
+
+Expected checkpoints:
+
+1. Candidate table contains rank/risk/cost/recommendation fields.
+2. Tool fields are visible (`tool_id/capability_id/io_type/adapter_mode/source`).
+3. One candidate is rendered as degraded when tool metadata is missing.
+4. After decision submit, Decision Result shows status update and latest decision/transition event summary.
 
 ## Main Options
 
