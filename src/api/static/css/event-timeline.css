@@ -1,0 +1,138 @@
+:root {
+  --bg: #f3f5fa;
+  --panel: #ffffff;
+  --line: #d8dfeb;
+  --text: #1f2a3d;
+  --muted: #5d6a7f;
+  --accent: #005e9b;
+  --highlight: #fff4df;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: var(--text);
+  background: radial-gradient(circle at top right, #d9e9ff 0, var(--bg) 46%);
+}
+
+.layout {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero,
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.hero h1 {
+  margin-top: 0;
+  margin-bottom: 4px;
+  font-size: 24px;
+}
+
+.query-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+input {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  min-width: 260px;
+}
+
+button {
+  border: 1px solid #1f5d95;
+  border-radius: 8px;
+  background: #2c78bf;
+  color: #fff;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.badge {
+  border: 1px solid #afc2de;
+  border-radius: 999px;
+  background: #edf5ff;
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.badge.waiting {
+  background: #fff6e9;
+  border-color: #e9c788;
+}
+
+.badge.running {
+  background: #edf7ff;
+  border-color: #a9c6e4;
+}
+
+.badge.done {
+  background: #effff2;
+  border-color: #abd9b2;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.timeline-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.timeline-item.highlight {
+  background: var(--highlight);
+  border-color: #edc78b;
+}
+
+.event-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.event-meta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: #a51a1a;
+}

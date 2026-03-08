@@ -1,4 +1,3 @@
-"use strict";
 const ALLOWED_CHOICES = {
     plan_confirm: ["accept", "replan", "cancel"],
     patch_confirm: ["accept", "replan", "cancel"],
@@ -322,3 +321,4 @@ async function bootstrap() {
     }, 5000);
 }
 void bootstrap();
+export {};
