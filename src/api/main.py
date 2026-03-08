@@ -16,6 +16,7 @@ from src.models.contracts import (
     Decision,
     DecisionChoice,
     PendingAction,
+    PendingActionCandidate,
     PendingActionStatus,
 )
 from src.models.db import TaskRecord
@@ -124,6 +125,43 @@ class TaskTimelineEvent(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
+class PendingActionToolDisplay(BaseModel):
+    tool_id: Optional[str] = None
+    capability_id: Optional[str] = None
+    io_type: Optional[str] = None
+    adapter_mode: Optional[str] = None
+    source: str = Field(..., description="工具来源(local/remote/mock/hybrid/unknown)")
+    available: bool = Field(..., description="工具信息是否可用于决策展示")
+    can_fallback: bool = Field(..., description="是否可回退到备选工具")
+    availability_hint: str = Field(..., description="工具可用性提示")
+
+
+class PendingActionCandidateDisplay(BaseModel):
+    rank: int = Field(..., description="候选排名（按返回顺序）")
+    candidate_id: str
+    is_default: bool
+    summary: str
+    explanation: str
+    recommendation_reason: str
+    risk_level: Optional[str] = None
+    cost_estimate: Optional[str] = None
+    overall_score: Optional[float] = None
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    tool: PendingActionToolDisplay
+
+
+class PendingActionDetail(BaseModel):
+    pending_action_id: str
+    task_id: str
+    action_type: PendingActionType
+    status: PendingActionStatus
+    created_at: str
+    default_suggestion: Optional[str] = None
+    explanation: str
+    recommendation_summary: str
+    candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
+
+
 def _render_ui_html(task_id: Optional[str]) -> str:
     template_path = TEMPLATES_DIR / "index.html"
     if not template_path.exists():
@@ -156,6 +194,185 @@ def _build_pending_action_summary(pending_action: PendingAction) -> str:
     if hidden_count > 0:
         summary = f"{summary} | +{hidden_count} more"
     return summary
+
+
+def _normalize_text(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized if normalized else None
+
+
+def _build_tool_display(
+    candidate: PendingActionCandidate,
+) -> PendingActionToolDisplay:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    tool_id = candidate.tool_id or _normalize_text(metadata.get("tool_id"))
+    capability_id = candidate.capability_id or _normalize_text(
+        metadata.get("capability_id")
+    )
+    io_type = candidate.io_type or _normalize_text(metadata.get("io_type"))
+    adapter_mode = candidate.adapter_mode or _normalize_text(
+        metadata.get("adapter_mode")
+    )
+
+    source = (
+        adapter_mode
+        if adapter_mode in {"local", "remote", "mock", "hybrid"}
+        else "unknown"
+    )
+
+    missing: list[str] = []
+    if tool_id is None:
+        missing.append("tool_id")
+    if capability_id is None:
+        missing.append("capability_id")
+    if io_type is None:
+        missing.append("io_type")
+    if adapter_mode is None:
+        missing.append("adapter_mode")
+
+    can_fallback = any(
+        metadata.get(key)
+        for key in (
+            "fallback_tool",
+            "fallback_tool_id",
+            "fallback_from",
+            "fallback_candidates",
+            "fallback_options",
+        )
+    )
+    fallback_depth = candidate.score_breakdown.get("fallback_depth")
+    if isinstance(fallback_depth, (int, float)) and fallback_depth > 0:
+        can_fallback = True
+
+    available = source != "unknown" and not missing
+    if missing:
+        availability_hint = (
+            f"Tool metadata missing ({', '.join(missing)}); use degraded display."
+        )
+    elif source == "remote":
+        availability_hint = (
+            "Remote adapter configured; availability depends on remote service health."
+        )
+    elif source == "local":
+        availability_hint = "Local adapter configured."
+    elif source == "mock":
+        availability_hint = "Mock adapter configured for demo."
+    elif source == "hybrid":
+        availability_hint = "Hybrid adapter configured."
+    else:
+        availability_hint = "Tool source unknown; use degraded display."
+
+    if can_fallback:
+        availability_hint = f"{availability_hint} Fallback path is available."
+
+    return PendingActionToolDisplay(
+        tool_id=tool_id,
+        capability_id=capability_id,
+        io_type=io_type,
+        adapter_mode=adapter_mode,
+        source=source,
+        available=available,
+        can_fallback=can_fallback,
+        availability_hint=availability_hint,
+    )
+
+
+def _build_candidate_reason(
+    candidate: PendingActionCandidate,
+    *,
+    is_default: bool,
+    tool_display: PendingActionToolDisplay,
+) -> str:
+    reason_parts: list[str] = []
+    if is_default:
+        reason_parts.append("默认推荐")
+    overall = candidate.score_breakdown.get("overall")
+    if isinstance(overall, (int, float)):
+        reason_parts.append(f"overall={float(overall):.2f}")
+    reason_parts.append(f"risk={candidate.risk_level or 'unknown'}")
+    reason_parts.append(f"cost={candidate.cost_estimate or 'unknown'}")
+    reason_parts.append(f"tool_source={tool_display.source}")
+    if tool_display.can_fallback:
+        reason_parts.append("supports_fallback")
+    return "; ".join(reason_parts)
+
+
+def _build_pending_action_detail(
+    record: TaskRecord, pending_action: PendingAction
+) -> PendingActionDetail:
+    default_suggestion = (
+        pending_action.default_suggestion or pending_action.default_recommendation
+    )
+    candidates: list[PendingActionCandidateDisplay] = []
+
+    for index, candidate in enumerate(pending_action.candidates, start=1):
+        is_default = candidate.candidate_id == default_suggestion
+        summary = candidate.summary or candidate.explanation or candidate.candidate_id
+        explanation = candidate.explanation or summary
+        score_breakdown = {
+            key: float(value)
+            for key, value in candidate.score_breakdown.items()
+            if isinstance(value, (int, float))
+        }
+        overall_score = score_breakdown.get("overall")
+        tool_display = _build_tool_display(candidate)
+        recommendation_reason = _build_candidate_reason(
+            candidate,
+            is_default=is_default,
+            tool_display=tool_display,
+        )
+        candidates.append(
+            PendingActionCandidateDisplay(
+                rank=index,
+                candidate_id=candidate.candidate_id,
+                is_default=is_default,
+                summary=summary,
+                explanation=explanation,
+                recommendation_reason=recommendation_reason,
+                risk_level=candidate.risk_level,
+                cost_estimate=candidate.cost_estimate,
+                overall_score=overall_score,
+                score_breakdown=score_breakdown,
+                tool=tool_display,
+            )
+        )
+
+    recommendation_summary = pending_action.explanation
+    if default_suggestion:
+        default_candidate = next(
+            (item for item in candidates if item.candidate_id == default_suggestion),
+            None,
+        )
+        if default_candidate is not None:
+            recommendation_summary = (
+                f"default={default_suggestion}; {default_candidate.recommendation_reason}"
+            )
+        else:
+            recommendation_summary = f"default={default_suggestion}; reason not found"
+
+    return PendingActionDetail(
+        pending_action_id=pending_action.pending_action_id,
+        task_id=record.id,
+        action_type=pending_action.action_type,
+        status=pending_action.status,
+        created_at=pending_action.created_at,
+        default_suggestion=default_suggestion,
+        explanation=pending_action.explanation,
+        recommendation_summary=recommendation_summary,
+        candidates=candidates,
+    )
+
+
+def _find_record_by_pending_action_id(pending_action_id: str) -> Optional[TaskRecord]:
+    for task_record in TASK_STORE.values():
+        if (
+            task_record.pending_action
+            and task_record.pending_action.pending_action_id == pending_action_id
+        ):
+            return task_record
+    return None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -279,6 +496,23 @@ async def list_pending_actions(
     return summaries
 
 
+@app.get("/pending-actions/{pending_action_id}", response_model=PendingActionDetail)
+async def get_pending_action_detail(pending_action_id: str) -> PendingActionDetail:
+    record = _find_record_by_pending_action_id(pending_action_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail=f"pending_action {pending_action_id} not found"
+        )
+
+    pending_action = record.pending_action
+    if pending_action is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"pending_action {pending_action_id} not found in task record",
+        )
+    return _build_pending_action_detail(record, pending_action)
+
+
 @app.post("/pending-actions/{pending_action_id}/decision", response_model=TaskRecord)
 async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
     """提交人工决策以驱动 FSM 前进
@@ -297,15 +531,7 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
         HTTPException: 500 当应用决策失败
     """
     # 查找包含该 pending_action 的任务
-    record = None
-    for task_record in TASK_STORE.values():
-        if (
-            task_record.pending_action
-            and task_record.pending_action.pending_action_id == pending_action_id
-        ):
-            record = task_record
-            break
-
+    record = _find_record_by_pending_action_id(pending_action_id)
     if record is None:
         raise HTTPException(
             status_code=404, detail=f"pending_action {pending_action_id} not found"

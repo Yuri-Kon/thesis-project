@@ -304,6 +304,160 @@ class TestAPIEndpoints:
         assert data[0]["pending_action_id"] == "pa_filter"
         assert data[0]["task_id"] == task_id
 
+    async def test_get_pending_action_detail_returns_candidate_display_fields(
+        self, client: httpx.AsyncClient
+    ):
+        """PendingAction 详情接口返回候选比较与工具展示字段。"""
+        task_id = "task_pending_detail"
+        pending_action_id = "pa_detail"
+
+        plan = Plan(
+            task_id=task_id,
+            steps=[PlanStep(id="S1", tool="esmfold", inputs={}, metadata={})],
+            constraints={},
+            metadata={},
+        )
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_remote_best",
+                    payload=plan,
+                    summary="remote candidate",
+                    explanation="best overall score with fallback",
+                    risk_level="low",
+                    cost_estimate="medium",
+                    score_breakdown={
+                        "feasibility": 0.88,
+                        "objective": 0.83,
+                        "risk": 0.8,
+                        "cost": 0.72,
+                        "overall": 0.84,
+                    },
+                    tool_id="esmfold",
+                    capability_id="structure_prediction",
+                    io_type="sequence_to_structure",
+                    adapter_mode="remote",
+                    metadata={"fallback_tool_id": "openfold"},
+                ),
+                PendingActionCandidate(
+                    candidate_id="plan_local_safe",
+                    payload=plan,
+                    summary="local candidate",
+                    explanation="lower cost baseline",
+                    risk_level="low",
+                    cost_estimate="low",
+                    score_breakdown={
+                        "feasibility": 0.82,
+                        "objective": 0.77,
+                        "risk": 0.85,
+                        "cost": 0.9,
+                        "overall": 0.80,
+                    },
+                    tool_id="openfold",
+                    capability_id="structure_prediction",
+                    io_type="sequence_to_structure",
+                    adapter_mode="local",
+                ),
+            ],
+            default_recommendation="plan_remote_best",
+            explanation="pick candidate with best overall quality",
+        )
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="detail endpoint test",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+
+        response = await client.get(f"/pending-actions/{pending_action_id}")
+        assert response.status_code == 200
+        data = response.json()
+
+        assert data["pending_action_id"] == pending_action_id
+        assert data["default_suggestion"] == "plan_remote_best"
+        assert data["recommendation_summary"].startswith("default=plan_remote_best")
+        assert len(data["candidates"]) == 2
+
+        first = data["candidates"][0]
+        assert first["rank"] == 1
+        assert first["candidate_id"] == "plan_remote_best"
+        assert first["is_default"] is True
+        assert first["overall_score"] == pytest.approx(0.84)
+        assert first["tool"]["source"] == "remote"
+        assert first["tool"]["available"] is True
+        assert first["tool"]["can_fallback"] is True
+        assert "risk=low" in first["recommendation_reason"]
+
+    async def test_get_pending_action_detail_degrades_when_tool_fields_missing(
+        self, client: httpx.AsyncClient
+    ):
+        """工具字段缺失时，接口应返回降级提示，避免前端崩溃。"""
+        task_id = "task_pending_detail_degraded"
+        pending_action_id = "pa_detail_degraded"
+
+        plan = Plan(
+            task_id=task_id,
+            steps=[PlanStep(id="S1", tool="unknown_tool", inputs={}, metadata={})],
+            constraints={},
+            metadata={},
+        )
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="plan_missing_tool_fields",
+                    payload=plan,
+                    summary="candidate with missing tool metadata",
+                    explanation="used to verify degraded rendering",
+                    risk_level="medium",
+                    cost_estimate="high",
+                    score_breakdown={
+                        "feasibility": 0.7,
+                        "objective": 0.68,
+                        "risk": 0.45,
+                        "cost": 0.35,
+                        "overall": 0.56,
+                    },
+                )
+            ],
+            default_suggestion="plan_missing_tool_fields",
+            explanation="fallback to degraded display",
+        )
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="degraded endpoint test",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+
+        response = await client.get(f"/pending-actions/{pending_action_id}")
+        assert response.status_code == 200
+        data = response.json()
+        candidate = data["candidates"][0]
+
+        assert candidate["tool"]["source"] == "unknown"
+        assert candidate["tool"]["available"] is False
+        assert candidate["tool"]["can_fallback"] is False
+        assert "Tool metadata missing" in candidate["tool"]["availability_hint"]
+        assert "tool_source=unknown" in candidate["recommendation_reason"]
+
     async def test_ui_routes_and_static_assets_available(
         self, client: httpx.AsyncClient
     ):
@@ -311,6 +465,7 @@ class TestAPIEndpoints:
         dashboard_response = await client.get("/ui")
         assert dashboard_response.status_code == 200
         assert "HITL PendingAction Dashboard" in dashboard_response.text
+        assert "Candidate Comparison" in dashboard_response.text
 
         task_view_response = await client.get("/ui/tasks/task_demo_001")
         assert task_view_response.status_code == 200
