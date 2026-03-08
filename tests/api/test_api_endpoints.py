@@ -1,4 +1,6 @@
 """API端点测试"""
+import json
+
 import pytest
 import httpx
 
@@ -15,6 +17,7 @@ from src.models.contracts import (
     PlanStep,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord
+from src.storage.log_store import DEFAULT_LOG_DIR
 
 
 @pytest.mark.api
@@ -38,8 +41,14 @@ class TestAPIEndpoints:
     @pytest.fixture(autouse=True)
     def clear_task_store(self):
         TASK_STORE.clear()
+        if DEFAULT_LOG_DIR.exists():
+            for path in DEFAULT_LOG_DIR.glob("test_api_events_*.jsonl"):
+                path.unlink()
         yield
         TASK_STORE.clear()
+        if DEFAULT_LOG_DIR.exists():
+            for path in DEFAULT_LOG_DIR.glob("test_api_events_*.jsonl"):
+                path.unlink()
 
     async def test_create_task_endpoint(self, client: httpx.AsyncClient):
         """测试创建任务端点"""
@@ -310,6 +319,94 @@ class TestAPIEndpoints:
         static_response = await client.get("/static/js/hitl-dashboard.js")
         assert static_response.status_code == 200
         assert "ALLOWED_CHOICES" in static_response.text
+
+        timeline_response = await client.get("/ui/tasks/task_demo_001/events")
+        assert timeline_response.status_code == 200
+        assert "Task Event Timeline" in timeline_response.text
+
+        timeline_js = await client.get("/static/js/event-timeline.js")
+        assert timeline_js.status_code == 200
+        assert "renderChainSummary" in timeline_js.text
+
+    async def test_get_task_events_timeline_mapping_and_order(
+        self, client: httpx.AsyncClient
+    ):
+        """Event 时间线接口应返回稳定排序及关键类型映射。"""
+        task_id = "test_api_events_001"
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.RUNNING,
+            internal_status=InternalStatus.RUNNING,
+            goal="timeline task",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=None,
+        )
+
+        DEFAULT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        log_file = DEFAULT_LOG_DIR / f"{task_id}.jsonl"
+        events = [
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": task_id,
+                "from_status": "RUNNING",
+                "to_status": "WAITING_PATCH",
+                "timestamp": "2026-03-08T01:00:01+00:00",
+            },
+            {
+                "event": "PENDING_ACTION_CREATED",
+                "task_id": task_id,
+                "pending_action_id": "pa_001",
+                "action_type": "patch_confirm",
+                "timestamp": "2026-03-08T01:00:02+00:00",
+            },
+            {
+                "event": "STEP_FAILED",
+                "task_id": task_id,
+                "step_id": "S5",
+                "tool": "dummy_tool",
+                "status": "failed",
+                "timestamp": "2026-03-08T01:00:03+00:00",
+            },
+            {
+                "event_type": "DECISION_APPLIED",
+                "task_id": task_id,
+                "decision_id": "decision_001",
+                "pending_action_id": "pa_001",
+                "ts": "2026-03-08T01:00:04+00:00",
+                "data": {"choice": "accept"},
+            },
+            {
+                "event": "STEP_FINISHED",
+                "task_id": task_id,
+                "step_id": "S6",
+                "tool": "dummy_tool",
+                "status": "success",
+                "timestamp": "2026-03-08T01:00:05+00:00",
+            },
+        ]
+        with log_file.open("w", encoding="utf-8") as handle:
+            for event in events:
+                handle.write(json.dumps(event, ensure_ascii=True) + "\n")
+
+        response = await client.get(f"/tasks/{task_id}/events")
+        assert response.status_code == 200
+        data = response.json()
+        assert [entry["event_type"] for entry in data] == [
+            "STATE_TRANSITION",
+            "PENDING_ACTION_CREATED",
+            "STEP_FAILED",
+            "DECISION_APPLIED",
+            "STEP_FINISHED",
+        ]
+        assert all(entry["highlight"] for entry in data)
+
+    async def test_get_task_events_not_found(self, client: httpx.AsyncClient):
+        """task 不存在且无日志时，events 接口返回 404。"""
+        response = await client.get("/tasks/not_found_events_case/events")
+        assert response.status_code == 404
 
     @pytest.mark.parametrize(
         "external_status,internal_status,action_type",
