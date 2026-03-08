@@ -393,6 +393,7 @@ class TestAPIEndpoints:
         assert first["is_default"] is True
         assert first["overall_score"] == pytest.approx(0.84)
         assert first["tool"]["source"] == "remote"
+        assert first["tool"]["adapter_mode"] == "remote"
         assert first["tool"]["available"] is True
         assert first["tool"]["can_fallback"] is True
         assert "risk=low" in first["recommendation_reason"]
@@ -453,6 +454,7 @@ class TestAPIEndpoints:
         candidate = data["candidates"][0]
 
         assert candidate["tool"]["source"] == "unknown"
+        assert candidate["tool"]["adapter_mode"] is None
         assert candidate["tool"]["available"] is False
         assert candidate["tool"]["can_fallback"] is False
         assert "Tool metadata missing" in candidate["tool"]["availability_hint"]
@@ -474,6 +476,9 @@ class TestAPIEndpoints:
         static_response = await client.get("/static/js/hitl-dashboard.js")
         assert static_response.status_code == 200
         assert "ALLOWED_CHOICES" in static_response.text
+        assert "adapter_mode" in static_response.text
+        assert "degraded" in static_response.text
+        assert "availability_hint" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200

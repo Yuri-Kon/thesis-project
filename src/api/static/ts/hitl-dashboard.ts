@@ -367,7 +367,10 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
     row.appendChild(costCell);
 
     const toolCell = document.createElement("td");
-    toolCell.textContent = `${formatText(candidate.tool.tool_id)} / ${formatText(candidate.tool.capability_id)} / ${formatText(candidate.tool.io_type)} (${candidate.tool.source})`;
+    toolCell.textContent =
+      `${formatText(candidate.tool.tool_id)} / ${formatText(candidate.tool.capability_id)} / ` +
+      `${formatText(candidate.tool.io_type)} / mode=${formatText(candidate.tool.adapter_mode)} / ` +
+      `source=${candidate.tool.source}`;
     row.appendChild(toolCell);
 
     const availabilityCell = document.createElement("td");
@@ -394,7 +397,8 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
 
 function buildCandidateOptionLabel(candidate: PendingActionCandidateDisplay): string {
   const source = candidate.tool.source;
-  return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | ${source}`;
+  const mode = formatText(candidate.tool.adapter_mode);
+  return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | source=${source} | mode=${mode}`;
 }
 
 function renderDecisionForm(detail: PendingActionDetail): void {
