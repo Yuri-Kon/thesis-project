@@ -33,6 +33,7 @@ After startup:
 
 - API docs: `http://127.0.0.1:8000/docs`
 - Health: `http://127.0.0.1:8000/health`
+- HITL dashboard: `http://127.0.0.1:8000/ui`
 
 ## Main Options
 
