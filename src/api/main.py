@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.models.contracts import (
     ProteinDesignTask,
     Decision,
     DecisionChoice,
+    PendingAction,
     PendingActionStatus,
 )
 from src.models.db import TaskRecord
@@ -31,7 +35,12 @@ from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
 from src.workflow.context import WorkflowContext
 
+API_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = API_DIR / "templates"
+STATIC_DIR = API_DIR / "static"
+
 app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.5.2")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
@@ -82,6 +91,54 @@ class DecisionSubmitRequest(BaseModel):
     comment: Optional[str] = Field(None, description="可选的决策备注")
 
 
+class PendingActionSummary(BaseModel):
+    pending_action_id: str = Field(..., description="PendingAction ID")
+    task_id: str = Field(..., description="所属任务 ID")
+    action_type: PendingActionType = Field(..., description="待决策类型")
+    status: PendingActionStatus = Field(..., description="PendingAction 状态")
+    created_at: str = Field(..., description="创建时间")
+    candidate_count: int = Field(..., description="候选数量")
+    default_suggestion: Optional[str] = Field(None, description="默认建议候选 ID")
+    explanation: str = Field(..., description="待决策说明")
+    summary: str = Field(..., description="候选摘要")
+
+
+def _render_ui_html(task_id: Optional[str]) -> str:
+    template_path = TEMPLATES_DIR / "index.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="UI template not found")
+    raw_html = template_path.read_text(encoding="utf-8")
+    bootstrap_payload = json.dumps({"taskId": task_id or ""}, ensure_ascii=True)
+    return raw_html.replace("__BOOTSTRAP__", bootstrap_payload)
+
+
+def _build_pending_action_summary(pending_action: PendingAction) -> str:
+    if not pending_action.candidates:
+        return pending_action.explanation
+
+    snippets: list[str] = []
+    for candidate in pending_action.candidates[:2]:
+        text = candidate.summary or candidate.explanation or candidate.candidate_id
+        snippets.append(text.strip())
+
+    summary = " | ".join(snippets)
+    hidden_count = len(pending_action.candidates) - len(snippets)
+    if hidden_count > 0:
+        summary = f"{summary} | +{hidden_count} more"
+    return summary
+
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
+async def get_hitl_dashboard() -> HTMLResponse:
+    return HTMLResponse(_render_ui_html(task_id=None))
+
+
+@app.get("/ui/tasks/{task_id}", response_class=HTMLResponse)
+async def get_task_detail_view(task_id: str) -> HTMLResponse:
+    return HTMLResponse(_render_ui_html(task_id=task_id))
+
+
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     runtime = _ensure_runtime_initialized()
@@ -123,6 +180,44 @@ async def get_task(task_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="task not found")
     return record
+
+
+@app.get("/pending-actions", response_model=list[PendingActionSummary])
+async def list_pending_actions(
+    status: Optional[PendingActionStatus] = Query(
+        default=PendingActionStatus.PENDING
+    ),
+    task_id: Optional[str] = Query(default=None),
+) -> list[PendingActionSummary]:
+    summaries: list[PendingActionSummary] = []
+
+    for record in TASK_STORE.values():
+        if task_id is not None and record.id != task_id:
+            continue
+        pending_action = record.pending_action
+        if pending_action is None:
+            continue
+        if status is not None and pending_action.status != status:
+            continue
+
+        summaries.append(
+            PendingActionSummary(
+                pending_action_id=pending_action.pending_action_id,
+                task_id=record.id,
+                action_type=pending_action.action_type,
+                status=pending_action.status,
+                created_at=pending_action.created_at,
+                candidate_count=len(pending_action.candidates),
+                default_suggestion=(
+                    pending_action.default_suggestion
+                    or pending_action.default_recommendation
+                ),
+                explanation=pending_action.explanation,
+                summary=_build_pending_action_summary(pending_action),
+            )
+        )
+
+    return summaries
 
 
 @app.post("/pending-actions/{pending_action_id}/decision", response_model=TaskRecord)
