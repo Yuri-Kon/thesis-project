@@ -33,6 +33,7 @@ from src.workflow.decision_apply import (
 )
 from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
+from src.storage.log_store import read_timeline_events
 from src.workflow.context import WorkflowContext
 
 API_DIR = Path(__file__).resolve().parent
@@ -103,6 +104,26 @@ class PendingActionSummary(BaseModel):
     summary: str = Field(..., description="候选摘要")
 
 
+class TaskTimelineEvent(BaseModel):
+    seq: int = Field(..., description="日志行序号(稳定排序键)")
+    task_id: str = Field(..., description="任务 ID")
+    ts: Optional[str] = Field(None, description="事件时间戳")
+    event_type: str = Field(..., description="归一化事件类型")
+    source_event: Optional[str] = Field(None, description="原始事件名")
+    pending_action_id: Optional[str] = None
+    decision_id: Optional[str] = None
+    step_id: Optional[str] = None
+    tool: Optional[str] = None
+    status: Optional[str] = None
+    from_status: Optional[str] = None
+    to_status: Optional[str] = None
+    actor_type: Optional[str] = None
+    summary: str = Field(..., description="事件摘要")
+    highlight: bool = Field(..., description="是否属于关键高亮事件")
+    data: Dict[str, Any] = Field(default_factory=dict)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
 def _render_ui_html(task_id: Optional[str]) -> str:
     template_path = TEMPLATES_DIR / "index.html"
     if not template_path.exists():
@@ -110,6 +131,15 @@ def _render_ui_html(task_id: Optional[str]) -> str:
     raw_html = template_path.read_text(encoding="utf-8")
     bootstrap_payload = json.dumps({"taskId": task_id or ""}, ensure_ascii=True)
     return raw_html.replace("__BOOTSTRAP__", bootstrap_payload)
+
+
+def _render_timeline_ui_html(task_id: str) -> str:
+    template_path = TEMPLATES_DIR / "event_timeline.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="timeline template not found")
+    raw_html = template_path.read_text(encoding="utf-8")
+    bootstrap_payload = json.dumps({"taskId": task_id}, ensure_ascii=True)
+    return raw_html.replace("__EVENT_BOOTSTRAP__", bootstrap_payload)
 
 
 def _build_pending_action_summary(pending_action: PendingAction) -> str:
@@ -137,6 +167,11 @@ async def get_hitl_dashboard() -> HTMLResponse:
 @app.get("/ui/tasks/{task_id}", response_class=HTMLResponse)
 async def get_task_detail_view(task_id: str) -> HTMLResponse:
     return HTMLResponse(_render_ui_html(task_id=task_id))
+
+
+@app.get("/ui/tasks/{task_id}/events", response_class=HTMLResponse)
+async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
+    return HTMLResponse(_render_timeline_ui_html(task_id=task_id))
 
 
 @app.get("/health")
@@ -180,6 +215,30 @@ async def get_task(task_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="task not found")
     return record
+
+
+@app.get("/tasks/{task_id}/events", response_model=list[TaskTimelineEvent])
+async def get_task_events(task_id: str) -> list[TaskTimelineEvent]:
+    runtime = _ensure_runtime_initialized()
+    timeline = read_timeline_events(task_id, log_dir=runtime.paths.log_dir)
+
+    if task_id not in TASK_STORE and not timeline:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    highlighted = {
+        "STATE_TRANSITION",
+        "PENDING_ACTION_CREATED",
+        "DECISION_APPLIED",
+        "STEP_FINISHED",
+        "STEP_FAILED",
+    }
+    return [
+        TaskTimelineEvent(
+            **event,
+            highlight=event["event_type"] in highlighted,
+        )
+        for event in timeline
+    ]
 
 
 @app.get("/pending-actions", response_model=list[PendingActionSummary])

@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Event Timeline</title>
+    <link rel="stylesheet" href="/static/css/event-timeline.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <header class="hero">
+        <h1>Task Event Timeline</h1>
+        <p>
+          Trace event history for a task and inspect why the workflow paused or
+          resumed.
+        </p>
+        <form id="timeline-query-form" class="query-form">
+          <input
+            id="task-id-input"
+            name="task_id"
+            type="text"
+            placeholder="Enter task id"
+          />
+          <button type="submit">Load Timeline</button>
+          <button id="refresh-button" type="button">Refresh</button>
+        </form>
+        <p id="message" class="muted"></p>
+      </header>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Task Snapshot</h2>
+          <span id="status-badge" class="badge">Unknown</span>
+        </div>
+        <div id="task-summary">
+          <p>No task loaded.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Chain Detection</h2>
+        <p id="chain-summary" class="muted">
+          Waiting for timeline data to detect WAITING_* decision chain.
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>Event Timeline</h2>
+          <span id="event-count" class="badge">0</span>
+        </div>
+        <ol id="timeline-list" class="timeline"></ol>
+      </section>
+    </main>
+
+    <script id="event-bootstrap" type="application/json">
+      __EVENT_BOOTSTRAP__
+    </script>
+    <script type="module" src="/static/js/event-timeline.js"></script>
+  </body>
+</html>
