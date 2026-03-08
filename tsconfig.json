@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020", "DOM"],
+    "strict": true,
+    "noEmitOnError": true,
+    "rootDir": "src/api/static/ts",
+    "outDir": "src/api/static/js",
+    "newLine": "lf"
+  },
+  "include": ["src/api/static/ts/**/*.ts"]
+}
