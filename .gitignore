@@ -93,10 +93,3 @@ data/inputs/tmp/
 nf/work/
 nf/.nextflow/
 
-# 12. 不需要上传到master的文件
-docs/
-plan/
-shared/
-drafts/
-paper/build/
-paper/output/
