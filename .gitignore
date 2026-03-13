@@ -30,7 +30,6 @@
 
 # 2. 输出目录
 
-docs/**/output/
 output/
 ppt/
 
@@ -50,35 +49,29 @@ Thumbs.db
 .vscode/
 *.code-workspace
 
-# 5. 转化得到的文件
 
-*.pdf
-*.doc
-*.docx
-
-# 6. 参考与大文件
+# 5. 参考与大文件
 shared/
 resources/papers/
 resources/data/
 resources/raw/
 iresources/tmp/
 
-# 7. Latex目录
+# 6. Latex目录
 
-docs/proposal/
 
-# 8. ppt
+# 7. ppt
 
 ppt
 
-# 9. Python编译产物
+# 8. Python编译产物
 
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# 10. 虚拟环境
+# 9. 虚拟环境
 
 .venv/
 venv/
@@ -86,7 +79,7 @@ venv/
 .env.*
 *.egg-info/
 
-# 11. 日志与中间数据 
+# 10. 日志与中间数据 
 
 data/logs/
 data/outputs/
@@ -94,13 +87,13 @@ output/
 data/inputs/tmp/
 *.log
 
-#  12. Nextflow / workflow 相关中间文件
+#  11. Nextflow / workflow 相关中间文件
 .nextflow/
 .nextflow.log
 nf/work/
 nf/.nextflow/
 
-# 13. 不需要上传到master的文件
+# 12. 不需要上传到master的文件
 docs/
 plan/
 shared/
