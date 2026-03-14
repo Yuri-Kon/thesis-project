@@ -34,6 +34,8 @@ def _run_extractor(tmp_path: Path, output_dir: Path) -> None:
     snapshots_dir = tmp_path / "snapshots"
     reports_dir = tmp_path / "reports"
     metrics_dir = tmp_path / "metrics"
+    tool_kg_path = tmp_path / "protein_tool_kg.json"
+    tool_extension_kg_path = tmp_path / "protein_tool_kg_extension.json"
 
     main_task_id = "task_aaaa1111"
     hitl_task_id = "task_hitl_0001"
@@ -216,12 +218,89 @@ def _run_extractor(tmp_path: Path, output_dir: Path) -> None:
                                 "tool_id": "esmfold",
                                 "metadata": {},
                             },
+                            {
+                                "candidate_id": "plan_bad_meta",
+                                "structured_payload": {
+                                    "task_id": hitl_task_id,
+                                    "steps": [{"id": "S1", "tool": "openfold", "inputs": {}, "metadata": {}}],
+                                    "constraints": {},
+                                    "metadata": {},
+                                    "explanation": None,
+                                },
+                                "score_breakdown": {"overall": 0.5},
+                                "risk_level": "medium",
+                                "cost_estimate": "high",
+                                "tool_id": "openfold",
+                                "metadata": {
+                                    "priority": 1,
+                                    "adapter_mode": {"bad": "shape"},
+                                    "provider": ["unexpected"],
+                                },
+                            },
                         ],
                     }
                 },
             }
         ],
     )
+
+    with tool_kg_path.open("w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "tools": [
+                    {
+                        "tool_id": "nim_esmfold",
+                        "capabilities": ["structure_prediction"],
+                        "io": {"io_type_id": "sequence_to_structure"},
+                        "execution": {"backend": "remote_model_service", "provider": "nvidia_nim", "model_id": "nvidia/esmfold"},
+                        "version": "1.0.0",
+                    },
+                    {
+                        "tool_id": "esmfold",
+                        "capabilities": ["structure_prediction"],
+                        "io": {"io_type_id": "sequence_to_structure"},
+                        "execution": "nextflow",
+                        "version": "1.0.0",
+                    },
+                ]
+            },
+            handle,
+            ensure_ascii=True,
+        )
+
+    with tool_extension_kg_path.open("w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "tool_candidates": [
+                    {
+                        "tool_id": "nim_esmfold",
+                        "capability_id": ["structure_prediction"],
+                        "io_type": ["sequence_to_structure"],
+                        "adapter_modes": ["remote_model_service"],
+                        "priority": "P0",
+                        "official_links": ["https://build.nvidia.com/explore/discover"],
+                    },
+                    {
+                        "tool_id": "esmfold",
+                        "capability_id": ["structure_prediction"],
+                        "io_type": ["sequence_to_structure"],
+                        "adapter_modes": ["nextflow"],
+                        "priority": "P0",
+                        "official_links": ["https://github.com/facebookresearch/esm"],
+                    },
+                    {
+                        "tool_id": "openfold",
+                        "capability_id": ["structure_prediction"],
+                        "io_type": ["sequence_to_structure"],
+                        "adapter_modes": ["python"],
+                        "priority": "P0",
+                        "official_links": ["https://github.com/aqlaboratory/openfold"],
+                    },
+                ]
+            },
+            handle,
+            ensure_ascii=True,
+        )
 
     reports_dir.mkdir(parents=True, exist_ok=True)
     with (reports_dir / f"{main_task_id}.json").open("w", encoding="utf-8") as handle:
@@ -251,6 +330,10 @@ def _run_extractor(tmp_path: Path, output_dir: Path) -> None:
         str(reports_dir),
         "--metrics-dir",
         str(metrics_dir),
+        "--tool-kg-path",
+        str(tool_kg_path),
+        "--tool-extension-kg-path",
+        str(tool_extension_kg_path),
         "--output-dir",
         str(output_dir),
     ]
@@ -281,12 +364,18 @@ class TestExtractTrainingSamplesScript:
         assert "evt-applied-1" in hitl_sample["audit_trace"]["event_ids"]
         assert any(c["tool_id"] == "nim_esmfold" for c in hitl_sample["candidates"])
         assert any(c["tool_version"] == "1.2.3" for c in hitl_sample["candidates"])
+        openfold_candidate = next(c for c in hitl_sample["candidates"] if c["candidate_id"] == "plan_bad_meta")
+        assert openfold_candidate["priority"] == "P0"
+        assert openfold_candidate["adapter_mode"] == "local"
+        assert openfold_candidate["source_link"] == "https://github.com/aqlaboratory/openfold"
+        assert openfold_candidate["provider"] is None
 
         assert any(row["event_id"] == "evt-applied-1" for row in mapping_rows)
         assert stats["counts"]["total_samples"] == 2
         assert stats["counts"]["samples_with_hitl"] == 1
         assert stats["traceability"]["samples_with_event_ids"] == 2
         assert stats["decision_choice_distribution"].get("accept", 0) >= 1
+        assert stats["tool_distribution"]["by_priority"]["P0"] == 3
 
     def test_extract_is_reproducible_for_same_input(self, tmp_path: Path) -> None:
         output_dir = tmp_path / "out"

@@ -16,6 +16,8 @@ LEGACY_EVENT_TYPE_MAP = {
     "DECISION_SUBMITTED": "DECISION_SUBMITTED",
 }
 
+DEFAULT_EXTENSION_KG_PATH = Path("src/kg/protein_tool_kg/extension_draft_v0.1.json")
+
 
 def _read_jsonl(path: Path) -> list[tuple[int, dict[str, Any]]]:
     rows: list[tuple[int, dict[str, Any]]] = []
@@ -57,7 +59,46 @@ def _json_dump(data: Any) -> str:
     return json.dumps(data, ensure_ascii=True, sort_keys=True)
 
 
-def _load_tool_catalog(path: Path) -> dict[str, dict[str, Any]]:
+def _first_string(value: Any) -> str | None:
+    if isinstance(value, str):
+        return _str_value(value)
+    if isinstance(value, list):
+        for item in value:
+            text = _str_value(item)
+            if text:
+                return text
+    return None
+
+
+def _normalize_adapter_mode(value: str | None) -> str:
+    text = _str_value(value)
+    if not text:
+        return "unknown"
+    normalized = text.lower()
+    if normalized in {"local", "remote", "mock", "hybrid", "unknown"}:
+        return normalized
+    if normalized in {"nextflow", "python"}:
+        return "local"
+    if normalized in {"remote_model_service", "external_api"}:
+        return "remote"
+    return "unknown"
+
+
+def _normalize_priority(value: str | None) -> str:
+    text = _str_value(value)
+    if not text:
+        return "unknown"
+    normalized = text.upper()
+    if normalized in {"P0", "P1", "P2"}:
+        return normalized
+    return "unknown"
+
+
+def _load_tool_catalog(
+    path: Path,
+    *,
+    extension_path: Path | None = None,
+) -> dict[str, dict[str, Any]]:
     if not path.exists():
         return {}
 
@@ -81,13 +122,13 @@ def _load_tool_catalog(path: Path) -> dict[str, dict[str, Any]]:
         model_id: str | None = None
         adapter_mode_default = "unknown"
         if isinstance(execution, str):
-            adapter_mode_default = "local" if execution == "nextflow" else "unknown"
+            adapter_mode_default = _normalize_adapter_mode(execution)
         elif isinstance(execution, dict):
             provider = _str_value(execution.get("provider"))
             model_id = _str_value(execution.get("model_id"))
-            backend = _str_value(execution.get("backend"))
-            if backend == "remote_model_service":
-                adapter_mode_default = "remote"
+            adapter_mode_default = _normalize_adapter_mode(
+                _str_value(execution.get("backend"))
+            )
 
         capabilities = item.get("capabilities")
         capability_id: str | None = None
@@ -108,8 +149,51 @@ def _load_tool_catalog(path: Path) -> dict[str, dict[str, Any]]:
             "source_link": _str_value(item.get("source_link")),
             "provider": provider,
             "model_id": model_id,
-            "priority": _str_value(item.get("priority")) or "unknown",
+            "priority": _normalize_priority(_str_value(item.get("priority"))),
         }
+
+    if extension_path and extension_path.exists():
+        with extension_path.open("r", encoding="utf-8") as handle:
+            extension_payload = json.load(handle)
+
+        candidates = extension_payload.get("tool_candidates")
+        if isinstance(candidates, list):
+            for item in candidates:
+                if not isinstance(item, dict):
+                    continue
+                tool_id = _str_value(item.get("tool_id"))
+                if not tool_id:
+                    continue
+
+                current = catalog.setdefault(
+                    tool_id,
+                    {
+                        "tool_id": tool_id,
+                        "capability_id": None,
+                        "io_type": None,
+                        "adapter_mode": "unknown",
+                        "tool_version": None,
+                        "source_link": None,
+                        "provider": None,
+                        "model_id": None,
+                        "priority": "unknown",
+                    },
+                )
+
+                if not current.get("capability_id"):
+                    current["capability_id"] = _first_string(item.get("capability_id"))
+                if not current.get("io_type"):
+                    current["io_type"] = _first_string(item.get("io_type"))
+                if current.get("adapter_mode") in {None, "unknown"}:
+                    current["adapter_mode"] = _normalize_adapter_mode(
+                        _first_string(item.get("adapter_modes"))
+                    )
+                if not current.get("source_link"):
+                    current["source_link"] = _first_string(item.get("official_links"))
+
+                extension_priority = _normalize_priority(_str_value(item.get("priority")))
+                if current.get("priority") in {None, "unknown"} and extension_priority != "unknown":
+                    current["priority"] = extension_priority
 
     return catalog
 
@@ -129,7 +213,7 @@ def _extract_tooling_fields(
     source_link = _str_value(metadata_dict.get("source_link"))
     provider = _str_value(metadata_dict.get("provider"))
     model_id = _str_value(metadata_dict.get("model_id"))
-    priority = _str_value(metadata_dict.get("priority"))
+    priority = _normalize_priority(_str_value(metadata_dict.get("priority")))
 
     tool_ref = tool_catalog.get(tool_id) if tool_id else None
     if tool_ref:
@@ -140,7 +224,7 @@ def _extract_tooling_fields(
         source_link = source_link or tool_ref.get("source_link")
         provider = provider or tool_ref.get("provider")
         model_id = model_id or tool_ref.get("model_id")
-        priority = priority or tool_ref.get("priority")
+        priority = priority if priority != "unknown" else tool_ref.get("priority")
 
     return {
         "tool_id": tool_id,
@@ -486,13 +570,17 @@ def extract_training_samples(
     reports_dir: Path,
     metrics_dir: Path,
     tool_kg_path: Path,
+    tool_extension_kg_path: Path | None = None,
     output_dir: Path,
 ) -> dict[str, Any]:
     if not logs_dir.exists():
         raise FileNotFoundError(f"logs dir not found: {logs_dir}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    tool_catalog = _load_tool_catalog(tool_kg_path)
+    tool_catalog = _load_tool_catalog(
+        tool_kg_path,
+        extension_path=tool_extension_kg_path,
+    )
 
     samples: list[dict[str, Any]] = []
     mapping_rows: list[dict[str, Any]] = []
@@ -571,6 +659,9 @@ def extract_training_samples(
             "reports_dir": str(reports_dir),
             "metrics_dir": str(metrics_dir),
             "tool_kg_path": str(tool_kg_path),
+            "tool_extension_kg_path": (
+                str(tool_extension_kg_path) if tool_extension_kg_path else None
+            ),
             "log_file_count": len(log_files),
         },
         "output": {
@@ -616,6 +707,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--metrics-dir", type=Path, default=Path("output/metrics"))
     parser.add_argument("--tool-kg-path", type=Path, default=Path("src/kg/protein_tool_kg.json"))
     parser.add_argument(
+        "--tool-extension-kg-path",
+        type=Path,
+        default=DEFAULT_EXTENSION_KG_PATH,
+        help="Optional extension tool catalog containing priority and adapter metadata.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("output/training/w11-data-1"),
@@ -634,6 +731,7 @@ def main() -> int:
         reports_dir=args.reports_dir,
         metrics_dir=args.metrics_dir,
         tool_kg_path=args.tool_kg_path,
+        tool_extension_kg_path=args.tool_extension_kg_path,
         output_dir=args.output_dir,
     )
 

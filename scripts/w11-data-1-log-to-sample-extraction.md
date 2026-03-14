@@ -29,6 +29,7 @@ uv run python scripts/extract_training_samples.py \
   --reports-dir output/reports \
   --metrics-dir output/metrics \
   --tool-kg-path src/kg/protein_tool_kg.json \
+  --tool-extension-kg-path src/kg/protein_tool_kg/extension_draft_v0.1.json \
   --output-dir output/training/w11-data-1
 ```
 
@@ -65,6 +66,9 @@ uv run python scripts/extract_training_samples.py \
 - `source_link`
 - `provider`
 - `model_id`
+- `priority`（`P0/P1/P2/unknown`）
+
+其中 `priority`、扩展 `source_link`、以及部分 `adapter_mode` 会优先从 `tool-extension-kg` 合并（默认读取 `src/kg/protein_tool_kg/extension_draft_v0.1.json`），用于 Requirement-2 的工具分层统计。
 
 ### `selected`
 
