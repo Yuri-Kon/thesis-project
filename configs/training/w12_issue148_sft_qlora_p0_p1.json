@@ -1,0 +1,47 @@
+{
+  "run": {
+    "issue": "148",
+    "candidate_version": "v0.3.0-rc1",
+    "run_id": "issue148-p0-p1",
+    "output_root": "output/training/w12-issue-148"
+  },
+  "dataset": {
+    "dataset_version": "w11-sft-dataset-v1.1-20260315-57fc60d-r02",
+    "dataset_dir": "output/dataset_v1/w11-sft-dataset-v1.1-20260315-57fc60d-r02",
+    "train_file": "train.jsonl",
+    "val_file": "val.jsonl"
+  },
+  "sampling": {
+    "allowed_priorities": ["P0", "P1"],
+    "max_samples_per_tool": 128,
+    "seed": 20260316
+  },
+  "training": {
+    "model_name": "sshleifer/tiny-gpt2",
+    "use_qlora": true,
+    "target_modules": ["c_attn"],
+    "lora_r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "max_seq_length": 768,
+    "max_steps": 20,
+    "learning_rate": 0.0002,
+    "lr_scheduler_type": "cosine",
+    "warmup_steps": 2,
+    "per_device_train_batch_size": 1,
+    "per_device_eval_batch_size": 1,
+    "gradient_accumulation_steps": 4,
+    "gradient_checkpointing": false,
+    "logging_steps": 1,
+    "eval_steps": 10,
+    "save_steps": 10,
+    "save_total_limit": 2,
+    "seed": 20260316,
+    "fp16": true,
+    "bf16": false,
+    "max_eval_samples_per_tool": 8
+  },
+  "inference": {
+    "smoke_max_new_tokens": 64
+  }
+}
