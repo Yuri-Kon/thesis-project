@@ -128,6 +128,7 @@ def apply_plan_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_PLAN_CONFIRM.value,
     )
@@ -199,6 +200,7 @@ def apply_patch_confirm_decision(
         _emit_waiting_exit_event(
             context,
             action,
+            decision,
             prev_status,
             waiting_state=InternalStatus.WAITING_PATCH.value,
         )
@@ -261,6 +263,7 @@ def apply_patch_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_PATCH.value,
     )
@@ -344,6 +347,7 @@ def apply_replan_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_REPLAN.value,
     )
@@ -552,6 +556,17 @@ def _emit_decision_applied_event(
         prev_status: Previous external status (must be WAITING_*).
     """
     current_status = to_external_status(context.status)
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        selected_candidate.metadata
+        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        else {}
+    )
     decision_event = make_decision_applied(
         task_id=context.task.task_id,
         decision_id=decision.decision_id,
@@ -564,6 +579,25 @@ def _emit_decision_applied_event(
         data={
             "selected_candidate_id": decision.selected_candidate_id,
             "action_type": action.action_type.value,
+            "decided_by": decision.decided_by,
+            "decision_source": "human",
+            "comment": decision.comment,
+            "tool_id": (
+                selected_candidate.tool_id if selected_candidate else candidate_meta.get("tool_id")
+            ),
+            "capability_id": (
+                selected_candidate.capability_id
+                if selected_candidate
+                else candidate_meta.get("capability_id")
+            ),
+            "io_type": (
+                selected_candidate.io_type if selected_candidate else candidate_meta.get("io_type")
+            ),
+            "adapter_mode": (
+                selected_candidate.adapter_mode
+                if selected_candidate
+                else candidate_meta.get("adapter_mode")
+            ),
         },
     )
     write_event_log(decision_event)
@@ -572,6 +606,7 @@ def _emit_decision_applied_event(
 def _emit_waiting_exit_event(
     context: WorkflowContext,
     action: PendingAction,
+    decision: Decision,
     prev_status: ExternalStatus,
     waiting_state: str,
 ) -> None:
@@ -595,6 +630,8 @@ def _emit_waiting_exit_event(
         data={
             "action_type": action.action_type.value,
             "action_status": action.status.value,
+            "decided_by": decision.decided_by,
+            "decision_source": "human",
         },
     )
     write_event_log(exit_event)

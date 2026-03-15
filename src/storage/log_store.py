@@ -165,6 +165,7 @@ def _normalize_timeline_event(
     )
     event_data = payload.get("data")
     data = event_data if isinstance(event_data, dict) else {}
+    observability = _extract_observability_fields(payload=payload, data=data)
 
     return {
         "seq": seq,
@@ -177,6 +178,18 @@ def _normalize_timeline_event(
         "decision_id": _string_field(payload, "decision_id"),
         "step_id": _string_field(payload, "step_id"),
         "tool": _string_field(payload, "tool"),
+        "tool_id": observability["tool_id"],
+        "capability_id": observability["capability_id"],
+        "io_type": observability["io_type"],
+        "adapter_mode": observability["adapter_mode"],
+        "from_tool": observability["from_tool"],
+        "to_tool": observability["to_tool"],
+        "failure_type": observability["failure_type"],
+        "failure_code": observability["failure_code"],
+        "candidate_id": observability["candidate_id"],
+        "decision_source": observability["decision_source"],
+        "recovery_layer": observability["recovery_layer"],
+        "recovery_reason": observability["recovery_reason"],
         "status": _string_field(payload, "status"),
         "from_status": from_status,
         "to_status": to_status,
@@ -283,3 +296,101 @@ def _build_event_summary(
         return f"Step finished ({step_id})"
 
     return event_type
+
+
+def _extract_observability_fields(
+    *,
+    payload: dict[str, Any],
+    data: dict[str, Any],
+) -> dict[str, Any]:
+    recovery = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
+    patch = data.get("patch") if isinstance(data.get("patch"), dict) else {}
+
+    tool_id = (
+        _string_field(payload, "tool_id")
+        or _string_field(payload, "tool")
+        or _string_field(data, "tool_id")
+        or _string_field(data, "tool")
+        or _string_field(patch, "to_tool")
+        or _string_field(recovery, "to_tool")
+        or _string_field(patch, "from_tool")
+        or _string_field(recovery, "from_tool")
+    )
+    capability_id = (
+        _string_field(data, "capability_id")
+        or _string_field(patch, "capability_id")
+        or _string_field(recovery, "capability_id")
+    )
+    io_type = (
+        _string_field(payload, "io_type")
+        or _string_field(data, "io_type")
+        or _string_field(patch, "io_type")
+        or _string_field(recovery, "io_type")
+    )
+    adapter_mode = (
+        _string_field(payload, "adapter_mode")
+        or _string_field(data, "adapter_mode")
+        or _string_field(patch, "adapter_mode")
+        or _string_field(recovery, "adapter_mode")
+    )
+
+    from_tool = _string_field(recovery, "from_tool") or _string_field(patch, "from_tool")
+    to_tool = _string_field(recovery, "to_tool") or _string_field(patch, "to_tool")
+    failure_type = (
+        _string_field(payload, "failure_type")
+        or _string_field(data, "failure_type")
+        or _string_field(recovery, "failure_type")
+    )
+    failure_code = (
+        _string_field(payload, "failure_code")
+        or _string_field(data, "failure_code")
+        or _string_field(recovery, "failure_code")
+    )
+    if failure_code is None:
+        error_details = payload.get("error_details")
+        if isinstance(error_details, dict):
+            failure_code = _string_field(error_details, "failure_code")
+    if failure_code is None:
+        s6 = data.get("s6")
+        if isinstance(s6, dict):
+            failure_code = _string_field(s6, "trigger_failure_code")
+
+    candidate_id = (
+        _string_field(payload, "selected_candidate_id")
+        or _string_field(data, "selected_candidate_id")
+        or _string_field(data, "candidate_id")
+        or _string_field(recovery, "candidate_id")
+    )
+    decision_source = (
+        _string_field(payload, "decided_by")
+        or _string_field(data, "decided_by")
+        or _string_field(data, "decision_source")
+        or _string_field(payload, "actor_id")
+        or _string_field(payload, "actor_type")
+    )
+    recovery_layer = (
+        _string_field(recovery, "layer")
+        or _string_field(recovery, "recovery_layer")
+        or _string_field(patch, "layer")
+        or _string_field(patch, "recovery_layer")
+    )
+    recovery_reason = (
+        _string_field(recovery, "reason")
+        or _string_field(recovery, "upgrade_reason")
+        or _string_field(data, "reason")
+    )
+
+    return {
+        "tool_id": tool_id,
+        "capability_id": capability_id,
+        "io_type": io_type,
+        "adapter_mode": adapter_mode,
+        "from_tool": from_tool,
+        "to_tool": to_tool,
+        "failure_type": failure_type,
+        "failure_code": failure_code,
+        "candidate_id": candidate_id,
+        "decision_source": decision_source,
+        "recovery_layer": recovery_layer,
+        "recovery_reason": recovery_reason,
+    }

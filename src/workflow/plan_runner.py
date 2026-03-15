@@ -797,6 +797,8 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "from_tool": patch_meta.get("from_tool"),
             "to_tool": patch_meta.get("to_tool"),
             "capability_id": patch_meta.get("capability_id"),
+            "io_type": patch_meta.get("io_type"),
+            "adapter_mode": patch_meta.get("adapter_mode"),
             "reason": patch_meta.get("reason"),
             "ops": patch_meta.get("ops"),
             "patched_status": patch_meta.get("patched_status"),
@@ -809,6 +811,9 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "from_tool": recovery_meta.get("from_tool"),
             "to_tool": recovery_meta.get("to_tool"),
             "capability_id": recovery_meta.get("capability_id"),
+            "io_type": recovery_meta.get("io_type"),
+            "adapter_mode": recovery_meta.get("adapter_mode"),
+            "candidate_id": recovery_meta.get("candidate_id"),
             "reason": recovery_meta.get("reason"),
             "upgrade_reason": recovery_meta.get("upgrade_reason"),
         }

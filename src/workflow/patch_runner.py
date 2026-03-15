@@ -477,6 +477,9 @@ def _extract_recovery_metadata(
         "from_tool": from_tool,
         "to_tool": to_tool,
         "reason": reason,
+        "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
+        "io_type": selected_candidate.io_type if selected_candidate else None,
+        "adapter_mode": selected_candidate.adapter_mode if selected_candidate else None,
     }
     if isinstance(metadata.get("strategy"), str):
         payload["strategy"] = metadata.get("strategy")
