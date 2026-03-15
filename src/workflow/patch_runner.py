@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from src.agents.planner import PlannerAgent, TopKResult
 from src.models.contracts import (
@@ -11,9 +11,11 @@ from src.models.contracts import (
     PlanPatch,
     PlanStep,
     StepResult,
+    now_iso,
 )
 from src.models.validation import validate_candidate_set_output
-from src.models.db import TaskRecord, InternalStatus
+from src.models.db import TaskRecord, InternalStatus, to_external_status
+from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
@@ -93,6 +95,7 @@ class PatchRunner:
             if result.metrics.get("retry_exhausted")
             else "patch_required"
         )
+        selected_candidate: PendingActionCandidate | None = None
         try:
             patch_request = build_patch_request(
                 plan=plan,
@@ -126,9 +129,16 @@ class PatchRunner:
                 patch_candidate = PendingActionCandidate(
                     candidate_id=f"patch_{step.id.lower()}",
                     payload=plan_patch,
+                    structured_payload=plan_patch,
                     summary="fallback patch candidate",
-                    metadata={"reason": patch_reason},
+                    tool_id=step.tool,
+                    capability_id=_extract_capability_from_step(step),
+                    metadata={
+                        "reason": patch_reason,
+                        "recovery_layer": "tool_level",
+                    },
                 )
+                selected_candidate = patch_candidate
                 patch_top_k = TopKResult(
                     candidates=[patch_candidate],
                     default_recommendation=patch_candidate.candidate_id,
@@ -140,11 +150,47 @@ class PatchRunner:
                 top_k_result=patch_top_k,
                 task_constraints=context.task.constraints,
             )
-        except Exception:
+        except Exception as exc:
+            _emit_recovery_escalation_event(
+                context,
+                step_id=step.id,
+                reason="patch_failed",
+                detail=f"patch candidate generation failed: {exc}",
+                recovery=_extract_recovery_metadata(
+                    plan_patch=None,
+                    selected_candidate=selected_candidate,
+                    source_step=step,
+                ),
+            )
             _enter_replan_waiting(context, record, reason="patch_failed")
             raise
 
         if gate.requires_hitl:
+            recovery_meta = _extract_recovery_metadata(
+                plan_patch=plan_patch,
+                selected_candidate=selected_candidate,
+                source_step=step,
+            )
+            if gate.reason == "patch_high_risk":
+                _attach_recovery_upgrade_meta(
+                    result,
+                    recovery_meta,
+                    upgrade_reason="patch_high_risk",
+                )
+                _emit_recovery_escalation_event(
+                    context,
+                    step_id=step.id,
+                    reason="patch_high_risk",
+                    detail="patch candidate blocked by high risk gate; escalate to replan",
+                    recovery=recovery_meta,
+                )
+                _enter_replan_waiting(context, record, reason="patch_high_risk")
+                return PatchRunOutcome(
+                    plan=plan,
+                    step_results=[result],
+                    next_step_index=step_index + 1,
+                )
+
             pending_action = build_pending_action(
                 task_id=context.task.task_id,
                 action_type=PendingActionType.PATCH_CONFIRM,
@@ -187,52 +233,127 @@ class PatchRunner:
             InternalStatus.PATCHING,
             reason="patch_start_auto",
         )
-        try:
-            patched_plan = apply_patch(plan, plan_patch)
-        except Exception:
-            _enter_replan_waiting(context, record, reason="patch_failed")
-            raise
+        candidate_pairs = _extract_patch_candidates(patch_top_k)
+        if not candidate_pairs:
+            candidate_pairs = [(selected_candidate, plan_patch)]
 
-        # 将最新的 plan 写回 context（如果 task_id 匹配）
-        if context.plan is None or context.plan.task_id == patched_plan.task_id:
-            context.plan = patched_plan
-        if record is not None and (
-            record.plan is None or record.plan.task_id == patched_plan.task_id
-        ):
-            record.plan = patched_plan
+        last_failed_result: StepResult | None = None
+        recovery_attempts: list[dict[str, Any]] = []
+        for index, (candidate, patch_payload) in enumerate(candidate_pairs, start=1):
+            recovery = _extract_recovery_metadata(
+                plan_patch=patch_payload,
+                selected_candidate=candidate,
+                source_step=step,
+            )
+            _emit_replacement_decision_event(
+                context,
+                step_id=step.id,
+                decision="patch_apply_start",
+                recovery=recovery,
+            )
+            try:
+                patched_plan = apply_patch(plan, patch_payload)
+            except Exception as exc:
+                recovery_attempts.append(
+                    {
+                        "attempt": index,
+                        "status": "apply_failed",
+                        "error": str(exc),
+                        "recovery": recovery,
+                    }
+                )
+                continue
 
-        if _has_insert_before_target(plan_patch, step.id):
-            pending_patch = PendingPatch(
-                target_step_id=step.id,
+            if _has_insert_before_target(patch_payload, step.id):
+                _commit_patched_plan(context, record, patched_plan)
+                pending_patch = PendingPatch(
+                    target_step_id=step.id,
+                    original_step=step,
+                    previous_result=result,
+                    plan_patch=patch_payload,
+                )
+                return PatchRunOutcome(
+                    plan=patched_plan,
+                    step_results=[],
+                    next_step_index=step_index,
+                    pending_patch=pending_patch,
+                )
+
+            target_id = step.id
+            patched_step = next(s for s in patched_plan.steps if s.id == target_id)
+            patched_index = next(
+                idx for idx, s in enumerate(patched_plan.steps) if s.id == target_id
+            )
+            patched_result = self._step_runner.run_step(patched_step, context)
+            self._attach_patch_meta(
+                patched_result,
                 original_step=step,
                 previous_result=result,
-                plan_patch=plan_patch,
+                plan_patch=patch_payload,
             )
-            return PatchRunOutcome(
-                plan=patched_plan,
-                step_results=[],
-                next_step_index=step_index,
-                pending_patch=pending_patch,
+            recovery_attempts.append(
+                {
+                    "attempt": index,
+                    "status": patched_result.status,
+                    "tool": patched_result.tool,
+                    "recovery": recovery,
+                }
             )
+            if patched_result.status != "failed":
+                _commit_patched_plan(context, record, patched_plan)
+                return PatchRunOutcome(
+                    plan=patched_plan,
+                    step_results=[patched_result],
+                    next_step_index=patched_index + 1,
+                )
+            last_failed_result = patched_result
 
-        # 优先使用原 step id 定位（避免插入操作改变索引）
-        target_id = step.id
-        patched_step = next(s for s in patched_plan.steps if s.id == target_id)
-        patched_index = next(
-            idx for idx, s in enumerate(patched_plan.steps) if s.id == target_id
-        )
-
-        patched_result = self._step_runner.run_step(patched_step, context)
-        self._attach_patch_meta(
-            patched_result,
-            original_step=step,
-            previous_result=result,
+        escalation_recovery = _extract_recovery_metadata(
             plan_patch=plan_patch,
+            selected_candidate=selected_candidate,
+            source_step=step,
         )
+        if last_failed_result is not None:
+            _attach_recovery_upgrade_meta(
+                last_failed_result,
+                escalation_recovery,
+                upgrade_reason="patch_failed",
+            )
+            metrics = dict(last_failed_result.metrics)
+            recovery = metrics.get("recovery", {})
+            if isinstance(recovery, dict):
+                recovery["attempts"] = recovery_attempts
+                metrics["recovery"] = recovery
+            last_failed_result.metrics = metrics
+        _emit_recovery_escalation_event(
+            context,
+            step_id=step.id,
+            reason="patch_failed",
+            detail="all patch layers failed; escalate to replan",
+            recovery=escalation_recovery,
+        )
+        _enter_replan_waiting(context, record, reason="patch_failed")
+        if last_failed_result is None:
+            _attach_recovery_upgrade_meta(
+                result,
+                escalation_recovery,
+                upgrade_reason="patch_failed",
+            )
+            metrics = dict(result.metrics)
+            recovery = metrics.get("recovery", {})
+            if isinstance(recovery, dict):
+                recovery["attempts"] = recovery_attempts
+                metrics["recovery"] = recovery
+            result.metrics = metrics
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[result],
+                next_step_index=step_index + 1,
+            )
         return PatchRunOutcome(
-            plan=patched_plan,
-            step_results=[patched_result],
-            next_step_index=patched_index + 1,
+            plan=plan,
+            step_results=[last_failed_result],
+            next_step_index=step_index + 1,
         )
 
     def _should_patch(self, result: StepResult) -> bool:
@@ -257,6 +378,12 @@ class PatchRunner:
         plan_patch: PlanPatch,
     ) -> None:
         """将 patch 关键信息写入 patched_result.metrics"""
+        recovery = _extract_recovery_metadata(
+            plan_patch=plan_patch,
+            selected_candidate=None,
+            source_step=original_step,
+            patched_step=patched_result,
+        )
         patch_info = {
             "applied": True,
             "ops": [op.op for op in plan_patch.operations],
@@ -266,9 +393,20 @@ class PatchRunner:
             "patched_step_id": patched_result.step_id,
             "patched_status": patched_result.status,
             "previous_attempt": _summarize_result(previous_result),
+            "layer": recovery.get("recovery_layer"),
+            "capability_id": recovery.get("capability_id"),
+            "reason": recovery.get("reason"),
         }
         metrics = dict(patched_result.metrics)
         metrics["patch"] = patch_info
+        metrics["recovery"] = {
+            **recovery,
+            "upgrade_reason": (
+                "patch_failed"
+                if patched_result.status == "failed"
+                else None
+            ),
+        }
         patched_result.metrics = metrics
 
     def attach_patch_meta(
@@ -285,6 +423,197 @@ class PatchRunner:
         )
 
 
+def _extract_recovery_metadata(
+    *,
+    plan_patch: PlanPatch | None,
+    selected_candidate: PendingActionCandidate | None,
+    source_step: PlanStep,
+    patched_step: StepResult | None = None,
+) -> dict[str, Any]:
+    metadata = (
+        plan_patch.metadata
+        if plan_patch is not None and isinstance(plan_patch.metadata, dict)
+        else {}
+    )
+    candidate_meta = (
+        selected_candidate.metadata
+        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        else {}
+    )
+    capability_id = metadata.get("capability_id")
+    if not isinstance(capability_id, str) or not capability_id:
+        capability_id = selected_candidate.capability_id if selected_candidate else None
+    if not isinstance(capability_id, str) or not capability_id:
+        capability_id = _extract_capability_from_step(source_step)
+
+    from_tool = metadata.get("from_tool")
+    if not isinstance(from_tool, str) or not from_tool:
+        from_tool = source_step.tool
+    to_tool = metadata.get("to_tool")
+    if not isinstance(to_tool, str) or not to_tool:
+        to_tool = (
+            patched_step.tool
+            if patched_step is not None
+            else (selected_candidate.tool_id if selected_candidate else source_step.tool)
+        )
+    recovery_layer = metadata.get("recovery_layer")
+    if not isinstance(recovery_layer, str) or not recovery_layer:
+        recovery_layer = str(candidate_meta.get("recovery_layer") or "tool_level")
+    reason = metadata.get("reason")
+    if not isinstance(reason, str) or not reason:
+        reason = str(candidate_meta.get("reason") or candidate_meta.get("recovery_reason") or "patch_required")
+
+    payload: dict[str, Any] = {
+        "recovery_layer": recovery_layer,
+        "capability_id": capability_id,
+        "from_tool": from_tool,
+        "to_tool": to_tool,
+        "reason": reason,
+    }
+    if isinstance(metadata.get("strategy"), str):
+        payload["strategy"] = metadata.get("strategy")
+    return payload
+
+
+def _attach_recovery_upgrade_meta(
+    result: StepResult,
+    recovery_meta: dict[str, Any],
+    *,
+    upgrade_reason: str,
+) -> None:
+    metrics = dict(result.metrics)
+    recovery = dict(recovery_meta)
+    recovery["upgrade_reason"] = upgrade_reason
+    metrics["recovery"] = recovery
+    result.metrics = metrics
+    error_details = dict(result.error_details)
+    error_details["recovery"] = recovery
+    normalized_code = upgrade_reason.upper()
+    if not normalized_code.startswith("PATCH_"):
+        normalized_code = f"PATCH_{normalized_code}"
+    error_details["failure_code"] = normalized_code
+    result.error_details = error_details
+
+
+def _emit_replacement_decision_event(
+    context: WorkflowContext,
+    *,
+    step_id: str,
+    decision: str,
+    recovery: dict[str, Any],
+) -> None:
+    layer = str(recovery.get("recovery_layer") or "tool_level")
+    event_name = {
+        "parameter_level": "PARAM_TWEAK",
+        "tool_level": "REPLACE_TOOL",
+        "structure_level": "STRUCTURE_PATCH",
+    }.get(layer, "REPLACE_TOOL")
+    append_event(
+        context.task.task_id,
+        {
+            "event": event_name,
+            "task_id": context.task.task_id,
+            "step_id": step_id,
+            "timestamp": now_iso(),
+            "state": context.status.value,
+            "external_status": to_external_status(context.status).value,
+            "data": {
+                "decision": decision,
+                "recovery": recovery,
+            },
+        },
+    )
+
+
+def _emit_recovery_escalation_event(
+    context: WorkflowContext,
+    *,
+    step_id: str,
+    reason: str,
+    detail: str,
+    recovery: dict[str, Any],
+) -> None:
+    append_event(
+        context.task.task_id,
+        {
+            "event": "RECOVERY_ESCALATED",
+            "task_id": context.task.task_id,
+            "step_id": step_id,
+            "timestamp": now_iso(),
+            "state": context.status.value,
+            "external_status": to_external_status(context.status).value,
+            "data": {
+                "reason": reason,
+                "detail": detail,
+                "recovery": recovery,
+            },
+        },
+    )
+
+
+def _extract_capability_from_step(step: PlanStep) -> str:
+    metadata = step.metadata if isinstance(step.metadata, dict) else {}
+    raw = metadata.get("capability")
+    if isinstance(raw, str) and raw:
+        return raw
+    values = metadata.get("capabilities")
+    if isinstance(values, list):
+        for item in values:
+            if isinstance(item, str) and item:
+                return item
+    return "unknown"
+
+
+def _extract_patch_candidates(
+    top_k: TopKResult,
+) -> list[tuple[PendingActionCandidate, PlanPatch]]:
+    pairs: list[tuple[PendingActionCandidate, PlanPatch]] = []
+    for candidate in top_k.candidates:
+        payload = candidate.structured_payload or candidate.payload
+        if isinstance(payload, PlanPatch):
+            pairs.append((candidate, payload))
+    if not pairs:
+        return []
+    if top_k.default_recommendation:
+        pairs.sort(
+            key=lambda pair: (
+                0 if pair[0].candidate_id == top_k.default_recommendation else 1,
+                _recovery_layer_rank(pair[1]),
+                pair[0].candidate_id,
+            )
+        )
+    else:
+        pairs.sort(
+            key=lambda pair: (
+                _recovery_layer_rank(pair[1]),
+                pair[0].candidate_id,
+            )
+        )
+    return pairs
+
+
+def _recovery_layer_rank(patch: PlanPatch) -> int:
+    metadata = patch.metadata if isinstance(patch.metadata, dict) else {}
+    raw_rank = metadata.get("recovery_layer_rank")
+    try:
+        return int(raw_rank)
+    except (TypeError, ValueError):
+        return 99
+
+
+def _commit_patched_plan(
+    context: WorkflowContext,
+    record: TaskRecord | None,
+    patched_plan: Plan,
+) -> None:
+    if context.plan is None or context.plan.task_id == patched_plan.task_id:
+        context.plan = patched_plan
+    if record is not None and (
+        record.plan is None or record.plan.task_id == patched_plan.task_id
+    ):
+        record.plan = patched_plan
+
+
 def _enter_replan_waiting(
     context: WorkflowContext,
     record: TaskRecord | None,
@@ -296,7 +625,7 @@ def _enter_replan_waiting(
         action_type=PendingActionType.REPLAN_CONFIRM,
         candidates=[],
         default_suggestion=None,
-        explanation="patch failed; replan confirmation required",
+        explanation=f"patch escalation ({reason}); replan confirmation required",
     )
     enter_waiting_state(
         context,

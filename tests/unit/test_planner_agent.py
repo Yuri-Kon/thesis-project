@@ -259,6 +259,56 @@ def _patch_request_for_topk() -> PatchRequest:
     )
 
 
+def _patch_request_for_tool(
+    *,
+    task_id: str,
+    tool_id: str,
+    inputs: dict,
+    previous_outputs: dict,
+) -> PatchRequest:
+    plan = Plan(
+        task_id=task_id,
+        steps=[PlanStep(id="S1", tool=tool_id, inputs=inputs, metadata={})],
+        constraints={},
+        metadata={},
+    )
+    previous = StepResult(
+        task_id=task_id,
+        step_id="S0",
+        tool="seed",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
+        outputs=previous_outputs,
+        metrics={},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    failed = StepResult(
+        task_id=task_id,
+        step_id="S1",
+        tool=tool_id,
+        status="failed",
+        failure_type="TOOL_ERROR",
+        error_message="boom",
+        error_details={},
+        outputs={},
+        metrics={"retry_exhausted": True},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    return PatchRequest(
+        task_id=task_id,
+        original_plan=plan,
+        context_step_results=[previous, failed],
+        safety_events=[],
+        reason="unit-test",
+    )
+
+
 @pytest.mark.unit
 class TestPlannerAgent:
     """PlannerAgent测试类"""
@@ -526,6 +576,180 @@ class TestPlannerAgent:
             assert candidate.io_type is not None
             assert candidate.adapter_mode is not None
             json.dumps(candidate.model_dump(mode="json"), ensure_ascii=True)
+
+    def test_patch_top_k_uses_layered_priority_and_matrix_metadata(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        topk = planner.patch_top_k(_patch_request_for_topk(), k=6)
+
+        assert topk.candidates
+        first = topk.candidates[0]
+        assert first.metadata.get("recovery_layer") == "parameter_level"
+        assert first.metadata.get("capability_id") == "structure_prediction"
+
+        tool_level = [
+            candidate
+            for candidate in topk.candidates
+            if candidate.metadata.get("recovery_layer") == "tool_level"
+        ]
+        assert tool_level, "expected at least one tool-level fallback candidate"
+        assert any(candidate.metadata.get("to_tool") == "nim_esmfold" for candidate in tool_level)
+        assert any(
+            candidate.metadata.get("from_tool") == "esmfold"
+            and candidate.metadata.get("to_tool") == "nim_esmfold"
+            for candidate in tool_level
+        )
+
+    def test_patch_top_k_supports_requirement2_qc_and_objective_replacements(self, monkeypatch):
+        kg = {
+            "capabilities": [
+                {"capability_id": "quality_qc", "name": "Quality QC", "domain": "protein/qc"},
+                {"capability_id": "objective_scoring", "name": "Objective", "domain": "protein/score"},
+            ],
+            "io_types": [
+                {
+                    "io_type_id": "sequence_structure_to_qc_metrics",
+                    "input_types": ["sequence", "pdb_path"],
+                    "output_types": ["qc_metrics"],
+                    "combinable": True,
+                },
+                {
+                    "io_type_id": "candidates_to_objective_scores_topk",
+                    "input_types": ["candidates"],
+                    "output_types": ["score_table", "top_k"],
+                    "combinable": True,
+                },
+            ],
+            "tools": [
+                {
+                    "id": "biopython_qc",
+                    "capabilities": ["quality_qc"],
+                    "priority": "P0",
+                    "io": {
+                        "io_type_id": "sequence_structure_to_qc_metrics",
+                        "inputs": {"sequence": "str", "pdb_path": "path"},
+                        "outputs": {"qc_metrics": "dict"},
+                    },
+                    "execution": "python",
+                    "constraints": {},
+                },
+                {
+                    "id": "dssp",
+                    "capabilities": ["quality_qc"],
+                    "priority": "P1",
+                    "io": {
+                        "io_type_id": "sequence_structure_to_qc_metrics",
+                        "inputs": {"sequence": "str", "pdb_path": "path"},
+                        "outputs": {"qc_metrics": "dict"},
+                    },
+                    "execution": "python",
+                    "constraints": {},
+                },
+                {
+                    "id": "objective_ranker",
+                    "capabilities": ["objective_scoring"],
+                    "priority": "P0",
+                    "io": {
+                        "io_type_id": "candidates_to_objective_scores_topk",
+                        "inputs": {"candidates": "list"},
+                        "outputs": {"score_table": "dict", "top_k": "list"},
+                    },
+                    "execution": "python",
+                    "constraints": {},
+                },
+                {
+                    "id": "objective_ranker_v2",
+                    "capabilities": ["objective_scoring"],
+                    "priority": "P1",
+                    "io": {
+                        "io_type_id": "candidates_to_objective_scores_topk",
+                        "inputs": {"candidates": "list"},
+                        "outputs": {"score_table": "dict", "top_k": "list"},
+                    },
+                    "execution": "python",
+                    "constraints": {},
+                },
+            ],
+        }
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: kg)
+        planner = PlannerAgent(
+            tool_registry=[
+                ToolSpec(
+                    id="biopython_qc",
+                    capabilities=("quality_qc",),
+                    inputs=("sequence", "pdb_path"),
+                    outputs=("qc_metrics",),
+                    cost=0.2,
+                    safety_level=1,
+                    io_type="sequence_structure_to_qc_metrics",
+                    adapter_mode="local",
+                    priority="P0",
+                ),
+                ToolSpec(
+                    id="dssp",
+                    capabilities=("quality_qc",),
+                    inputs=("sequence", "pdb_path"),
+                    outputs=("qc_metrics",),
+                    cost=0.3,
+                    safety_level=1,
+                    io_type="sequence_structure_to_qc_metrics",
+                    adapter_mode="local",
+                    priority="P1",
+                ),
+                ToolSpec(
+                    id="objective_ranker",
+                    capabilities=("objective_scoring",),
+                    inputs=("candidates",),
+                    outputs=("score_table", "top_k"),
+                    cost=0.25,
+                    safety_level=1,
+                    io_type="candidates_to_objective_scores_topk",
+                    adapter_mode="local",
+                    priority="P0",
+                ),
+                ToolSpec(
+                    id="objective_ranker_v2",
+                    capabilities=("objective_scoring",),
+                    inputs=("candidates",),
+                    outputs=("score_table", "top_k"),
+                    cost=0.35,
+                    safety_level=1,
+                    io_type="candidates_to_objective_scores_topk",
+                    adapter_mode="local",
+                    priority="P1",
+                ),
+            ]
+        )
+
+        qc_topk = planner.patch_top_k(
+            _patch_request_for_tool(
+                task_id="task_patch_qc",
+                tool_id="biopython_qc",
+                inputs={"sequence": "S0.sequence", "pdb_path": "S0.pdb_path"},
+                previous_outputs={"sequence": "MKT", "pdb_path": "/tmp/a.pdb"},
+            ),
+            k=4,
+        )
+        assert any(
+            candidate.metadata.get("to_tool") == "dssp"
+            and candidate.metadata.get("recovery_layer") == "tool_level"
+            for candidate in qc_topk.candidates
+        )
+
+        objective_topk = planner.patch_top_k(
+            _patch_request_for_tool(
+                task_id="task_patch_objective",
+                tool_id="objective_ranker_v2",
+                inputs={"candidates": "S0.candidates"},
+                previous_outputs={"candidates": [{"id": "c1"}]},
+            ),
+            k=4,
+        )
+        assert any(
+            candidate.metadata.get("to_tool") == "objective_ranker"
+            and candidate.metadata.get("recovery_layer") == "tool_level"
+            for candidate in objective_topk.candidates
+        )
 
     def test_replan_top_k_order_is_deterministic(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())

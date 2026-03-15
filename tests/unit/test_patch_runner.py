@@ -193,10 +193,10 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task, monkeypatch):
     patched_result = outcome.step_results[0]
 
     # patch 应被触发并自动应用
-    assert step_runner.calls == ["failing_tool", "patched_tool"]
+    assert step_runner.calls == ["failing_tool", "failing_tool"]
 
     # plan 应被替换为 patched 版本
-    assert patched_plan.steps[0].tool == "patched_tool"
+    assert patched_plan.steps[0].tool == "failing_tool"
     assert context.plan is patched_plan
     assert record.plan is patched_plan
     assert outcome.next_step_index == 1
@@ -204,12 +204,14 @@ def test_patch_runner_triggers_patch_and_records_meta(sample_task, monkeypatch):
 
     # patched step 应执行成功并返回
     assert patched_result.status == "success"
-    assert patched_result.tool == "patched_tool"
+    assert patched_result.tool == "failing_tool"
 
     patch_meta = patched_result.metrics.get("patch")
     assert patch_meta and patch_meta["applied"] is True
     assert patch_meta["from_tool"] == "failing_tool"
-    assert patch_meta["to_tool"] == "patched_tool"
+    assert patch_meta["to_tool"] == "failing_tool"
+    assert patch_meta["layer"] == "parameter_level"
+    assert patch_meta["reason"] == "parameter_tweak"
     assert patch_meta["patched_status"] == "success"
     prev_attempt = patch_meta["previous_attempt"]
     assert prev_attempt["attempt_history"][0]["failure_type"] == "RETRYABLE"
