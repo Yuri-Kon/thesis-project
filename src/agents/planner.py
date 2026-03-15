@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Iterable, List, Literal, Optional, Sequence, Set, Tuple
+from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider
@@ -76,6 +76,29 @@ _PATCH_LAYER_PRIORITY = {
     "parameter_level": 0,
     "tool_level": 1,
     "structure_level": 2,
+}
+
+_S5_STAGE_ID = "S5"
+_S5_STAGE_NAME = "objective_scoring"
+_S5_INPUT_FIELDS = ("candidates", "metrics")
+_S5_OUTPUT_FIELDS = (
+    "score_breakdown",
+    "top_k",
+    "default_recommendation",
+    "explanation",
+)
+_DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
+    "feasibility": 0.2,
+    "objective": 0.2,
+    "risk": 0.15,
+    "cost": 0.15,
+    "confidence": 0.15,
+    "tool_readiness": 0.075,
+    "tool_coverage": 0.075,
+}
+_SCORE_WEIGHT_KEY_ALIASES: dict[str, str] = {
+    "readiness": "tool_readiness",
+    "coverage": "tool_coverage",
 }
 
 _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
@@ -158,6 +181,7 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="plan",
             top_k=_normalize_top_k(k),
+            task_constraints=task.constraints,
         )
 
     def patch_top_k(self, request: PatchRequest, *, k: int = 3) -> TopKResult:
@@ -173,6 +197,7 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="patch",
             top_k=_normalize_top_k(k),
+            task_constraints=request.original_plan.constraints,
         )
 
     def replan_top_k(self, request: ReplanRequest, *, k: int = 3) -> TopKResult:
@@ -188,6 +213,7 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="replan",
             top_k=_normalize_top_k(k),
+            task_constraints=request.original_plan.constraints,
         )
 
     def evaluate_top_k_gate(
@@ -204,9 +230,19 @@ class PlannerAgent:
             task_constraints=task_constraints,
         )
 
-    def score_candidate_payload(self, payload: Plan | PlanPatch) -> dict[str, float]:
+    def score_candidate_payload(
+        self,
+        payload: Plan | PlanPatch,
+        *,
+        task_constraints: dict[str, Any] | None = None,
+    ) -> dict[str, float]:
         """对单个候选 payload 打分（用于调试/测试）。"""
-        return _score_payload(payload, self._tool_registry)
+        score_weights = _resolve_score_weights(task_constraints or {})
+        return _score_payload(
+            payload,
+            self._tool_registry,
+            score_weights=score_weights,
+        )
 
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
         """向后兼容的默认单步计划
@@ -290,7 +326,10 @@ class PlannerAgent:
                 default_recommendation=top_k.default_recommendation,
                 explanation=f"{top_k.explanation} gate={gate.reason}",
             )
-            validate_candidate_set_output(pending_action)
+            validate_candidate_set_output(
+                pending_action,
+                require_s5_fields=True,
+            )
             enter_waiting_state(
                 context,
                 record,
@@ -1080,6 +1119,7 @@ def _build_top_k_result(
     registry: Sequence[ToolSpec],
     candidate_kind: str,
     top_k: int,
+    task_constraints: dict[str, Any] | None = None,
 ) -> TopKResult:
     if not payloads:
         raise ValueError(f"No payload candidates generated for {candidate_kind}")
@@ -1098,9 +1138,14 @@ def _build_top_k_result(
         seen_fingerprints.add(fingerprint)
         unique_payloads.append(payload)
 
+    score_weights = _resolve_score_weights(task_constraints or {})
     ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
     for payload in unique_payloads:
-        score_breakdown = _score_payload(payload.payload, registry)
+        score_breakdown = _score_payload(
+            payload.payload,
+            registry,
+            score_weights=score_weights,
+        )
         primary_tool = registry_map.get(payload.primary_tool_id)
         capability_id = payload.capability_bucket or _primary_capability(primary_tool)
         tool_id = payload.primary_tool_id
@@ -1122,6 +1167,7 @@ def _build_top_k_result(
             "io_type": io_type,
             "adapter_mode": adapter_mode,
             "generation_note": payload.note,
+            "s5_contract": _build_s5_scoring_contract(score_weights),
         }
         if payload.recovery_layer:
             metadata["recovery_layer"] = payload.recovery_layer
@@ -1179,6 +1225,7 @@ def _build_top_k_result(
         ranked_rows=ranked_rows,
         top_k=top_k,
     )
+    selected_rows = sorted(selected_rows, key=lambda row: row[1])
     candidates = [row[0] for row in selected_rows]
     default_recommendation = candidates[0].candidate_id if candidates else None
     explanation = (
@@ -1279,7 +1326,12 @@ def _patch_layer_rank(payload: Plan | PlanPatch) -> int:
     return 999
 
 
-def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> dict[str, float]:
+def _score_payload(
+    payload: Plan | PlanPatch,
+    registry: Sequence[ToolSpec],
+    *,
+    score_weights: dict[str, float] | None = None,
+) -> dict[str, float]:
     registry_map = {spec.id: spec for spec in registry}
     tool_ids = _extract_payload_tool_ids(payload)
     risk_scores: List[float] = []
@@ -1324,14 +1376,15 @@ def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> d
             + 0.2 * fallback_depth,
         ),
     )
+    normalized_weights = _normalize_score_weights(score_weights or _DEFAULT_SCORE_WEIGHTS)
     overall = (
-        0.2 * feasibility
-        + 0.2 * objective
-        + 0.15 * risk
-        + 0.15 * cost
-        + 0.15 * confidence
-        + 0.075 * tool_readiness
-        + 0.075 * tool_coverage
+        normalized_weights["feasibility"] * feasibility
+        + normalized_weights["objective"] * objective
+        + normalized_weights["risk"] * risk
+        + normalized_weights["cost"] * cost
+        + normalized_weights["confidence"] * confidence
+        + normalized_weights["tool_readiness"] * tool_readiness
+        + normalized_weights["tool_coverage"] * tool_coverage
     )
     return {
         "feasibility": round(feasibility, 6),
@@ -1344,6 +1397,78 @@ def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> d
         "fallback_depth": round(fallback_depth, 6),
         "overall": round(overall, 6),
     }
+
+
+def _build_s5_scoring_contract(
+    score_weights: dict[str, float],
+) -> dict[str, Any]:
+    return {
+        "stage_id": _S5_STAGE_ID,
+        "stage_name": _S5_STAGE_NAME,
+        "field_order": {
+            "inputs": list(_S5_INPUT_FIELDS),
+            "outputs": list(_S5_OUTPUT_FIELDS),
+        },
+        "inputs": {
+            "candidates": "list[PendingActionCandidate]",
+            "metrics": "dict[str,float]",
+        },
+        "outputs": {
+            "score_breakdown": "dict[str,float]",
+            "top_k": "list[PendingActionCandidate]",
+            "default_recommendation": "str",
+            "explanation": "str",
+        },
+        "weights": dict(score_weights),
+    }
+
+
+def _resolve_score_weights(task_constraints: dict[str, Any]) -> dict[str, float]:
+    raw_weights = task_constraints.get("score_weights")
+    if not isinstance(raw_weights, dict):
+        raw_objective_weights = task_constraints.get("objective_weights")
+        if isinstance(raw_objective_weights, dict):
+            raw_weights = raw_objective_weights
+        else:
+            raw_weights = {}
+
+    merged = dict(_DEFAULT_SCORE_WEIGHTS)
+    for raw_key, raw_value in raw_weights.items():
+        if not isinstance(raw_key, str):
+            continue
+        key = _SCORE_WEIGHT_KEY_ALIASES.get(raw_key, raw_key)
+        if key not in merged:
+            continue
+        parsed = _parse_positive_float(raw_value)
+        if parsed is None:
+            continue
+        merged[key] = parsed
+    return _normalize_score_weights(merged)
+
+
+def _normalize_score_weights(weights: dict[str, float]) -> dict[str, float]:
+    cleaned: dict[str, float] = {}
+    for key in _DEFAULT_SCORE_WEIGHTS:
+        raw_value = weights.get(key, _DEFAULT_SCORE_WEIGHTS[key])
+        parsed = _parse_positive_float(raw_value)
+        cleaned[key] = parsed if parsed is not None else _DEFAULT_SCORE_WEIGHTS[key]
+    total = sum(cleaned.values())
+    if total <= 0:
+        return dict(_DEFAULT_SCORE_WEIGHTS)
+    return {
+        key: round(value / total, 6)
+        for key, value in cleaned.items()
+    }
+
+
+def _parse_positive_float(value: Any) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
 
 
 def _derive_risk_level(

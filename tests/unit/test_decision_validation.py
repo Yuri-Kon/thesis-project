@@ -304,3 +304,117 @@ def test_candidate_set_backward_compat_payload_only_passes(sample_task, sample_p
         require_v1_fields=False,
         require_default_recommendation=False,
     )
+
+
+@pytest.mark.unit
+def test_candidate_set_require_s5_fields_rejects_missing_contract(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_s5_missing",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="metadata\\.s5_contract is required",
+    ):
+        validate_candidate_set_output(
+            pending_action,
+            require_s5_fields=True,
+        )
+
+
+@pytest.mark.unit
+def test_candidate_set_require_s5_fields_accepts_complete_contract(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_s5_ok",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+                metadata={
+                    "tool_id": "esmfold",
+                    "capability_id": "structure_prediction",
+                    "io_type": "sequence_to_structure",
+                    "adapter_mode": "remote",
+                    "s5_contract": {
+                        "stage_id": "S5",
+                        "stage_name": "objective_scoring",
+                        "field_order": {
+                            "inputs": ["candidates", "metrics"],
+                            "outputs": [
+                                "score_breakdown",
+                                "top_k",
+                                "default_recommendation",
+                                "explanation",
+                            ],
+                        },
+                        "inputs": {
+                            "candidates": "list[PendingActionCandidate]",
+                            "metrics": "dict[str,float]",
+                        },
+                        "outputs": {
+                            "score_breakdown": "dict[str,float]",
+                            "top_k": "list[PendingActionCandidate]",
+                            "default_recommendation": "str",
+                            "explanation": "str",
+                        },
+                        "weights": {
+                            "feasibility": 0.2,
+                            "objective": 0.2,
+                            "risk": 0.15,
+                            "cost": 0.15,
+                            "confidence": 0.15,
+                            "tool_readiness": 0.075,
+                            "tool_coverage": 0.075,
+                        },
+                    },
+                },
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(
+        pending_action,
+        require_s5_fields=True,
+    )
