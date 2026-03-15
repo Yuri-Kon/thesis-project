@@ -1,0 +1,19 @@
+{
+  "task_id": "int_s6_patch_decision_replay_done",
+  "goal": "de_novo_design",
+  "constraints": {
+    "require_patch_confirm": true,
+    "require_replan_confirm": true,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0
+  },
+  "expected": {
+    "status_after_first_run": "WAITING_PATCH_CONFIRM",
+    "status_after_decision_and_resume": "DONE",
+    "required_events": [
+      "WAITING_ENTER",
+      "DECISION_APPLIED",
+      "WAITING_EXIT"
+    ]
+  }
+}

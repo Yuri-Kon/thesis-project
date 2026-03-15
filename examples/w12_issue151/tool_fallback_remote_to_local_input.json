@@ -1,0 +1,15 @@
+{
+  "task_id": "int_layered_patch_remote_to_local",
+  "scenario": "patch_tool_swap_remote_to_local",
+  "constraints": {
+    "require_patch_confirm": false,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0
+  },
+  "expected": {
+    "required_event": "REPLACE_TOOL",
+    "from_tool": "failing_tool",
+    "to_tool": "esmfold",
+    "to_adapter_mode": "local"
+  }
+}
