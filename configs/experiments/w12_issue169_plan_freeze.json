@@ -1,0 +1,146 @@
+{
+  "issue_id": 169,
+  "plan_id": "w12-midterm-experiment-plan-freeze",
+  "description": "Freeze timeline/dependencies for W12 midterm experiments (Data -> Vertical/Horizontal -> Governance -> Report).",
+  "execution_order_policy": [
+    "Data",
+    "Vertical",
+    "Horizontal",
+    "Governance",
+    "Report"
+  ],
+  "issues": [
+    {
+      "number": 169,
+      "title": "W12-Experiment-0: 中期实验时间计划冻结与依赖排程",
+      "track": "Planning",
+      "start": "2026-03-16",
+      "end": "2026-03-16",
+      "hard_blocked_by": [],
+      "soft_sync": [
+        170,
+        171,
+        172,
+        173,
+        174
+      ]
+    },
+    {
+      "number": 170,
+      "title": "W12-Experiment-1: 真实实验数据快采与版本冻结（D-main/D-recovery/D-hitl）",
+      "track": "Data",
+      "start": "2026-03-16",
+      "end": "2026-03-18",
+      "hard_blocked_by": [
+        169
+      ],
+      "soft_sync": [
+        145,
+        146,
+        157,
+        158
+      ]
+    },
+    {
+      "number": 171,
+      "title": "W12-Experiment-2: 纵向对比 A0-A6 执行与机制增量归因",
+      "track": "Vertical",
+      "start": "2026-03-18",
+      "end": "2026-03-20",
+      "hard_blocked_by": [
+        170
+      ],
+      "soft_sync": [
+        143,
+        157,
+        158,
+        159,
+        160,
+        149
+      ]
+    },
+    {
+      "number": 172,
+      "title": "W12-Experiment-3: 横向对比 E0/E1/E2（ReAct/ToT/Reflexion）",
+      "track": "Horizontal",
+      "start": "2026-03-19",
+      "end": "2026-03-20",
+      "hard_blocked_by": [
+        170
+      ],
+      "soft_sync": [
+        149,
+        150,
+        171
+      ]
+    },
+    {
+      "number": 173,
+      "title": "W12-Experiment-4: 治理指标复核（审计链完整性/失败可追溯率）",
+      "track": "Governance",
+      "start": "2026-03-20",
+      "end": "2026-03-21",
+      "hard_blocked_by": [
+        170,
+        144
+      ],
+      "soft_sync": [
+        151,
+        171,
+        172
+      ]
+    },
+    {
+      "number": 174,
+      "title": "W12-Experiment-5: 中期报告实验章节与图表证据包定稿",
+      "track": "Report",
+      "start": "2026-03-21",
+      "end": "2026-03-22",
+      "hard_blocked_by": [
+        171,
+        172,
+        173
+      ],
+      "soft_sync": [
+        152
+      ]
+    }
+  ],
+  "non_parallel_constraints": [
+    {
+      "reason": "hard_dependency",
+      "from": 169,
+      "to": 170
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 170,
+      "to": 171
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 170,
+      "to": 172
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 170,
+      "to": 173
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 171,
+      "to": 174
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 172,
+      "to": 174
+    },
+    {
+      "reason": "hard_dependency",
+      "from": 173,
+      "to": 174
+    }
+  ]
+}
