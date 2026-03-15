@@ -107,6 +107,41 @@ Traceability:
 - S3 execution emits `STEP_FINISHED/STEP_FAILED` with `data.quality_gate` summary.
 - `PlanRunner` step events now include `data.failure_code` and S3 quality summary fields for downstream extraction reuse.
 
+## S4 Structure-conditioned Refinement (Issue #158)
+
+De novo planning now includes `S4` step specification:
+
+- default stage chain: `S1 -> S2 -> S4`
+- `S4` metadata:
+  - `stage_id=S4`
+  - `stage_name=structure_conditioned_refinement`
+  - `loop_path=[S4,S2,S3]`
+  - `stop_conditions`: `max_iterations`, `convergence_delta`, `max_degradation_rounds`
+
+Runtime loop entrypoint:
+
+- `ExecutorAgent.refine_sequences_from_s3(...)`
+- iterative closure: `S4 refinement -> S2 structure projection -> S3 quality gate`
+
+Loop stop reasons:
+
+- `converged`
+- `degradation_limit`
+- `refinement_failed`
+- `quality_gate_rejected`
+- `missing_source_pdb`
+- `max_iterations_reached`
+
+Traceability and persistence:
+
+- step outputs include:
+  - `refinement_iterations`
+  - `gain_metrics` (`baseline_plddt/final_plddt/delta_vs_baseline`)
+  - `stop_reason`
+  - `lineage.rollback_applied`
+- audit artifact persisted as:
+  - `output/artifacts/s4_refinement_<task_id>_<step_id>.json`
+
 ## Layered Patch/Replan Recovery (Issue #143)
 
 Recovery strategy now follows strict layered patch order before replan:
