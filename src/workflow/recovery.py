@@ -10,6 +10,7 @@ Snapshot-based recovery logic for resuming interrupted tasks.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,9 @@ __all__ = [
     "extract_remote_job_context",
     "RemoteJobContext",
     "RecoveryResult",
+    "StructureRefinementIteration",
+    "build_structure_refinement_audit",
+    "persist_structure_refinement_audit",
 ]
 
 
@@ -100,6 +104,111 @@ class RecoveryResult:
     snapshot: TaskSnapshot
     applied_event_logs: Sequence[EventLog]
     resume_from_existing: bool
+
+
+@dataclass(frozen=True)
+class StructureRefinementIteration:
+    """S4 精修闭环单轮审计记录。"""
+
+    iteration: int
+    source_candidate_id: str | None
+    source_pdb_path: str | None
+    source_plddt: float | None
+    refined_candidate_id: str | None
+    refined_sequence: str | None
+    refined_pdb_path: str | None
+    refined_plddt: float | None
+    gain_vs_baseline: float | None
+    gain_vs_previous: float | None
+    qc_pass_count: int
+    qc_fail_count: int
+    status: str
+    stop_reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "iteration": int(self.iteration),
+            "source_candidate_id": self.source_candidate_id,
+            "source_pdb_path": self.source_pdb_path,
+            "source_plddt": self.source_plddt,
+            "refined_candidate_id": self.refined_candidate_id,
+            "refined_sequence": self.refined_sequence,
+            "refined_pdb_path": self.refined_pdb_path,
+            "refined_plddt": self.refined_plddt,
+            "gain_vs_baseline": self.gain_vs_baseline,
+            "gain_vs_previous": self.gain_vs_previous,
+            "qc_pass_count": int(self.qc_pass_count),
+            "qc_fail_count": int(self.qc_fail_count),
+            "status": self.status,
+            "stop_reason": self.stop_reason,
+        }
+
+
+def build_structure_refinement_audit(
+    *,
+    task_id: str,
+    step_id: str,
+    source_step_id: str,
+    baseline: dict[str, Any],
+    iterations: Sequence[StructureRefinementIteration | dict[str, Any]],
+    stop_reason: str,
+    rollback_applied: bool,
+    selected_candidate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized_iterations: list[dict[str, Any]] = []
+    for row in iterations:
+        if isinstance(row, StructureRefinementIteration):
+            normalized_iterations.append(row.to_dict())
+        elif isinstance(row, dict):
+            normalized_iterations.append(dict(row))
+
+    baseline_plddt = baseline.get("plddt")
+    selected_plddt = (
+        selected_candidate.get("plddt")
+        if isinstance(selected_candidate, dict)
+        else None
+    )
+    gain_vs_baseline = None
+    if isinstance(baseline_plddt, (int, float)) and isinstance(selected_plddt, (int, float)):
+        gain_vs_baseline = round(float(selected_plddt) - float(baseline_plddt), 6)
+
+    return {
+        "stage_id": "S4",
+        "task_id": task_id,
+        "step_id": step_id,
+        "source_step_id": source_step_id,
+        "created_at": now_iso(),
+        "baseline": {
+            "candidate_id": baseline.get("candidate_id"),
+            "sequence": baseline.get("sequence"),
+            "pdb_path": baseline.get("pdb_path"),
+            "plddt": baseline_plddt,
+        },
+        "selected_candidate": selected_candidate if isinstance(selected_candidate, dict) else None,
+        "iterations": normalized_iterations,
+        "summary": {
+            "iteration_count": len(normalized_iterations),
+            "stop_reason": stop_reason,
+            "rollback_applied": bool(rollback_applied),
+            "gain_vs_baseline": gain_vs_baseline,
+        },
+    }
+
+
+def persist_structure_refinement_audit(
+    *,
+    task_id: str,
+    step_id: str,
+    audit_payload: dict[str, Any],
+    artifacts_dir: Path = Path("output/artifacts"),
+) -> Path:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    path = artifacts_dir / f"s4_refinement_{task_id}_{step_id}.json"
+    path.write_text(
+        json.dumps(audit_payload, ensure_ascii=True, indent=2),
+        encoding="utf-8",
+    )
+    return path
 
 
 def restore_context_from_snapshot(

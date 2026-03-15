@@ -20,9 +20,18 @@ from src.workflow.quality_gate import (
     QUALITY_GATE_ALL_REJECTED_CODE,
     evaluate_quality_gate_batch,
 )
+from src.workflow.recovery import (
+    StructureRefinementIteration,
+    build_structure_refinement_audit,
+    persist_structure_refinement_audit,
+)
 from src.workflow.step_runner import StepRunner
 from src.workflow.plan_runner import PlanRunner
 from src.workflow.status import transition_task_status
+
+_S4_DEFAULT_MAX_ITERATIONS = 3
+_S4_DEFAULT_CONVERGENCE_DELTA = 0.01
+_S4_DEFAULT_MAX_DEGRADATION_ROUNDS = 1
 
 
 class ExecutorAgent:
@@ -413,6 +422,393 @@ class ExecutorAgent:
         )
         return aggregate_result
 
+    def refine_sequences_from_s3(
+        self,
+        context: WorkflowContext,
+        *,
+        source_step_id: str = "S3",
+        refinement_step_id: str = "S4",
+        structure_step_id: str = "S2",
+        max_candidates: int = 3,
+        max_iterations: int | None = None,
+        convergence_delta: float | None = None,
+        max_degradation_rounds: int | None = None,
+    ) -> StepResult:
+        """Run S4 iterative loop: refinement -> structure projection -> quality gate."""
+        source_result = context.get_step_result(source_step_id)
+        if source_result is None:
+            raise ValueError(f"Missing source step result '{source_step_id}'")
+
+        refinement_template = _resolve_refinement_step_template(
+            plan=context.plan,
+            refinement_step_id=refinement_step_id,
+        )
+        tool_id = refinement_template.tool if refinement_template is not None else "protein_mpnn"
+
+        structure_template = _resolve_structure_step_template(
+            plan=context.plan,
+            structure_step_id=structure_step_id,
+        )
+        if structure_template is None:
+            structure_template = PlanStep(
+                id=structure_step_id,
+                tool="esmfold",
+                inputs={"sequence": "S4.sequence"},
+                metadata={"stage_id": "S2", "stage_name": "structure_projection"},
+            )
+
+        loop_config = _resolve_s4_loop_config(
+            context.task.constraints,
+            max_iterations=max_iterations,
+            convergence_delta=convergence_delta,
+            max_degradation_rounds=max_degradation_rounds,
+        )
+        candidates = _extract_s3_candidates_for_refinement(
+            source_result,
+            max_candidates=max_candidates,
+        )
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if not candidates:
+            failed = StepResult(
+                task_id=context.task.task_id,
+                step_id=refinement_step_id,
+                tool=tool_id,
+                status="failed",
+                failure_type=FailureType.NON_RETRYABLE.value,
+                error_message="S4 refinement requires at least one S3 passed sample",
+                error_details={
+                    "failure_code": "S4_NO_BASELINE_CANDIDATE",
+                    "phase": "structure_refinement",
+                    "timestamp": now_iso,
+                },
+                inputs={"source_step_id": source_step_id},
+                outputs={
+                    "stage_id": "S4",
+                    "stage_name": "structure_conditioned_refinement",
+                    "source_step_id": source_step_id,
+                    "refinement_iterations": [],
+                    "iteration_count": 0,
+                    "stop_reason": "missing_baseline",
+                },
+                metrics={
+                    "exec_type": "structure_refinement_loop",
+                    "max_iterations": loop_config["max_iterations"],
+                    "convergence_delta": loop_config["convergence_delta"],
+                    "max_degradation_rounds": loop_config["max_degradation_rounds"],
+                },
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso,
+            )
+            context.add_step_result(failed)
+            return failed
+
+        baseline = _select_best_quality_candidate(candidates) or candidates[0]
+        current_source = dict(baseline)
+        baseline_plddt = _coerce_float(baseline.get("plddt"))
+        previous_plddt = baseline_plddt
+        best_candidate = dict(baseline)
+        best_plddt = baseline_plddt
+        successful_iterations = 0
+        degraded_rounds = 0
+        rollback_applied = False
+        stop_reason = "max_iterations_reached"
+        iteration_logs: list[StructureRefinementIteration] = []
+        latest_refined_candidates: list[dict[str, Any]] = []
+
+        for iteration in range(1, loop_config["max_iterations"] + 1):
+            source_pdb_path = current_source.get("pdb_path")
+            source_candidate_id = _as_str(current_source.get("candidate_id")) or (
+                f"{source_step_id}_baseline"
+            )
+            source_plddt = previous_plddt
+            if not isinstance(source_pdb_path, str) or not source_pdb_path:
+                stop_reason = "missing_source_pdb"
+                rollback_applied = successful_iterations > 0
+                break
+
+            refine_step = _build_structure_refinement_step(
+                template=refinement_template,
+                refinement_step_id=refinement_step_id,
+                iteration=iteration,
+                pdb_path=source_pdb_path,
+                length_range=context.task.constraints.get("length_range"),
+                source_candidate_id=source_candidate_id,
+            )
+            refine_result = self.step_runner.run_step(refine_step, context)
+            context.add_step_result(refine_result)
+            if refine_result.status != "success":
+                rollback_applied = successful_iterations > 0
+                stop_reason = "refinement_failed"
+                iteration_logs.append(
+                    StructureRefinementIteration(
+                        iteration=iteration,
+                        source_candidate_id=source_candidate_id,
+                        source_pdb_path=_as_str(source_pdb_path),
+                        source_plddt=source_plddt,
+                        refined_candidate_id=None,
+                        refined_sequence=None,
+                        refined_pdb_path=None,
+                        refined_plddt=None,
+                        gain_vs_baseline=None,
+                        gain_vs_previous=None,
+                        qc_pass_count=0,
+                        qc_fail_count=0,
+                        status="failed",
+                        stop_reason=stop_reason,
+                    )
+                )
+                break
+
+            latest_refined_candidates = _extract_refinement_sequences(
+                refine_result.outputs,
+                max_candidates=max_candidates,
+                fallback_candidate_prefix=f"{refinement_step_id}_iter{iteration}",
+            )
+            if not latest_refined_candidates:
+                rollback_applied = successful_iterations > 0
+                stop_reason = "empty_refinement_candidates"
+                iteration_logs.append(
+                    StructureRefinementIteration(
+                        iteration=iteration,
+                        source_candidate_id=source_candidate_id,
+                        source_pdb_path=_as_str(source_pdb_path),
+                        source_plddt=source_plddt,
+                        refined_candidate_id=None,
+                        refined_sequence=None,
+                        refined_pdb_path=None,
+                        refined_plddt=None,
+                        gain_vs_baseline=None,
+                        gain_vs_previous=None,
+                        qc_pass_count=0,
+                        qc_fail_count=0,
+                        status="failed",
+                        stop_reason=stop_reason,
+                    )
+                )
+                break
+
+            projected_rows = []
+            for candidate_index, refined_candidate in enumerate(latest_refined_candidates, start=1):
+                projected_rows.append(
+                    _run_structure_projection_for_refinement(
+                        step_runner=self.step_runner,
+                        context=context,
+                        structure_template=structure_template,
+                        structure_step_id=structure_step_id,
+                        sequence=_as_str(refined_candidate.get("sequence")) or "",
+                        refined_candidate_id=_as_str(refined_candidate.get("candidate_id"))
+                        or f"{refinement_step_id}_iter{iteration}_cand{candidate_index}",
+                        iteration=iteration,
+                        candidate_index=candidate_index,
+                    )
+                )
+
+            qc_batch = evaluate_quality_gate_batch(
+                projected_rows,
+                constraints=context.task.constraints,
+            )
+            passed_rows = qc_batch["passed_samples"]
+            failed_rows = qc_batch["failed_samples"]
+            best_row = _select_best_quality_candidate(passed_rows)
+            if best_row is None:
+                rollback_applied = successful_iterations > 0
+                stop_reason = "quality_gate_rejected"
+                iteration_logs.append(
+                    StructureRefinementIteration(
+                        iteration=iteration,
+                        source_candidate_id=source_candidate_id,
+                        source_pdb_path=_as_str(source_pdb_path),
+                        source_plddt=source_plddt,
+                        refined_candidate_id=None,
+                        refined_sequence=None,
+                        refined_pdb_path=None,
+                        refined_plddt=None,
+                        gain_vs_baseline=None,
+                        gain_vs_previous=None,
+                        qc_pass_count=len(passed_rows),
+                        qc_fail_count=len(failed_rows),
+                        status="failed_qc",
+                        stop_reason=stop_reason,
+                    )
+                )
+                break
+
+            successful_iterations += 1
+            current_plddt = _coerce_float(best_row.get("plddt"))
+            gain_vs_baseline = _diff_or_none(current_plddt, baseline_plddt)
+            gain_vs_previous = _diff_or_none(current_plddt, previous_plddt)
+            iteration_stop_reason = None
+
+            if (
+                current_plddt is not None
+                and previous_plddt is not None
+                and current_plddt < previous_plddt
+            ):
+                degraded_rounds += 1
+            else:
+                degraded_rounds = 0
+
+            if (
+                current_plddt is not None
+                and previous_plddt is not None
+                and current_plddt < previous_plddt
+                and degraded_rounds > loop_config["max_degradation_rounds"]
+            ):
+                rollback_applied = True
+                stop_reason = "degradation_limit"
+                iteration_stop_reason = stop_reason
+            elif (
+                current_plddt is not None
+                and previous_plddt is not None
+                and current_plddt >= previous_plddt
+                and (current_plddt - previous_plddt) <= loop_config["convergence_delta"]
+            ):
+                stop_reason = "converged"
+                iteration_stop_reason = stop_reason
+
+            if current_plddt is not None and (
+                best_plddt is None or current_plddt > best_plddt
+            ):
+                best_plddt = current_plddt
+                best_candidate = dict(best_row)
+            current_source = dict(best_row)
+            if current_plddt is not None:
+                previous_plddt = current_plddt
+
+            iteration_logs.append(
+                StructureRefinementIteration(
+                    iteration=iteration,
+                    source_candidate_id=source_candidate_id,
+                    source_pdb_path=_as_str(source_pdb_path),
+                    source_plddt=source_plddt,
+                    refined_candidate_id=_as_str(best_row.get("candidate_id")),
+                    refined_sequence=_as_str(best_row.get("sequence")),
+                    refined_pdb_path=_as_str(best_row.get("pdb_path")),
+                    refined_plddt=current_plddt,
+                    gain_vs_baseline=gain_vs_baseline,
+                    gain_vs_previous=gain_vs_previous,
+                    qc_pass_count=len(passed_rows),
+                    qc_fail_count=len(failed_rows),
+                    status="success",
+                    stop_reason=iteration_stop_reason,
+                )
+            )
+
+            if iteration_stop_reason is not None:
+                break
+
+        selected_candidate = best_candidate if successful_iterations > 0 else None
+        final_plddt = _coerce_float(
+            selected_candidate.get("plddt") if isinstance(selected_candidate, dict) else None
+        )
+        audit_payload = build_structure_refinement_audit(
+            task_id=context.task.task_id,
+            step_id=refinement_step_id,
+            source_step_id=source_step_id,
+            baseline=baseline,
+            iterations=iteration_logs,
+            stop_reason=stop_reason,
+            rollback_applied=rollback_applied,
+            selected_candidate=selected_candidate,
+        )
+        audit_path = persist_structure_refinement_audit(
+            task_id=context.task.task_id,
+            step_id=refinement_step_id,
+            audit_payload=audit_payload,
+        )
+
+        result_status = "success" if successful_iterations > 0 else "failed"
+        error_message = None
+        error_details: Dict[str, Any] = {}
+        failure_type = None
+        if result_status == "failed":
+            failure_type = FailureType.NON_RETRYABLE.value
+            error_message = "S4 refinement loop produced no valid candidates"
+            error_details = {
+                "failure_code": "S4_REFINEMENT_FAILED",
+                "phase": "structure_refinement",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "stop_reason": stop_reason,
+            }
+
+        result = StepResult(
+            task_id=context.task.task_id,
+            step_id=refinement_step_id,
+            tool=tool_id,
+            status=result_status,
+            failure_type=failure_type,
+            error_message=error_message,
+            error_details=error_details,
+            inputs={
+                "source_step_id": source_step_id,
+                "max_candidates": max_candidates,
+                "max_iterations": loop_config["max_iterations"],
+                "convergence_delta": loop_config["convergence_delta"],
+                "max_degradation_rounds": loop_config["max_degradation_rounds"],
+            },
+            outputs={
+                "stage_id": "S4",
+                "stage_name": "structure_conditioned_refinement",
+                "source_step_id": source_step_id,
+                "loop_path": ["S4", "S2", "S3"],
+                "lineage": {
+                    "stage_id": "S4",
+                    "source_step_id": source_step_id,
+                    "baseline_candidate_id": baseline.get("candidate_id"),
+                    "rollback_applied": rollback_applied,
+                },
+                "sequence": selected_candidate.get("sequence")
+                if isinstance(selected_candidate, dict)
+                else None,
+                "pdb_path": selected_candidate.get("pdb_path")
+                if isinstance(selected_candidate, dict)
+                else None,
+                "plddt": final_plddt,
+                "candidates": latest_refined_candidates,
+                "refinement_iterations": [row.to_dict() for row in iteration_logs],
+                "iteration_count": len(iteration_logs),
+                "successful_iterations": successful_iterations,
+                "stop_reason": stop_reason,
+                "gain_metrics": {
+                    "baseline_plddt": baseline_plddt,
+                    "final_plddt": final_plddt,
+                    "delta_vs_baseline": _diff_or_none(final_plddt, baseline_plddt),
+                },
+            },
+            artifacts={
+                "refinement_audit_path": str(audit_path),
+            },
+            metrics={
+                "exec_type": "structure_refinement_loop",
+                "max_iterations": loop_config["max_iterations"],
+                "convergence_delta": loop_config["convergence_delta"],
+                "max_degradation_rounds": loop_config["max_degradation_rounds"],
+                "rollback_applied": rollback_applied,
+            },
+            risk_flags=[],
+            logs_path=None,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        context.add_step_result(result)
+        append_event(
+            context.task.task_id,
+            {
+                "event": "STEP_FINISHED" if result.status == "success" else "STEP_FAILED",
+                "task_id": context.task.task_id,
+                "step_id": refinement_step_id,
+                "tool": tool_id,
+                "status": result.status,
+                "failure_type": result.failure_type,
+                "error_message": result.error_message,
+                "timestamp": result.timestamp,
+                "state": context.status.value,
+                "external_status": to_external_status(context.status).value,
+                "data": _build_structure_refinement_trace_data(result),
+            },
+        )
+        return result
+
     def summarize_and_finalize(
         self,
         context: WorkflowContext,
@@ -495,6 +891,23 @@ def _resolve_quality_gate_step_template(
         return None
     for step in plan.steps:
         if step.id == quality_step_id:
+            return step
+    return None
+
+
+def _resolve_refinement_step_template(
+    *,
+    plan: Plan | None,
+    refinement_step_id: str,
+) -> PlanStep | None:
+    if plan is None:
+        return None
+    for step in plan.steps:
+        if step.id == refinement_step_id:
+            return step
+    for step in plan.steps:
+        metadata = step.metadata if isinstance(step.metadata, dict) else {}
+        if metadata.get("stage_id") == "S4":
             return step
     return None
 
@@ -608,6 +1021,293 @@ def _extract_s2_candidates_for_quality_gate(
             f"No structure candidates found in '{source_result.step_id}' outputs"
         )
     return resolved[: max(1, max_candidates)]
+
+
+def _extract_s3_candidates_for_refinement(
+    source_result: StepResult,
+    *,
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    outputs = source_result.outputs if isinstance(source_result.outputs, dict) else {}
+    passed_rows = outputs.get("passed_samples")
+    resolved: list[dict[str, Any]] = []
+
+    if isinstance(passed_rows, list):
+        for idx, item in enumerate(passed_rows):
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            row.setdefault("candidate_id", f"{source_result.step_id}_passed_{idx + 1}")
+            resolved.append(row)
+            if len(resolved) >= max(1, max_candidates):
+                break
+    if not resolved:
+        qc_rows = outputs.get("qc_results")
+        if isinstance(qc_rows, list):
+            for idx, item in enumerate(qc_rows):
+                if not isinstance(item, dict):
+                    continue
+                if item.get("status") != "pass":
+                    continue
+                row = dict(item)
+                row.setdefault("candidate_id", f"{source_result.step_id}_qc_{idx + 1}")
+                resolved.append(row)
+                if len(resolved) >= max(1, max_candidates):
+                    break
+    if not resolved and bool(outputs.get("pass_fail")):
+        plddt = outputs.get("plddt")
+        if not isinstance(plddt, (int, float)):
+            confidence = outputs.get("confidence")
+            if isinstance(confidence, dict) and isinstance(confidence.get("plddt_mean"), (int, float)):
+                plddt = confidence.get("plddt_mean")
+        resolved.append(
+            {
+                "candidate_id": f"{source_result.step_id}_primary",
+                "sequence": outputs.get("sequence"),
+                "pdb_path": outputs.get("pdb_path"),
+                "plddt": plddt,
+                "lineage": outputs.get("lineage", {}),
+            }
+        )
+    return resolved[: max(1, max_candidates)]
+
+
+def _extract_refinement_sequences(
+    outputs: Dict[str, Any],
+    *,
+    max_candidates: int,
+    fallback_candidate_prefix: str,
+) -> List[Dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    primary_sequence = outputs.get("sequence")
+    primary_score = outputs.get("sequence_score")
+    if isinstance(primary_sequence, str) and primary_sequence and primary_sequence not in seen:
+        resolved.append(
+            {
+                "candidate_id": f"{fallback_candidate_prefix}_primary",
+                "sequence": primary_sequence,
+                "score": primary_score,
+                "source": "primary",
+            }
+        )
+        seen.add(primary_sequence)
+
+    raw_candidates = outputs.get("candidates")
+    if isinstance(raw_candidates, list):
+        for idx, item in enumerate(raw_candidates):
+            sequence = None
+            score = None
+            candidate_id = f"{fallback_candidate_prefix}_{idx + 1}"
+            if isinstance(item, dict):
+                raw_sequence = item.get("sequence")
+                if isinstance(raw_sequence, str):
+                    sequence = raw_sequence
+                score = item.get("score")
+                if isinstance(item.get("candidate_id"), str):
+                    candidate_id = str(item.get("candidate_id"))
+            elif isinstance(item, str):
+                sequence = item
+            if not isinstance(sequence, str) or not sequence or sequence in seen:
+                continue
+            resolved.append(
+                {
+                    "candidate_id": candidate_id,
+                    "sequence": sequence,
+                    "score": score,
+                    "source": "candidate_list",
+                }
+            )
+            seen.add(sequence)
+            if len(resolved) >= max(1, max_candidates):
+                break
+    return resolved[: max(1, max_candidates)]
+
+
+def _run_structure_projection_for_refinement(
+    *,
+    step_runner: StepRunner,
+    context: WorkflowContext,
+    structure_template: PlanStep,
+    structure_step_id: str,
+    sequence: str,
+    refined_candidate_id: str,
+    iteration: int,
+    candidate_index: int,
+) -> Dict[str, Any]:
+    row = {
+        "candidate_id": refined_candidate_id,
+        "status": "failed",
+        "sequence": sequence,
+        "lineage": {
+            "stage_id": "S2",
+            "source_stage_id": "S4",
+            "source_candidate_id": refined_candidate_id,
+            "iteration": iteration,
+        },
+    }
+    if not _is_valid_sequence_for_projection(sequence):
+        row["failure_code"] = "S2_SEQUENCE_INVALID"
+        row["failure_reason"] = "sequence must be uppercase alphabetic characters"
+        return row
+
+    attempts = []
+    for tool_id in _resolve_structure_tool_chain(structure_template.tool):
+        step = _build_structure_projection_step(
+            template=structure_template,
+            step_id=(
+                f"{structure_step_id}_s4_{iteration}_{candidate_index}_{tool_id}"
+            ),
+            tool_id=tool_id,
+            sequence=sequence,
+            source_candidate_id=refined_candidate_id,
+        )
+        result = step_runner.run_step(step, context)
+        context.add_step_result(result)
+        attempts.append(result)
+        if result.status == "success":
+            break
+
+    final_result = _pick_final_projection_result(attempts)
+    if final_result is None:
+        row["failure_code"] = "S2_TOOL_EXECUTION_FAILED"
+        row["failure_reason"] = "structure projection produced no result"
+        return row
+
+    if final_result.status == "success":
+        outputs = final_result.outputs
+        row["status"] = "success"
+        row["tool_id"] = final_result.tool
+        row["pdb_path"] = outputs.get("pdb_path")
+        row["plddt"] = outputs.get("plddt")
+        row["confidence"] = outputs.get("confidence")
+        row["failure_code"] = None
+        row["failure_reason"] = None
+    else:
+        row["status"] = "failed"
+        row["tool_id"] = final_result.tool
+        row["failure_code"] = _normalize_s2_failure_code(final_result)
+        row["failure_reason"] = final_result.error_message
+        if len(attempts) > 1:
+            row["failure_code"] = "S2_FALLBACK_EXHAUSTED"
+    return row
+
+
+def _resolve_s4_loop_config(
+    constraints: Dict[str, Any],
+    *,
+    max_iterations: int | None,
+    convergence_delta: float | None,
+    max_degradation_rounds: int | None,
+) -> Dict[str, Any]:
+    local = (
+        constraints.get("structure_refinement")
+        if isinstance(constraints.get("structure_refinement"), dict)
+        else {}
+    )
+
+    raw_max_iterations = (
+        max_iterations
+        if max_iterations is not None
+        else local.get("max_iterations", constraints.get("s4_max_iterations"))
+    )
+    raw_convergence_delta = (
+        convergence_delta
+        if convergence_delta is not None
+        else local.get("convergence_delta", constraints.get("s4_convergence_delta"))
+    )
+    raw_max_degradation = (
+        max_degradation_rounds
+        if max_degradation_rounds is not None
+        else local.get(
+            "max_degradation_rounds",
+            constraints.get("s4_max_degradation_rounds"),
+        )
+    )
+
+    try:
+        normalized_max_iterations = int(raw_max_iterations)
+    except (TypeError, ValueError):
+        normalized_max_iterations = _S4_DEFAULT_MAX_ITERATIONS
+    normalized_max_iterations = max(1, normalized_max_iterations)
+
+    try:
+        normalized_convergence_delta = float(raw_convergence_delta)
+    except (TypeError, ValueError):
+        normalized_convergence_delta = _S4_DEFAULT_CONVERGENCE_DELTA
+    normalized_convergence_delta = max(0.0, normalized_convergence_delta)
+
+    try:
+        normalized_max_degradation = int(raw_max_degradation)
+    except (TypeError, ValueError):
+        normalized_max_degradation = _S4_DEFAULT_MAX_DEGRADATION_ROUNDS
+    normalized_max_degradation = max(0, normalized_max_degradation)
+
+    return {
+        "max_iterations": normalized_max_iterations,
+        "convergence_delta": normalized_convergence_delta,
+        "max_degradation_rounds": normalized_max_degradation,
+    }
+
+
+def _build_structure_refinement_step(
+    *,
+    template: PlanStep | None,
+    refinement_step_id: str,
+    iteration: int,
+    pdb_path: str,
+    length_range: Any,
+    source_candidate_id: str,
+) -> PlanStep:
+    tool_id = template.tool if isinstance(template, PlanStep) else "protein_mpnn"
+    step_id = f"{refinement_step_id}_{iteration}"
+    inputs = {
+        "pdb_path": pdb_path,
+        "source_candidate_id": source_candidate_id,
+        "stage_id": "S4",
+        "iteration": iteration,
+    }
+    if isinstance(length_range, (list, tuple)) and len(length_range) == 2:
+        inputs["length_range"] = [int(length_range[0]), int(length_range[1])]
+    metadata = dict(template.metadata if isinstance(template, PlanStep) else {})
+    metadata.update(
+        {
+            "stage_id": "S4",
+            "stage_name": "structure_conditioned_refinement",
+            "iteration": iteration,
+            "lineage": {
+                "stage_id": "S4",
+                "source_candidate_id": source_candidate_id,
+                "source_stage_id": "S3",
+            },
+        }
+    )
+    return PlanStep(
+        id=step_id,
+        tool=tool_id,
+        inputs=inputs,
+        metadata=metadata,
+    )
+
+
+def _coerce_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _diff_or_none(current: float | None, baseline: float | None) -> float | None:
+    if current is None or baseline is None:
+        return None
+    return round(current - baseline, 6)
+
+
+def _as_str(value: Any) -> str | None:
+    if isinstance(value, str):
+        return value
+    return None
 
 
 def _resolve_structure_tool_chain(primary_tool_id: str) -> List[str]:
@@ -825,4 +1525,18 @@ def _build_quality_gate_trace_data(result: StepResult) -> Dict[str, Any]:
             "reject_code_counts": reject_counts if isinstance(reject_counts, dict) else {},
             "failed_samples": failed_samples,
         },
+    }
+
+
+def _build_structure_refinement_trace_data(result: StepResult) -> Dict[str, Any]:
+    outputs = result.outputs if isinstance(result.outputs, dict) else {}
+    gain_metrics = outputs.get("gain_metrics")
+    lineage = outputs.get("lineage")
+    return {
+        "stage_id": outputs.get("stage_id"),
+        "stop_reason": outputs.get("stop_reason"),
+        "iteration_count": outputs.get("iteration_count"),
+        "successful_iterations": outputs.get("successful_iterations"),
+        "gain_metrics": gain_metrics if isinstance(gain_metrics, dict) else {},
+        "lineage": lineage if isinstance(lineage, dict) else {},
     }
