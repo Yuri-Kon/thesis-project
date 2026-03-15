@@ -68,6 +68,24 @@ class _CandidatePayload:
     primary_tool_id: str
     capability_bucket: str
     note: str
+    recovery_layer: str | None = None
+    recovery_reason: str | None = None
+
+
+_PATCH_LAYER_PRIORITY = {
+    "parameter_level": 0,
+    "tool_level": 1,
+    "structure_level": 2,
+}
+
+_P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
+    # Requirement-2: P0 capability swap matrix (structure prediction core path)
+    "structure_prediction": ("nim_esmfold", "esmfold", "alphafold", "openfold"),
+    # Requirement-2: minimal fallback path for quality_qc
+    "quality_qc": ("biopython_qc", "dssp"),
+    # Requirement-2: minimal fallback path for objective_scoring
+    "objective_scoring": ("objective_ranker",),
+}
 
 
 class PlannerAgent:
@@ -660,11 +678,15 @@ def _build_patch_candidate_payloads(
     target_step = _locate_target_step(request)
     target_spec = _find_tool_spec(registry, target_step.tool)
     capability = _primary_capability(target_spec)
+    failed_result = _latest_failed_step_result(
+        request.context_step_results,
+        target_step.id,
+    )
 
     available_inputs = _collect_available_inputs(
         request.context_step_results, target_step
     )
-    alternatives = _rank_candidate_tools(
+    alternatives = _rank_patch_alternatives(
         registry=registry,
         capability=capability,
         available_inputs=available_inputs,
@@ -672,19 +694,32 @@ def _build_patch_candidate_payloads(
     )
     if not alternatives:
         fallback_inputs = _collect_registry_inputs(registry)
-        alternatives = _rank_candidate_tools(
+        alternatives = _rank_patch_alternatives(
             registry=registry,
             capability=capability,
             available_inputs=fallback_inputs,
             exclude_tool=target_step.tool,
         )
-    if not alternatives:
-        raise ValueError(
-            f"No alternative tool found for capability '{capability}' "
-            f"with inputs {sorted(available_inputs)}"
-        )
 
     payloads: List[_CandidatePayload] = []
+    parameter_patch = _build_parameter_level_patch(
+        request=request,
+        target_step=target_step,
+        target_capability=capability,
+        failed_result=failed_result,
+    )
+    if parameter_patch is not None:
+        payloads.append(
+            _CandidatePayload(
+                payload=parameter_patch,
+                primary_tool_id=target_step.tool,
+                capability_bucket=capability,
+                note=f"target:{target_step.id}:param_tweak:{target_step.tool}",
+                recovery_layer="parameter_level",
+                recovery_reason="parameter_tweak",
+            )
+        )
+
     max_candidates = max(1, top_k * 2)
     for alternative in alternatives[:max_candidates]:
         patched_step = target_step.model_copy(
@@ -705,7 +740,14 @@ def _build_patch_candidate_payloads(
         patch = PlanPatch(
             task_id=request.task_id,
             operations=[op],
-            metadata={"strategy": "cost_first"},
+            metadata=_build_patch_metadata(
+                target_capability=capability,
+                source_tool=target_step.tool,
+                selected_tool=alternative.id,
+                recovery_layer="tool_level",
+                reason="tool_swap_replacement_matrix",
+                request_reason=request.reason,
+            ),
         )
         patch.metadata["kg_explanation"] = _build_kg_explanation_for_steps(
             [patched_step]
@@ -716,9 +758,244 @@ def _build_patch_candidate_payloads(
                 primary_tool_id=alternative.id,
                 capability_bucket=_primary_capability(alternative),
                 note=f"target:{target_step.id}:{target_step.tool}->{alternative.id}",
+                recovery_layer="tool_level",
+                recovery_reason="tool_swap_replacement_matrix",
             )
         )
+
+    structure_patch = _build_structure_level_patch(
+        request=request,
+        registry=registry,
+        target_step=target_step,
+        target_capability=capability,
+    )
+    if structure_patch is not None:
+        payloads.append(
+            _CandidatePayload(
+                payload=structure_patch,
+                primary_tool_id=target_step.tool,
+                capability_bucket=capability,
+                note=f"target:{target_step.id}:structure_guard",
+                recovery_layer="structure_level",
+                recovery_reason="insert_guard_step",
+            )
+        )
+
+    if not payloads:
+        raise ValueError(
+            f"No patch candidate found for capability '{capability}' "
+            f"with inputs {sorted(available_inputs)}"
+        )
     return payloads
+
+
+def _latest_failed_step_result(
+    results: Sequence[StepResult],
+    step_id: str,
+) -> StepResult | None:
+    for result in reversed(list(results)):
+        if result.step_id == step_id and result.status == "failed":
+            return result
+    return None
+
+
+def _build_parameter_level_patch(
+    *,
+    request: PatchRequest,
+    target_step: PlanStep,
+    target_capability: str,
+    failed_result: StepResult | None,
+) -> PlanPatch | None:
+    param_updates = _derive_param_updates(failed_result, target_step)
+    if not param_updates:
+        return None
+
+    patched_step = target_step.model_copy(
+        update={
+            "metadata": {
+                **(target_step.metadata or {}),
+                "patched_from": target_step.tool,
+                "patch_param_updates": param_updates,
+            }
+        },
+        deep=True,
+    )
+    op = PlanPatchOp(
+        op="replace_step",
+        target=target_step.id,
+        step=patched_step,
+    )
+    return PlanPatch(
+        task_id=request.task_id,
+        operations=[op],
+        metadata=_build_patch_metadata(
+            target_capability=target_capability,
+            source_tool=target_step.tool,
+            selected_tool=target_step.tool,
+            recovery_layer="parameter_level",
+            reason="parameter_tweak",
+            request_reason=request.reason,
+            param_updates=param_updates,
+        ),
+    )
+
+
+def _derive_param_updates(
+    failed_result: StepResult | None,
+    target_step: PlanStep,
+) -> dict:
+    updates: dict[str, object] = {}
+    failure_type = failed_result.failure_type if failed_result is not None else None
+    if failure_type in {"RETRYABLE", "TOOL_ERROR"}:
+        updates["retry_profile"] = "conservative"
+    error_message = (failed_result.error_message or "").lower() if failed_result else ""
+    if "timeout" in error_message:
+        updates["timeout_multiplier"] = 1.5
+    if "memory" in error_message or "oom" in error_message:
+        updates["batch_size"] = 1
+
+    metadata = target_step.metadata if isinstance(target_step.metadata, dict) else {}
+    if "temperature" in metadata:
+        try:
+            current = float(metadata["temperature"])
+            updates["temperature"] = max(0.0, min(1.0, round(current * 0.8, 3)))
+        except (TypeError, ValueError):
+            pass
+
+    if not updates:
+        updates["patch_mode"] = "safe_default_retry"
+    return updates
+
+
+def _build_structure_level_patch(
+    *,
+    request: PatchRequest,
+    registry: Sequence[ToolSpec],
+    target_step: PlanStep,
+    target_capability: str,
+) -> PlanPatch | None:
+    available_inputs = _collect_available_inputs(request.context_step_results, target_step)
+    guard_tools = _rank_structure_guard_tools(
+        registry=registry,
+        available_inputs=available_inputs,
+        exclude_tool=target_step.tool,
+    )
+    for guard_tool in guard_tools:
+        guard_inputs = _materialize_structure_guard_inputs(
+            target_step=target_step,
+            guard_tool=guard_tool,
+        )
+        if guard_inputs is None:
+            continue
+        guard_step = PlanStep(
+            id=f"{target_step.id}_guard",
+            tool=guard_tool.id,
+            inputs=guard_inputs,
+            metadata={
+                "stage_id": "S6",
+                "stage_name": "patch_replan_control",
+                "recovery_guard_for": target_step.id,
+                "recovery_layer": "structure_level",
+                "capability_id": _primary_capability(guard_tool),
+            },
+        )
+        op = PlanPatchOp(
+            op="insert_step_after",
+            target=target_step.id,
+            step=guard_step,
+        )
+        return PlanPatch(
+            task_id=request.task_id,
+            operations=[op],
+            metadata=_build_patch_metadata(
+                target_capability=target_capability,
+                source_tool=target_step.tool,
+                selected_tool=guard_tool.id,
+                recovery_layer="structure_level",
+                reason="insert_guard_step",
+                request_reason=request.reason,
+            ),
+        )
+    return None
+
+
+def _rank_structure_guard_tools(
+    *,
+    registry: Sequence[ToolSpec],
+    available_inputs: Set[str],
+    exclude_tool: str,
+) -> List[ToolSpec]:
+    ranked: List[ToolSpec] = []
+    seen: Set[str] = set()
+    for capability in ("quality_qc", "objective_scoring"):
+        candidates = _rank_patch_alternatives(
+            registry=registry,
+            capability=capability,
+            available_inputs=available_inputs | {"sequence", "pdb_path", "plddt", "candidates"},
+            exclude_tool=exclude_tool,
+        )
+        for candidate in candidates:
+            if candidate.id in seen:
+                continue
+            seen.add(candidate.id)
+            ranked.append(candidate)
+    return ranked
+
+
+def _materialize_structure_guard_inputs(
+    *,
+    target_step: PlanStep,
+    guard_tool: ToolSpec,
+) -> dict | None:
+    resolved: dict[str, object] = {}
+    source_inputs = target_step.inputs if isinstance(target_step.inputs, dict) else {}
+    output_ref_aliases = {
+        "sequence": "sequence",
+        "pdb_path": "pdb_path",
+        "structure_pdb": "pdb_path",
+        "plddt": "plddt",
+        "candidates": "candidates",
+        "qc_metrics": "qc_metrics",
+        "structure_metrics": "structure_metrics",
+    }
+    for required in guard_tool.inputs:
+        if required in source_inputs:
+            resolved[required] = source_inputs[required]
+            continue
+        alias = output_ref_aliases.get(required)
+        if alias is not None:
+            resolved[required] = f"{target_step.id}.{alias}"
+            continue
+        return None
+    return resolved
+
+
+def _build_patch_metadata(
+    *,
+    target_capability: str,
+    source_tool: str,
+    selected_tool: str,
+    recovery_layer: str,
+    reason: str,
+    request_reason: str,
+    param_updates: dict | None = None,
+) -> dict:
+    metadata: dict[str, object] = {
+        "strategy": "layered_patch_v1",
+        "recovery_layer": recovery_layer,
+        "recovery_layer_rank": _PATCH_LAYER_PRIORITY.get(recovery_layer, 99),
+        "reason": reason,
+        "request_reason": request_reason,
+        "capability_id": target_capability,
+        "from_tool": source_tool,
+        "to_tool": selected_tool,
+        "replacement_matrix": list(
+            _P0_CAPABILITY_REPLACEMENT_MATRIX.get(target_capability, ())
+        ),
+    }
+    if param_updates:
+        metadata["param_updates"] = param_updates
+    return metadata
 
 
 def _build_replan_candidate_payloads(
@@ -846,6 +1123,14 @@ def _build_top_k_result(
             "adapter_mode": adapter_mode,
             "generation_note": payload.note,
         }
+        if payload.recovery_layer:
+            metadata["recovery_layer"] = payload.recovery_layer
+        if payload.recovery_reason:
+            metadata["recovery_reason"] = payload.recovery_reason
+        if isinstance(payload.payload, PlanPatch):
+            patch_meta = _extract_patch_candidate_metadata(payload.payload)
+            if patch_meta:
+                metadata.update(patch_meta)
         if isinstance(payload.payload, Plan):
             s1_metadata = _extract_s1_candidate_metadata(payload.payload)
             if s1_metadata:
@@ -869,13 +1154,24 @@ def _build_top_k_result(
             metadata=metadata,
         )
         priority_rank = _priority_rank(primary_tool.priority if primary_tool else None)
-        sort_key = (
-            -score_breakdown["overall"],
-            priority_rank,
-            capability_id,
-            tool_id,
-            candidate_id,
-        )
+        patch_layer_rank = _patch_layer_rank(payload.payload)
+        if candidate_kind == "patch":
+            sort_key = (
+                patch_layer_rank,
+                -score_breakdown["overall"],
+                priority_rank,
+                capability_id,
+                tool_id,
+                candidate_id,
+            )
+        else:
+            sort_key = (
+                -score_breakdown["overall"],
+                priority_rank,
+                capability_id,
+                tool_id,
+                candidate_id,
+            )
         ranked_rows.append((candidate, sort_key, capability_id))
 
     ranked_rows.sort(key=lambda row: row[1])
@@ -938,7 +1234,49 @@ def _build_candidate_summary(payload: Plan | PlanPatch) -> str:
         tools = [step.tool for step in payload.steps]
         return f"plan_steps={len(payload.steps)} tools={','.join(tools)}"
     ops = [op.op for op in payload.operations]
-    return f"patch_ops={len(payload.operations)} ops={','.join(ops)}"
+    layer = ""
+    if isinstance(payload.metadata, dict):
+        raw_layer = payload.metadata.get("recovery_layer")
+        if isinstance(raw_layer, str) and raw_layer:
+            layer = f" layer={raw_layer}"
+    return f"patch_ops={len(payload.operations)} ops={','.join(ops)}{layer}"
+
+
+def _extract_patch_candidate_metadata(payload: PlanPatch) -> dict:
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    extracted: dict[str, object] = {}
+    for key in (
+        "strategy",
+        "recovery_layer",
+        "recovery_layer_rank",
+        "reason",
+        "capability_id",
+        "from_tool",
+        "to_tool",
+        "request_reason",
+    ):
+        value = metadata.get(key)
+        if value is not None:
+            extracted[key] = value
+    replacement_matrix = metadata.get("replacement_matrix")
+    if isinstance(replacement_matrix, (tuple, list)):
+        extracted["replacement_matrix"] = list(replacement_matrix)
+    return extracted
+
+
+def _patch_layer_rank(payload: Plan | PlanPatch) -> int:
+    if isinstance(payload, Plan):
+        return 999
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    raw_rank = metadata.get("recovery_layer_rank")
+    try:
+        return int(raw_rank)
+    except (TypeError, ValueError):
+        pass
+    raw_layer = metadata.get("recovery_layer")
+    if isinstance(raw_layer, str):
+        return _PATCH_LAYER_PRIORITY.get(raw_layer, 999)
+    return 999
 
 
 def _score_payload(payload: Plan | PlanPatch, registry: Sequence[ToolSpec]) -> dict[str, float]:
@@ -1212,6 +1550,40 @@ def _rank_candidate_tools(
         )
     )
     return candidates
+
+
+def _rank_patch_alternatives(
+    *,
+    registry: Sequence[ToolSpec],
+    capability: str,
+    available_inputs: Set[str],
+    exclude_tool: str,
+) -> List[ToolSpec]:
+    ranked = _rank_candidate_tools(
+        registry=registry,
+        capability=capability,
+        available_inputs=available_inputs,
+        exclude_tool=exclude_tool,
+    )
+    indexed = {tool.id: idx for idx, tool in enumerate(ranked)}
+    ranked.sort(
+        key=lambda tool: (
+            _replacement_matrix_rank(capability, tool.id),
+            indexed.get(tool.id, 999),
+            tool.id,
+        )
+    )
+    return ranked
+
+
+def _replacement_matrix_rank(capability: str, tool_id: str) -> int:
+    order = _P0_CAPABILITY_REPLACEMENT_MATRIX.get(capability, ())
+    if not order:
+        return 999
+    try:
+        return order.index(tool_id)
+    except ValueError:
+        return len(order) + 1
 
 
 def _priority_rank(priority: str | None) -> int:

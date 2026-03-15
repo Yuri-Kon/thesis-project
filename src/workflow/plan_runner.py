@@ -284,8 +284,16 @@ class PlanRunner:
 
                 if failed_result is not None:
                     failure_reason = "step_failed"
-                    if failed_result.metrics.get("retry_exhausted"):
+                    patch_meta = failed_result.metrics.get("patch")
+                    recovery_meta = failed_result.metrics.get("recovery")
+                    if isinstance(patch_meta, dict) and patch_meta.get("applied") is True:
+                        failure_reason = "patch_failed"
+                    elif failed_result.metrics.get("retry_exhausted"):
                         failure_reason = "retry_exhausted"
+                    if isinstance(recovery_meta, dict):
+                        upgrade_reason = recovery_meta.get("upgrade_reason")
+                        if isinstance(upgrade_reason, str) and upgrade_reason:
+                            failure_reason = upgrade_reason
                     request_failure_type = self._coerce_failure_type(
                         failed_result.failure_type
                     )
@@ -485,6 +493,8 @@ class PlanRunner:
         options = ["replan", "cancel"]
         if isinstance(failure_code, str) and failure_code.startswith("NIM_"):
             options.append("switch_to_local_esmfold")
+        if isinstance(failure_code, str) and failure_code.startswith("S3_"):
+            options.append("suffix_replan")
         return options
 
     def _summarize_failure_result(self, result: StepResult) -> dict:
@@ -496,6 +506,8 @@ class PlanRunner:
                 failure_reason = result.risk_flags[0].message
         if not failure_code and isinstance(result.error_details, dict):
             failure_code = result.error_details.get("failure_code")
+        patch_meta = result.metrics.get("patch")
+        recovery_meta = result.metrics.get("recovery")
         return {
             "step_id": result.step_id,
             "tool": result.tool,
@@ -503,6 +515,8 @@ class PlanRunner:
             "failure_code": failure_code,
             "failure_reason": failure_reason,
             "risk_flags": [flag.model_dump() for flag in result.risk_flags],
+            "patch": patch_meta if isinstance(patch_meta, dict) else {},
+            "recovery": recovery_meta if isinstance(recovery_meta, dict) else {},
         }
 
     def _coerce_failure_type(self, value) -> FailureType:
@@ -775,6 +789,29 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
     stage_id = outputs.get("stage_id")
     if isinstance(stage_id, str) and stage_id:
         data["stage_id"] = stage_id
+
+    patch_meta = step_result.metrics.get("patch")
+    if isinstance(patch_meta, dict) and patch_meta:
+        data["patch"] = {
+            "layer": patch_meta.get("layer"),
+            "from_tool": patch_meta.get("from_tool"),
+            "to_tool": patch_meta.get("to_tool"),
+            "capability_id": patch_meta.get("capability_id"),
+            "reason": patch_meta.get("reason"),
+            "ops": patch_meta.get("ops"),
+            "patched_status": patch_meta.get("patched_status"),
+        }
+
+    recovery_meta = step_result.metrics.get("recovery")
+    if isinstance(recovery_meta, dict) and recovery_meta:
+        data["recovery"] = {
+            "layer": recovery_meta.get("recovery_layer"),
+            "from_tool": recovery_meta.get("from_tool"),
+            "to_tool": recovery_meta.get("to_tool"),
+            "capability_id": recovery_meta.get("capability_id"),
+            "reason": recovery_meta.get("reason"),
+            "upgrade_reason": recovery_meta.get("upgrade_reason"),
+        }
 
     if stage_id == "S3":
         reject_counts = outputs.get("reject_code_counts")
