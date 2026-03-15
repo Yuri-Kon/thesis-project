@@ -502,6 +502,7 @@ async def get_task_events(
         "REPLACE_TOOL",
         "PARAM_TWEAK",
         "STRUCTURE_PATCH",
+        "PLANNER_ROUTE_DECISION",
         "RECOVERY_ESCALATED",
         "CANDIDATE_VALIDATION_FAILED",
     }

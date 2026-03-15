@@ -98,3 +98,33 @@ def test_read_timeline_events_keeps_legacy_entries_compatible(tmp_path: Path) ->
     finished = timeline[1]
     assert finished["event_type"] == "STEP_FINISHED"
     assert finished["step_id"] == "S1"
+
+
+@pytest.mark.unit
+def test_read_timeline_events_extracts_planner_route_fields(tmp_path: Path) -> None:
+    task_id = "timeline_route_001"
+    log_file = tmp_path / f"{task_id}.jsonl"
+    event = {
+        "event": "PLANNER_ROUTE_DECISION",
+        "task_id": task_id,
+        "tool": "external_baseline",
+        "timestamp": "2026-03-16T03:00:00+00:00",
+        "data": {
+            "from_tool": "planner_default",
+            "to_tool": "external_baseline",
+            "capability": "planner_generation",
+            "trigger_threshold": "consecutive_execution_failures=2>=2",
+        },
+    }
+
+    with log_file.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=True) + "\n")
+
+    timeline = read_timeline_events(task_id, log_dir=tmp_path)
+    assert len(timeline) == 1
+    route = timeline[0]
+    assert route["event_type"] == "PLANNER_ROUTE_DECISION"
+    assert route["tool_id"] == "external_baseline"
+    assert route["from_tool"] == "planner_default"
+    assert route["to_tool"] == "external_baseline"
+    assert route["capability_id"] == "planner_generation"

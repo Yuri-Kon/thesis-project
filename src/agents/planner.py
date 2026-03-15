@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from dataclasses import dataclass
 from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from src.kg.kg_client import ToolKGError, load_tool_kg
-from src.llm.base_llm_provider import BaseProvider
+from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.baseline_provider import BaselineProvider
 from src.models.contracts import (
     PatchRequest,
     PendingActionType,
@@ -19,9 +21,20 @@ from src.models.contracts import (
     ProteinDesignTask,
     ReplanRequest,
     StepResult,
+    now_iso,
 )
-from src.models.validation import validate_candidate_set_output
-from src.models.db import InternalStatus, TaskRecord, TERMINAL_INTERNAL_STATUSES
+from src.models.validation import (
+    CandidateExecutionValidationError,
+    validate_candidate_set_output,
+    validate_plan_executability,
+)
+from src.models.db import (
+    InternalStatus,
+    TaskRecord,
+    TERMINAL_INTERNAL_STATUSES,
+    to_external_status,
+)
+from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.workflow.status import transition_task_status
@@ -72,6 +85,28 @@ class _CandidatePayload:
     recovery_reason: str | None = None
 
 
+@dataclass(frozen=True)
+class RuntimeFallbackConfig:
+    """Planner 双路推理回退配置。"""
+
+    enable_dual_route: bool = True
+    force_external_only: bool = False
+    schema_fail_threshold: int = 2
+    executable_rate_threshold: float = 0.95
+    executable_drop_threshold: float = 0.05
+    consecutive_failure_threshold: int = 2
+    sustained_high_risk_threshold: int = 2
+    fallback_capability: str = "planner_generation"
+
+
+@dataclass(frozen=True)
+class RouteTrigger:
+    """触发外部回退的原因与阈值描述。"""
+
+    reason: str
+    threshold: str
+
+
 _PATCH_LAYER_PRIORITY = {
     "parameter_level": 0,
     "tool_level": 1,
@@ -110,6 +145,8 @@ _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
     "objective_scoring": ("objective_ranker",),
 }
 
+_DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
+
 
 class PlannerAgent:
     """最小可用 PlannerAgent: 根据任务目标生成一个单步 Plan
@@ -122,12 +159,14 @@ class PlannerAgent:
         self,
         tool_registry: Iterable[ToolSpec] | None = None,
         llm_provider: Optional[BaseProvider] = None,
+        fallback_llm_provider: Optional[BaseProvider] = None,
     ) -> None:
         """初始化 PlannerAgent
 
         Args:
             tool_registry: 可用工具注册表，默认从 ProteinToolKG 读取
             llm_provider: 可选的 LLM Provider，用于生成计划
+            fallback_llm_provider: 外部兜底 Provider（默认 baseline）
         """
         if tool_registry is None:
             tool_registry = _load_default_tool_registry()
@@ -137,50 +176,54 @@ class PlannerAgent:
                 "Tool registry is empty; ensure ProteinToolKG provides tools."
             )
         self._llm_provider = llm_provider
+        self._fallback_llm_provider = (
+            fallback_llm_provider
+            if fallback_llm_provider is not None
+            else BaselineProvider(ProviderConfig(model_name=_DEFAULT_EXTERNAL_PROVIDER_NAME))
+        )
+        self._runtime_fallback_state: dict[str, dict[str, Any]] = {}
 
-    def plan(self, task: ProteinDesignTask) -> Plan:
+    def plan(
+        self,
+        task: ProteinDesignTask,
+        *,
+        use_external: bool = False,
+    ) -> Plan:
         """生成执行计划
 
         Args:
             task: 蛋白质设计任务
+            use_external: 是否使用 external fallback provider
 
         Returns:
             Plan: 包含步骤列表的执行计划
         """
-        # 如果未提供 Provider，回退到默认行为（向后兼容）
-        if self._llm_provider is None:
-            return self._default_plan(task)
-
-        # 调用 LLM Provider 生成计划
-        plan_dict = self._llm_provider.call_planner(
-            task=task, tool_registry=self._tool_registry
-        )
-
-        # 验证并返回 Plan 对象
-        plan = Plan.model_validate(plan_dict)
-        plan = _resolve_plan_tools(
-            plan,
-            self._tool_registry,
-            task.constraints,
-        )
-        _ensure_plan_tools_in_registry(plan, self._tool_registry)
-        plan = _attach_kg_explanation(plan)
-        return plan
+        return self._plan_from_route(task, use_external=use_external)
 
     def plan_top_k(self, task: ProteinDesignTask, *, k: int = 3) -> TopKResult:
         """生成 Plan Top-K 候选（默认 K=3）。"""
         base_plan = self.plan(task)
+        return self._build_plan_top_k(task, base_plan, k=_normalize_top_k(k))
+
+    def _build_plan_top_k(
+        self,
+        task: ProteinDesignTask,
+        base_plan: Plan,
+        *,
+        k: int,
+    ) -> TopKResult:
+        """基于 base_plan 组装 plan top-k 结果。"""
         payloads = _build_plan_candidate_payloads(
             task=task,
             base_plan=base_plan,
             registry=self._tool_registry,
-            top_k=_normalize_top_k(k),
+            top_k=k,
         )
         return _build_top_k_result(
             payloads=payloads,
             registry=self._tool_registry,
             candidate_kind="plan",
-            top_k=_normalize_top_k(k),
+            top_k=k,
             task_constraints=task.constraints,
         )
 
@@ -278,6 +321,91 @@ class PlannerAgent:
         )
         return _attach_kg_explanation(plan)
 
+    def _plan_from_route(
+        self,
+        task: ProteinDesignTask,
+        *,
+        use_external: bool,
+    ) -> Plan:
+        if use_external:
+            plan = self._plan_from_provider(task, provider=self._fallback_llm_provider)
+            provider_name = _provider_name(self._fallback_llm_provider)
+            return self._attach_route_metadata(
+                plan,
+                provider_tier="external",
+                provider_name=provider_name,
+            )
+
+        # local path keeps backward-compatible default behavior
+        if self._llm_provider is None:
+            plan = self._default_plan(task)
+            return self._attach_route_metadata(
+                plan,
+                provider_tier="local",
+                provider_name="planner_default",
+            )
+
+        plan = self._plan_from_provider(task, provider=self._llm_provider)
+        provider_name = _provider_name(self._llm_provider)
+        return self._attach_route_metadata(
+            plan,
+            provider_tier="local",
+            provider_name=provider_name,
+        )
+
+    def _plan_from_provider(
+        self,
+        task: ProteinDesignTask,
+        *,
+        provider: BaseProvider,
+    ) -> Plan:
+        plan_dict = provider.call_planner(task=task, tool_registry=self._tool_registry)
+        plan = Plan.model_validate(plan_dict)
+        plan = _resolve_plan_tools(
+            plan,
+            self._tool_registry,
+            task.constraints,
+        )
+        _ensure_plan_tools_in_registry(plan, self._tool_registry)
+        return _attach_kg_explanation(plan)
+
+    def _attach_route_metadata(
+        self,
+        plan: Plan,
+        *,
+        provider_tier: Literal["local", "external"],
+        provider_name: str,
+    ) -> Plan:
+        metadata = dict(plan.metadata or {})
+        route_meta = dict(metadata.get("planner_route", {}))
+        route_meta["provider_tier"] = provider_tier
+        route_meta["provider_name"] = provider_name
+        metadata["planner_route"] = route_meta
+        return plan.model_copy(update={"metadata": metadata})
+
+    def _estimate_executable_rate(
+        self,
+        top_k_result: TopKResult,
+        task: ProteinDesignTask,
+    ) -> float:
+        total = 0
+        executable = 0
+        for candidate in top_k_result.candidates:
+            payload = candidate.structured_payload
+            if not isinstance(payload, Plan):
+                continue
+            total += 1
+            try:
+                validate_plan_executability(payload, task)
+                executable += 1
+            except CandidateExecutionValidationError:
+                continue
+            except Exception:
+                continue
+        if total == 0:
+            return 0.0
+        return executable / total
+
     def plan_with_status(
         self,
         task: ProteinDesignTask,
@@ -292,13 +420,89 @@ class PlannerAgent:
             InternalStatus.PLANNING,
             reason="task_created",
         )
+        runtime_cfg = _resolve_runtime_fallback_config(task.constraints)
+        runtime_state = dict(self._runtime_fallback_state.get(task.task_id, {}))
+        route_trigger: RouteTrigger | None = _resolve_pre_route_trigger(
+            context=context,
+            cfg=runtime_cfg,
+        )
+
         try:
             top_k_value = _resolve_top_k_value(
                 task.constraints,
                 key="plan_top_k",
                 default=3,
             )
-            top_k = self.plan_top_k(task, k=top_k_value)
+            use_external = route_trigger is not None
+            if use_external:
+                base_plan = self.plan(task, use_external=True)
+            else:
+                try:
+                    base_plan = self.plan(task, use_external=False)
+                    runtime_state["schema_fail_streak"] = 0
+                except Exception:
+                    streak = _safe_int(runtime_state.get("schema_fail_streak"), default=0) + 1
+                    runtime_state["schema_fail_streak"] = streak
+                    if runtime_cfg.enable_dual_route and streak >= runtime_cfg.schema_fail_threshold:
+                        route_trigger = RouteTrigger(
+                            reason="schema_fail_streak",
+                            threshold=(
+                                f"schema_fail_streak={streak}"
+                                f">={runtime_cfg.schema_fail_threshold}"
+                            ),
+                        )
+                        use_external = True
+                        base_plan = self.plan(task, use_external=True)
+                    else:
+                        self._runtime_fallback_state[task.task_id] = dict(runtime_state)
+                        raise
+
+            top_k = self._build_plan_top_k(
+                task,
+                base_plan,
+                k=_normalize_top_k(top_k_value),
+            )
+            executable_rate = self._estimate_executable_rate(top_k, task)
+            previous_rate = _safe_optional_float(runtime_state.get("last_executable_rate"))
+
+            if (
+                runtime_cfg.enable_dual_route
+                and not use_external
+                and self._fallback_llm_provider is not None
+            ):
+                drop = (
+                    previous_rate - executable_rate
+                    if previous_rate is not None
+                    else 0.0
+                )
+                trigger: RouteTrigger | None = None
+                if executable_rate < runtime_cfg.executable_rate_threshold:
+                    trigger = RouteTrigger(
+                        reason="candidate_executable_rate_low",
+                        threshold=(
+                            f"candidate_executable_rate={executable_rate:.3f}"
+                            f"<{runtime_cfg.executable_rate_threshold:.3f}"
+                        ),
+                    )
+                elif drop >= runtime_cfg.executable_drop_threshold:
+                    trigger = RouteTrigger(
+                        reason="candidate_executable_rate_drop",
+                        threshold=(
+                            f"candidate_executable_drop={drop:.3f}"
+                            f">={runtime_cfg.executable_drop_threshold:.3f}"
+                        ),
+                    )
+                if trigger is not None:
+                    route_trigger = trigger
+                    use_external = True
+                    base_plan = self.plan(task, use_external=True)
+                    top_k = self._build_plan_top_k(
+                        task,
+                        base_plan,
+                        k=_normalize_top_k(top_k_value),
+                    )
+                    executable_rate = self._estimate_executable_rate(top_k, task)
+
             gate = self.evaluate_top_k_gate(
                 candidate_kind="plan",
                 top_k_result=top_k,
@@ -312,6 +516,37 @@ class PlannerAgent:
         except Exception:
             self._mark_failed(context, record, reason="planning_failed")
             raise
+
+        route_meta = plan.metadata.get("planner_route", {}) if isinstance(plan.metadata, dict) else {}
+        to_provider = str(route_meta.get("provider_name") or "planner_default")
+        from_provider = str(runtime_state.get("last_provider_name") or to_provider)
+        if route_trigger is not None or from_provider != to_provider:
+            append_event(
+                task.task_id,
+                {
+                    "event": "PLANNER_ROUTE_DECISION",
+                    "task_id": task.task_id,
+                    "timestamp": now_iso(),
+                    "tool": to_provider,
+                    "from_tool": from_provider,
+                    "to_tool": to_provider,
+                    "capability_id": runtime_cfg.fallback_capability,
+                    "state": context.status.value,
+                    "external_status": to_external_status(context.status).value,
+                    "data": {
+                        "from_tool": from_provider,
+                        "to_tool": to_provider,
+                        "capability_id": runtime_cfg.fallback_capability,
+                        "trigger_reason": route_trigger.reason if route_trigger else "route_stable",
+                        "trigger_threshold": route_trigger.threshold if route_trigger else "",
+                        "enable_dual_route": runtime_cfg.enable_dual_route,
+                    },
+                },
+            )
+
+        runtime_state["last_provider_name"] = to_provider
+        runtime_state["last_executable_rate"] = round(executable_rate, 6)
+        self._runtime_fallback_state[task.task_id] = dict(runtime_state)
 
         context.plan = plan
         if record is not None:
@@ -398,6 +633,148 @@ class PlannerAgent:
 
 
 # --- helpers ---
+
+
+def _provider_name(provider: BaseProvider) -> str:
+    config = getattr(provider, "config", None)
+    model_name = getattr(config, "model_name", None)
+    if isinstance(model_name, str) and model_name.strip():
+        return model_name.strip()
+    return provider.__class__.__name__
+
+
+def _safe_int(value: object, *, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _resolve_runtime_fallback_config(constraints: dict[str, Any]) -> RuntimeFallbackConfig:
+    runtime_cfg = constraints.get("runtime_fallback")
+    payload = runtime_cfg if isinstance(runtime_cfg, dict) else {}
+
+    return RuntimeFallbackConfig(
+        enable_dual_route=_safe_bool(payload.get("enable_dual_route"), default=True),
+        force_external_only=(
+            _safe_bool(payload.get("force_external_only"), default=False)
+            or _safe_bool(os.getenv("PLANNER_FORCE_EXTERNAL_FALLBACK"), default=False)
+        ),
+        schema_fail_threshold=max(1, _safe_int(payload.get("schema_fail_threshold"), default=2)),
+        executable_rate_threshold=min(
+            1.0,
+            max(0.0, _safe_float(payload.get("executable_rate_threshold"), default=0.95)),
+        ),
+        executable_drop_threshold=max(
+            0.0,
+            _safe_float(payload.get("executable_drop_threshold"), default=0.05),
+        ),
+        consecutive_failure_threshold=max(
+            1,
+            _safe_int(payload.get("consecutive_failure_threshold"), default=2),
+        ),
+        sustained_high_risk_threshold=max(
+            1,
+            _safe_int(payload.get("sustained_high_risk_threshold"), default=2),
+        ),
+        fallback_capability=_safe_text(
+            payload.get("fallback_capability"),
+            default="planner_generation",
+        ),
+    )
+
+
+def _resolve_pre_route_trigger(
+    *,
+    context: WorkflowContext,
+    cfg: RuntimeFallbackConfig,
+) -> RouteTrigger | None:
+    if cfg.force_external_only:
+        return RouteTrigger(
+            reason="force_external_only",
+            threshold="force_external_only=true",
+        )
+    if not cfg.enable_dual_route:
+        return None
+
+    consecutive_failures = _count_consecutive_execution_failures(context)
+    if consecutive_failures >= cfg.consecutive_failure_threshold:
+        return RouteTrigger(
+            reason="consecutive_execution_failures",
+            threshold=(
+                f"consecutive_execution_failures={consecutive_failures}"
+                f">={cfg.consecutive_failure_threshold}"
+            ),
+        )
+
+    sustained_high_risk = _count_sustained_high_risk_events(context)
+    if sustained_high_risk >= cfg.sustained_high_risk_threshold:
+        return RouteTrigger(
+            reason="sustained_high_risk",
+            threshold=(
+                f"sustained_high_risk={sustained_high_risk}"
+                f">={cfg.sustained_high_risk_threshold}"
+            ),
+        )
+    return None
+
+
+def _count_consecutive_execution_failures(context: WorkflowContext) -> int:
+    results = list(context.step_results.values())
+    results.sort(key=lambda item: item.timestamp)
+    count = 0
+    for result in reversed(results):
+        if result.status != "failed":
+            break
+        count += 1
+    return count
+
+
+def _count_sustained_high_risk_events(context: WorkflowContext) -> int:
+    events = list(context.safety_events)
+    events.sort(key=lambda item: item.timestamp)
+    count = 0
+    for event in reversed(events):
+        if event.action == "block":
+            count += 1
+            continue
+        if event.action == "warn":
+            count += 1
+            continue
+        has_high_flag = any(flag.level in {"warn", "block"} for flag in event.risk_flags)
+        if not has_high_flag:
+            break
+        count += 1
+    return count
+
+
+def _safe_bool(value: object, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _safe_text(value: object, *, default: str) -> str:
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized:
+            return normalized
+    return default
 
 
 def _ensure_task_match(request: PatchRequest) -> None:
