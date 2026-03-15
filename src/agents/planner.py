@@ -1902,6 +1902,11 @@ _S1_STAGE_ID = "S1"
 _S1_STAGE_NAME = "sequence_exploration"
 _S1_SEQUENCE_SOURCE_PRIMARY = "primary"
 _S1_SEQUENCE_SOURCE_FALLBACK = "fallback"
+_S4_STAGE_ID = "S4"
+_S4_STAGE_NAME = "structure_conditioned_refinement"
+_S4_DEFAULT_MAX_ITERATIONS = 3
+_S4_DEFAULT_CONVERGENCE_DELTA = 0.01
+_S4_DEFAULT_MAX_DEGRADATION_ROUNDS = 1
 _S1_INPUT_FIELDS = ("goal", "length_range", "prompt", "template")
 _S1_OUTPUT_FIELDS = (
     "sequence",
@@ -1975,6 +1980,48 @@ def _collect_sequence_exploration_inputs(constraints: dict) -> Set[str]:
     if template:
         inputs.update({"template", "structure_template_pdb", "pdb_path"})
     return inputs
+
+
+def _extract_structure_refinement_config(constraints: dict) -> dict:
+    local = (
+        constraints.get("structure_refinement")
+        if isinstance(constraints.get("structure_refinement"), dict)
+        else {}
+    )
+
+    max_iterations_raw = local.get("max_iterations", constraints.get("s4_max_iterations"))
+    convergence_raw = local.get(
+        "convergence_delta",
+        constraints.get("s4_convergence_delta"),
+    )
+    max_degradation_raw = local.get(
+        "max_degradation_rounds",
+        constraints.get("s4_max_degradation_rounds"),
+    )
+
+    try:
+        max_iterations = int(max_iterations_raw)
+    except (TypeError, ValueError):
+        max_iterations = _S4_DEFAULT_MAX_ITERATIONS
+    max_iterations = max(1, max_iterations)
+
+    try:
+        convergence_delta = float(convergence_raw)
+    except (TypeError, ValueError):
+        convergence_delta = _S4_DEFAULT_CONVERGENCE_DELTA
+    convergence_delta = max(0.0, convergence_delta)
+
+    try:
+        max_degradation_rounds = int(max_degradation_raw)
+    except (TypeError, ValueError):
+        max_degradation_rounds = _S4_DEFAULT_MAX_DEGRADATION_ROUNDS
+    max_degradation_rounds = max(0, max_degradation_rounds)
+
+    return {
+        "max_iterations": max_iterations,
+        "convergence_delta": convergence_delta,
+        "max_degradation_rounds": max_degradation_rounds,
+    }
 
 
 def _build_s1_io_contract(task: ProteinDesignTask) -> dict:
@@ -2249,6 +2296,30 @@ def _build_de_novo_plan(
             io_hint={"inputs": ["sequence"]},
             prefer_remote=prefer_remote,
         )
+    available_inputs.update(structure_tool.outputs)
+
+    try:
+        refinement_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="sequence_design",
+            available_inputs=available_inputs,
+            safety_level=safety_level,
+            io_hint={"inputs": ["pdb_path"]},
+            prefer_remote=prefer_remote,
+        )
+    except ValueError:
+        try:
+            refinement_tool = _find_tool_spec(registry, "protein_mpnn")
+        except ValueError:
+            fallback_inputs = _collect_registry_inputs(registry)
+            refinement_tool = _select_tool_by_capability(
+                registry=registry,
+                capability="sequence_design",
+                available_inputs=fallback_inputs,
+                safety_level=safety_level,
+                io_hint={"inputs": ["pdb_path"]},
+                prefer_remote=prefer_remote,
+            )
 
     step_inputs: dict = {
         "goal": task.goal,
@@ -2285,6 +2356,13 @@ def _build_de_novo_plan(
         source_tier=_S1_SEQUENCE_SOURCE_PRIMARY,
         source_reason="de_novo_template",
     )
+    refinement_config = _extract_structure_refinement_config(constraints)
+
+    s4_inputs: dict = {
+        "pdb_path": "S2.pdb_path",
+    }
+    if length_range:
+        s4_inputs["length_range"] = length_range
 
     steps = [
         s1_step,
@@ -2292,11 +2370,46 @@ def _build_de_novo_plan(
             id="S2",
             tool=structure_tool.id,
             inputs={"sequence": "S1.sequence"},
-            metadata={},
+            metadata={
+                "stage_id": "S2",
+                "stage_name": "structure_projection",
+            },
+        ),
+        PlanStep(
+            id=_S4_STAGE_ID,
+            tool=refinement_tool.id,
+            inputs=s4_inputs,
+            metadata={
+                "stage_id": _S4_STAGE_ID,
+                "stage_name": _S4_STAGE_NAME,
+                "loop_path": ["S4", "S2", "S3"],
+                "loop_control": refinement_config,
+                "stop_conditions": {
+                    "max_iterations": refinement_config["max_iterations"],
+                    "convergence_delta": refinement_config["convergence_delta"],
+                    "max_degradation_rounds": refinement_config[
+                        "max_degradation_rounds"
+                    ],
+                },
+            },
+        ),
+        PlanStep(
+            id="S2R",
+            tool=structure_tool.id,
+            inputs={"sequence": "S4.sequence"},
+            metadata={
+                "stage_id": "S2",
+                "stage_name": "structure_projection",
+                "source_stage_id": "S4",
+            },
         ),
     ]
 
-    explanation = _build_de_novo_explanation(sequence_tool.id, structure_tool.id)
+    explanation = _build_de_novo_explanation(
+        sequence_tool.id,
+        structure_tool.id,
+        refinement_tool.id,
+    )
 
     return Plan(
         task_id=task.task_id,
@@ -2307,7 +2420,11 @@ def _build_de_novo_plan(
     )
 
 
-def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) -> str:
+def _build_de_novo_explanation(
+    sequence_tool_id: str,
+    structure_tool_id: str,
+    refinement_tool_id: str,
+) -> str:
     kg = load_tool_kg()
     tools = {tool.get("id"): tool for tool in kg.get("tools", []) if tool.get("id")}
     capabilities = {
@@ -2318,6 +2435,7 @@ def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) ->
 
     sequence_tool = tools.get(sequence_tool_id, {})
     structure_tool = tools.get(structure_tool_id, {})
+    refinement_tool = tools.get(refinement_tool_id, {})
 
     def format_caps(tool: dict) -> str:
         cap_ids = tool.get("capabilities", [])
@@ -2338,6 +2456,9 @@ def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) ->
     struct_name = structure_tool.get("name") or structure_tool_id
     struct_desc = structure_tool.get("description") or ""
     struct_caps = format_caps(structure_tool)
+    refine_name = refinement_tool.get("name") or refinement_tool_id
+    refine_desc = refinement_tool.get("description") or ""
+    refine_caps = format_caps(refinement_tool)
 
     compat_from = structure_tool.get("compat", {}).get("from", [])
     compat_note = ""
@@ -2345,9 +2466,11 @@ def _build_de_novo_explanation(sequence_tool_id: str, structure_tool_id: str) ->
         compat_note = f"KG compat.from={', '.join(str(item) for item in compat_from)}"
 
     parts = [
-        "de_novo_design 任务采用序列生成→结构预测两步链路。",
+        "de_novo_design 任务采用序列生成→结构预测→结构条件精修→结构重映射链路。",
         f"ProteinToolKG 显示 {seq_name}({sequence_tool_id}) 能力={seq_caps}。{seq_desc}",
         f"ProteinToolKG 显示 {struct_name}({structure_tool_id}) 能力={struct_caps}。{struct_desc}",
+        f"ProteinToolKG 显示 {refine_name}({refinement_tool_id}) 能力={refine_caps}。{refine_desc}",
+        "S4 按 max_iterations/convergence_delta/max_degradation_rounds 控制迭代停止，并在 S4 后执行结构重映射保证序列-结构一致。",
     ]
     if compat_note:
         parts.append(compat_note)

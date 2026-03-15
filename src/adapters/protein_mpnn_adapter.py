@@ -213,18 +213,35 @@ class ProteinMPNNAdapter(BaseToolAdapter):
             fallback=self.default_num_candidates,
         )
         goal = str(inputs.get("goal") or "")
+        task_id = str(inputs.get("task_id", "unknown"))
+        step_id = str(inputs.get("step_id", "unknown"))
 
         rng = _seeded_rng(pdb_path, goal, min_len, max_len, num_candidates)
         candidates = _generate_candidates(rng, min_len, max_len, num_candidates)
+        iteration = _normalize_iteration(inputs.get("iteration"))
+        source_candidate_id = (
+            str(inputs.get("source_candidate_id"))
+            if isinstance(inputs.get("source_candidate_id"), str)
+            else None
+        )
+        candidates = _annotate_candidates(
+            candidates,
+            step_id=str(step_id),
+            source_candidate_id=source_candidate_id,
+            iteration=iteration,
+        )
         selected = max(candidates, key=lambda item: item["score"])
+        lineage = _build_refinement_lineage(
+            inputs,
+            step_id=step_id,
+        )
 
-        task_id = inputs.get("task_id", "unknown")
-        step_id = inputs.get("step_id", "unknown")
         artifacts_path = self._write_artifacts(
             task_id=task_id,
             step_id=step_id,
             pdb_path=pdb_path,
             candidates=candidates,
+            lineage=lineage if lineage else None,
         )
 
         duration_ms = int((perf_counter() - t0) * 1000)
@@ -234,11 +251,22 @@ class ProteinMPNNAdapter(BaseToolAdapter):
             "candidates": candidates,
             "artifacts": {"candidates_path": str(artifacts_path)},
         }
+        stage_id = inputs.get("stage_id")
+        if isinstance(stage_id, str) and stage_id:
+            outputs["stage_id"] = stage_id
+        elif lineage:
+            outputs["stage_id"] = "S4"
+        if lineage:
+            outputs["lineage"] = lineage
         metrics = {
             "exec_type": "python",
             "duration_ms": duration_ms,
             "num_candidates": len(candidates),
         }
+        if iteration is not None:
+            metrics["iteration"] = iteration
+        if source_candidate_id:
+            metrics["source_candidate_id"] = source_candidate_id
         return outputs, metrics
 
     def _run_nvidia_nim(
@@ -283,16 +311,33 @@ class ProteinMPNNAdapter(BaseToolAdapter):
                 failure_type=FailureType.TOOL_ERROR,
                 message="NIM ProteinMPNN response contains no valid sequence candidates",
                 code=FailureCode.NIM_INVALID_RESPONSE.value,
-            )
+        )
+        task_id = str(inputs.get("task_id", "unknown"))
+        step_id = str(inputs.get("step_id", "unknown"))
+        iteration = _normalize_iteration(inputs.get("iteration"))
+        source_candidate_id = (
+            str(inputs.get("source_candidate_id"))
+            if isinstance(inputs.get("source_candidate_id"), str)
+            else None
+        )
+        candidates = _annotate_candidates(
+            candidates,
+            step_id=str(step_id),
+            source_candidate_id=source_candidate_id,
+            iteration=iteration,
+        )
+        lineage = _build_refinement_lineage(
+            inputs,
+            step_id=step_id,
+        )
 
         selected = _select_primary_candidate(candidates)
-        task_id = inputs.get("task_id", "unknown")
-        step_id = inputs.get("step_id", "unknown")
         artifacts_path = self._write_artifacts(
             task_id=task_id,
             step_id=step_id,
             pdb_path=str(pdb_path),
             candidates=candidates,
+            lineage=lineage if lineage else None,
         )
 
         duration_ms = int((perf_counter() - t0) * 1000)
@@ -302,6 +347,13 @@ class ProteinMPNNAdapter(BaseToolAdapter):
             "candidates": candidates,
             "artifacts": {"candidates_path": str(artifacts_path)},
         }
+        stage_id = inputs.get("stage_id")
+        if isinstance(stage_id, str) and stage_id:
+            outputs["stage_id"] = stage_id
+        elif lineage:
+            outputs["stage_id"] = "S4"
+        if lineage:
+            outputs["lineage"] = lineage
         metrics = {
             "exec_type": "nvidia_nim",
             "provider": "nvidia_nim",
@@ -309,6 +361,10 @@ class ProteinMPNNAdapter(BaseToolAdapter):
             "duration_ms": duration_ms,
             "num_candidates": len(candidates),
         }
+        if iteration is not None:
+            metrics["iteration"] = iteration
+        if source_candidate_id:
+            metrics["source_candidate_id"] = source_candidate_id
         return outputs, metrics
 
     def _write_artifacts(
@@ -318,6 +374,7 @@ class ProteinMPNNAdapter(BaseToolAdapter):
         step_id: str,
         pdb_path: str,
         candidates: List[Dict[str, Any]],
+        lineage: Dict[str, Any] | None = None,
     ) -> Path:
         self.artifacts_dir.mkdir(parents=True, exist_ok=True)
         path = self.artifacts_dir / f"protein_mpnn_{task_id}_{step_id}.json"
@@ -328,6 +385,8 @@ class ProteinMPNNAdapter(BaseToolAdapter):
             "pdb_path": pdb_path,
             "candidates": candidates,
         }
+        if isinstance(lineage, dict) and lineage:
+            payload["lineage"] = lineage
         path.write_text(json.dumps(payload, ensure_ascii=True, indent=2))
         return path
 
@@ -481,3 +540,54 @@ def _select_primary_candidate(candidates: List[Dict[str, Any]]) -> Dict[str, Any
     if sampled:
         return sampled[0]
     return candidates[0]
+
+
+def _normalize_iteration(value: Any) -> int | None:
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError):
+        return None
+    return normalized if normalized > 0 else None
+
+
+def _build_refinement_lineage(
+    inputs: Dict[str, Any],
+    *,
+    step_id: str,
+) -> Dict[str, Any]:
+    lineage: Dict[str, Any] = {}
+    source_candidate_id = inputs.get("source_candidate_id")
+    if isinstance(source_candidate_id, str) and source_candidate_id:
+        lineage["source_candidate_id"] = source_candidate_id
+    iteration = _normalize_iteration(inputs.get("iteration"))
+    if iteration is not None:
+        lineage["iteration"] = iteration
+    stage_id = inputs.get("stage_id")
+    if isinstance(stage_id, str) and stage_id:
+        lineage["stage_id"] = stage_id
+    if lineage:
+        lineage["step_id"] = step_id
+    return lineage
+
+
+def _annotate_candidates(
+    candidates: List[Dict[str, Any]],
+    *,
+    step_id: str,
+    source_candidate_id: str | None,
+    iteration: int | None,
+) -> List[Dict[str, Any]]:
+    annotated: List[Dict[str, Any]] = []
+    for idx, candidate in enumerate(candidates, start=1):
+        row = dict(candidate)
+        row.setdefault("candidate_id", f"{step_id}_cand_{idx}")
+        row_lineage = row.get("lineage")
+        lineage = dict(row_lineage) if isinstance(row_lineage, dict) else {}
+        if source_candidate_id:
+            lineage.setdefault("source_candidate_id", source_candidate_id)
+        if iteration is not None:
+            lineage.setdefault("iteration", iteration)
+        if lineage:
+            row["lineage"] = lineage
+        annotated.append(row)
+    return annotated
