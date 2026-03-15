@@ -292,6 +292,78 @@ def test_layered_patch_promotes_from_parameter_to_tool_level(monkeypatch):
 
 
 @pytest.mark.integration
+def test_layered_patch_promotes_remote_to_local_tool_level(monkeypatch):
+    monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _patch_runtime_kg())
+    planner = PlannerAgent(
+        tool_registry=[
+            ToolSpec(
+                id="failing_tool",
+                capabilities=("structure_prediction",),
+                inputs=("sequence",),
+                outputs=("pdb_path", "plddt"),
+                cost=0.6,
+                safety_level=1,
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+                priority="P0",
+            ),
+            ToolSpec(
+                id="esmfold",
+                capabilities=("structure_prediction",),
+                inputs=("sequence",),
+                outputs=("pdb_path", "plddt"),
+                cost=0.5,
+                safety_level=1,
+                io_type="sequence_to_structure",
+                adapter_mode="local",
+                priority="P0",
+            ),
+            ToolSpec(
+                id="biopython_qc",
+                capabilities=("quality_qc",),
+                inputs=("sequence", "pdb_path"),
+                outputs=("qc_metrics",),
+                cost=0.2,
+                safety_level=1,
+                io_type="sequence_structure_to_qc_metrics",
+                adapter_mode="local",
+                priority="P0",
+            ),
+        ]
+    )
+    task_id = "int_layered_patch_remote_to_local"
+    _cleanup_task_log(task_id)
+    plan, context, record = _build_runtime_objects(
+        task_id=task_id,
+        constraints={
+            "require_patch_confirm": False,
+            "min_candidate_confidence": 0.0,
+            "high_cost_min_overall": 0.0,
+        },
+        step_tool="failing_tool",
+    )
+    step_runner = _LayeredFallbackStepRunner()
+    patch_runner = PatchRunner(step_runner=step_runner, planner_agent=planner)
+
+    outcome = patch_runner.run_step_with_patch(plan, 0, context, record=record)
+
+    assert step_runner.calls == ["failing_tool", "failing_tool", "esmfold"]
+    assert context.status == InternalStatus.PATCHING
+    assert outcome.step_results[0].status == "success"
+    patch_meta = outcome.step_results[0].metrics.get("patch")
+    assert patch_meta["layer"] == "tool_level"
+    assert patch_meta["from_tool"] == "failing_tool"
+    assert patch_meta["to_tool"] == "esmfold"
+
+    events = read_timeline_events(task_id)
+    replace_events = [e for e in events if e.get("event_type") == "REPLACE_TOOL"]
+    assert replace_events
+    recovery = replace_events[-1]["data"]["recovery"]
+    assert recovery["from_tool"] == "failing_tool"
+    assert recovery["to_tool"] == "esmfold"
+
+
+@pytest.mark.integration
 def test_layered_patch_failure_escalates_to_replan_with_trace(monkeypatch):
     monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _patch_runtime_kg())
     planner = PlannerAgent(
