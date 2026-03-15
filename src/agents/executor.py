@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from src.models.contracts import DesignResult, Plan, StepResult
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Sequence
+
+from src.kg.kg_client import ToolKGError, load_tool_kg
+from src.models.contracts import DesignResult, Plan, PlanStep, StepResult
 from src.models.db import (
     InternalStatus,
     TaskRecord,
@@ -9,6 +13,7 @@ from src.models.db import (
 )
 from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
+from src.workflow.errors import FailureCode, FailureType
 from src.workflow.step_runner import StepRunner
 from src.workflow.plan_runner import PlanRunner
 from src.workflow.status import transition_task_status
@@ -100,6 +105,163 @@ class ExecutorAgent:
             resume_from_existing=resume_from_existing,
         )
 
+    def project_structures_from_s1(
+        self,
+        context: WorkflowContext,
+        *,
+        source_step_id: str = "S1",
+        structure_step_id: str = "S2",
+        max_candidates: int = 3,
+    ) -> StepResult:
+        """Batch map S1 sequence candidates into S2 structure results.
+
+        Returns an aggregated S2 StepResult that preserves partial success.
+        """
+        source_result = context.get_step_result(source_step_id)
+        if source_result is None:
+            raise ValueError(f"Missing source step result '{source_step_id}'")
+
+        candidates = _extract_sequence_candidates(source_result, max_candidates=max_candidates)
+        template_step = _resolve_structure_step_template(
+            plan=context.plan,
+            structure_step_id=structure_step_id,
+        )
+        if template_step is None:
+            raise ValueError(
+                f"Missing structure projection step '{structure_step_id}' in current plan"
+            )
+
+        tool_chain = _resolve_structure_tool_chain(template_step.tool)
+        structure_rows: List[Dict[str, Any]] = []
+        fallback_hits = 0
+        for index, candidate in enumerate(candidates):
+            sequence = candidate["sequence"]
+            candidate_row = {
+                "candidate_index": index,
+                "candidate_id": candidate["candidate_id"],
+                "sequence": sequence,
+                "source_score": candidate.get("score"),
+                "source_metadata": candidate.get("metadata", {}),
+                "stage_id": "S2",
+                "status": "failed",
+                "lineage": {
+                    "stage_id": "S2",
+                    "source_step_id": source_step_id,
+                    "source_candidate_id": candidate["candidate_id"],
+                    "source_candidate_index": index,
+                    "upstream_lineage": candidate.get("upstream_lineage", {}),
+                },
+                "attempts": [],
+            }
+            if not _is_valid_sequence_for_projection(sequence):
+                candidate_row["failure_code"] = "S2_SEQUENCE_INVALID"
+                candidate_row["failure_reason"] = "sequence must be uppercase alphabetic characters"
+                structure_rows.append(candidate_row)
+                continue
+
+            attempt_results: List[StepResult] = []
+            for tool_id in tool_chain:
+                step = _build_structure_projection_step(
+                    template=template_step,
+                    step_id=f"{structure_step_id}_{index + 1}_{tool_id}",
+                    tool_id=tool_id,
+                    sequence=sequence,
+                    source_candidate_id=candidate["candidate_id"],
+                )
+                result = self.step_runner.run_step(step, context)
+                context.add_step_result(result)
+                attempt_results.append(result)
+                candidate_row["attempts"].append(_build_structure_attempt_row(result))
+                if result.status == "success":
+                    break
+
+            final_result = _pick_final_projection_result(attempt_results)
+            if final_result is None:
+                candidate_row["failure_code"] = "S2_TOOL_EXECUTION_FAILED"
+                candidate_row["failure_reason"] = "structure projection produced no result"
+                structure_rows.append(candidate_row)
+                continue
+
+            normalized_code = _normalize_s2_failure_code(final_result)
+            if final_result.status == "success":
+                outputs = final_result.outputs
+                candidate_row["status"] = "success"
+                candidate_row["tool_id"] = final_result.tool
+                candidate_row["pdb_path"] = outputs.get("pdb_path")
+                candidate_row["plddt"] = outputs.get("plddt")
+                candidate_row["confidence"] = outputs.get("confidence") or outputs.get("metrics", {}).get("confidence")
+                candidate_row["failure_code"] = None
+                candidate_row["failure_reason"] = None
+                if len(attempt_results) > 1:
+                    fallback_hits += 1
+                    candidate_row["fallback_used"] = True
+                    candidate_row["lineage"]["fallback_from"] = attempt_results[0].tool
+            else:
+                candidate_row["status"] = "failed"
+                candidate_row["tool_id"] = final_result.tool
+                candidate_row["failure_code"] = normalized_code
+                candidate_row["failure_reason"] = final_result.error_message
+                if len(attempt_results) > 1:
+                    candidate_row["failure_code"] = "S2_FALLBACK_EXHAUSTED"
+            structure_rows.append(candidate_row)
+
+        successful_rows = [row for row in structure_rows if row.get("status") == "success"]
+        best_row = _select_best_structure_result(successful_rows)
+        aggregate_status = "success" if successful_rows else "failed"
+        now_iso = datetime.now(timezone.utc).isoformat()
+        aggregate_outputs: Dict[str, Any] = {
+            "stage_id": "S2",
+            "source_step_id": source_step_id,
+            "structure_results": structure_rows,
+            "success_count": len(successful_rows),
+            "failure_count": len(structure_rows) - len(successful_rows),
+        }
+        if best_row is not None:
+            aggregate_outputs["pdb_path"] = best_row.get("pdb_path")
+            aggregate_outputs["plddt"] = best_row.get("plddt")
+            aggregate_outputs["confidence"] = best_row.get("confidence")
+            aggregate_outputs["best_candidate_id"] = best_row.get("candidate_id")
+
+        aggregate_error_details: Dict[str, Any] = {}
+        aggregate_error_message = None
+        aggregate_failure_type = None
+        if aggregate_status == "failed":
+            aggregate_failure_type = FailureType.TOOL_ERROR.value
+            aggregate_error_message = "All S2 structure projections failed"
+            aggregate_error_details = {
+                "failure_code": "S2_ALL_CANDIDATES_FAILED",
+                "phase": "structure_projection",
+                "timestamp": now_iso,
+            }
+
+        aggregate_result = StepResult(
+            task_id=context.task.task_id,
+            step_id=structure_step_id,
+            tool=template_step.tool,
+            status=aggregate_status,
+            failure_type=aggregate_failure_type,
+            error_message=aggregate_error_message,
+            error_details=aggregate_error_details,
+            inputs={
+                "source_step_id": source_step_id,
+                "candidate_count": len(candidates),
+            },
+            outputs=aggregate_outputs,
+            artifacts=_collect_projection_artifacts(successful_rows),
+            metrics={
+                "exec_type": "structure_projection_batch",
+                "mapped_candidates": len(structure_rows),
+                "successful_candidates": len(successful_rows),
+                "fallback_hits": fallback_hits,
+                "partial_success": bool(successful_rows) and len(successful_rows) < len(structure_rows),
+            },
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso,
+        )
+        context.add_step_result(aggregate_result)
+        return aggregate_result
+
     def summarize_and_finalize(
         self,
         context: WorkflowContext,
@@ -158,3 +320,243 @@ class ExecutorAgent:
             InternalStatus.FAILED,
             reason=reason,
         )
+
+
+def _resolve_structure_step_template(
+    *,
+    plan: Plan | None,
+    structure_step_id: str,
+) -> PlanStep | None:
+    if plan is None:
+        return None
+    for step in plan.steps:
+        if step.id == structure_step_id:
+            return step
+    return None
+
+
+def _extract_sequence_candidates(
+    source_result: StepResult,
+    *,
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    outputs = source_result.outputs if isinstance(source_result.outputs, dict) else {}
+    candidates_raw = outputs.get("candidates")
+    upstream_lineage = (
+        source_result.outputs.get("lineage", {})
+        if isinstance(source_result.outputs, dict)
+        else {}
+    )
+
+    resolved: List[Dict[str, Any]] = []
+    seen_sequences: set[str] = set()
+    primary_sequence = outputs.get("sequence")
+    if isinstance(primary_sequence, str) and primary_sequence and primary_sequence not in seen_sequences:
+        resolved.append(
+            {
+                "candidate_id": f"{source_result.step_id}_candidate_primary",
+                "sequence": primary_sequence,
+                "score": None,
+                "metadata": {"source": "primary"},
+                "upstream_lineage": upstream_lineage,
+            }
+        )
+        seen_sequences.add(primary_sequence)
+
+    if isinstance(candidates_raw, list):
+        for idx, item in enumerate(candidates_raw):
+            sequence = None
+            score = None
+            metadata: Dict[str, Any] = {"source": "fallback"}
+            if isinstance(item, dict):
+                raw_seq = item.get("sequence")
+                if isinstance(raw_seq, str):
+                    sequence = raw_seq
+                score = item.get("score")
+                metadata.update({k: v for k, v in item.items() if k != "sequence"})
+            elif isinstance(item, str):
+                sequence = item
+            if not isinstance(sequence, str) or not sequence or sequence in seen_sequences:
+                continue
+            resolved.append(
+                {
+                    "candidate_id": f"{source_result.step_id}_candidate_{idx}",
+                    "sequence": sequence,
+                    "score": score,
+                    "metadata": metadata,
+                    "upstream_lineage": upstream_lineage,
+                }
+            )
+            seen_sequences.add(sequence)
+            if len(resolved) >= max(1, max_candidates):
+                break
+
+    if not resolved:
+        raise ValueError(
+            f"No sequence candidates found in '{source_result.step_id}' outputs"
+        )
+    return resolved[: max(1, max_candidates)]
+
+
+def _resolve_structure_tool_chain(primary_tool_id: str) -> List[str]:
+    candidates = [primary_tool_id]
+    fallback = _find_structure_fallback_tool(primary_tool_id)
+    if fallback and fallback not in candidates:
+        candidates.append(fallback)
+    return candidates
+
+
+def _find_structure_fallback_tool(primary_tool_id: str) -> str | None:
+    try:
+        kg = load_tool_kg()
+    except ToolKGError:
+        if primary_tool_id == "nim_esmfold":
+            return "esmfold"
+        if primary_tool_id == "esmfold":
+            return "nim_esmfold"
+        return None
+
+    tools = kg.get("tools", [])
+    if not isinstance(tools, list):
+        return None
+
+    primary_entry = None
+    for tool in tools:
+        if isinstance(tool, dict) and tool.get("id") == primary_tool_id:
+            primary_entry = tool
+            break
+    if not isinstance(primary_entry, dict):
+        return None
+
+    capabilities = primary_entry.get("capabilities", [])
+    if not isinstance(capabilities, list):
+        capabilities = []
+    primary_caps = set(capabilities)
+    if not primary_caps:
+        return None
+
+    fallback_candidates: List[tuple[int, str]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        tool_id = tool.get("id")
+        if not isinstance(tool_id, str) or tool_id == primary_tool_id:
+            continue
+        caps = tool.get("capabilities", [])
+        if not isinstance(caps, list) or not primary_caps.intersection(caps):
+            continue
+        execution = tool.get("execution")
+        is_remote = isinstance(execution, dict) and execution.get("backend") == "remote_model_service"
+        fallback_candidates.append((1 if is_remote else 0, tool_id))
+
+    if not fallback_candidates:
+        return None
+    fallback_candidates.sort(key=lambda row: (row[0], row[1]))
+    return fallback_candidates[0][1]
+
+
+def _build_structure_projection_step(
+    *,
+    template: PlanStep,
+    step_id: str,
+    tool_id: str,
+    sequence: str,
+    source_candidate_id: str,
+) -> PlanStep:
+    metadata = dict(template.metadata or {})
+    metadata.update(
+        {
+            "stage_id": "S2",
+            "stage_name": "structure_projection",
+            "lineage": {
+                "stage_id": "S2",
+                "source_candidate_id": source_candidate_id,
+            },
+        }
+    )
+    return PlanStep(
+        id=step_id,
+        tool=tool_id,
+        inputs={"sequence": sequence},
+        metadata=metadata,
+    )
+
+
+def _is_valid_sequence_for_projection(sequence: str) -> bool:
+    if not isinstance(sequence, str) or not sequence:
+        return False
+    return all(char.isalpha() and char.isupper() for char in sequence)
+
+
+def _build_structure_attempt_row(result: StepResult) -> Dict[str, Any]:
+    error_code = None
+    if isinstance(result.error_details, dict):
+        error_code = result.error_details.get("failure_code")
+    return {
+        "step_id": result.step_id,
+        "tool_id": result.tool,
+        "status": result.status,
+        "failure_code": error_code,
+        "error_message": result.error_message,
+    }
+
+
+def _pick_final_projection_result(results: Sequence[StepResult]) -> StepResult | None:
+    if not results:
+        return None
+    for result in results:
+        if result.status == "success":
+            return result
+    return results[-1]
+
+
+def _normalize_s2_failure_code(result: StepResult) -> str:
+    failure_code = None
+    if isinstance(result.error_details, dict):
+        failure_code = result.error_details.get("failure_code")
+
+    if failure_code in {
+        FailureCode.INPUT_RESOLUTION_FAILED.value,
+        FailureCode.NIM_INVALID_INPUT.value,
+    }:
+        return "S2_SEQUENCE_INVALID"
+    if failure_code in {
+        FailureCode.OUTPUT_MISSING.value,
+        FailureCode.OUTPUT_TYPE_MISMATCH.value,
+        FailureCode.NIM_INVALID_RESPONSE.value,
+    }:
+        return "S2_OUTPUT_INVALID"
+    if failure_code in {
+        FailureCode.NIM_TIMEOUT.value,
+        FailureCode.NIM_NETWORK_ERROR.value,
+        FailureCode.NIM_AUTH_FAILED.value,
+        FailureCode.REMOTE_POLL_TIMEOUT.value,
+        FailureCode.REMOTE_JOB_FAILED.value,
+        FailureCode.ADAPTER_NOT_FOUND.value,
+    }:
+        return "S2_TOOL_UNAVAILABLE"
+    return "S2_TOOL_EXECUTION_FAILED"
+
+
+def _select_best_structure_result(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any] | None:
+    if not rows:
+        return None
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -(float(row.get("plddt")) if isinstance(row.get("plddt"), (int, float)) else -1.0),
+            str(row.get("candidate_id", "")),
+        ),
+    )
+    return ranked[0]
+
+
+def _collect_projection_artifacts(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    pdb_paths = [
+        row.get("pdb_path")
+        for row in rows
+        if isinstance(row.get("pdb_path"), str) and row.get("pdb_path")
+    ]
+    if not pdb_paths:
+        return {}
+    return {"pdb_paths": pdb_paths}

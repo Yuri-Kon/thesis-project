@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, Tuple
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.structure_projection import normalize_structure_projection_outputs
 from src.engines.nextflow_adapter import WorkflowEngineAdapter
 from src.models.contracts import PlanStep
 from src.workflow.context import WorkflowContext
@@ -130,12 +131,12 @@ class ESMFoldAdapter(BaseToolAdapter):
         # 验证输入
         sequence = inputs.get("sequence")
         if not sequence:
-            from src.workflow.errors import FailureType, StepRunError
+            from src.workflow.errors import FailureCode, FailureType, StepRunError
 
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message="Missing required input 'sequence'",
-                code="ESMFOLD_MISSING_SEQUENCE",
+                code=FailureCode.INPUT_RESOLUTION_FAILED.value,
             )
 
         # 获取上下文信息（如果有）
@@ -156,4 +157,8 @@ class ESMFoldAdapter(BaseToolAdapter):
             tool_name=self.tool_id,
         )
 
-        return outputs, metrics
+        normalized_outputs = normalize_structure_projection_outputs(
+            outputs,
+            tool_id=self.tool_id,
+        )
+        return normalized_outputs, metrics
