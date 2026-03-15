@@ -115,6 +115,18 @@ class TaskTimelineEvent(BaseModel):
     decision_id: Optional[str] = None
     step_id: Optional[str] = None
     tool: Optional[str] = None
+    tool_id: Optional[str] = None
+    capability_id: Optional[str] = None
+    io_type: Optional[str] = None
+    adapter_mode: Optional[str] = None
+    from_tool: Optional[str] = None
+    to_tool: Optional[str] = None
+    failure_type: Optional[str] = None
+    failure_code: Optional[str] = None
+    candidate_id: Optional[str] = None
+    decision_source: Optional[str] = None
+    recovery_layer: Optional[str] = None
+    recovery_reason: Optional[str] = None
     status: Optional[str] = None
     from_status: Optional[str] = None
     to_status: Optional[str] = None
@@ -434,8 +446,45 @@ async def get_task(task_id: str):
     return record
 
 
+def _event_matches_filters(
+    event: dict[str, Any],
+    *,
+    event_type: Optional[str],
+    tool_id: Optional[str],
+    capability_id: Optional[str],
+    adapter_mode: Optional[str],
+) -> bool:
+    if event_type and event.get("event_type") != event_type:
+        return False
+
+    if tool_id:
+        related_tools = {
+            _normalize_text(event.get("tool")),
+            _normalize_text(event.get("tool_id")),
+            _normalize_text(event.get("from_tool")),
+            _normalize_text(event.get("to_tool")),
+        }
+        related_tools.discard(None)
+        if tool_id not in related_tools:
+            return False
+
+    if capability_id and event.get("capability_id") != capability_id:
+        return False
+
+    if adapter_mode and event.get("adapter_mode") != adapter_mode:
+        return False
+
+    return True
+
+
 @app.get("/tasks/{task_id}/events", response_model=list[TaskTimelineEvent])
-async def get_task_events(task_id: str) -> list[TaskTimelineEvent]:
+async def get_task_events(
+    task_id: str,
+    event_type: Optional[str] = Query(default=None),
+    tool_id: Optional[str] = Query(default=None),
+    capability_id: Optional[str] = Query(default=None),
+    adapter_mode: Optional[str] = Query(default=None),
+) -> list[TaskTimelineEvent]:
     runtime = _ensure_runtime_initialized()
     timeline = read_timeline_events(task_id, log_dir=runtime.paths.log_dir)
 
@@ -448,6 +497,13 @@ async def get_task_events(task_id: str) -> list[TaskTimelineEvent]:
         "DECISION_APPLIED",
         "STEP_FINISHED",
         "STEP_FAILED",
+        "WAITING_ENTER",
+        "WAITING_EXIT",
+        "REPLACE_TOOL",
+        "PARAM_TWEAK",
+        "STRUCTURE_PATCH",
+        "RECOVERY_ESCALATED",
+        "CANDIDATE_VALIDATION_FAILED",
     }
     return [
         TaskTimelineEvent(
@@ -455,6 +511,13 @@ async def get_task_events(task_id: str) -> list[TaskTimelineEvent]:
             highlight=event["event_type"] in highlighted,
         )
         for event in timeline
+        if _event_matches_filters(
+            event,
+            event_type=_normalize_text(event_type),
+            tool_id=_normalize_text(tool_id),
+            capability_id=_normalize_text(capability_id),
+            adapter_mode=_normalize_text(adapter_mode),
+        )
     ]
 
 

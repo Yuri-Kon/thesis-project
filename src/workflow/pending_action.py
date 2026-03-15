@@ -128,6 +128,22 @@ def enter_waiting_state(
     )
 
     # 写入结构化 WAITING_ENTER EventLog
+    selected_candidate = None
+    default_candidate_id = (
+        pending_action.default_recommendation or pending_action.default_suggestion
+    )
+    if default_candidate_id:
+        for candidate in pending_action.candidates:
+            if candidate.candidate_id == default_candidate_id:
+                selected_candidate = candidate
+                break
+    if selected_candidate is None and pending_action.candidates:
+        selected_candidate = pending_action.candidates[0]
+    selected_meta = (
+        selected_candidate.metadata
+        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        else {}
+    )
     waiting_enter_event = make_waiting_enter(
         task_id=context.task.task_id,
         pending_action_id=pending_action.pending_action_id,
@@ -141,6 +157,23 @@ def enter_waiting_state(
             "reason": reason or "entering_waiting_state",
             "candidate_count": len(pending_action.candidates),
             "explanation": pending_action.explanation,
+            "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
+            "tool_id": (
+                selected_candidate.tool_id if selected_candidate else selected_meta.get("tool_id")
+            ),
+            "capability_id": (
+                selected_candidate.capability_id
+                if selected_candidate
+                else selected_meta.get("capability_id")
+            ),
+            "io_type": (
+                selected_candidate.io_type if selected_candidate else selected_meta.get("io_type")
+            ),
+            "adapter_mode": (
+                selected_candidate.adapter_mode
+                if selected_candidate
+                else selected_meta.get("adapter_mode")
+            ),
         },
     )
     write_event_log(waiting_enter_event)
