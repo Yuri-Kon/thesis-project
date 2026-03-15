@@ -158,6 +158,9 @@ def test_run_local_success(mock_execute: MagicMock, adapter: ESMFoldAdapter) -> 
     # 验证返回值
     assert "pdb_path" in outputs
     assert "metrics" in outputs
+    assert outputs["stage_id"] == "S2"
+    assert outputs["plddt"] == 0.85
+    assert outputs["confidence"]["level"] in {"high", "medium", "low"}
     assert metrics["exec_type"] == "nextflow"
 
 
@@ -180,14 +183,15 @@ def test_run_local_missing_sequence_raises_error(adapter: ESMFoldAdapter) -> Non
 def test_run_local_with_default_context(mock_execute: MagicMock, adapter: ESMFoldAdapter) -> None:
     """测试没有提供 task_id/step_id 时使用默认值"""
     mock_execute.return_value = (
-        {"pdb_path": "/path/to/output.pdb"},
+        {"pdb_path": "/path/to/output.pdb", "metrics": {"plddt_mean": 0.81}},
         {"exec_type": "nextflow", "duration_ms": 1000},
     )
 
     inputs = {"sequence": "ACDEFGHIKLMNPQRSTVWY"}
 
-    adapter.run_local(inputs)
+    outputs, _metrics = adapter.run_local(inputs)
 
     call_kwargs = mock_execute.call_args[1]
     assert call_kwargs["task_id"] == "unknown"
     assert call_kwargs["step_id"] == "unknown"
+    assert outputs["plddt"] == 0.81
