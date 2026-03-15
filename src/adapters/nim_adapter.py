@@ -8,6 +8,7 @@ from time import perf_counter
 from typing import Any, Dict, Optional, Tuple
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.structure_projection import normalize_structure_projection_outputs
 from src.engines.nim_client import NvidiaNIMClient
 from src.models.contracts import PlanStep
 from src.workflow.context import WorkflowContext
@@ -126,6 +127,10 @@ class NIMESMFoldAdapter(BaseToolAdapter):
             "plddt": plddt,
             "metrics": {"plddt_mean": plddt},
         }
+        outputs = normalize_structure_projection_outputs(
+            outputs,
+            tool_id=self.tool_id,
+        )
         duration_ms = int((perf_counter() - t0) * 1000)
         metrics = {
             "exec_type": "nvidia_nim",
