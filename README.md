@@ -111,7 +111,7 @@ Traceability:
 
 De novo planning now includes `S4` step specification:
 
-- default stage chain: `S1 -> S2 -> S4`
+- default stage chain: `S1 -> S2 -> S4 -> S2R`
 - `S4` metadata:
   - `stage_id=S4`
   - `stage_name=structure_conditioned_refinement`
@@ -122,6 +122,8 @@ Runtime loop entrypoint:
 
 - `ExecutorAgent.refine_sequences_from_s3(...)`
 - iterative closure: `S4 refinement -> S2 structure projection -> S3 quality gate`
+- when `S3` baseline is absent, baseline candidates fallback to `S2` and are filtered by quality gate before entering S4
+- `S2R` remaps structure from `S4.sequence` to keep final sequence/structure pairing consistent
 
 Loop stop reasons:
 

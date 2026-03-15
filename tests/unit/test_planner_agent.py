@@ -353,15 +353,17 @@ class TestPlannerAgent:
         planner = PlannerAgent()
         plan = planner.plan(task)
 
-        assert len(plan.steps) == 3
-        assert [step.id for step in plan.steps] == ["S1", "S2", "S4"]
+        assert len(plan.steps) == 4
+        assert [step.id for step in plan.steps] == ["S1", "S2", "S4", "S2R"]
         assert plan.steps[0].tool == "protgpt2"
         assert plan.steps[1].tool == "esmfold"
         assert plan.steps[2].tool == "protein_mpnn"
+        assert plan.steps[3].tool == "esmfold"
         assert plan.steps[0].inputs["goal"] == "de_novo_design"
         assert plan.steps[0].inputs["length_range"] == [40, 60]
         assert plan.steps[1].inputs["sequence"] == "S1.sequence"
         assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+        assert plan.steps[3].inputs["sequence"] == "S4.sequence"
         assert plan.steps[2].metadata["stage_id"] == "S4"
         assert plan.steps[2].metadata["stop_conditions"]["max_iterations"] == 3
         assert plan.explanation

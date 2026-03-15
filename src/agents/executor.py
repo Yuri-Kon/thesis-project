@@ -435,9 +435,11 @@ class ExecutorAgent:
         max_degradation_rounds: int | None = None,
     ) -> StepResult:
         """Run S4 iterative loop: refinement -> structure projection -> quality gate."""
-        source_result = context.get_step_result(source_step_id)
-        if source_result is None:
-            raise ValueError(f"Missing source step result '{source_step_id}'")
+        candidates, baseline_source_step_id = _resolve_refinement_baseline_candidates(
+            context,
+            source_step_id=source_step_id,
+            max_candidates=max_candidates,
+        )
 
         refinement_template = _resolve_refinement_step_template(
             plan=context.plan,
@@ -463,10 +465,6 @@ class ExecutorAgent:
             convergence_delta=convergence_delta,
             max_degradation_rounds=max_degradation_rounds,
         )
-        candidates = _extract_s3_candidates_for_refinement(
-            source_result,
-            max_candidates=max_candidates,
-        )
         now_iso = datetime.now(timezone.utc).isoformat()
         if not candidates:
             failed = StepResult(
@@ -475,17 +473,20 @@ class ExecutorAgent:
                 tool=tool_id,
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE.value,
-                error_message="S4 refinement requires at least one S3 passed sample",
+                error_message=(
+                    "S4 refinement requires at least one quality-passed baseline "
+                    f"from '{baseline_source_step_id}'"
+                ),
                 error_details={
                     "failure_code": "S4_NO_BASELINE_CANDIDATE",
                     "phase": "structure_refinement",
                     "timestamp": now_iso,
                 },
-                inputs={"source_step_id": source_step_id},
+                inputs={"source_step_id": baseline_source_step_id},
                 outputs={
                     "stage_id": "S4",
                     "stage_name": "structure_conditioned_refinement",
-                    "source_step_id": source_step_id,
+                    "source_step_id": baseline_source_step_id,
                     "refinement_iterations": [],
                     "iteration_count": 0,
                     "stop_reason": "missing_baseline",
@@ -519,7 +520,7 @@ class ExecutorAgent:
         for iteration in range(1, loop_config["max_iterations"] + 1):
             source_pdb_path = current_source.get("pdb_path")
             source_candidate_id = _as_str(current_source.get("candidate_id")) or (
-                f"{source_step_id}_baseline"
+                f"{baseline_source_step_id}_baseline"
             )
             source_plddt = previous_plddt
             if not isinstance(source_pdb_path, str) or not source_pdb_path:
@@ -705,7 +706,7 @@ class ExecutorAgent:
         audit_payload = build_structure_refinement_audit(
             task_id=context.task.task_id,
             step_id=refinement_step_id,
-            source_step_id=source_step_id,
+            source_step_id=baseline_source_step_id,
             baseline=baseline,
             iterations=iteration_logs,
             stop_reason=stop_reason,
@@ -741,7 +742,7 @@ class ExecutorAgent:
             error_message=error_message,
             error_details=error_details,
             inputs={
-                "source_step_id": source_step_id,
+                "source_step_id": baseline_source_step_id,
                 "max_candidates": max_candidates,
                 "max_iterations": loop_config["max_iterations"],
                 "convergence_delta": loop_config["convergence_delta"],
@@ -750,11 +751,11 @@ class ExecutorAgent:
             outputs={
                 "stage_id": "S4",
                 "stage_name": "structure_conditioned_refinement",
-                "source_step_id": source_step_id,
+                "source_step_id": baseline_source_step_id,
                 "loop_path": ["S4", "S2", "S3"],
                 "lineage": {
                     "stage_id": "S4",
-                    "source_step_id": source_step_id,
+                    "source_step_id": baseline_source_step_id,
                     "baseline_candidate_id": baseline.get("candidate_id"),
                     "rollback_applied": rollback_applied,
                 },
@@ -1070,6 +1071,67 @@ def _extract_s3_candidates_for_refinement(
             }
         )
     return resolved[: max(1, max_candidates)]
+
+
+def _resolve_refinement_baseline_candidates(
+    context: WorkflowContext,
+    *,
+    source_step_id: str,
+    max_candidates: int,
+) -> tuple[List[Dict[str, Any]], str]:
+    source_result = context.get_step_result(source_step_id)
+    if source_result is not None:
+        stage_id = None
+        if isinstance(source_result.outputs, dict):
+            value = source_result.outputs.get("stage_id")
+            if isinstance(value, str):
+                stage_id = value
+        if source_step_id == "S2" or stage_id == "S2":
+            return _collect_passed_baseline_from_s2(
+                source_result,
+                constraints=context.task.constraints,
+                max_candidates=max_candidates,
+            ), "S2"
+        return _extract_s3_candidates_for_refinement(
+            source_result,
+            max_candidates=max_candidates,
+        ), source_step_id
+
+    if source_step_id == "S3":
+        s2_result = context.get_step_result("S2")
+        if s2_result is not None:
+            candidates = _collect_passed_baseline_from_s2(
+                s2_result,
+                constraints=context.task.constraints,
+                max_candidates=max_candidates,
+            )
+            return candidates, "S2"
+        raise ValueError("Missing source step result 'S3' and fallback baseline 'S2'")
+    raise ValueError(f"Missing source step result '{source_step_id}'")
+
+
+def _collect_passed_baseline_from_s2(
+    source_result: StepResult,
+    *,
+    constraints: Dict[str, Any],
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    candidates = _extract_s2_candidates_for_quality_gate(
+        source_result,
+        max_candidates=max_candidates,
+    )
+    qc_batch = evaluate_quality_gate_batch(
+        candidates,
+        constraints=constraints,
+    )
+    passed_rows = qc_batch["passed_samples"]
+    if not isinstance(passed_rows, list):
+        return []
+    return [
+        dict(row)
+        for row in passed_rows[: max(1, max_candidates)]
+        if isinstance(row, dict)
+    ]
 
 
 def _extract_refinement_sequences(

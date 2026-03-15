@@ -2393,6 +2393,16 @@ def _build_de_novo_plan(
                 },
             },
         ),
+        PlanStep(
+            id="S2R",
+            tool=structure_tool.id,
+            inputs={"sequence": "S4.sequence"},
+            metadata={
+                "stage_id": "S2",
+                "stage_name": "structure_projection",
+                "source_stage_id": "S4",
+            },
+        ),
     ]
 
     explanation = _build_de_novo_explanation(
@@ -2456,11 +2466,11 @@ def _build_de_novo_explanation(
         compat_note = f"KG compat.from={', '.join(str(item) for item in compat_from)}"
 
     parts = [
-        "de_novo_design 任务采用序列生成→结构预测→结构条件精修链路。",
+        "de_novo_design 任务采用序列生成→结构预测→结构条件精修→结构重映射链路。",
         f"ProteinToolKG 显示 {seq_name}({sequence_tool_id}) 能力={seq_caps}。{seq_desc}",
         f"ProteinToolKG 显示 {struct_name}({structure_tool_id}) 能力={struct_caps}。{struct_desc}",
         f"ProteinToolKG 显示 {refine_name}({refinement_tool_id}) 能力={refine_caps}。{refine_desc}",
-        "S4 按 max_iterations/convergence_delta/max_degradation_rounds 控制迭代停止。",
+        "S4 按 max_iterations/convergence_delta/max_degradation_rounds 控制迭代停止，并在 S4 后执行结构重映射保证序列-结构一致。",
     ]
     if compat_note:
         parts.append(compat_note)

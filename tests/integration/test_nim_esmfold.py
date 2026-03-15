@@ -135,11 +135,12 @@ def test_de_novo_with_nim(
     planner = PlannerAgent()
     plan = planner.plan(task)
 
-    assert len(plan.steps) >= 3
-    assert [step.id for step in plan.steps[:3]] == ["S1", "S2", "S4"]
+    assert len(plan.steps) >= 4
+    assert [step.id for step in plan.steps[:4]] == ["S1", "S2", "S4", "S2R"]
     assert plan.steps[0].tool == "protgpt2"
     assert plan.steps[1].tool == "nim_esmfold"
     assert plan.steps[1].inputs.get("sequence") == "S1.sequence"
+    assert plan.steps[3].inputs.get("sequence") == "S4.sequence"
 
     register_adapter(ProtGPT2Adapter(service=_MockPLMService(), output_dir=tmp_path / "seq"))
     register_adapter(NIMESMFoldAdapter(output_dir=tmp_path / "pdb"))

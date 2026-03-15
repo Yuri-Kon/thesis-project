@@ -82,6 +82,69 @@ def _build_context_with_s3_passed(
     return context
 
 
+def _build_context_with_s2_only() -> WorkflowContext:
+    task = ProteinDesignTask(
+        task_id="task_s4_s2_fallback",
+        goal="de_novo_design",
+        constraints={
+            "length_range": [20, 30],
+            "plddt_threshold": 0.7,
+            "structure_refinement": {
+                "max_iterations": 1,
+                "convergence_delta": 0.01,
+                "max_degradation_rounds": 1,
+            },
+        },
+        metadata={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(id="S2", tool="nim_esmfold", inputs={"sequence": "S1.sequence"}, metadata={"stage_id": "S2"}),
+            PlanStep(id="S4", tool="protein_mpnn", inputs={"pdb_path": "S2.pdb_path"}, metadata={"stage_id": "S4"}),
+        ],
+        constraints=task.constraints,
+        metadata={},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=plan,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=InternalStatus.RUNNING,
+    )
+    context.step_results["S2"] = StepResult(
+        task_id=task.task_id,
+        step_id="S2",
+        tool="nim_esmfold",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        error_details={},
+        inputs={},
+        outputs={
+            "stage_id": "S2",
+            "structure_results": [
+                {
+                    "candidate_id": "s2_base",
+                    "status": "success",
+                    "sequence": "ACDEFGHIKLMNPQRSTVWY",
+                    "pdb_path": "/tmp/s2_base.pdb",
+                    "plddt": 0.82,
+                    "tool_id": "nim_esmfold",
+                    "lineage": {"stage_id": "S2", "source_candidate_id": "s1_base"},
+                }
+            ],
+        },
+        metrics={},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    return context
+
+
 def _mock_success_result(
     *,
     task_id: str,
@@ -312,3 +375,42 @@ def test_refine_sequences_from_s3_rolls_back_after_refinement_failure(monkeypatc
     audit_path = Path(result.artifacts["refinement_audit_path"])
     payload = json.loads(audit_path.read_text(encoding="utf-8"))
     assert payload["summary"]["rollback_applied"] is True
+
+
+def test_refine_sequences_from_s3_falls_back_to_s2_when_s3_missing(monkeypatch, tmp_path: Path):
+    context = _build_context_with_s2_only()
+    executor = ExecutorAgent()
+    _patch_audit_to_tmp(monkeypatch, tmp_path)
+
+    def _fake_run_step(step: PlanStep, _context: WorkflowContext) -> StepResult:
+        if step.tool == "protein_mpnn":
+            return _mock_success_result(
+                task_id=_context.task.task_id,
+                step=step,
+                outputs={
+                    "stage_id": "S4",
+                    "sequence": "MKTAYIAKQRQISFVKSHFS",
+                    "sequence_score": 0.9,
+                    "candidates": [{"sequence": "MKTAYIAKQRQISFVKSHFS", "score": 0.9}],
+                },
+            )
+        if step.tool in {"nim_esmfold", "esmfold"}:
+            return _mock_success_result(
+                task_id=_context.task.task_id,
+                step=step,
+                outputs={
+                    "stage_id": "S2",
+                    "sequence": step.inputs["sequence"],
+                    "pdb_path": "/tmp/s4_refined.pdb",
+                    "plddt": 0.9,
+                },
+            )
+        raise AssertionError(f"unexpected tool: {step.tool}")
+
+    monkeypatch.setattr(executor.step_runner, "run_step", _fake_run_step)
+    result = executor.refine_sequences_from_s3(context)
+
+    assert result.status == "success"
+    assert result.outputs["source_step_id"] == "S2"
+    assert result.outputs["successful_iterations"] == 1
+    assert result.outputs["plddt"] == 0.9
