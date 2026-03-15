@@ -30,6 +30,7 @@ from src.models.event_log import EventLog, EventType
 from src.storage.log_store import DEFAULT_LOG_DIR, read_event_logs
 from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DIR
 from src.workflow.context import WorkflowContext
+from src.workflow.errors import FailureType
 
 __all__ = [
     "restore_context_from_snapshot",
@@ -40,7 +41,91 @@ __all__ = [
     "StructureRefinementIteration",
     "build_structure_refinement_audit",
     "persist_structure_refinement_audit",
+    "S6_TRIGGER_MATRIX_VERSION",
+    "get_s6_trigger_matrix",
+    "resolve_s6_recovery_action",
 ]
+
+S6_TRIGGER_MATRIX_VERSION = "2026-03-16.v1"
+_S6_STAGE_TRIGGER_MATRIX: dict[str, dict[str, Any]] = {
+    "S1": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["SAFETY_"],
+    },
+    "S2": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S2_ALL_", "S2_IO_"],
+    },
+    "S3": {
+        "default_action": "replan",
+        "replan_failure_prefixes": ["S3_"],
+    },
+    "S4": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S4_LOOP_EXHAUSTED"],
+    },
+    "S5": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S5_OBJECTIVE_NOT_MET", "S5_SCORE_INVALID"],
+    },
+}
+
+
+def get_s6_trigger_matrix() -> dict[str, Any]:
+    """返回 S6 阶段感知触发矩阵（用于审计与文档）。"""
+    return {
+        "version": S6_TRIGGER_MATRIX_VERSION,
+        "stages": json.loads(json.dumps(_S6_STAGE_TRIGGER_MATRIX, ensure_ascii=True)),
+    }
+
+
+def resolve_s6_recovery_action(
+    *,
+    stage_id: str | None,
+    failure_code: str | None,
+    failure_type: FailureType | str | None,
+    retry_exhausted: bool,
+    safety_blocked: bool = False,
+) -> str:
+    """根据阶段与失败上下文决定优先恢复动作：patch 或 replan。"""
+    if safety_blocked:
+        return "replan"
+
+    normalized_type = _normalize_failure_type(failure_type)
+    if normalized_type == FailureType.SAFETY_BLOCK:
+        return "replan"
+
+    normalized_stage = (stage_id or "").strip().upper()
+    stage_rule = _S6_STAGE_TRIGGER_MATRIX.get(normalized_stage)
+    normalized_code = (failure_code or "").strip().upper()
+    if stage_rule and normalized_code:
+        for prefix in stage_rule.get("replan_failure_prefixes", []):
+            if isinstance(prefix, str) and normalized_code.startswith(prefix.upper()):
+                return "replan"
+
+    if stage_rule:
+        return str(stage_rule.get("default_action") or "patch")
+
+    if normalized_type in {
+        FailureType.RETRYABLE,
+        FailureType.TOOL_ERROR,
+        FailureType.NON_RETRYABLE,
+    }:
+        return "patch"
+    if retry_exhausted:
+        return "patch"
+    return "replan"
+
+
+def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
+    if isinstance(value, FailureType):
+        return value
+    if isinstance(value, str):
+        try:
+            return FailureType(value)
+        except ValueError:
+            return None
+    return None
 
 
 class RemoteJobContext:

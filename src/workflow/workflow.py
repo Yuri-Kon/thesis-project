@@ -11,6 +11,9 @@ from src.agents.planner import PlannerAgent
 from src.agents.executor import ExecutorAgent
 from src.agents.summarizer import SummarizerAgent
 from src.workflow.context import WorkflowContext
+from src.workflow.recovery import S6_TRIGGER_MATRIX_VERSION
+
+S6_CONTROL_LAYER_MATRIX_VERSION = S6_TRIGGER_MATRIX_VERSION
 
 _WAITING_INTERNAL_STATUSES = {
     InternalStatus.WAITING_PLAN_CONFIRM,

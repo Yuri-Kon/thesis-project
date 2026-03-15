@@ -19,6 +19,7 @@ from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
+from src.workflow.recovery import resolve_s6_recovery_action
 from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
@@ -360,15 +361,21 @@ class PatchRunner:
     def _should_patch(self, result: StepResult) -> bool:
         if result.status != "failed":
             return False
-        if result.failure_type == FailureType.SAFETY_BLOCK:
-            return False
 
         retry_exhausted = result.metrics.get("retry_exhausted", False)
-        patchable_nonretryable = result.failure_type in (
-            FailureType.TOOL_ERROR,
-            FailureType.NON_RETRYABLE,
+        stage_id = _extract_stage_id(result)
+        failure_code = _extract_failure_code(result)
+        action = resolve_s6_recovery_action(
+            stage_id=stage_id,
+            failure_code=failure_code,
+            failure_type=result.failure_type,
+            retry_exhausted=bool(retry_exhausted),
+            safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
         )
-        return bool(retry_exhausted or patchable_nonretryable)
+        result.metrics.setdefault("s6_trigger_stage_id", stage_id)
+        result.metrics.setdefault("s6_trigger_failure_code", failure_code)
+        result.metrics.setdefault("s6_recovery_action", action)
+        return action == "patch"
 
     def _attach_patch_meta(
         self,
@@ -591,6 +598,22 @@ def _extract_patch_candidates(
             )
         )
     return pairs
+
+
+def _extract_stage_id(result: StepResult) -> str | None:
+    outputs = result.outputs if isinstance(result.outputs, dict) else {}
+    stage_id = outputs.get("stage_id")
+    if isinstance(stage_id, str) and stage_id:
+        return stage_id
+    return None
+
+
+def _extract_failure_code(result: StepResult) -> str | None:
+    details = result.error_details if isinstance(result.error_details, dict) else {}
+    failure_code = details.get("failure_code")
+    if isinstance(failure_code, str) and failure_code:
+        return failure_code
+    return None
 
 
 def _recovery_layer_rank(patch: PlanPatch) -> int:

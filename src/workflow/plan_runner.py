@@ -813,6 +813,14 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "upgrade_reason": recovery_meta.get("upgrade_reason"),
         }
 
+    s6_action = step_result.metrics.get("s6_recovery_action")
+    if isinstance(s6_action, str) and s6_action:
+        data["s6"] = {
+            "action": s6_action,
+            "trigger_stage_id": step_result.metrics.get("s6_trigger_stage_id"),
+            "trigger_failure_code": step_result.metrics.get("s6_trigger_failure_code"),
+        }
+
     if stage_id == "S3":
         reject_counts = outputs.get("reject_code_counts")
         failed_rows = outputs.get("failed_samples")
