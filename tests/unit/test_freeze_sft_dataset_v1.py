@@ -221,6 +221,7 @@ class TestFreezeSftDatasetV1:
             quality_report_path=quality_report_path,
             output_root=output_root,
             dataset_version="unit-v1",
+            previous_manifest_path=None,
             tool_kg_path=tool_kg_path,
             tool_extension_kg_path=tool_extension_path,
             config_template_path=config_template_path,
@@ -291,6 +292,7 @@ class TestFreezeSftDatasetV1:
             quality_report_path=quality_report_path,
             output_root=output_root,
             dataset_version="unit-v1",
+            previous_manifest_path=None,
             tool_kg_path=tool_kg_path,
             tool_extension_kg_path=tool_extension_path,
             config_template_path=config_template_path,
@@ -300,6 +302,7 @@ class TestFreezeSftDatasetV1:
             quality_report_path=quality_report_path,
             output_root=output_root,
             dataset_version="unit-v1",
+            previous_manifest_path=None,
             tool_kg_path=tool_kg_path,
             tool_extension_kg_path=tool_extension_path,
             config_template_path=config_template_path,
@@ -324,10 +327,124 @@ class TestFreezeSftDatasetV1:
                 quality_report_path=quality_report_path,
                 output_root=output_root,
                 dataset_version="unit-v1",
+                previous_manifest_path=None,
                 tool_kg_path=tool_kg_path,
                 tool_extension_kg_path=tool_extension_path,
                 config_template_path=config_template_path,
             )
+
+    def test_freeze_records_delta_from_previous_manifest(self, tmp_path: Path) -> None:
+        module = _load_script_module()
+
+        gated_samples_path = tmp_path / "gated_samples.jsonl"
+        quality_report_path = tmp_path / "quality_gate_report.json"
+        output_root = tmp_path / "output"
+        tool_kg_path = tmp_path / "tool_kg.json"
+        tool_extension_path = tmp_path / "tool_ext.json"
+        config_template_path = tmp_path / "configs" / "training" / "dataset_v1.example.json"
+
+        previous_freeze_dir = output_root / "old-v1"
+        previous_freeze_dir.mkdir(parents=True, exist_ok=True)
+        previous_stats_path = previous_freeze_dir / "dataset_stats.json"
+        previous_matrix_path = previous_freeze_dir / "tool_coverage_matrix.json"
+        previous_manifest_path = previous_freeze_dir / "manifest.json"
+
+        _write_json(
+            previous_stats_path,
+            {
+                "capability_distribution": {"structure_prediction": 1},
+                "split_counts": {"train": 1},
+            },
+        )
+        _write_json(
+            previous_matrix_path,
+            {
+                "structure_prediction": {
+                    "esmfold": {"local": {"sample_count": 1, "occurrence_count": 1}}
+                }
+            },
+        )
+        _write_json(
+            previous_manifest_path,
+            {
+                "dataset_version": "old-v1",
+                "dataset_counts": {"input_total": 1, "accepted_total": 1, "blocked_total": 0},
+                "split_counts": {"train": 1},
+                "artifacts": {
+                    "dataset_stats_path": str(previous_stats_path),
+                    "tool_coverage_matrix_path": str(previous_matrix_path),
+                },
+                "requirement2": {
+                    "p0_core_minimum_coverage": {
+                        "satisfied": False,
+                        "missing_groups": ["sequence_core", "quality_qc", "objective_scoring"],
+                    }
+                },
+            },
+        )
+
+        rows = [
+            _build_sample(
+                sample_id="sample_s1",
+                split="train",
+                status="PASS",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                adapter_mode="local",
+            ),
+            _build_sample(
+                sample_id="sample_s2",
+                split="val",
+                status="PASS",
+                tool_id="objective_ranker",
+                capability_id="objective_scoring",
+                adapter_mode="local",
+            ),
+            _build_sample(
+                sample_id="sample_s3",
+                split="test",
+                status="PASS",
+                tool_id="biopython_qc",
+                capability_id="quality_qc",
+                adapter_mode="local",
+            ),
+            _build_sample(
+                sample_id="sample_s4",
+                split="train",
+                status="PASS",
+                tool_id="protein_mpnn",
+                capability_id="sequence_design",
+                adapter_mode="remote",
+                provider="nvidia_nim",
+                model_id="ipd/proteinmpnn/predict",
+            ),
+        ]
+        _write_jsonl(gated_samples_path, rows)
+        _write_json(quality_report_path, {"summary": {"counts": {"pass": 4}}})
+        _write_json(tool_kg_path, _build_tool_kg())
+        _write_json(tool_extension_path, _build_tool_extension())
+
+        manifest = module.freeze_sft_dataset_v1(
+            gated_samples_path=gated_samples_path,
+            quality_report_path=quality_report_path,
+            output_root=output_root,
+            dataset_version="new-v1-1",
+            previous_manifest_path=previous_manifest_path,
+            tool_kg_path=tool_kg_path,
+            tool_extension_kg_path=tool_extension_path,
+            config_template_path=config_template_path,
+        )
+
+        assert "delta_from_previous" in manifest
+        delta = manifest["delta_from_previous"]
+        assert delta["previous_dataset_version"] == "old-v1"
+        assert delta["dataset_counts_delta"]["accepted_total"] == 3
+        assert delta["p0_core_coverage_change"]["previous_satisfied"] is False
+        assert delta["p0_core_coverage_change"]["current_satisfied"] is True
+        assert any(
+            key.startswith("quality_qc|biopython_qc|")
+            for key in delta["tool_coverage_matrix_delta"]["added_keys"]
+        )
 
     def test_cli_runs_successfully(self, tmp_path: Path) -> None:
         gated_samples_path = tmp_path / "gated_samples.jsonl"
