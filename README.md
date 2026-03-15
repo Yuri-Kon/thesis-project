@@ -169,3 +169,24 @@ Traceability:
 
 - replacement decisions write `from_tool/to_tool/capability_id/reason/recovery_layer` to EventLog.
 - step trace includes `data.patch` and `data.recovery`.
+
+## W12 Vertical Experiment Pipeline (Issue #171)
+
+Issue #171 now has a reproducible A0-A6 experiment pipeline:
+
+- config: `configs/experiments/w12_issue171_vertical_a0_a6.json`
+- runner: `scripts/run_w12_vertical_issue171.py`
+- evaluator: `scripts/evaluate_w12_vertical_issue171.py`
+- metrics/acceptance guide: `scripts/w12-issue-171-vertical-a0-a6-experiment.md`
+
+Deliverables generated under `output/experiment/w12-expr-2/<run_id>/`:
+
+- `vertical_metrics_summary.csv` (effect/mechanism/cost/governance unified table)
+- `run_log_index.csv` (runtime log index)
+- `abnormal_samples.jsonl` (abnormal sample list)
+- `patch_replan_breakdown.csv` (patch/replan/suffix_replan breakdown)
+- `mechanism_increment_deltas.csv` (A0->A6 increment evidence with CI)
+- `offline_gate_assessment.json` (offline gate pass/fail with reasons)
+- `requirement2_tool_capability_slices.csv` (Requirement2 tool/capability slices)
+
+The runner enforces freeze input consistency by validating `freeze_id` from issue #170 manifest when `--strict-freeze-check` is enabled (default).

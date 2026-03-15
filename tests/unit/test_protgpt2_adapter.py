@@ -5,6 +5,8 @@ from unittest.mock import Mock
 import pytest
 
 from src.adapters.protgpt2_adapter import ProtGPT2Adapter
+from src.engines.provider_config import ProviderConfig
+from src.engines.remote_model_service import RESTModelInvocationService
 from src.engines.remote_model_service import JobStatus
 from src.models.contracts import PlanStep, ProteinDesignTask, StepResult
 from src.workflow.context import WorkflowContext
@@ -155,3 +157,71 @@ def test_run_remote_job_failed(mock_service: Mock) -> None:
 
     assert exc_info.value.failure_type == FailureType.TOOL_ERROR
     assert "failed" in str(exc_info.value)
+
+
+def test_init_from_provider_config_includes_timeout_and_auth_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLM_REST_API_TOKEN", "token-123")
+    config = ProviderConfig(
+        provider_type="plm_rest",
+        base_url="http://remote-protgpt2:9993",
+        api_key_env="PLM_REST_API_TOKEN",
+        timeout=42.0,
+        extra={"auth_header": "Authorization: Bearer <token>"},
+    )
+    monkeypatch.setattr(
+        "src.adapters.protgpt2_adapter.get_provider_config",
+        lambda name: config,
+    )
+
+    adapter = ProtGPT2Adapter()
+
+    assert isinstance(adapter.service, RESTModelInvocationService)
+    assert adapter.service.base_url == "http://remote-protgpt2:9993"
+    assert adapter.service.timeout == 42.0
+    assert adapter.service.default_headers == {"Authorization": "Bearer token-123"}
+
+
+def test_init_with_base_url_override_keeps_provider_auth_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLM_REST_API_TOKEN", "token-xyz")
+    config = ProviderConfig(
+        provider_type="plm_rest",
+        base_url="http://provider-default:8100",
+        api_key_env="PLM_REST_API_TOKEN",
+        timeout=12.0,
+    )
+    monkeypatch.setattr(
+        "src.adapters.protgpt2_adapter.get_provider_config",
+        lambda name: config,
+    )
+
+    adapter = ProtGPT2Adapter(base_url="http://override-endpoint:8200")
+
+    assert isinstance(adapter.service, RESTModelInvocationService)
+    assert adapter.service.base_url == "http://override-endpoint:8200"
+    assert adapter.service.timeout == 12.0
+    assert adapter.service.default_headers == {"Authorization": "Bearer token-xyz"}
+
+
+def test_init_env_base_url_overrides_provider_and_arg(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PLM_REST_BASE_URL", "http://env-override:9001")
+    config = ProviderConfig(
+        provider_type="plm_rest",
+        base_url="http://provider-default:8100",
+        timeout=9.0,
+    )
+    monkeypatch.setattr(
+        "src.adapters.protgpt2_adapter.get_provider_config",
+        lambda name: config,
+    )
+
+    adapter = ProtGPT2Adapter(base_url="http://arg-override:8200")
+
+    assert isinstance(adapter.service, RESTModelInvocationService)
+    assert adapter.service.base_url == "http://env-override:9001"
+    assert adapter.service.timeout == 9.0
