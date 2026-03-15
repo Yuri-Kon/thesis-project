@@ -13,7 +13,7 @@ A4 阶段：实现接口框架和伪实现，返回 SafetyResult 占位。
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from src.models.contracts import (
     ProteinDesignTask,
@@ -148,6 +148,32 @@ class SafetyAgent:
                 )
             )
             action = "block"
+        elif self._is_s3_quality_gate_step(step, step_result):
+            pass_count, fail_count = self._extract_s3_counts(step_result)
+            if pass_count <= 0:
+                risk_flags.append(
+                    self._build_failure_flag(
+                        step,
+                        step_result,
+                        failure_code="S3_ALL_CANDIDATES_REJECTED",
+                        failure_reason="S3 quality gate rejected all candidates",
+                    )
+                )
+                action = "block"
+            elif fail_count > 0:
+                risk_flags.append(
+                    self._build_failure_flag(
+                        step,
+                        step_result,
+                        failure_code="S3_PARTIAL_QUALITY_GATE_FAIL",
+                        failure_reason=(
+                            f"S3 quality gate partially rejected candidates "
+                            f"(pass={pass_count}, fail={fail_count})"
+                        ),
+                        level="warn",
+                    )
+                )
+                action = "warn"
         elif step.tool == "protein_mpnn":
             sequence = step_result.outputs.get("sequence")
             if not self._is_valid_sequence(sequence):
@@ -254,6 +280,27 @@ class SafetyAgent:
             return threshold * 100
         return threshold
 
+    def _is_s3_quality_gate_step(self, step: PlanStep, step_result: StepResult) -> bool:
+        metadata = step.metadata if isinstance(step.metadata, dict) else {}
+        if metadata.get("stage_id") == "S3":
+            return True
+        outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+        return outputs.get("stage_id") == "S3"
+
+    def _extract_s3_counts(self, step_result: StepResult) -> tuple[int, int]:
+        outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+        pass_count = outputs.get("pass_count")
+        fail_count = outputs.get("fail_count")
+        if isinstance(pass_count, bool) or not isinstance(pass_count, (int, float)):
+            pass_count = 0
+        if isinstance(fail_count, bool) or not isinstance(fail_count, (int, float)):
+            failed_rows = outputs.get("failed_samples")
+            if isinstance(failed_rows, list):
+                fail_count = len(failed_rows)
+            else:
+                fail_count = 0
+        return int(pass_count), int(fail_count)
+
     def _extract_failure_code(self, step_result: StepResult) -> str:
         failure_code = ""
         if isinstance(step_result.error_details, dict):
@@ -272,6 +319,7 @@ class SafetyAgent:
         failure_code: str,
         failure_reason: str,
         extra_details: Optional[dict] = None,
+        level: Literal["warn", "block"] = "block",
     ) -> RiskFlag:
         details = {
             "failure_code": failure_code,
@@ -283,7 +331,7 @@ class SafetyAgent:
         if extra_details:
             details.update(extra_details)
         return RiskFlag(
-            level="block",
+            level=level,
             code=failure_code,
             message=failure_reason,
             scope="step",

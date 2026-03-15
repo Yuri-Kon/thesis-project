@@ -1,6 +1,6 @@
 from __future__ import annotations
 import json
-from typing import Protocol
+from typing import Any, Protocol
 from src.agents.planner import PlannerAgent
 from src.infra.event_log_factory import make_candidate_validation_failed
 from src.models.contracts import (
@@ -735,20 +735,24 @@ class PlanRunner:
         step_result: StepResult,
     ) -> None:
         event_name = "STEP_FINISHED" if step_result.status != "failed" else "STEP_FAILED"
+        event_payload = {
+            "event": event_name,
+            "task_id": context.task.task_id,
+            "step_id": step_result.step_id,
+            "tool": step_result.tool,
+            "status": step_result.status,
+            "failure_type": step_result.failure_type,
+            "error_message": step_result.error_message,
+            "timestamp": step_result.timestamp,
+            "state": context.status.value,
+            "external_status": to_external_status(context.status).value,
+        }
+        event_data = _build_step_trace_data(step_result)
+        if event_data:
+            event_payload["data"] = event_data
         append_event(
             context.task.task_id,
-            {
-                "event": event_name,
-                "task_id": context.task.task_id,
-                "step_id": step_result.step_id,
-                "tool": step_result.tool,
-                "status": step_result.status,
-                "failure_type": step_result.failure_type,
-                "error_message": step_result.error_message,
-                "timestamp": step_result.timestamp,
-                "state": context.status.value,
-                "external_status": to_external_status(context.status).value,
-            },
+            event_payload,
         )
 
 
@@ -758,6 +762,43 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
         error.failure_type == FailureType.SAFETY_BLOCK
         or error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK", "SAFETY_POST_BLOCK"}
     )
+
+
+def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
+    data: dict[str, Any] = {}
+    if isinstance(step_result.error_details, dict):
+        failure_code = step_result.error_details.get("failure_code")
+        if isinstance(failure_code, str) and failure_code:
+            data["failure_code"] = failure_code
+
+    outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+    stage_id = outputs.get("stage_id")
+    if isinstance(stage_id, str) and stage_id:
+        data["stage_id"] = stage_id
+
+    if stage_id == "S3":
+        reject_counts = outputs.get("reject_code_counts")
+        failed_rows = outputs.get("failed_samples")
+        failed_samples: list[dict[str, Any]] = []
+        if isinstance(failed_rows, list):
+            for item in failed_rows:
+                if not isinstance(item, dict):
+                    continue
+                failed_samples.append(
+                    {
+                        "candidate_id": item.get("candidate_id"),
+                        "reject_codes": item.get("reject_codes"),
+                        "reason": item.get("reason"),
+                    }
+                )
+        data["quality_gate"] = {
+            "pass_count": outputs.get("pass_count"),
+            "fail_count": outputs.get("fail_count"),
+            "pass_fail": outputs.get("pass_fail"),
+            "reject_code_counts": reject_counts if isinstance(reject_counts, dict) else {},
+            "failed_samples": failed_samples,
+        }
+    return data
 
 
 def _resolve_top_k(value: object, *, default: int) -> int:
