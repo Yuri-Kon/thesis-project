@@ -106,3 +106,29 @@ Traceability:
 
 - S3 execution emits `STEP_FINISHED/STEP_FAILED` with `data.quality_gate` summary.
 - `PlanRunner` step events now include `data.failure_code` and S3 quality summary fields for downstream extraction reuse.
+
+## Layered Patch/Replan Recovery (Issue #143)
+
+Recovery strategy now follows strict layered patch order before replan:
+
+- `parameter_level -> tool_level -> structure_level`
+
+Runtime behavior:
+
+- `PatchRunner` attempts patch candidates layer-by-layer in one recovery cycle.
+- replan upgrade triggers on:
+  - patch generation/apply failure (`patch_failed`)
+  - all patch layers failed (`patch_failed`)
+  - high-risk patch gate (`patch_high_risk`)
+- `replan` remains `suffix_replan` by default in planner metadata.
+
+Requirement-2 replacement matrix (P0):
+
+- `structure_prediction`: `nim_esmfold/esmfold/alphafold/openfold`
+- `quality_qc`: `biopython_qc/dssp`
+- `objective_scoring`: `objective_ranker`
+
+Traceability:
+
+- replacement decisions write `from_tool/to_tool/capability_id/reason/recovery_layer` to EventLog.
+- step trace includes `data.patch` and `data.recovery`.
