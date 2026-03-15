@@ -528,7 +528,21 @@ class TestAPIEndpoints:
                 "step_id": "S5",
                 "tool": "dummy_tool",
                 "status": "failed",
+                "failure_type": "tool_error",
                 "timestamp": "2026-03-08T01:00:03+00:00",
+                "error_details": {"failure_code": "S3_QUALITY_GATE_FAIL"},
+                "data": {
+                    "failure_code": "S3_QUALITY_GATE_FAIL",
+                    "recovery": {
+                        "recovery_layer": "tool_level",
+                        "from_tool": "dummy_tool",
+                        "to_tool": "esmfold",
+                        "capability_id": "structure_prediction",
+                        "adapter_mode": "remote",
+                        "io_type": "sequence_to_structure",
+                        "reason": "quality_gate_blocked",
+                    },
+                },
             },
             {
                 "event_type": "DECISION_APPLIED",
@@ -536,7 +550,14 @@ class TestAPIEndpoints:
                 "decision_id": "decision_001",
                 "pending_action_id": "pa_001",
                 "ts": "2026-03-08T01:00:04+00:00",
-                "data": {"choice": "accept"},
+                "data": {
+                    "choice": "accept",
+                    "selected_candidate_id": "cand_001",
+                    "decision_source": "human_reviewer",
+                    "tool_id": "esmfold",
+                    "capability_id": "structure_prediction",
+                    "adapter_mode": "remote",
+                },
             },
             {
                 "event": "STEP_FINISHED",
@@ -562,6 +583,39 @@ class TestAPIEndpoints:
             "STEP_FINISHED",
         ]
         assert all(entry["highlight"] for entry in data)
+        step_failed = data[2]
+        assert step_failed["failure_type"] == "tool_error"
+        assert step_failed["failure_code"] == "S3_QUALITY_GATE_FAIL"
+        assert step_failed["from_tool"] == "dummy_tool"
+        assert step_failed["to_tool"] == "esmfold"
+        assert step_failed["capability_id"] == "structure_prediction"
+        assert step_failed["adapter_mode"] == "remote"
+
+        decision_applied = data[3]
+        assert decision_applied["candidate_id"] == "cand_001"
+        assert decision_applied["decision_source"] == "human_reviewer"
+        assert decision_applied["tool_id"] == "esmfold"
+
+        filtered = await client.get(
+            f"/tasks/{task_id}/events",
+            params={"tool_id": "esmfold", "adapter_mode": "remote"},
+        )
+        assert filtered.status_code == 200
+        filtered_data = filtered.json()
+        assert len(filtered_data) == 2
+        assert {item["event_type"] for item in filtered_data} == {
+            "STEP_FAILED",
+            "DECISION_APPLIED",
+        }
+
+        event_filtered = await client.get(
+            f"/tasks/{task_id}/events",
+            params={"event_type": "STEP_FAILED"},
+        )
+        assert event_filtered.status_code == 200
+        event_data = event_filtered.json()
+        assert len(event_data) == 1
+        assert event_data[0]["event_type"] == "STEP_FAILED"
 
     async def test_get_task_events_not_found(self, client: httpx.AsyncClient):
         """task 不存在且无日志时，events 接口返回 404。"""
