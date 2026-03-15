@@ -340,7 +340,7 @@ class TestPlannerAgent:
         assert step.inputs["sequence"] == sample_task.constraints.get("sequence")
 
     def test_plan_creates_de_novo_template(self):
-        """de novo 任务应生成两步模板计划"""
+        """de novo 任务应生成包含 S4 规范的模板计划"""
         task = ProteinDesignTask(
             task_id="test_denovo",
             goal="de_novo_design",
@@ -353,13 +353,17 @@ class TestPlannerAgent:
         planner = PlannerAgent()
         plan = planner.plan(task)
 
-        assert len(plan.steps) == 2
-        assert [step.id for step in plan.steps] == ["S1", "S2"]
+        assert len(plan.steps) == 3
+        assert [step.id for step in plan.steps] == ["S1", "S2", "S4"]
         assert plan.steps[0].tool == "protgpt2"
         assert plan.steps[1].tool == "esmfold"
+        assert plan.steps[2].tool == "protein_mpnn"
         assert plan.steps[0].inputs["goal"] == "de_novo_design"
         assert plan.steps[0].inputs["length_range"] == [40, 60]
         assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+        assert plan.steps[2].metadata["stage_id"] == "S4"
+        assert plan.steps[2].metadata["stop_conditions"]["max_iterations"] == 3
         assert plan.explanation
         assert "ProteinToolKG" in plan.explanation
 
