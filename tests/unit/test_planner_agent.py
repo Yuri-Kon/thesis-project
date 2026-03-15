@@ -414,6 +414,89 @@ class TestPlannerAgent:
         }
         assert len(capability_buckets) >= 2
 
+    def test_plan_top_k_s1_contract_fields_are_complete(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_s1_fields",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [40, 60],
+                "prompt": "helix-rich",
+                "structure_template_pdb": "/tmp/template.pdb",
+            },
+            metadata={},
+        )
+
+        topk = planner.plan_top_k(task, k=3)
+        assert topk.candidates
+
+        for candidate in topk.candidates:
+            payload = candidate.structured_payload
+            assert isinstance(payload, Plan)
+            s1 = payload.steps[0]
+            assert s1.metadata.get("stage_id") == "S1"
+            assert s1.metadata.get("stage_name") == "sequence_exploration"
+            contract = s1.metadata.get("s1_contract")
+            assert isinstance(contract, dict)
+            inputs = contract.get("inputs", {})
+            outputs = contract.get("outputs", {})
+            assert set(inputs.keys()) == {"goal", "length_range", "prompt", "template"}
+            assert set(outputs.keys()) == {
+                "sequence",
+                "candidates",
+                "candidate_confidence",
+                "candidate_source",
+            }
+            lineage = s1.metadata.get("lineage")
+            assert isinstance(lineage, dict)
+            assert lineage.get("stage_id") == "S1"
+            assert lineage.get("primary_tool_id")
+            assert lineage.get("selected_tool_id")
+            assert isinstance(lineage.get("fallback_tool_ids"), list)
+
+            assert candidate.metadata.get("stage_id") == "S1"
+            assert candidate.metadata.get("lineage")
+            assert candidate.metadata.get("sequence_confidence") == candidate.score_breakdown.get("confidence")
+
+    def test_plan_top_k_includes_primary_and_fallback_sequence_sources(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_s1_sources",
+            goal="de_novo_design",
+            constraints={"length_range": [35, 55]},
+            metadata={},
+        )
+
+        topk = planner.plan_top_k(task, k=3)
+        sources = {candidate.metadata.get("sequence_source") for candidate in topk.candidates}
+        assert "primary" in sources
+        assert "fallback" in sources
+
+    def test_plan_top_k_raises_when_base_plan_has_no_steps(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_empty_plan",
+            goal="de_novo_design",
+            constraints={"length_range": [20, 30]},
+            metadata={},
+        )
+        monkeypatch.setattr(
+            planner,
+            "plan",
+            lambda _task: Plan(
+                task_id=_task.task_id,
+                steps=[],
+                constraints=_task.constraints,
+                metadata={},
+            ),
+        )
+
+        with pytest.raises(ValueError, match="Plan is empty; cannot build Top-K candidates"):
+            planner.plan_top_k(task, k=3)
+
     def test_patch_top_k_has_v1_fields_and_is_serializable(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())
