@@ -167,3 +167,82 @@ class TestSafetyAgent:
         
         assert isinstance(result, SafetyResult)
         assert result.phase == "output"
+
+    def test_check_post_step_s3_partial_reject_returns_warn(
+        self,
+        safety_agent: SafetyAgent,
+        dummy_context: WorkflowContext,
+    ):
+        step = PlanStep(
+            id="S3",
+            tool="biopython_qc",
+            inputs={},
+            metadata={"stage_id": "S3"},
+        )
+        step_result = StepResult(
+            task_id=dummy_context.task.task_id,
+            step_id="S3",
+            tool="biopython_qc",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={
+                "stage_id": "S3",
+                "pass_count": 1,
+                "fail_count": 2,
+                "failed_samples": [
+                    {"candidate_id": "bad_1", "reject_codes": ["S3_SEQUENCE_INVALID_CHAR"]}
+                ],
+            },
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        result = safety_agent.check_post_step(step, step_result, dummy_context)
+
+        assert result.action == "warn"
+        assert len(result.risk_flags) == 1
+        assert result.risk_flags[0].code == "S3_PARTIAL_QUALITY_GATE_FAIL"
+        assert result.risk_flags[0].level == "warn"
+
+    def test_check_post_step_s3_all_rejected_returns_block(
+        self,
+        safety_agent: SafetyAgent,
+        dummy_context: WorkflowContext,
+    ):
+        step = PlanStep(
+            id="S3",
+            tool="biopython_qc",
+            inputs={},
+            metadata={"stage_id": "S3"},
+        )
+        step_result = StepResult(
+            task_id=dummy_context.task.task_id,
+            step_id="S3",
+            tool="biopython_qc",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={
+                "stage_id": "S3",
+                "pass_count": 0,
+                "fail_count": 3,
+                "failed_samples": [
+                    {"candidate_id": "bad_1", "reject_codes": ["S3_PLDDT_BELOW_THRESHOLD"]}
+                ],
+            },
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        result = safety_agent.check_post_step(step, step_result, dummy_context)
+
+        assert result.action == "block"
+        assert len(result.risk_flags) == 1
+        assert result.risk_flags[0].code == "S3_ALL_CANDIDATES_REJECTED"

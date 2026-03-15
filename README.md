@@ -74,3 +74,35 @@ S2 normalized failure codes:
 - `S2_TOOL_EXECUTION_FAILED`
 - `S2_FALLBACK_EXHAUSTED`
 - `S2_ALL_CANDIDATES_FAILED`
+
+## S3 Quality Gate Contract (Issue #157)
+
+S3 runtime hard gate now supports batch evaluation from S2 outputs:
+
+- Entry: `ExecutorAgent.quality_gate_from_s2(...)`
+- Input: `S2.structure_results` (or single S2 structure output)
+- Output:
+  - `stage_id`: `S3`
+  - `qc_results`: per-candidate `pass_fail + reject_codes + reject_reasons + qc_metrics`
+  - `failed_samples` / `passed_samples`
+  - `pass_count` / `fail_count` / `pass_fail`
+  - `reject_code_counts`
+  - Requirement2-aligned metadata: `capability_id=quality_qc`, `io_type=sequence_structure_to_qc_metrics`
+
+S3 reject code enum:
+
+- `S3_SOURCE_STRUCTURE_FAILED`
+- `S3_SEQUENCE_MISSING`
+- `S3_SEQUENCE_LENGTH_OUT_OF_RANGE`
+- `S3_SEQUENCE_INVALID_CHAR`
+- `S3_STRUCTURE_MISSING`
+- `S3_PLDDT_MISSING`
+- `S3_PLDDT_BELOW_THRESHOLD`
+- `S3_LOW_COMPLEXITY_COMPOSITION`
+- `S3_LOW_COMPLEXITY_REPEAT`
+- Stage fail code: `S3_ALL_CANDIDATES_REJECTED`
+
+Traceability:
+
+- S3 execution emits `STEP_FINISHED/STEP_FAILED` with `data.quality_gate` summary.
+- `PlanRunner` step events now include `data.failure_code` and S3 quality summary fields for downstream extraction reuse.

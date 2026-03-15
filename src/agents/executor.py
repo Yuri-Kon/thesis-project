@@ -10,10 +10,16 @@ from src.models.db import (
     TaskRecord,
     TERMINAL_INTERNAL_STATUSES,
     derive_task_status,
+    to_external_status,
 )
 from src.agents.summarizer import SummarizerAgent
+from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureCode, FailureType
+from src.workflow.quality_gate import (
+    QUALITY_GATE_ALL_REJECTED_CODE,
+    evaluate_quality_gate_batch,
+)
 from src.workflow.step_runner import StepRunner
 from src.workflow.plan_runner import PlanRunner
 from src.workflow.status import transition_task_status
@@ -262,6 +268,151 @@ class ExecutorAgent:
         context.add_step_result(aggregate_result)
         return aggregate_result
 
+    def quality_gate_from_s2(
+        self,
+        context: WorkflowContext,
+        *,
+        source_step_id: str = "S2",
+        quality_step_id: str = "S3",
+        max_candidates: int = 3,
+    ) -> StepResult:
+        """Run S3 quality gate against S2 batch outputs."""
+        source_result = context.get_step_result(source_step_id)
+        if source_result is None:
+            raise ValueError(f"Missing source step result '{source_step_id}'")
+
+        candidates = _extract_s2_candidates_for_quality_gate(
+            source_result,
+            max_candidates=max_candidates,
+        )
+        qc_batch = evaluate_quality_gate_batch(
+            candidates,
+            constraints=context.task.constraints,
+        )
+        template_step = _resolve_quality_gate_step_template(
+            plan=context.plan,
+            quality_step_id=quality_step_id,
+        )
+        tool_id = template_step.tool if template_step is not None else "biopython_qc"
+
+        passed_rows = qc_batch["passed_samples"]
+        failed_rows = qc_batch["failed_samples"]
+        pass_count = int(qc_batch["pass_count"])
+        fail_count = int(qc_batch["fail_count"])
+        pass_fail = bool(qc_batch["pass_fail"])
+        now_iso = datetime.now(timezone.utc).isoformat()
+        aggregate_status = "success" if pass_fail else "failed"
+        best_row = _select_best_quality_candidate(passed_rows)
+        tool_lineage = sorted(
+            {
+                str(row["tool_id"])
+                for row in qc_batch["qc_results"]
+                if isinstance(row, dict) and row.get("tool_id")
+            }
+        )
+
+        aggregate_outputs: Dict[str, Any] = {
+            "stage_id": "S3",
+            "stage_name": "quality_gate",
+            "source_step_id": source_step_id,
+            "qc_results": qc_batch["qc_results"],
+            "passed_samples": passed_rows,
+            "failed_samples": failed_rows,
+            "pass_count": pass_count,
+            "fail_count": fail_count,
+            "pass_fail": pass_fail,
+            "reject_code_counts": qc_batch["reject_code_counts"],
+            "qc_metrics": qc_batch["qc_metrics"],
+            "capability_id": "quality_qc",
+            "io_type": "sequence_structure_to_qc_metrics",
+            "quality_gate": {
+                "status": "PASS" if pass_fail else "BLOCK",
+                "reject_codes": sorted(qc_batch["reject_code_counts"].keys()),
+                "capability_ids": ["quality_qc"],
+                "tool_lineage": tool_lineage,
+                "qc_pass": pass_fail,
+            },
+        }
+        if best_row is not None:
+            aggregate_outputs["best_candidate_id"] = best_row.get("candidate_id")
+            aggregate_outputs["sequence"] = best_row.get("sequence")
+            aggregate_outputs["pdb_path"] = best_row.get("pdb_path")
+            aggregate_outputs["plddt"] = best_row.get("plddt")
+
+        aggregate_error_message = None
+        aggregate_error_details: Dict[str, Any] = {}
+        aggregate_failure_type = None
+        if aggregate_status == "failed":
+            aggregate_failure_type = FailureType.NON_RETRYABLE.value
+            aggregate_error_message = "All candidates rejected by S3 quality gate"
+            aggregate_error_details = {
+                "failure_code": QUALITY_GATE_ALL_REJECTED_CODE,
+                "phase": "quality_gate",
+                "timestamp": now_iso,
+                "context": {
+                    "reject_code_counts": qc_batch["reject_code_counts"],
+                    "failed_candidate_ids": [
+                        row.get("candidate_id")
+                        for row in failed_rows
+                        if isinstance(row, dict)
+                    ],
+                },
+            }
+
+        aggregate_result = StepResult(
+            task_id=context.task.task_id,
+            step_id=quality_step_id,
+            tool=tool_id,
+            status=aggregate_status,
+            failure_type=aggregate_failure_type,
+            error_message=aggregate_error_message,
+            error_details=aggregate_error_details,
+            inputs={
+                "source_step_id": source_step_id,
+                "candidate_count": len(candidates),
+            },
+            outputs=aggregate_outputs,
+            artifacts={},
+            metrics={
+                "exec_type": "quality_gate_batch",
+                "evaluated_candidates": len(candidates),
+                "pass_count": pass_count,
+                "fail_count": fail_count,
+                "partial_success": pass_count > 0 and fail_count > 0,
+                "reject_code_counts": qc_batch["reject_code_counts"],
+                "requirement2": {
+                    "capability_id": "quality_qc",
+                    "io_type": "sequence_structure_to_qc_metrics",
+                    "qc_pass": pass_fail,
+                },
+            },
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso,
+        )
+        context.add_step_result(aggregate_result)
+        append_event(
+            context.task.task_id,
+            {
+                "event": (
+                    "STEP_FINISHED"
+                    if aggregate_result.status != "failed"
+                    else "STEP_FAILED"
+                ),
+                "task_id": context.task.task_id,
+                "step_id": quality_step_id,
+                "tool": tool_id,
+                "status": aggregate_result.status,
+                "failure_type": aggregate_result.failure_type,
+                "error_message": aggregate_result.error_message,
+                "timestamp": aggregate_result.timestamp,
+                "state": context.status.value,
+                "external_status": to_external_status(context.status).value,
+                "data": _build_quality_gate_trace_data(aggregate_result),
+            },
+        )
+        return aggregate_result
+
     def summarize_and_finalize(
         self,
         context: WorkflowContext,
@@ -335,6 +486,19 @@ def _resolve_structure_step_template(
     return None
 
 
+def _resolve_quality_gate_step_template(
+    *,
+    plan: Plan | None,
+    quality_step_id: str,
+) -> PlanStep | None:
+    if plan is None:
+        return None
+    for step in plan.steps:
+        if step.id == quality_step_id:
+            return step
+    return None
+
+
 def _extract_sequence_candidates(
     source_result: StepResult,
     *,
@@ -394,6 +558,54 @@ def _extract_sequence_candidates(
     if not resolved:
         raise ValueError(
             f"No sequence candidates found in '{source_result.step_id}' outputs"
+        )
+    return resolved[: max(1, max_candidates)]
+
+
+def _extract_s2_candidates_for_quality_gate(
+    source_result: StepResult,
+    *,
+    max_candidates: int,
+) -> List[Dict[str, Any]]:
+    outputs = source_result.outputs if isinstance(source_result.outputs, dict) else {}
+    structure_results = outputs.get("structure_results")
+    resolved: List[Dict[str, Any]] = []
+
+    if isinstance(structure_results, list):
+        for idx, item in enumerate(structure_results):
+            if not isinstance(item, dict):
+                continue
+            row = dict(item)
+            row.setdefault("candidate_id", f"{source_result.step_id}_structure_{idx + 1}")
+            row.setdefault("lineage", outputs.get("lineage", {}))
+            row.setdefault("tool_id", row.get("tool_id") or source_result.tool)
+            resolved.append(row)
+            if len(resolved) >= max(1, max_candidates):
+                break
+    else:
+        plddt = outputs.get("plddt")
+        if not isinstance(plddt, (int, float)):
+            confidence = outputs.get("confidence")
+            if isinstance(confidence, dict) and isinstance(
+                confidence.get("plddt_mean"), (int, float)
+            ):
+                plddt = confidence["plddt_mean"]
+        row = {
+            "candidate_id": f"{source_result.step_id}_primary",
+            "status": source_result.status,
+            "sequence": outputs.get("sequence"),
+            "pdb_path": outputs.get("pdb_path"),
+            "plddt": plddt,
+            "tool_id": source_result.tool,
+            "lineage": outputs.get("lineage", {}),
+            "failure_code": _extract_failure_code(source_result),
+            "failure_reason": source_result.error_message,
+        }
+        resolved.append(row)
+
+    if not resolved:
+        raise ValueError(
+            f"No structure candidates found in '{source_result.step_id}' outputs"
         )
     return resolved[: max(1, max_candidates)]
 
@@ -560,3 +772,57 @@ def _collect_projection_artifacts(rows: Sequence[Dict[str, Any]]) -> Dict[str, A
     if not pdb_paths:
         return {}
     return {"pdb_paths": pdb_paths}
+
+
+def _select_best_quality_candidate(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any] | None:
+    if not rows:
+        return None
+    ranked = sorted(
+        rows,
+        key=lambda row: (
+            -(float(row.get("plddt")) if isinstance(row.get("plddt"), (int, float)) else -1.0),
+            str(row.get("candidate_id", "")),
+        ),
+    )
+    return ranked[0]
+
+
+def _extract_failure_code(result: StepResult) -> str | None:
+    if not isinstance(result.error_details, dict):
+        return None
+    value = result.error_details.get("failure_code")
+    if isinstance(value, FailureCode):
+        return value.value
+    if isinstance(value, str):
+        return value
+    return None
+
+
+def _build_quality_gate_trace_data(result: StepResult) -> Dict[str, Any]:
+    outputs = result.outputs if isinstance(result.outputs, dict) else {}
+    reject_counts = outputs.get("reject_code_counts")
+    failure_code = _extract_failure_code(result)
+    failed_rows = outputs.get("failed_samples")
+    failed_samples: list[dict[str, Any]] = []
+    if isinstance(failed_rows, list):
+        for item in failed_rows:
+            if not isinstance(item, dict):
+                continue
+            failed_samples.append(
+                {
+                    "candidate_id": item.get("candidate_id"),
+                    "reject_codes": item.get("reject_codes"),
+                    "reason": item.get("reason"),
+                }
+            )
+    return {
+        "stage_id": outputs.get("stage_id"),
+        "failure_code": failure_code,
+        "quality_gate": {
+            "pass_count": outputs.get("pass_count"),
+            "fail_count": outputs.get("fail_count"),
+            "pass_fail": outputs.get("pass_fail"),
+            "reject_code_counts": reject_counts if isinstance(reject_counts, dict) else {},
+            "failed_samples": failed_samples,
+        },
+    }
