@@ -541,6 +541,13 @@ def _build_plan_candidate_payloads(
         raise ValueError("Plan is empty; cannot build Top-K candidates")
 
     registry_map = {spec.id: spec for spec in registry}
+    is_de_novo = _is_de_novo_task(task)
+    base_plan = _ensure_s1_contract_metadata(
+        task=task,
+        plan=base_plan,
+        registry=registry,
+    )
+    primary_s1_tool_id = _extract_primary_s1_tool_id(base_plan)
     payloads: List[_CandidatePayload] = [
         _CandidatePayload(
             payload=base_plan,
@@ -556,21 +563,39 @@ def _build_plan_candidate_payloads(
     ]
 
     available_inputs: Set[str] = set(task.constraints.keys())
+    available_inputs.add("goal")
     max_variants_per_step = max(1, top_k * 2)
     for idx, step in enumerate(base_plan.steps):
         step_inputs = set(available_inputs)
         step_spec = registry_map.get(step.tool)
         capability = _resolve_step_capability(step, step_spec)
-        alternatives = _rank_candidate_tools(
-            registry=registry,
-            capability=capability,
-            available_inputs=step_inputs,
-            exclude_tool=step.tool,
-        )
+        is_s1 = is_de_novo and _is_sequence_exploration_step(step, step_spec)
+        if is_s1:
+            step_inputs = _collect_sequence_exploration_inputs(task.constraints)
+            alternatives = _rank_sequence_exploration_tools(
+                registry=registry,
+                available_inputs=step_inputs,
+                exclude_tool=step.tool,
+            )
+        else:
+            alternatives = _rank_candidate_tools(
+                registry=registry,
+                capability=capability,
+                available_inputs=step_inputs,
+                exclude_tool=step.tool,
+            )
         for alternative in alternatives[:max_variants_per_step]:
+            replacement_inputs = _materialize_inputs_for_tool(
+                base_inputs=step.inputs,
+                task=task,
+                target_tool=alternative,
+            )
+            if replacement_inputs is None:
+                continue
             replaced_step = step.model_copy(
                 update={
                     "tool": alternative.id,
+                    "inputs": replacement_inputs,
                     "metadata": {
                         **(step.metadata or {}),
                         "candidate_from": step.tool,
@@ -579,6 +604,25 @@ def _build_plan_candidate_payloads(
                 },
                 deep=True,
             )
+            if is_s1:
+                fallback_tool_ids = _collect_s1_fallback_tool_ids(
+                    registry=registry,
+                    primary_tool_id=primary_s1_tool_id or step.tool,
+                    available_inputs=step_inputs,
+                )
+                replaced_step = _attach_s1_contract_to_step(
+                    step=replaced_step,
+                    task=task,
+                    selected_tool=alternative,
+                    primary_tool_id=primary_s1_tool_id or step.tool,
+                    fallback_tool_ids=fallback_tool_ids,
+                    source_tier=(
+                        "primary"
+                        if alternative.id == (primary_s1_tool_id or step.tool)
+                        else "fallback"
+                    ),
+                    source_reason="tool_swap",
+                )
             new_steps = [plan_step.model_copy(deep=True) for plan_step in base_plan.steps]
             new_steps[idx] = replaced_step
             candidate_plan = base_plan.model_copy(
@@ -802,6 +846,11 @@ def _build_top_k_result(
             "adapter_mode": adapter_mode,
             "generation_note": payload.note,
         }
+        if isinstance(payload.payload, Plan):
+            s1_metadata = _extract_s1_candidate_metadata(payload.payload)
+            if s1_metadata:
+                metadata.update(s1_metadata)
+                metadata["sequence_confidence"] = score_breakdown.get("confidence")
         candidate = PendingActionCandidate(
             candidate_id=candidate_id,
             structured_payload=payload.payload,
@@ -1477,6 +1526,17 @@ def _prefers_remote_tools(task_constraints: dict) -> bool:
 
 
 _DE_NOVO_GOAL_TYPE = "de_novo_design"
+_S1_STAGE_ID = "S1"
+_S1_STAGE_NAME = "sequence_exploration"
+_S1_SEQUENCE_SOURCE_PRIMARY = "primary"
+_S1_SEQUENCE_SOURCE_FALLBACK = "fallback"
+_S1_INPUT_FIELDS = ("goal", "length_range", "prompt", "template")
+_S1_OUTPUT_FIELDS = (
+    "sequence",
+    "candidates",
+    "candidate_confidence",
+    "candidate_source",
+)
 
 
 def _extract_goal_type(task: ProteinDesignTask) -> str:
@@ -1529,11 +1589,240 @@ def _extract_length_range(constraints: dict) -> List[int] | None:
 
 
 def _extract_template_pdb(constraints: dict) -> str | None:
-    for key in ("structure_template_pdb", "pdb_path"):
+    for key in ("template", "structure_template_pdb", "pdb_path"):
         value = constraints.get(key)
         if isinstance(value, str) and value:
             return value
     return None
+
+
+def _collect_sequence_exploration_inputs(constraints: dict) -> Set[str]:
+    inputs: Set[str] = set(constraints.keys())
+    inputs.add("goal")
+    template = _extract_template_pdb(constraints)
+    if template:
+        inputs.update({"template", "structure_template_pdb", "pdb_path"})
+    return inputs
+
+
+def _build_s1_io_contract(task: ProteinDesignTask) -> dict:
+    constraints = task.constraints or {}
+    prompt = constraints.get("prompt")
+    return {
+        "inputs": {
+            "goal": task.goal,
+            "length_range": _extract_length_range(constraints),
+            "prompt": prompt if isinstance(prompt, str) and prompt else None,
+            "template": _extract_template_pdb(constraints),
+        },
+        "outputs": {
+            "sequence": "str",
+            "candidates": "list",
+            "candidate_confidence": "score_breakdown.confidence",
+            "candidate_source": "metadata.sequence_source",
+        },
+        "field_order": {
+            "inputs": list(_S1_INPUT_FIELDS),
+            "outputs": list(_S1_OUTPUT_FIELDS),
+        },
+    }
+
+
+def _collect_s1_fallback_tool_ids(
+    *,
+    registry: Sequence[ToolSpec],
+    primary_tool_id: str,
+    available_inputs: Set[str],
+) -> List[str]:
+    ranked = _rank_sequence_exploration_tools(
+        registry=registry,
+        available_inputs=available_inputs,
+        exclude_tool=primary_tool_id,
+    )
+    return [spec.id for spec in ranked]
+
+
+def _attach_s1_contract_to_step(
+    *,
+    step: PlanStep,
+    task: ProteinDesignTask,
+    selected_tool: ToolSpec,
+    primary_tool_id: str,
+    fallback_tool_ids: Sequence[str],
+    source_tier: Literal["primary", "fallback"],
+    source_reason: str,
+) -> PlanStep:
+    metadata = {**(step.metadata or {})}
+    metadata["stage_id"] = _S1_STAGE_ID
+    metadata["stage_name"] = _S1_STAGE_NAME
+    metadata["sequence_source"] = source_tier
+    metadata["sequence_source_tool_id"] = selected_tool.id
+    metadata["candidate_confidence_field"] = "score_breakdown.confidence"
+    metadata["s1_contract"] = _build_s1_io_contract(task)
+    metadata["lineage"] = {
+        "stage_id": _S1_STAGE_ID,
+        "strategy": "toolkg_capability_topk",
+        "primary_tool_id": primary_tool_id,
+        "selected_tool_id": selected_tool.id,
+        "fallback_tool_ids": list(fallback_tool_ids),
+        "source_tier": source_tier,
+        "source_reason": source_reason,
+        "capability_id": _primary_capability(selected_tool),
+        "io_type": selected_tool.io_type or "unknown",
+        "adapter_mode": selected_tool.adapter_mode,
+    }
+    return step.model_copy(update={"metadata": metadata}, deep=True)
+
+
+def _extract_primary_s1_tool_id(plan: Plan) -> str | None:
+    for step in plan.steps:
+        if _is_sequence_exploration_step(step):
+            return step.tool
+    return None
+
+
+def _extract_s1_candidate_metadata(plan: Plan) -> dict:
+    for step in plan.steps:
+        if not _is_sequence_exploration_step(step):
+            continue
+        metadata = step.metadata if isinstance(step.metadata, dict) else {}
+        lineage = metadata.get("lineage")
+        s1_contract = metadata.get("s1_contract")
+        payload: dict = {
+            "stage_id": _S1_STAGE_ID,
+            "sequence_source": metadata.get("sequence_source"),
+            "sequence_source_tool_id": metadata.get("sequence_source_tool_id"),
+        }
+        if isinstance(lineage, dict):
+            payload["lineage"] = lineage
+        if isinstance(s1_contract, dict):
+            payload["s1_contract"] = s1_contract
+        return payload
+    return {}
+
+
+def _ensure_s1_contract_metadata(
+    *,
+    task: ProteinDesignTask,
+    plan: Plan,
+    registry: Sequence[ToolSpec],
+) -> Plan:
+    if not _is_de_novo_task(task) or not plan.steps:
+        return plan
+    step_index = next(
+        (
+            idx
+            for idx, step in enumerate(plan.steps)
+            if _is_sequence_exploration_step(
+                step,
+                _find_tool_spec(registry, step.tool),
+            )
+        ),
+        None,
+    )
+    if step_index is None:
+        return plan
+    selected_step = plan.steps[step_index]
+    selected_tool = _find_tool_spec(registry, selected_step.tool)
+    if selected_tool is None:
+        return plan
+
+    inputs = _collect_sequence_exploration_inputs(task.constraints or {})
+    fallback_tool_ids = _collect_s1_fallback_tool_ids(
+        registry=registry,
+        primary_tool_id=selected_tool.id,
+        available_inputs=inputs,
+    )
+    source_tier = (
+        _S1_SEQUENCE_SOURCE_PRIMARY
+        if selected_tool.id not in set(fallback_tool_ids)
+        else _S1_SEQUENCE_SOURCE_FALLBACK
+    )
+    patched_step = _attach_s1_contract_to_step(
+        step=selected_step,
+        task=task,
+        selected_tool=selected_tool,
+        primary_tool_id=selected_tool.id,
+        fallback_tool_ids=fallback_tool_ids,
+        source_tier=source_tier,
+        source_reason="base_plan",
+    )
+    patched_steps = [step.model_copy(deep=True) for step in plan.steps]
+    patched_steps[step_index] = patched_step
+    return plan.model_copy(update={"steps": patched_steps}, deep=True)
+
+
+def _rank_sequence_exploration_tools(
+    *,
+    registry: Sequence[ToolSpec],
+    available_inputs: Set[str],
+    exclude_tool: str,
+) -> List[ToolSpec]:
+    ranked: List[ToolSpec] = []
+    seen: Set[str] = set()
+    for capability in ("sequence_generation", "sequence_design"):
+        candidates = _rank_candidate_tools(
+            registry=registry,
+            capability=capability,
+            available_inputs=available_inputs,
+            exclude_tool=exclude_tool,
+        )
+        for candidate in candidates:
+            if candidate.id in seen:
+                continue
+            seen.add(candidate.id)
+            ranked.append(candidate)
+    return ranked
+
+
+def _materialize_inputs_for_tool(
+    *,
+    base_inputs: dict,
+    task: ProteinDesignTask,
+    target_tool: ToolSpec,
+) -> dict | None:
+    resolved_inputs = dict(base_inputs)
+    constraints = task.constraints or {}
+    template = _extract_template_pdb(constraints)
+
+    defaults = {
+        "goal": task.goal,
+        "length_range": _extract_length_range(constraints),
+        "prompt": constraints.get("prompt"),
+        "template": template,
+        "pdb_path": template,
+    }
+    for key in _S1_INPUT_FIELDS:
+        value = defaults.get(key)
+        if key not in resolved_inputs and value is not None:
+            resolved_inputs[key] = value
+
+    for required_key in target_tool.inputs:
+        if required_key in resolved_inputs:
+            continue
+        if required_key in constraints:
+            resolved_inputs[required_key] = constraints[required_key]
+            continue
+        value = defaults.get(required_key)
+        if value is not None:
+            resolved_inputs[required_key] = value
+            continue
+        return None
+
+    return resolved_inputs
+
+
+def _is_sequence_exploration_step(
+    step: PlanStep,
+    spec: ToolSpec | None = None,
+) -> bool:
+    metadata = step.metadata if isinstance(step.metadata, dict) else {}
+    if metadata.get("stage_id") == _S1_STAGE_ID:
+        return True
+    capability = _extract_step_capability(metadata)
+    if capability == "sequence_generation":
+        return True
+    return spec is not None and "sequence_generation" in set(spec.capabilities)
 
 
 def _build_de_novo_plan(
@@ -1541,11 +1830,8 @@ def _build_de_novo_plan(
     registry: Sequence[ToolSpec],
 ) -> Plan:
     constraints = task.constraints or {}
-    available_inputs: Set[str] = set(constraints.keys())
-    available_inputs.add("goal")
+    available_inputs = _collect_sequence_exploration_inputs(constraints)
     template_pdb = _extract_template_pdb(constraints)
-    if template_pdb:
-        available_inputs.add("pdb_path")
 
     safety_level = constraints.get("safety_level")
     prefer_remote = _prefers_remote_tools(constraints)
@@ -1606,14 +1892,30 @@ def _build_de_novo_plan(
         step_inputs["num_candidates"] = num_candidates
     if template_pdb:
         step_inputs["pdb_path"] = template_pdb
+        step_inputs["template"] = template_pdb
 
-    steps = [
-        PlanStep(
+    fallback_tool_ids = _collect_s1_fallback_tool_ids(
+        registry=registry,
+        primary_tool_id=sequence_tool.id,
+        available_inputs=available_inputs,
+    )
+    s1_step = _attach_s1_contract_to_step(
+        step=PlanStep(
             id="S1",
             tool=sequence_tool.id,
             inputs=step_inputs,
             metadata={},
         ),
+        task=task,
+        selected_tool=sequence_tool,
+        primary_tool_id=sequence_tool.id,
+        fallback_tool_ids=fallback_tool_ids,
+        source_tier=_S1_SEQUENCE_SOURCE_PRIMARY,
+        source_reason="de_novo_template",
+    )
+
+    steps = [
+        s1_step,
         PlanStep(
             id="S2",
             tool=structure_tool.id,
