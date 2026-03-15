@@ -49,3 +49,28 @@ Fallback policy:
 - Primary source uses the best-ranked S1 sequence tool from ToolKG.
 - Fallback source uses deterministic alternative tools (same capability first, then compatible alternatives when available).
 - Top-K ordering remains deterministic.
+
+## S2 Structure Projection Contract (Issue #156)
+
+S2 output contract (adapter-normalized):
+
+- `stage_id`: `S2`
+- `pdb_path`: projected structure file path
+- `plddt`: normalized confidence score
+- `confidence`: `{plddt_mean, level}`
+- `lineage`: `{stage_id, tool_id, io_type}`
+
+Batch mapping entrypoint:
+
+- `ExecutorAgent.project_structures_from_s1(...)` maps S1 candidates to S2 structures in batch mode.
+- Keeps partial success: failed candidates are retained with failure code while successful candidates continue.
+- Preserves lineage per candidate (`source_step_id`, `source_candidate_id`, upstream lineage).
+
+S2 normalized failure codes:
+
+- `S2_SEQUENCE_INVALID`
+- `S2_OUTPUT_INVALID`
+- `S2_TOOL_UNAVAILABLE`
+- `S2_TOOL_EXECUTION_FAILED`
+- `S2_FALLBACK_EXHAUSTED`
+- `S2_ALL_CANDIDATES_FAILED`
