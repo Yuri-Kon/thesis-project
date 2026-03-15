@@ -83,6 +83,14 @@ def _file_sha256(path: Path) -> str | None:
     return digest.hexdigest()
 
 
+def _read_json_file(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    return payload if isinstance(payload, dict) else {}
+
+
 def _normalize_adapter_mode(value: str | None) -> str:
     text = _str_value(value)
     if not text:
@@ -617,6 +625,133 @@ def _fingerprint_rows(rows: list[dict[str, Any]]) -> str:
     return digest.hexdigest()
 
 
+def _flatten_tool_coverage_matrix(matrix: dict[str, Any]) -> dict[str, int]:
+    flattened: dict[str, int] = {}
+    for capability_id, tools in matrix.items():
+        if not isinstance(tools, dict):
+            continue
+        for tool_id, adapters in tools.items():
+            if not isinstance(adapters, dict):
+                continue
+            for adapter_mode, payload in adapters.items():
+                if not isinstance(payload, dict):
+                    continue
+                sample_count = payload.get("sample_count")
+                if not isinstance(sample_count, int):
+                    continue
+                key = f"{capability_id}|{tool_id}|{adapter_mode}"
+                flattened[key] = sample_count
+    return flattened
+
+
+def _build_delta_from_previous(
+    *,
+    previous_manifest_path: Path,
+    current_manifest: dict[str, Any],
+    current_capability_distribution: dict[str, int],
+    current_tool_coverage_matrix: dict[str, Any],
+) -> dict[str, Any]:
+    previous_manifest = _read_json_file(previous_manifest_path)
+    if not previous_manifest:
+        return {}
+
+    previous_counts = previous_manifest.get("dataset_counts")
+    previous_counts_dict = previous_counts if isinstance(previous_counts, dict) else {}
+    current_counts = current_manifest.get("dataset_counts")
+    current_counts_dict = current_counts if isinstance(current_counts, dict) else {}
+
+    previous_split = previous_manifest.get("split_counts")
+    previous_split_dict = previous_split if isinstance(previous_split, dict) else {}
+    current_split = current_manifest.get("split_counts")
+    current_split_dict = current_split if isinstance(current_split, dict) else {}
+
+    previous_stats_path = None
+    previous_artifacts = previous_manifest.get("artifacts")
+    if isinstance(previous_artifacts, dict):
+        previous_stats_path = _str_value(previous_artifacts.get("dataset_stats_path"))
+    previous_capability_distribution: dict[str, int] = {}
+    if previous_stats_path:
+        previous_stats_payload = _read_json_file(Path(previous_stats_path))
+        capability_distribution = previous_stats_payload.get("capability_distribution")
+        if isinstance(capability_distribution, dict):
+            previous_capability_distribution = {
+                str(key): int(value)
+                for key, value in capability_distribution.items()
+                if isinstance(value, int)
+            }
+
+    previous_tool_matrix_path = None
+    if isinstance(previous_artifacts, dict):
+        previous_tool_matrix_path = _str_value(previous_artifacts.get("tool_coverage_matrix_path"))
+    previous_tool_matrix: dict[str, Any] = {}
+    if previous_tool_matrix_path:
+        previous_tool_matrix = _read_json_file(Path(previous_tool_matrix_path))
+
+    current_flat_matrix = _flatten_tool_coverage_matrix(current_tool_coverage_matrix)
+    previous_flat_matrix = _flatten_tool_coverage_matrix(previous_tool_matrix)
+
+    all_count_keys = sorted(set(previous_counts_dict.keys()).union(current_counts_dict.keys()))
+    counts_delta = {
+        key: int(current_counts_dict.get(key, 0)) - int(previous_counts_dict.get(key, 0))
+        for key in all_count_keys
+        if isinstance(current_counts_dict.get(key, 0), int)
+        and isinstance(previous_counts_dict.get(key, 0), int)
+    }
+
+    all_split_keys = sorted(set(previous_split_dict.keys()).union(current_split_dict.keys()))
+    split_delta = {
+        key: int(current_split_dict.get(key, 0)) - int(previous_split_dict.get(key, 0))
+        for key in all_split_keys
+        if isinstance(current_split_dict.get(key, 0), int)
+        and isinstance(previous_split_dict.get(key, 0), int)
+    }
+
+    all_capability_keys = sorted(
+        set(previous_capability_distribution.keys()).union(current_capability_distribution.keys())
+    )
+    capability_delta = {
+        key: int(current_capability_distribution.get(key, 0))
+        - int(previous_capability_distribution.get(key, 0))
+        for key in all_capability_keys
+    }
+
+    added_matrix_keys = sorted(key for key in current_flat_matrix.keys() if key not in previous_flat_matrix)
+    removed_matrix_keys = sorted(key for key in previous_flat_matrix.keys() if key not in current_flat_matrix)
+    changed_matrix_keys = sorted(
+        key
+        for key in current_flat_matrix.keys()
+        if key in previous_flat_matrix and current_flat_matrix[key] != previous_flat_matrix[key]
+    )
+
+    previous_req2 = previous_manifest.get("requirement2")
+    previous_req2_dict = previous_req2 if isinstance(previous_req2, dict) else {}
+    previous_p0 = previous_req2_dict.get("p0_core_minimum_coverage")
+    previous_p0_dict = previous_p0 if isinstance(previous_p0, dict) else {}
+    current_req2 = current_manifest.get("requirement2")
+    current_req2_dict = current_req2 if isinstance(current_req2, dict) else {}
+    current_p0 = current_req2_dict.get("p0_core_minimum_coverage")
+    current_p0_dict = current_p0 if isinstance(current_p0, dict) else {}
+
+    return {
+        "previous_manifest_path": str(previous_manifest_path),
+        "previous_dataset_version": previous_manifest.get("dataset_version"),
+        "dataset_counts_delta": counts_delta,
+        "split_counts_delta": split_delta,
+        "capability_distribution_delta": capability_delta,
+        "tool_coverage_matrix_delta": {
+            "added_keys": added_matrix_keys,
+            "removed_keys": removed_matrix_keys,
+            "changed_keys": changed_matrix_keys,
+        },
+        "p0_core_coverage_change": {
+            "previous_satisfied": bool(previous_p0_dict.get("satisfied")),
+            "current_satisfied": bool(current_p0_dict.get("satisfied")),
+            "previous_missing_groups": previous_p0_dict.get("missing_groups", []),
+            "current_missing_groups": current_p0_dict.get("missing_groups", []),
+        },
+    }
+
+
 def _write_training_reader_config(
     *,
     path: Path,
@@ -654,6 +789,7 @@ def freeze_sft_dataset_v1(
     quality_report_path: Path | None,
     output_root: Path,
     dataset_version: str | None,
+    previous_manifest_path: Path | None,
     tool_kg_path: Path,
     tool_extension_kg_path: Path | None,
     config_template_path: Path,
@@ -821,6 +957,16 @@ def freeze_sft_dataset_v1(
         "dataset_fingerprint": dataset_fingerprint,
     }
 
+    if previous_manifest_path:
+        delta = _build_delta_from_previous(
+            previous_manifest_path=previous_manifest_path,
+            current_manifest=manifest,
+            current_capability_distribution=dict(sorted(capability_distribution.items())),
+            current_tool_coverage_matrix=tool_coverage_matrix,
+        )
+        if delta:
+            manifest["delta_from_previous"] = delta
+
     _write_training_reader_config(
         path=freeze_dir / "training_reader_config.json",
         dataset_version=resolved_version,
@@ -863,6 +1009,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--quality-report-path", type=Path, default=DEFAULT_QUALITY_REPORT_PATH)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--dataset-version", type=str, default=None)
+    parser.add_argument(
+        "--previous-manifest-path",
+        type=Path,
+        default=None,
+        help="Optional previous manifest to compute version delta (for r02/v1.1 evolution).",
+    )
     parser.add_argument("--tool-kg-path", type=Path, default=DEFAULT_TOOL_KG_PATH)
     parser.add_argument(
         "--tool-extension-kg-path",
@@ -891,6 +1043,7 @@ def main() -> int:
         quality_report_path=args.quality_report_path,
         output_root=args.output_root,
         dataset_version=args.dataset_version,
+        previous_manifest_path=args.previous_manifest_path,
         tool_kg_path=args.tool_kg_path,
         tool_extension_kg_path=args.tool_extension_kg_path,
         config_template_path=args.config_template_path,
