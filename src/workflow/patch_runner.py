@@ -202,6 +202,7 @@ class PatchRunner:
             validate_candidate_set_output(
                 pending_action,
                 require_v1_fields=candidate_set_v1_ready,
+                require_s5_fields=candidate_set_v1_ready,
             )
             enter_waiting_state(
                 context,

@@ -470,6 +470,105 @@ class TestPlannerAgent:
         }
         assert len(capability_buckets) >= 2
 
+    def test_plan_top_k_has_s5_contract_and_stable_weights(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_s5_contract",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [40, 60],
+                "score_weights": {
+                    "objective": 2.0,
+                    "risk": 1.0,
+                    "cost": 1.0,
+                    "feasibility": 1.0,
+                    "confidence": 1.0,
+                    "tool_readiness": 1.0,
+                    "tool_coverage": 1.0,
+                },
+            },
+            metadata={},
+        )
+
+        first = planner.plan_top_k(task, k=3)
+        second = planner.plan_top_k(task, k=3)
+
+        assert [c.candidate_id for c in first.candidates] == [
+            c.candidate_id for c in second.candidates
+        ]
+        for first_candidate, second_candidate in zip(first.candidates, second.candidates):
+            assert first_candidate.score_breakdown == second_candidate.score_breakdown
+            contract = first_candidate.metadata.get("s5_contract")
+            assert isinstance(contract, dict)
+            assert contract.get("stage_id") == "S5"
+            assert contract.get("stage_name") == "objective_scoring"
+            weights = contract.get("weights")
+            assert isinstance(weights, dict)
+            assert pytest.approx(sum(weights.values()), rel=1e-6) == 1.0
+            assert {
+                "feasibility",
+                "objective",
+                "risk",
+                "cost",
+                "confidence",
+                "tool_readiness",
+                "tool_coverage",
+            }.issubset(set(weights))
+
+    def test_score_candidate_payload_respects_weight_bias(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        payload = Plan(
+            task_id="task_score_weights",
+            steps=[
+                PlanStep(
+                    id="S5",
+                    tool="objective_ranker",
+                    inputs={"candidates": [{"id": "c1"}]},
+                    metadata={"stage_id": "S5", "stage_name": "objective_scoring"},
+                )
+            ],
+            constraints={},
+            metadata={},
+        )
+
+        objective_weighted = planner.score_candidate_payload(
+            payload,
+            task_constraints={"score_weights": {"objective": 8.0, "risk": 1.0}},
+        )
+        risk_weighted = planner.score_candidate_payload(
+            payload,
+            task_constraints={"score_weights": {"objective": 1.0, "risk": 8.0}},
+        )
+
+        assert objective_weighted["objective"] > objective_weighted["risk"]
+        assert objective_weighted["overall"] > risk_weighted["overall"]
+
+    def test_patch_top_k_candidates_sorted_by_layer_then_overall(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        topk = planner.patch_top_k(_patch_request_for_topk(), k=6)
+
+        layer_rank = {
+            "parameter_level": 0,
+            "tool_level": 1,
+            "structure_level": 2,
+        }
+        ranks = [
+            layer_rank.get(candidate.metadata.get("recovery_layer"), 999)
+            for candidate in topk.candidates
+        ]
+        assert ranks == sorted(ranks)
+        for rank in sorted(set(ranks)):
+            grouped = [
+                candidate.score_breakdown["overall"]
+                for candidate, candidate_rank in zip(topk.candidates, ranks)
+                if candidate_rank == rank
+            ]
+            assert grouped == sorted(grouped, reverse=True)
+        assert topk.default_recommendation == topk.candidates[0].candidate_id
+
     def test_plan_top_k_s1_contract_fields_are_complete(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())

@@ -39,6 +39,21 @@ class CandidateSetValidationError(ValueError):
 REQUIRED_SCORE_BREAKDOWN_FIELDS = frozenset(
     {"feasibility", "objective", "risk", "cost", "overall"}
 )
+REQUIRED_S5_INPUT_FIELDS = frozenset({"candidates", "metrics"})
+REQUIRED_S5_OUTPUT_FIELDS = frozenset(
+    {"score_breakdown", "top_k", "default_recommendation", "explanation"}
+)
+REQUIRED_S5_WEIGHT_FIELDS = frozenset(
+    {
+        "feasibility",
+        "objective",
+        "risk",
+        "cost",
+        "confidence",
+        "tool_readiness",
+        "tool_coverage",
+    }
+)
 REQUIRED_TOOL_METADATA_WITH_DEFAULTS = frozenset(
     {"tool_id", "capability_id", "io_type", "adapter_mode"}
 )
@@ -89,6 +104,7 @@ def validate_candidate_set_output(
     *,
     require_v1_fields: bool = True,
     require_default_recommendation: bool = True,
+    require_s5_fields: bool = False,
 ) -> None:
     """校验 CandidateSetOutput 契约（用于 Planner/HITL 输出）。
 
@@ -115,6 +131,8 @@ def validate_candidate_set_output(
         seen_ids.add(candidate_id)
         if require_v1_fields:
             _validate_candidate_v1_fields(candidate, candidate_id)
+        if require_s5_fields:
+            _validate_candidate_s5_fields(candidate, candidate_id)
 
     default_id = (
         pending_action.default_recommendation or pending_action.default_suggestion
@@ -178,6 +196,80 @@ def _validate_candidate_tool_fields(
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata missing tool keys: {missing}"
         )
+
+
+def _validate_candidate_s5_fields(
+    candidate: PendingActionCandidate,
+    candidate_id: str,
+) -> None:
+    metadata = candidate.metadata or {}
+    contract = metadata.get("s5_contract")
+    if not isinstance(contract, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract is required"
+        )
+
+    if contract.get("stage_id") != "S5":
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.stage_id must be S5"
+        )
+    if contract.get("stage_name") != "objective_scoring":
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.stage_name must be objective_scoring"
+        )
+
+    field_order = contract.get("field_order")
+    if not isinstance(field_order, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.field_order is required"
+        )
+    input_fields = field_order.get("inputs")
+    output_fields = field_order.get("outputs")
+    if not isinstance(input_fields, list) or not REQUIRED_S5_INPUT_FIELDS.issubset(
+        set(input_fields)
+    ):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.field_order.inputs missing required fields"
+        )
+    if not isinstance(output_fields, list) or not REQUIRED_S5_OUTPUT_FIELDS.issubset(
+        set(output_fields)
+    ):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.field_order.outputs missing required fields"
+        )
+
+    declared_inputs = contract.get("inputs")
+    declared_outputs = contract.get("outputs")
+    if not isinstance(declared_inputs, dict) or not REQUIRED_S5_INPUT_FIELDS.issubset(
+        set(declared_inputs)
+    ):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.inputs missing required fields"
+        )
+    if not isinstance(declared_outputs, dict) or not REQUIRED_S5_OUTPUT_FIELDS.issubset(
+        set(declared_outputs)
+    ):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.outputs missing required fields"
+        )
+
+    weights = contract.get("weights")
+    if not isinstance(weights, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.weights is required"
+        )
+    missing_weights = REQUIRED_S5_WEIGHT_FIELDS - set(weights)
+    if missing_weights:
+        missing = ", ".join(sorted(missing_weights))
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.s5_contract.weights missing keys: {missing}"
+        )
+    for key in REQUIRED_S5_WEIGHT_FIELDS:
+        value = weights.get(key)
+        if not isinstance(value, (int, float)) or value <= 0:
+            raise CandidateSetValidationError(
+                f"{candidate_id}.metadata.s5_contract.weights.{key} must be > 0"
+            )
 
 
 def validate_decision_for_pending_action(
