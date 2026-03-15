@@ -317,7 +317,9 @@ def _extract_observability_fields(
         or _string_field(recovery, "from_tool")
     )
     capability_id = (
-        _string_field(data, "capability_id")
+        _string_field(payload, "capability_id")
+        or _string_field(data, "capability_id")
+        or _string_field(data, "capability")
         or _string_field(patch, "capability_id")
         or _string_field(recovery, "capability_id")
     )
@@ -334,8 +336,18 @@ def _extract_observability_fields(
         or _string_field(recovery, "adapter_mode")
     )
 
-    from_tool = _string_field(recovery, "from_tool") or _string_field(patch, "from_tool")
-    to_tool = _string_field(recovery, "to_tool") or _string_field(patch, "to_tool")
+    from_tool = (
+        _string_field(payload, "from_tool")
+        or _string_field(data, "from_tool")
+        or _string_field(recovery, "from_tool")
+        or _string_field(patch, "from_tool")
+    )
+    to_tool = (
+        _string_field(payload, "to_tool")
+        or _string_field(data, "to_tool")
+        or _string_field(recovery, "to_tool")
+        or _string_field(patch, "to_tool")
+    )
     failure_type = (
         _string_field(payload, "failure_type")
         or _string_field(data, "failure_type")
