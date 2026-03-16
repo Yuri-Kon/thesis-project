@@ -29,7 +29,7 @@
 - `patch_replan_breakdown.csv`：`patch/replan/suffix_replan` 细分统计
 - `mechanism_increment_deltas.csv`：A0->A1 ... A5->A6 机制增量与 CI
 - `requirement2_tool_capability_slices.csv`：Requirement2 工具/能力切片
-- `offline_gate_assessment.json`：离线门槛达标判定（不达标给原因）
+- `offline_gate_assessment.json`：离线门禁阈值达标判定（不达标给原因）
 - `abnormal_samples.jsonl`：异常样本清单（issue 要求交付物）
 - `vertical_report.md`：便于直接引用到实验文档的摘要报告
 
@@ -44,7 +44,7 @@
 - 固化 A0-A6 每组机制开关与参数；
 - 固化重复次数（默认 3）；
 - 固化任务集与统一输入约束；
-- 固化离线门槛：
+- 固化离线门禁阈值：
   - `schema_valid_rate >= 0.995`
   - `executable_plan_rate >= 0.95`
   - `patch_minimality_hit_rate >= 0.8`
@@ -121,6 +121,5 @@ uv run python scripts/evaluate_w12_vertical_issue171.py \
 
 - A0->A6 链路可复现：由 `runs_manifest.json + resolved_config_snapshot.json + run_log_index.csv` 保证；
 - 机制增量证据：由 `mechanism_increment_deltas.csv` 提供；
-- 离线门槛达标或原因：由 `offline_gate_assessment.json` 提供；
+- 离线门禁阈值达标或原因：由 `offline_gate_assessment.json` 提供；
 - 交付物完整：结果表、日志索引、异常样本清单均可直接导出。
-

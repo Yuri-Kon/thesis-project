@@ -1,23 +1,23 @@
-# W12 Issue #150: Dual-Route Planner Runtime Fallback
+# W12 Issue #150：双路规划器运行时回退
 
-## Goal
+## 目标
 
-Introduce a runtime-safe dual-route planner policy (`local default + external fallback`) without changing FSM/HITL ownership.
+在不改变 FSM/HITL 决策边界的前提下，引入运行时安全的双路策略（`本地默认 + 外部回退`）。
 
-## Delivered Scope
+## 已交付范围
 
-- Planner dual-route routing and threshold triggers in provider layer.
-- External fallback remains enabled by default.
-- One-click circuit breaker via:
-  - runtime config: `runtime_fallback.force_external_only=true`
-  - env switch: `PLANNER_FORCE_EXTERNAL_FALLBACK=1`
-- Route decision audit events with required fields:
+- 在 provider 层实现双路路由与阈值触发。
+- 默认保持外部回退保障开启。
+- 提供一键熔断：
+  - 运行时配置：`runtime_fallback.force_external_only=true`
+  - 环境变量：`PLANNER_FORCE_EXTERNAL_FALLBACK=1`
+- 路由决策审计事件包含必需字段：
   - `from_tool`, `to_tool`, `capability_id`, `trigger_threshold`
-- Integration tests covering trigger and recovery.
+- 集成测试覆盖触发与恢复路径。
 
-## Trigger Conditions
+## 触发条件
 
-The router can switch to external provider when any trigger hits:
+满足任一条件时，路由可切换到外部 provider：
 
 1. `schema_fail_streak >= schema_fail_threshold`
 2. `candidate_executable_rate < executable_rate_threshold`
@@ -25,13 +25,13 @@ The router can switch to external provider when any trigger hits:
 4. `consecutive_execution_failures >= consecutive_failure_threshold`
 5. `sustained_high_risk >= sustained_high_risk_threshold`
 
-## Config
+## 配置
 
-Reference config:
+参考配置：
 
 - `configs/runtime/w12_issue150_dual_route_fallback.json`
 
-Task-level override example (`task.constraints.runtime_fallback`):
+任务级覆盖示例（`task.constraints.runtime_fallback`）：
 
 ```json
 {
@@ -48,15 +48,15 @@ Task-level override example (`task.constraints.runtime_fallback`):
 }
 ```
 
-## Observability
+## 可观测性
 
-Route decisions emit `PLANNER_ROUTE_DECISION` with:
+路由决策事件 `PLANNER_ROUTE_DECISION` 输出：
 
-- top-level: `from_tool`, `to_tool`, `capability_id`
+- 顶层字段：`from_tool`, `to_tool`, `capability_id`
 - `data.trigger_reason`
 - `data.trigger_threshold`
 
-## Validation
+## 验证
 
 ```bash
 uv run pytest \

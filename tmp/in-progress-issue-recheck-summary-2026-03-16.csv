@@ -1,0 +1,9 @@
+issue,project_status,issue_state,merged_pr,completion,closable,note
+144,In Progress,CLOSED,191,done,yes,"Project state not synced"
+148,In Progress,CLOSED,189,done,yes,"Project state not synced"
+149,In Progress,CLOSED,190,partial,no,"RC Gate-B thresholds unmet (patch_minimality/suffix_replan metrics)"
+150,In Progress,CLOSED,192,done,yes,"Project state not synced"
+151,In Progress,CLOSED,193,done,yes,"Project state not synced"
+159,In Progress,CLOSED,187,done,yes,"Project state not synced"
+160,In Progress,CLOSED,188,done,yes,"Project state not synced"
+173,In Progress,CLOSED,194,done,yes,"Project state not synced"
