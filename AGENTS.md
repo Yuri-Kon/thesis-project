@@ -47,6 +47,10 @@ Core runtime:
 - `src/models/`: contracts and validation (`contracts.py`, `validation.py`).
 - `src/storage/`: snapshots and logs.
 - `src/adapters/`, `src/tools/`, `src/engines/`: tool adapters and execution backends.
+- `src/infra/`: runtime infrastructure integration helpers.
+- `src/llm/`: model/provider invocation abstractions.
+- `src/kg/`: tool knowledge graph and capability metadata.
+- `src/schemas/`: JSON schema and compatibility assets.
 - `src/api/`: API schemas and endpoints.
 
 Tests:
@@ -54,11 +58,13 @@ Tests:
 - `tests/unit/`: unit-level contracts, FSM, agent behavior.
 - `tests/integration/`: workflow integration and recovery flows.
 - `tests/api/`: endpoint contracts.
+- `tests/services/`: service-level contract/integration tests.
 
 Rule of thumb:
 
 - Change only the nearest module that owns the behavior.
 - Mirror behavior changes with tests in the corresponding test area.
+- Do not broadly unignore `output/`; if specific output artifacts must be versioned, add only targeted files (for example with `git add -f <path>`).
 
 ## 3. Coding And Logging Expectations
 
