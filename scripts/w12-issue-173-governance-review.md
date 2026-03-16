@@ -1,30 +1,30 @@
-# W12 Issue #173: Governance Metrics Review Runbook
+# W12 Issue #173：治理指标复核操作手册
 
-## Goal
+## 目标
 
-Generate reproducible governance evidence for:
+生成可复现的治理证据，用于评估：
 
-- Audit chain completeness
-- Failure traceability
-- Decision replay correctness
+- 审计链完整性
+- 失败可追溯性
+- 决策回放正确性
 
-And merge governance outputs with existing vertical experiment results.
+并将治理输出与既有纵向实验结果合并对照。
 
-## Inputs
+## 输入
 
 - `output/experiment/w12-expr-2/issue171-remote-batch3-r3/run_log_index.csv`
 - `output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv`
 - `output/demo/w12-issue-151/logs/int_s6_patch_decision_replay_done.jsonl`
 
-## Command
+## 命令
 
 ```bash
 uv run python scripts/evaluate_w12_issue173_governance.py
 ```
 
-## Outputs
+## 输出
 
-Generated in `output/experiment/w12-expr-2/issue173-governance-review/`:
+生成目录：`output/experiment/w12-expr-2/issue173-governance-review/`
 
 - `governance_metrics_summary.json`
 - `governance_metrics_by_group.csv`
@@ -32,22 +32,22 @@ Generated in `output/experiment/w12-expr-2/issue173-governance-review/`:
 - `governance_replay_sample.md`
 - `governance-report.md`
 
-## Metric Definitions
+## 指标定义
 
-- `waiting_chain_complete_rate`:
-  - Ordered `WAITING_ENTER -> DECISION_APPLIED -> WAITING_EXIT` per `pending_action_id`
-- `replay_success_rate`:
-  - Ratio of chains replayable in strict order
-- `failure_traceable_rate`:
-  - `STEP_FAILED` entries containing `step_id + tool/tool_id + failure_code`
-- `snapshot_linked_rate`:
-  - Existence rate of `snapshot_path` declared in run index
+- `waiting_chain_complete_rate`：
+  - 按 `pending_action_id` 检查有序 `WAITING_ENTER -> DECISION_APPLIED -> WAITING_EXIT`
+- `replay_success_rate`：
+  - 严格顺序可回放链路占比
+- `failure_traceable_rate`：
+  - `STEP_FAILED` 中包含 `step_id + tool/tool_id + failure_code` 的占比
+- `snapshot_linked_rate`：
+  - run index 声明的 `snapshot_path` 在磁盘存在的占比
 
-## Troubleshooting
+## 排障
 
-- Missing logs:
-  - Check `event_log_path` in run index and file existence on disk.
-- Zero replay rate:
-  - Dataset may not include decision-applied runs; verify with demo replay sample from issue #151.
-- Mismatch with vertical summary:
-  - Inspect `governance_vs_vertical_comparison.csv` for per-group deltas.
+- 日志缺失：
+  - 检查 run index 中 `event_log_path` 与磁盘文件是否存在
+- 回放成功率为 0：
+  - 数据集中可能缺少 decision-applied 样本，可结合 #151 的 demo 回放样例核对
+- 与纵向结果不一致：
+  - 查看 `governance_vs_vertical_comparison.csv` 的分组差异

@@ -1,22 +1,22 @@
-# W12 Issue #149: Offline Benchmark vs External Baseline
+# W12 Issue #149：离线评估与外部基线对比
 
-## Goal
+## 目标
 
-Generate a reproducible offline benchmark report for candidate model `v0.3.0-rc1` against an external baseline reference, with RC Gate-B pass/fail decision.
+针对候选模型 `v0.3.0-rc1` 与外部基线生成可复现的离线评估报告，并给出 RC Gate-B 的通过/阻断结论。
 
-## Input Baseline
+## 输入基线
 
-This script reuses Week12 vertical experiment outputs:
+该脚本复用 Week12 纵向实验输出：
 
-- Summary metrics: `output/experiment/w12-expr-2/issue171-remote-batch2-r1/vertical_metrics_summary.csv`
-- Tool/capability slices: `output/experiment/w12-expr-2/issue171-remote-batch2-r1/requirement2_tool_capability_slices.csv`
+- 汇总指标：`output/experiment/w12-expr-2/issue171-remote-batch2-r1/vertical_metrics_summary.csv`
+- 工具/能力切片：`output/experiment/w12-expr-2/issue171-remote-batch2-r1/requirement2_tool_capability_slices.csv`
 
-Default comparison mapping:
+默认对比映射：
 
-- Candidate group: `A2`
-- Baseline group: `A0`
+- 候选组：`A2`
+- 基线组：`A0`
 
-## Run Command
+## 运行命令
 
 ```bash
 uv run python scripts/evaluate_w12_issue149_offline_benchmark.py \
@@ -29,7 +29,7 @@ uv run python scripts/evaluate_w12_issue149_offline_benchmark.py \
   --output-dir output/experiment/w12-expr-2/issue149-offline-benchmark
 ```
 
-## Output
+## 输出
 
 - `release_benchmark.json`
 - `release_benchmark_comparison.csv`
@@ -37,24 +37,24 @@ uv run python scripts/evaluate_w12_issue149_offline_benchmark.py \
 - `tool_coverage_vs_metrics.csv`
 - `release-benchmark.md`
 
-## Metric Formula and Denominator
+## 指标公式与分母定义
 
-- Schema legal rate: valid schema runs / total runs in group.
-- Executable plan rate: runs without step failure / total runs in group.
-- Patch minimality hit rate: parameter-level patch events / all patch events.
-  - If patch events are 0, value is null and gate check fails.
-- `suffix_replan` prefix retention rate: runs preserving successful prefix / suffix-replan runs.
-  - If suffix-replan sample count is 0, value is null and gate check fails.
+- Schema 合法率：组内 schema 合法运行数 / 组内总运行数
+- 可执行 Plan 率：组内无 step 执行失败运行数 / 组内总运行数
+- Patch 最小性命中率：参数级 patch 事件数 / 全部 patch 事件数
+  - 若 patch 事件数为 0，则值为 null，门禁判定失败
+- `suffix_replan` 前缀保持率：保留成功前缀的 `suffix_replan` 运行数 / `suffix_replan` 运行数
+  - 若 `suffix_replan` 样本数为 0，则值为 null，门禁判定失败
 
-## RC Gate-B Thresholds
+## RC Gate-B 门禁阈值
 
-- Schema legal rate >= 99.5%
-- Executable plan rate >= 95%
-- Patch minimality hit rate >= 80%
-- `suffix_replan` prefix retention rate = 100%
+- Schema 合法率 >= 99.5%
+- 可执行 Plan 率 >= 95%
+- Patch 最小性命中率 >= 80%
+- `suffix_replan` 前缀保持率 = 100%
 
-## Requirement-2 Merge Checks
+## Requirement-2 并入检查
 
-- Per-tool / per-capability slices are exported in `tool_coverage_vs_metrics.csv`.
-- Report explicitly maps coverage to candidate/baseline usage deltas.
-- `release-benchmark.md` includes gate blockers when thresholds are not met.
+- `tool_coverage_vs_metrics.csv` 导出按工具/能力切片结果
+- 报告中明确给出候选/基线覆盖与使用量差异
+- `release-benchmark.md` 在未达标时会输出门禁阻断项
