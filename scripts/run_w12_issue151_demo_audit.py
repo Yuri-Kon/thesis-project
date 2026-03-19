@@ -67,17 +67,16 @@ def _copy_log(task_id: str) -> Path:
     return dst
 
 
-def _write_replay_markdown(scenario: DemoScenario, events: list[dict], log_copy: Path) -> None:
-    replay_path = OUTPUT_ROOT / scenario.replay_filename
+def build_replay_markdown(scenario: DemoScenario, events: list[dict], log_copy: Path) -> str:
     event_types = [str(event.get("event_type")) for event in events]
     lines = [
-        f"# Replay Record: {scenario.name}",
+        f"# 回放记录：{scenario.name}",
         "",
-        f"- Task ID: `{scenario.task_id}`",
-        f"- Source test: `{scenario.pytest_target}`",
-        f"- Log copy: `{log_copy}`",
+        f"- Task ID：`{scenario.task_id}`",
+        f"- 来源测试：`{scenario.pytest_target}`",
+        f"- 日志副本：`{log_copy}`",
         "",
-        "## Event Sequence",
+        "## 事件序列",
         "",
     ]
     for index, event in enumerate(events, start=1):
@@ -88,18 +87,22 @@ def _write_replay_markdown(scenario: DemoScenario, events: list[dict], log_copy:
     lines.extend(
         [
             "",
-            "## Checkpoints",
+            "## 检查点",
             "",
-            f"- Total events: `{len(events)}`",
-            f"- Contains WAITING_ENTER: `{ 'WAITING_ENTER' in event_types }`",
-            f"- Contains DECISION_APPLIED: `{ 'DECISION_APPLIED' in event_types }`",
-            f"- Contains WAITING_EXIT: `{ 'WAITING_EXIT' in event_types }`",
-            f"- Contains REPLACE_TOOL: `{ 'REPLACE_TOOL' in event_types }`",
+            f"- 事件总数：`{len(events)}`",
+            f"- 包含 WAITING_ENTER：`{'WAITING_ENTER' in event_types}`",
+            f"- 包含 DECISION_APPLIED：`{'DECISION_APPLIED' in event_types}`",
+            f"- 包含 WAITING_EXIT：`{'WAITING_EXIT' in event_types}`",
+            f"- 包含 REPLACE_TOOL：`{'REPLACE_TOOL' in event_types}`",
             "",
         ]
     )
+    return "\n".join(lines)
 
-    replay_path.write_text("\n".join(lines), encoding="utf-8")
+
+def _write_replay_markdown(scenario: DemoScenario, events: list[dict], log_copy: Path) -> None:
+    replay_path = OUTPUT_ROOT / scenario.replay_filename
+    replay_path.write_text(build_replay_markdown(scenario, events, log_copy), encoding="utf-8")
 
 
 def _extract_release_checks(six_stage_events: list[dict], fallback_events: list[dict]) -> dict[str, bool]:
@@ -135,29 +138,28 @@ def _extract_release_checks(six_stage_events: list[dict], fallback_events: list[
     }
 
 
-def _write_release_validation(checks: dict[str, bool]) -> None:
-    release_path = OUTPUT_ROOT / "release-validation.md"
+def build_release_validation_markdown(checks: dict[str, bool]) -> str:
     known_issues = [
-        "Demo scenarios are test-driven with mock runners; real remote services (NIM/Nextflow) are not required in this replay package.",
-        "Event ordering relies on timestamp + append sequence; cross-process log writes should keep a single writer per task ID.",
+        "演示场景由测试驱动并使用 mock runner；该回放证据包不依赖真实远端服务（NIM/Nextflow）。",
+        "事件顺序依赖时间戳 + 追加序列；跨进程写日志时应保证每个 task ID 仅单写者。",
     ]
     lines = [
-        "# Release Validation (Issue #151)",
+        "# 发布验证（Issue #151）",
         "",
-        "## Scope",
+        "## 范围",
         "",
-        "- Candidate generation -> HITL decision -> execution recovery -> terminal output",
-        "- Audit replay chain verification: `PendingAction -> Decision -> EventLog`",
-        "- Tool fallback replay verification",
+        "- 候选生成 -> HITL 决策 -> 执行恢复 -> 终态输出",
+        "- 审计回放链校验：`PendingAction -> Decision -> EventLog`",
+        "- 工具回退回放校验",
         "",
-        "## Command Set",
+        "## 命令集合",
         "",
         "```bash",
         "uv run pytest tests/integration/test_s6_control_layer_e2e.py::test_six_stage_waiting_patch_decision_replay_to_done -q",
         "uv run pytest tests/integration/test_recovery_layered_patch.py::test_layered_patch_promotes_remote_to_local_tool_level -q",
         "```",
         "",
-        "## Gate Result",
+        "## 门禁结果",
         "",
     ]
     for key, value in checks.items():
@@ -166,14 +168,18 @@ def _write_release_validation(checks: dict[str, bool]) -> None:
     lines.extend(
         [
             "",
-            "## Known Issues",
+            "## 已知问题",
             "",
         ]
     )
     for item in known_issues:
         lines.append(f"- {item}")
+    return "\n".join(lines)
 
-    release_path.write_text("\n".join(lines), encoding="utf-8")
+
+def _write_release_validation(checks: dict[str, bool]) -> None:
+    release_path = OUTPUT_ROOT / "release-validation.md"
+    release_path.write_text(build_release_validation_markdown(checks), encoding="utf-8")
 
 
 def main() -> int:
