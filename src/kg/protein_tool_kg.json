@@ -19,6 +19,12 @@
       "name": "Sequence Generation",
       "domain": "protein/design",
       "description": "Generate initial de novo protein sequence candidates from goals or prompts."
+    },
+    {
+      "capability_id": "quality_qc",
+      "name": "Quality QC",
+      "domain": "protein/qc",
+      "description": "Evaluate sequence/structure quality metrics and gate low-quality candidates."
     }
   ],
   "io_types": [
@@ -49,6 +55,13 @@
       "output_types": ["structure_pdb", "plddt"],
       "combinable": true,
       "description": "Sequence + MSA to structure prediction outputs."
+    },
+    {
+      "io_type_id": "sequence_structure_to_qc_metrics",
+      "input_types": ["sequence", "structure_pdb"],
+      "output_types": ["qc_metrics"],
+      "combinable": true,
+      "description": "Sequence and structure quality evaluation outputs."
     }
   ],
   "constraints": [
@@ -67,6 +80,16 @@
       "description": "ESMFold runtime requirements and limits."
     },
     {
+      "constraint_id": "nim_structure_runtime",
+      "preconditions": ["sequence_provided"],
+      "resource_assumptions": ["network_available", "nim_api_key_configured"],
+      "model_assumptions": ["single_chain_only"],
+      "limits": {
+        "max_length": 4096
+      },
+      "description": "NIM-based structure prediction runtime requirements."
+    },
+    {
       "constraint_id": "protein_mpnn_runtime",
       "preconditions": ["structure_template_provided"],
       "resource_assumptions": [
@@ -80,16 +103,12 @@
       "description": "ProteinMPNN runtime requirements for backbone-guided design."
     },
     {
-      "constraint_id": "alphafold_runtime",
-      "preconditions": ["sequence_provided", "msa_provided"],
-      "resource_assumptions": [
-        "nextflow_installed",
-        "container_engine_available",
-        "gpu_available"
-      ],
-      "model_assumptions": ["msa_required"],
+      "constraint_id": "biopython_qc_runtime",
+      "preconditions": ["sequence_or_structure_results_provided"],
+      "resource_assumptions": ["python_environment_ready"],
+      "model_assumptions": ["single_candidate_or_batch"],
       "limits": {},
-      "description": "AlphaFold/OpenFold runtime requirements."
+      "description": "BioPython QC runtime requirements for quality-gate checks."
     }
   ],
   "tools": [
@@ -128,8 +147,10 @@
       "execution": "nextflow",
       "cost_score": 0.6,
       "safety_level": 1,
+      "priority": "P0",
+      "official_links": ["https://github.com/facebookresearch/esm"],
       "compat": {
-        "from": ["protein_mpnn.sequence"]
+        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
       },
       "failure_modes": ["timeout", "nan_output"],
       "preferred_next": ["biopython_qc"],
@@ -172,9 +193,111 @@
       },
       "cost_score": 0.3,
       "safety_level": 1,
+      "priority": "P0",
+      "official_links": ["https://build.nvidia.com/nvidia/esmfold"],
       "compat": {
-        "from": ["protein_mpnn.sequence"]
+        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
       },
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "alphafold",
+      "tool_id": "alphafold",
+      "name": "AlphaFold2 (NIM)",
+      "domain": "protein/structure",
+      "description": "AlphaFold2 structure prediction via NVIDIA NIM.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": ["sequence"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided"],
+        "resource_assumptions": ["network_available", "nim_api_key_configured"],
+        "model_assumptions": ["single_chain_only"],
+        "limits": {
+          "max_length": 4096
+        }
+      },
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "nvidia_nim",
+        "model_id": "deepmind/alphafold2",
+        "sync_mode": true
+      },
+      "cost_score": 0.7,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://build.nvidia.com/deepmind/alphafold2",
+        "https://github.com/google-deepmind/alphafold"
+      ],
+      "compat": {
+        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+      },
+      "failure_modes": ["timeout", "invalid_input"],
+      "preferred_next": ["biopython_qc"],
+      "version": "1.0.0"
+    },
+    {
+      "id": "openfold",
+      "tool_id": "openfold",
+      "name": "OpenFold3",
+      "domain": "protein/structure",
+      "description": "OpenFold3 structure prediction via NVIDIA NIM or remote REST GPU service.",
+      "capabilities": ["structure_prediction"],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": ["sequence"],
+        "output_types": ["structure_pdb", "plddt"],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": ["sequence_provided"],
+        "resource_assumptions": [
+          "network_available",
+          "nim_api_key_configured_or_openfold3_rest_service_available"
+        ],
+        "model_assumptions": ["single_chain_or_complex"],
+        "limits": {
+          "max_length": 1000
+        }
+      },
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "nvidia_nim",
+        "model_id": "openfold/openfold3/predict",
+        "sync_mode": true,
+        "alternate_provider": "openfold3_rest"
+      },
+      "cost_score": 0.75,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://build.nvidia.com/openfold/openfold3",
+        "https://openfold-3.readthedocs.io/en/latest/"
+      ],
+      "compat": {
+        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+      },
+      "failure_modes": ["timeout", "invalid_input"],
       "preferred_next": ["biopython_qc"],
       "version": "1.0.0"
     },
@@ -217,11 +340,18 @@
       },
       "cost_score": 0.4,
       "safety_level": 1,
+      "priority": "P0",
+      "official_links": ["https://github.com/dauparas/ProteinMPNN"],
       "compat": {
-        "from": ["esmfold.pdb_path", "nim_esmfold.pdb_path", "alphafold.pdb_path"]
+        "from": [
+          "esmfold.pdb_path",
+          "nim_esmfold.pdb_path",
+          "alphafold.pdb_path",
+          "openfold.pdb_path"
+        ]
       },
       "failure_modes": ["invalid_backbone", "missing_backbone"],
-      "preferred_next": ["esmfold", "nim_esmfold", "alphafold"],
+      "preferred_next": ["esmfold", "nim_esmfold", "alphafold", "openfold"],
       "version": "1.0.0"
     },
     {
@@ -262,52 +392,63 @@
       },
       "cost_score": 0.35,
       "safety_level": 1,
+      "priority": "P0",
+      "official_links": ["https://huggingface.co/nferruz/ProtGPT2"],
       "compat": {
         "from": []
       },
       "failure_modes": ["timeout", "invalid_generation"],
-      "preferred_next": ["esmfold", "nim_esmfold", "protein_mpnn"],
+      "preferred_next": ["esmfold", "nim_esmfold", "alphafold", "openfold", "protein_mpnn"],
       "version": "1.0.0"
     },
     {
-      "id": "alphafold",
-      "tool_id": "alphafold",
-      "name": "AlphaFold",
-      "domain": "protein/structure",
-      "description": "High-accuracy structure prediction requiring MSA.",
-      "capabilities": ["structure_prediction"],
+      "id": "biopython_qc",
+      "tool_id": "biopython_qc",
+      "name": "BioPython QC",
+      "domain": "protein/qc",
+      "description": "Executor-callable BioPython QC for sequence and structure gating.",
+      "capabilities": ["quality_qc"],
       "io": {
-        "io_type_id": "sequence_msa_to_structure",
+        "io_type_id": "sequence_structure_to_qc_metrics",
         "inputs": {
           "sequence": "str",
-          "msa_path": "path"
+          "pdb_path": "path",
+          "structure_results": "list"
         },
         "outputs": {
-          "pdb_path": "path",
-          "plddt": "float"
+          "qc_metrics": "list",
+          "pass_fail": "bool",
+          "pass_count": "int",
+          "fail_count": "int"
         },
-        "input_types": ["sequence", "msa"],
-        "output_types": ["structure_pdb", "plddt"],
+        "input_types": ["sequence", "structure_pdb"],
+        "output_types": ["qc_metrics"],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_provided", "msa_provided"],
-        "resource_assumptions": [
-          "nextflow_installed",
-          "container_engine_available",
-          "gpu_available"
-        ],
-        "model_assumptions": ["msa_required"],
+        "preconditions": ["sequence_or_structure_results_provided"],
+        "resource_assumptions": ["python_environment_ready"],
+        "model_assumptions": ["single_candidate_or_batch"],
         "limits": {}
       },
-      "execution": "nextflow",
-      "cost_score": 0.9,
+      "execution": "python",
+      "cost_score": 0.2,
       "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://biopython.org/docs/latest/Tutorial/chapter_pdb.html",
+        "https://biopython.org/"
+      ],
       "compat": {
-        "from": []
+        "from": [
+          "esmfold.pdb_path",
+          "nim_esmfold.pdb_path",
+          "alphafold.pdb_path",
+          "openfold.pdb_path"
+        ]
       },
-      "failure_modes": ["timeout"],
-      "preferred_next": ["biopython_qc"],
+      "failure_modes": ["invalid_sequence", "missing_structure"],
+      "preferred_next": ["protein_mpnn"],
       "version": "1.0.0"
     }
   ]

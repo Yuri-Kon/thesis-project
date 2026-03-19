@@ -9,10 +9,15 @@ def test_kg_includes_plm_and_design_capabilities() -> None:
 
     assert "protein_mpnn" in tool_ids
     assert "protgpt2" in tool_ids
+    assert "alphafold" in tool_ids
+    assert "openfold" in tool_ids
+    assert "biopython_qc" in tool_ids
     assert "sequence_design" in capability_ids
     assert "sequence_generation" in capability_ids
+    assert "quality_qc" in capability_ids
     assert "structure_to_sequence" in io_type_ids
     assert "goal_to_sequence_candidates" in io_type_ids
+    assert "sequence_structure_to_qc_metrics" in io_type_ids
 
 
 def test_generation_to_prediction_chain_is_compatible() -> None:
