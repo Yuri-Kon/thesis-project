@@ -1,6 +1,6 @@
 # W12 三周成果总报告（Issue #152 Interim Pack）
 
-- generated_at: `2026-03-19T08:23:36.112681+00:00`
+- generated_at: `2026-03-19T09:42:32.511857+00:00`
 - candidate_version: `v0.3.0-rc1`
 - dataset_version: `w11-sft-dataset-v1.1-20260315-57fc60d-r02`
 

@@ -1,6 +1,6 @@
 # W12 中期实验章节草稿（Issue #174 Interim Pack）
 
-- generated_at: `2026-03-19T08:23:36.017622+00:00`
+- generated_at: `2026-03-19T09:42:13.662187+00:00`
 - vertical_summary: `output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv`
 - governance_summary: `output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json`
 - figure_index: `reports/w12-issue-174/figure_table_index.csv`

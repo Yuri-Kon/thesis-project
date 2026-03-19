@@ -83,6 +83,23 @@ Rule of thumb:
   - `uv run pytest ...`
   - `uv run python ...`
 
+## 4.1 Remote Server Baseline
+
+When work needs the shared AutoDL remote server, use the server state verified in
+`../remote-server/README.md` as the operational baseline.
+
+- Access the server via `ssh autodl`.
+- The shared account is `root`; do not assume per-user Linux accounts exist.
+- Current project roots live under `/root/projects/<student_id>/`.
+- The currently confirmed project root for this thesis work is `/root/projects/2022112879/`.
+- The actively used Conda/Mamba installation is `/root/autodl-tmp/conda`, not `/root/miniconda3`.
+- The current experiment environment is `plm` at `/root/autodl-tmp/envs/plm`.
+- When documenting or running remote commands, prefer:
+  - `ssh autodl`
+  - `conda activate plm`
+  - `cd /root/projects/2022112879/...`
+- Do not assume `HF_HOME`, `TRANSFORMERS_CACHE`, or `TORCH_HOME` are preconfigured on the server; set them explicitly when a task depends on redirected caches.
+
 ## 5. Scope Control And Escalation
 
 Edit only:
