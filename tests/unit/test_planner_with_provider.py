@@ -9,6 +9,19 @@ from src.llm.baseline_provider import BaselineProvider
 from src.models.contracts import ProteinDesignTask, Plan
 
 
+@pytest.fixture(autouse=True)
+def _disable_catalog_provider_autoload(monkeypatch):
+    monkeypatch.setenv("PLANNER_LLM_PROVIDER", "off")
+    for env_name in (
+        "OPENAI_API_KEY",
+        "DASHSCOPE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZHIPU_API_KEY",
+        "NIM_API_KEY",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+
 # 用于测试的 Mock Provider
 class MockProvider(BaseProvider):
     """返回预定义计划的 mock provider"""

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import multiprocessing
 import sys
 import time
 from pathlib import Path
@@ -67,6 +68,12 @@ def parse_args() -> argparse.Namespace:
         "--output",
         help="Optional path to write a JSON report.",
     )
+    parser.add_argument(
+        "--per-provider-timeout",
+        type=int,
+        default=75,
+        help="Hard timeout in seconds for each provider execution.",
+    )
     return parser.parse_args()
 
 
@@ -107,6 +114,66 @@ def run_provider(alias: str, catalog_path: Path, goal: str, target_length: int) 
     }
 
 
+def _provider_worker(
+    alias: str,
+    catalog_path: str,
+    goal: str,
+    target_length: int,
+    result_queue: multiprocessing.Queue,
+) -> None:
+    started_at = time.time()
+    try:
+        result = run_provider(alias, Path(catalog_path), goal, target_length)
+    except Exception as exc:  # pragma: no cover - executed in subprocess
+        result = {
+            "provider": alias,
+            "success": False,
+            "error": f"{type(exc).__name__}: {exc}",
+            "elapsed_seconds": round(time.time() - started_at, 3),
+        }
+    result_queue.put(result)
+
+
+def run_provider_with_timeout(
+    alias: str,
+    catalog_path: Path,
+    goal: str,
+    target_length: int,
+    timeout_seconds: int,
+) -> dict[str, object]:
+    result_queue: multiprocessing.Queue = multiprocessing.Queue()
+    process = multiprocessing.Process(
+        target=_provider_worker,
+        args=(alias, str(catalog_path), goal, target_length, result_queue),
+    )
+    started_at = time.time()
+    process.start()
+    process.join(timeout_seconds)
+
+    if process.is_alive():
+        process.terminate()
+        process.join()
+        return {
+            "provider": alias,
+            "success": False,
+            "error": f"timeout_after:{timeout_seconds}s",
+            "elapsed_seconds": round(time.time() - started_at, 3),
+        }
+
+    if result_queue.empty():
+        return {
+            "provider": alias,
+            "success": False,
+            "error": "worker_exited_without_result",
+            "elapsed_seconds": round(time.time() - started_at, 3),
+        }
+
+    result = result_queue.get()
+    if "elapsed_seconds" not in result:
+        result["elapsed_seconds"] = round(time.time() - started_at, 3)
+    return result
+
+
 def main() -> int:
     args = parse_args()
     catalog_path = Path(args.config)
@@ -114,10 +181,26 @@ def main() -> int:
         catalog_path = project_root / catalog_path
 
     providers = [alias.strip() for alias in args.providers.split(",") if alias.strip()]
-    results = [
-        run_provider(alias, catalog_path, args.goal, args.target_length)
-        for alias in providers
-    ]
+    results = []
+    for alias in providers:
+        print(
+            f"[smoke] running provider={alias} timeout={args.per_provider_timeout}s",
+            file=sys.stderr,
+            flush=True,
+        )
+        result = run_provider_with_timeout(
+            alias=alias,
+            catalog_path=catalog_path,
+            goal=args.goal,
+            target_length=args.target_length,
+            timeout_seconds=args.per_provider_timeout,
+        )
+        results.append(result)
+        print(
+            f"[smoke] provider={alias} success={result['success']} elapsed={result.get('elapsed_seconds')}",
+            file=sys.stderr,
+            flush=True,
+        )
 
     report = {"providers": results}
     print(json.dumps(report, ensure_ascii=False, indent=2))

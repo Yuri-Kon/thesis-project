@@ -1,0 +1,28 @@
+{
+  "providers": [
+    {
+      "provider": "qwen-plus",
+      "success": false,
+      "error": "Exception: LLM API 调用失败: Connection error.",
+      "elapsed_seconds": 1.547
+    },
+    {
+      "provider": "deepseek-chat",
+      "success": false,
+      "error": "Exception: LLM API 调用失败: Connection error.",
+      "elapsed_seconds": 1.269
+    },
+    {
+      "provider": "glm-5",
+      "success": false,
+      "error": "Exception: LLM API 调用失败: [Errno -3] Temporary failure in name resolution",
+      "elapsed_seconds": 0.026
+    },
+    {
+      "provider": "nemotron",
+      "success": false,
+      "error": "Exception: LLM API 调用失败: Connection error.",
+      "elapsed_seconds": 1.44
+    }
+  ]
+}
