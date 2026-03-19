@@ -1,0 +1,192 @@
+# Thesis Project Demo
+
+Minimal end-to-end demo launcher for the multi-agent protein design workflow.
+
+## One Command
+
+```bash
+./run_demo.sh
+```
+
+Then open:
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/ui`
+- `http://127.0.0.1:8000/ui/tasks/<task_id>/events`
+
+Detailed demo usage and options:
+
+- `examples/README_DEMO.md`
+
+## Candidate Validation Failure Codes (Issue #141)
+
+Execution pre-gate now hard-fails invalid candidates with these codes:
+
+- `CANDIDATE_SCHEMA_INVALID`
+- `CANDIDATE_TOOL_UNAVAILABLE`
+- `CANDIDATE_IO_CLOSURE_BROKEN`
+- `CANDIDATE_PARAMS_INVALID`
+- `CANDIDATE_RESOURCE_CONSTRAINT`
+- `CANDIDATE_ADAPTER_UNSUPPORTED`
+
+Structured failure payload is emitted as `CANDIDATE_VALIDATION_FAILED` EventLog,
+including `tool_id`, `capability_id`, and `io_type` fields when available.
+
+## S1 Sequence Exploration Contract (Issue #155)
+
+Planner Top-K now annotates sequence exploration candidates with explicit `S1` lineage:
+
+- `stage_id`: `S1`
+- `stage_name`: `sequence_exploration`
+- `s1_contract.inputs`: `goal/length_range/prompt/template`
+- `s1_contract.outputs`: `sequence/candidates/candidate_confidence/candidate_source`
+- `lineage`: `primary_tool_id/selected_tool_id/fallback_tool_ids/source_tier`
+- candidate metadata mirrors `stage_id`, `lineage`, `sequence_source`, `sequence_confidence`
+
+Fallback policy:
+
+- Primary source uses the best-ranked S1 sequence tool from ToolKG.
+- Fallback source uses deterministic alternative tools (same capability first, then compatible alternatives when available).
+- Top-K ordering remains deterministic.
+
+## S2 Structure Projection Contract (Issue #156)
+
+S2 output contract (adapter-normalized):
+
+- `stage_id`: `S2`
+- `pdb_path`: projected structure file path
+- `plddt`: normalized confidence score
+- `confidence`: `{plddt_mean, level}`
+- `lineage`: `{stage_id, tool_id, io_type}`
+
+Batch mapping entrypoint:
+
+- `ExecutorAgent.project_structures_from_s1(...)` maps S1 candidates to S2 structures in batch mode.
+- Keeps partial success: failed candidates are retained with failure code while successful candidates continue.
+- Preserves lineage per candidate (`source_step_id`, `source_candidate_id`, upstream lineage).
+
+S2 normalized failure codes:
+
+- `S2_SEQUENCE_INVALID`
+- `S2_OUTPUT_INVALID`
+- `S2_TOOL_UNAVAILABLE`
+- `S2_TOOL_EXECUTION_FAILED`
+- `S2_FALLBACK_EXHAUSTED`
+- `S2_ALL_CANDIDATES_FAILED`
+
+## S3 Quality Gate Contract (Issue #157)
+
+S3 runtime hard gate now supports batch evaluation from S2 outputs:
+
+- Entry: `ExecutorAgent.quality_gate_from_s2(...)`
+- Input: `S2.structure_results` (or single S2 structure output)
+- Output:
+  - `stage_id`: `S3`
+  - `qc_results`: per-candidate `pass_fail + reject_codes + reject_reasons + qc_metrics`
+  - `failed_samples` / `passed_samples`
+  - `pass_count` / `fail_count` / `pass_fail`
+  - `reject_code_counts`
+  - Requirement2-aligned metadata: `capability_id=quality_qc`, `io_type=sequence_structure_to_qc_metrics`
+
+S3 reject code enum:
+
+- `S3_SOURCE_STRUCTURE_FAILED`
+- `S3_SEQUENCE_MISSING`
+- `S3_SEQUENCE_LENGTH_OUT_OF_RANGE`
+- `S3_SEQUENCE_INVALID_CHAR`
+- `S3_STRUCTURE_MISSING`
+- `S3_PLDDT_MISSING`
+- `S3_PLDDT_BELOW_THRESHOLD`
+- `S3_LOW_COMPLEXITY_COMPOSITION`
+- `S3_LOW_COMPLEXITY_REPEAT`
+- Stage fail code: `S3_ALL_CANDIDATES_REJECTED`
+
+Traceability:
+
+- S3 execution emits `STEP_FINISHED/STEP_FAILED` with `data.quality_gate` summary.
+- `PlanRunner` step events now include `data.failure_code` and S3 quality summary fields for downstream extraction reuse.
+
+## S4 Structure-conditioned Refinement (Issue #158)
+
+De novo planning now includes `S4` step specification:
+
+- default stage chain: `S1 -> S2 -> S4 -> S2R`
+- `S4` metadata:
+  - `stage_id=S4`
+  - `stage_name=structure_conditioned_refinement`
+  - `loop_path=[S4,S2,S3]`
+  - `stop_conditions`: `max_iterations`, `convergence_delta`, `max_degradation_rounds`
+
+Runtime loop entrypoint:
+
+- `ExecutorAgent.refine_sequences_from_s3(...)`
+- iterative closure: `S4 refinement -> S2 structure projection -> S3 quality gate`
+- when `S3` baseline is absent, baseline candidates fallback to `S2` and are filtered by quality gate before entering S4
+- `S2R` remaps structure from `S4.sequence` to keep final sequence/structure pairing consistent
+
+Loop stop reasons:
+
+- `converged`
+- `degradation_limit`
+- `refinement_failed`
+- `quality_gate_rejected`
+- `missing_source_pdb`
+- `max_iterations_reached`
+
+Traceability and persistence:
+
+- step outputs include:
+  - `refinement_iterations`
+  - `gain_metrics` (`baseline_plddt/final_plddt/delta_vs_baseline`)
+  - `stop_reason`
+  - `lineage.rollback_applied`
+- audit artifact persisted as:
+  - `output/artifacts/s4_refinement_<task_id>_<step_id>.json`
+
+## Layered Patch/Replan Recovery (Issue #143)
+
+Recovery strategy now follows strict layered patch order before replan:
+
+- `parameter_level -> tool_level -> structure_level`
+
+Runtime behavior:
+
+- `PatchRunner` attempts patch candidates layer-by-layer in one recovery cycle.
+- replan upgrade triggers on:
+  - patch generation/apply failure (`patch_failed`)
+  - all patch layers failed (`patch_failed`)
+  - high-risk patch gate (`patch_high_risk`)
+- `replan` remains `suffix_replan` by default in planner metadata.
+
+Requirement-2 replacement matrix (P0):
+
+- `structure_prediction`: `nim_esmfold/esmfold/alphafold/openfold`
+- `quality_qc`: `biopython_qc/dssp`
+- `objective_scoring`: `objective_ranker`
+
+Traceability:
+
+- replacement decisions write `from_tool/to_tool/capability_id/reason/recovery_layer` to EventLog.
+- step trace includes `data.patch` and `data.recovery`.
+
+## W12 Vertical Experiment Pipeline (Issue #171)
+
+Issue #171 now has a reproducible A0-A6 experiment pipeline:
+
+- config: `configs/experiments/w12_issue171_vertical_a0_a6.json`
+- runner: `scripts/run_w12_vertical_issue171.py`
+- evaluator: `scripts/evaluate_w12_vertical_issue171.py`
+- metrics/acceptance guide: `scripts/w12-issue-171-vertical-a0-a6-experiment.md`
+
+Deliverables generated under `output/experiment/w12-expr-2/<run_id>/`:
+
+- `vertical_metrics_summary.csv` (effect/mechanism/cost/governance unified table)
+- `run_log_index.csv` (runtime log index)
+- `abnormal_samples.jsonl` (abnormal sample list)
+- `patch_replan_breakdown.csv` (patch/replan/suffix_replan breakdown)
+- `mechanism_increment_deltas.csv` (A0->A6 increment evidence with CI)
+- `offline_gate_assessment.json` (offline gate pass/fail with reasons)
+- `requirement2_tool_capability_slices.csv` (Requirement2 tool/capability slices)
+
+The runner enforces freeze input consistency by validating `freeze_id` from issue #170 manifest when `--strict-freeze-check` is enabled (default).
