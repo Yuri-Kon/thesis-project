@@ -21,7 +21,7 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
-from src.models.contracts import ProteinDesignTask
+from src.models.contracts import PatchRequest, ProteinDesignTask, ReplanRequest
 
 if TYPE_CHECKING:
     from src.agents.planner import ToolSpec
@@ -153,6 +153,96 @@ class OpenAICompatibleProvider(BaseProvider):
 
         return plan_dict
 
+    def call_patch(
+        self, request: PatchRequest, tool_registry: List["ToolSpec"]
+    ) -> Dict | None:
+        system_prompt = self._build_patch_system_prompt()
+        user_prompt = self._build_patch_user_prompt(request, tool_registry)
+        patch_dict = self._request_json(system_prompt, user_prompt)
+        if patch_dict is None:
+            return None
+        if "task_id" not in patch_dict:
+            patch_dict["task_id"] = request.task_id
+        if "metadata" not in patch_dict:
+            patch_dict["metadata"] = {}
+        patch_dict["metadata"].update(
+            {
+                "provider": "openai_compatible",
+                "model": self.config.model_name,
+                "planning_mode": "patch",
+                "endpoint": self.endpoint or "default",
+            }
+        )
+        if not self.validate_patch(patch_dict):
+            raise ValueError(f"LLM 生成的 PlanPatch 无效: {patch_dict}")
+        return patch_dict
+
+    def call_replan(
+        self, request: ReplanRequest, tool_registry: List["ToolSpec"]
+    ) -> Dict | None:
+        system_prompt = self._build_replan_system_prompt()
+        user_prompt = self._build_replan_user_prompt(request, tool_registry)
+        plan_dict = self._request_json(system_prompt, user_prompt)
+        if plan_dict is None:
+            return None
+        if "task_id" not in plan_dict:
+            plan_dict["task_id"] = request.task_id
+        if "metadata" not in plan_dict:
+            plan_dict["metadata"] = {}
+        plan_dict["metadata"].update(
+            {
+                "provider": "openai_compatible",
+                "model": self.config.model_name,
+                "planning_mode": "replan",
+                "endpoint": self.endpoint or "default",
+            }
+        )
+        if not self.validate_plan(plan_dict):
+            raise ValueError(f"LLM 生成的 Replan 无效: {plan_dict}")
+        return plan_dict
+
+    def _request_json(self, system_prompt: str, user_prompt: str) -> Dict | None:
+        start_time = time.time()
+        try:
+            request_kwargs = {
+                "model": self.config.model_name,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": self.config.max_tokens,
+                "timeout": self.config.timeout,
+                "temperature": self.config.temperature,
+                "top_p": self.config.top_p,
+            }
+            if self.config.extra_body:
+                request_kwargs["extra_body"] = self.config.extra_body
+            if self.config.stream:
+                request_kwargs["stream"] = True
+            elif self.config.use_response_format:
+                request_kwargs["response_format"] = {"type": "json_object"}
+
+            response = self.client.chat.completions.create(**request_kwargs)
+        except Exception as e:
+            raise Exception(f"LLM API 调用失败: {e}")
+
+        elapsed = time.time() - start_time
+        if self.config.stream:
+            content = self._collect_stream_content(response)
+        else:
+            content = response.choices[0].message.content
+        if not content:
+            raise ValueError("LLM 返回空响应")
+        try:
+            payload = json.loads(content)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"LLM 返回无效 JSON: {e}\n内容: {content}")
+        if not isinstance(payload, dict):
+            raise ValueError(f"LLM 响应不是 dict: {type(payload)}")
+        payload.setdefault("metadata", {})
+        payload["metadata"]["elapsed_seconds"] = elapsed
+        return payload
+
     def _build_system_prompt(self) -> str:
         """构建 LLM 的系统提示词"""
         return """你是一个蛋白质设计规划助手。你的核心职责是：
@@ -230,6 +320,108 @@ class OpenAICompatibleProvider(BaseProvider):
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
+
+    def _build_patch_system_prompt(self) -> str:
+        return """你是一个蛋白质设计恢复规划助手。你的任务是在步骤失败后生成最小可执行 PlanPatch JSON。
+
+目标：
+1. 优先参数级修补；
+2. 其次工具级替换；
+3. 最后结构级插入保护步骤；
+4. 不要直接生成完整 Plan，除非无法用 patch 表达。
+
+返回 schema:
+{
+  "task_id": "string",
+  "operations": [
+    {
+      "op": "replace_step" | "insert_step_before" | "insert_step_after",
+      "target": "existing_step_id",
+      "step": {
+        "id": "step_id",
+        "tool": "tool_id",
+        "inputs": {},
+        "metadata": {}
+      }
+    }
+  ],
+  "metadata": {
+    "recovery_layer": "parameter_level|tool_level|structure_level",
+    "reason": "string"
+  }
+}
+
+规则：
+1. patch 必须是局部修改，不能无故改动其他步骤；
+2. tool 必须来自注册表，或用 metadata.capability 指示待解析能力；
+3. 保持 task_id 不变；
+4. 尽量输出单个最优 patch；
+5. 始终返回有效 JSON。"""
+
+    def _build_patch_user_prompt(
+        self, request: PatchRequest, tool_registry: List["ToolSpec"]
+    ) -> str:
+        tools_text = self._format_tool_registry(tool_registry)
+        failed = request.context_step_results[-1] if request.context_step_results else None
+        failed_payload = {
+            "reason": request.reason,
+            "failed_step_id": failed.step_id if failed else None,
+            "failed_tool": failed.tool if failed else None,
+            "failure_type": failed.failure_type if failed else None,
+            "error_message": failed.error_message if failed else None,
+            "step_outputs": failed.outputs if failed else {},
+        }
+        return f"""任务 ID: {request.task_id}
+原始计划: {json.dumps(request.original_plan.model_dump(mode='json'), ensure_ascii=False, indent=2)}
+失败上下文: {json.dumps(failed_payload, ensure_ascii=False, indent=2)}
+可用工具:
+{tools_text}
+
+请基于失败上下文生成最小化 PlanPatch。仅返回有效 JSON。"""
+
+    def _build_replan_system_prompt(self) -> str:
+        return """你是一个蛋白质设计再规划助手。你的任务是在 patch 失败、安全阻断或策略偏移后生成新的可执行 Plan JSON。
+
+优先策略：
+1. suffix_replan：保留成功前缀，只替换失败后缀；
+2. full_replan：仅在前缀也不可信时使用。
+
+要求：
+1. 返回完整 Plan JSON；
+2. metadata 中写明 replan_mode 和 preserve_prefix_until_step_index（若可用）；
+3. 保持 task_id 不变；
+4. 优先选用与任务约束相符且更稳妥的工具链；
+5. 始终返回有效 JSON。"""
+
+    def _build_replan_user_prompt(
+        self, request: ReplanRequest, tool_registry: List["ToolSpec"]
+    ) -> str:
+        tools_text = self._format_tool_registry(tool_registry)
+        safety_events = [event.model_dump(mode="json") for event in request.safety_events]
+        payload = {
+            "reason": request.reason,
+            "failed_steps": request.failed_steps,
+            "safety_events": safety_events,
+        }
+        return f"""任务 ID: {request.task_id}
+原始计划: {json.dumps(request.original_plan.model_dump(mode='json'), ensure_ascii=False, indent=2)}
+再规划上下文: {json.dumps(payload, ensure_ascii=False, indent=2)}
+可用工具:
+{tools_text}
+
+请生成新的 Plan。优先保留可复用前缀，仅返回有效 JSON。"""
+
+    def _format_tool_registry(self, tool_registry: List["ToolSpec"]) -> str:
+        tools_desc = []
+        for tool in tool_registry:
+            tools_desc.append(
+                f"- {tool.id}:\n"
+                f"  能力: {', '.join(tool.capabilities)}\n"
+                f"  输入: {', '.join(tool.inputs)}\n"
+                f"  输出: {', '.join(tool.outputs)}\n"
+                f"  成本: {tool.cost}, 安全级别: {tool.safety_level}"
+            )
+        return "\n".join(tools_desc)
 
     def _collect_stream_content(self, stream) -> str:
         """从流式响应中拼接内容"""

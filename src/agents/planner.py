@@ -237,10 +237,19 @@ class PlannerAgent:
     def patch_top_k(self, request: PatchRequest, *, k: int = 3) -> TopKResult:
         """生成 Patch Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_task_match(request)
-        payloads = _build_patch_candidate_payloads(
-            request=request,
-            registry=self._tool_registry,
-            top_k=_normalize_top_k(k),
+        payloads: list[_CandidatePayload] = []
+        payloads.extend(
+            self._build_provider_patch_candidates(
+                request=request,
+                top_k=_normalize_top_k(k),
+            )
+        )
+        payloads.extend(
+            _build_patch_candidate_payloads(
+                request=request,
+                registry=self._tool_registry,
+                top_k=_normalize_top_k(k),
+            )
         )
         return _build_top_k_result(
             payloads=payloads,
@@ -253,10 +262,19 @@ class PlannerAgent:
     def replan_top_k(self, request: ReplanRequest, *, k: int = 3) -> TopKResult:
         """生成 Replan Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_replan_task_match(request)
-        payloads = _build_replan_candidate_payloads(
-            request=request,
-            registry=self._tool_registry,
-            top_k=_normalize_top_k(k),
+        payloads: list[_CandidatePayload] = []
+        payloads.extend(
+            self._build_provider_replan_candidates(
+                request=request,
+                top_k=_normalize_top_k(k),
+            )
+        )
+        payloads.extend(
+            _build_replan_candidate_payloads(
+                request=request,
+                registry=self._tool_registry,
+                top_k=_normalize_top_k(k),
+            )
         )
         return _build_top_k_result(
             payloads=payloads,
@@ -644,6 +662,84 @@ class PlannerAgent:
             reason=reason,
         )
 
+    def _build_provider_patch_candidates(
+        self,
+        *,
+        request: PatchRequest,
+        top_k: int,
+    ) -> list[_CandidatePayload]:
+        provider = self._llm_provider
+        if provider is None:
+            return []
+        try:
+            patch_dict = provider.call_patch(request, self._tool_registry)
+        except Exception:
+            return []
+        if not isinstance(patch_dict, dict):
+            return []
+        try:
+            patch = PlanPatch.model_validate(patch_dict)
+        except Exception:
+            return []
+        route_name = _provider_name(provider)
+        target_step = _locate_patch_target_step(request)
+        primary_tool_id = _extract_primary_tool_id_from_patch(patch, fallback=target_step.tool)
+        capability_bucket = _extract_primary_capability_from_patch(
+            patch,
+            registry=self._tool_registry,
+            fallback_step=target_step,
+        )
+        patch = _attach_provider_metadata_to_patch(patch, provider_name=route_name)
+        return [
+            _CandidatePayload(
+                payload=patch,
+                primary_tool_id=primary_tool_id,
+                capability_bucket=capability_bucket,
+                note=f"llm_patch:{route_name}",
+                recovery_layer=_extract_patch_recovery_layer(patch),
+                recovery_reason=_extract_patch_recovery_reason(patch),
+            )
+        ]
+
+    def _build_provider_replan_candidates(
+        self,
+        *,
+        request: ReplanRequest,
+        top_k: int,
+    ) -> list[_CandidatePayload]:
+        provider = self._llm_provider
+        if provider is None:
+            return []
+        try:
+            plan_dict = provider.call_replan(request, self._tool_registry)
+        except Exception:
+            return []
+        if not isinstance(plan_dict, dict):
+            return []
+        try:
+            plan = Plan.model_validate(plan_dict)
+            plan = _resolve_plan_tools(
+                plan,
+                self._tool_registry,
+                request.original_plan.constraints,
+            )
+            _ensure_plan_tools_in_registry(plan, self._tool_registry)
+            plan = _attach_provider_metadata_to_plan(plan, provider_name=_provider_name(provider))
+            plan = _attach_kg_explanation(plan)
+        except Exception:
+            return []
+        primary_tool = plan.steps[-1].tool if plan.steps else request.original_plan.steps[-1].tool
+        primary_spec = _find_tool_spec(self._tool_registry, primary_tool)
+        return [
+            _CandidatePayload(
+                payload=plan,
+                primary_tool_id=primary_tool,
+                capability_bucket=_primary_capability(primary_spec),
+                note=f"llm_replan:{_provider_name(provider)}",
+            )
+        ]
+
+
 # --- helpers ---
 
 
@@ -857,6 +953,77 @@ def _locate_replan_target_step(request: ReplanRequest) -> PlanStep:
         if step.id == target_id:
             return step
     raise ValueError(f"Target step '{target_id}' not found in original plan")
+
+
+def _locate_patch_target_step(request: PatchRequest) -> PlanStep:
+    return _locate_target_step(request)
+
+
+def _extract_primary_tool_id_from_patch(payload: PlanPatch, *, fallback: str) -> str:
+    for op in payload.operations:
+        if op.step is not None and isinstance(op.step.tool, str) and op.step.tool:
+            return op.step.tool
+    return fallback
+
+
+def _extract_primary_capability_from_patch(
+    payload: PlanPatch,
+    *,
+    registry: Sequence[ToolSpec],
+    fallback_step: PlanStep,
+) -> str:
+    tool_id = _extract_primary_tool_id_from_patch(payload, fallback=fallback_step.tool)
+    try:
+        spec = _find_tool_spec(registry, tool_id)
+        return _primary_capability(spec)
+    except Exception:
+        metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+        capability = metadata.get("capability_id")
+        if isinstance(capability, str) and capability:
+            return capability
+        fallback_meta = fallback_step.metadata if isinstance(fallback_step.metadata, dict) else {}
+        fallback_capability = fallback_meta.get("capability_id") or fallback_meta.get("capability")
+        if isinstance(fallback_capability, str) and fallback_capability:
+            return fallback_capability
+        return ""
+
+
+def _extract_patch_recovery_layer(payload: PlanPatch) -> str | None:
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    value = metadata.get("recovery_layer")
+    return value if isinstance(value, str) and value else None
+
+
+def _extract_patch_recovery_reason(payload: PlanPatch) -> str | None:
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    value = metadata.get("reason")
+    return value if isinstance(value, str) and value else None
+
+
+def _attach_provider_metadata_to_patch(
+    payload: PlanPatch,
+    *,
+    provider_name: str,
+) -> PlanPatch:
+    metadata = dict(payload.metadata or {})
+    route_meta = dict(metadata.get("planner_route", {}))
+    route_meta["provider_tier"] = "local"
+    route_meta["provider_name"] = provider_name
+    metadata["planner_route"] = route_meta
+    return payload.model_copy(update={"metadata": metadata}, deep=True)
+
+
+def _attach_provider_metadata_to_plan(
+    payload: Plan,
+    *,
+    provider_name: str,
+) -> Plan:
+    metadata = dict(payload.metadata or {})
+    route_meta = dict(metadata.get("planner_route", {}))
+    route_meta["provider_tier"] = "local"
+    route_meta["provider_name"] = provider_name
+    metadata["planner_route"] = route_meta
+    return payload.model_copy(update={"metadata": metadata}, deep=True)
 
 
 def _find_tool_spec(registry: Sequence[ToolSpec], tool_id: str) -> ToolSpec:

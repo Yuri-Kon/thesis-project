@@ -251,6 +251,44 @@ class _AutoProvider:
             "metadata": {"provider": self.config.model_name},
         }
 
+    def call_patch(self, request: PatchRequest, tool_registry: list[ToolSpec]) -> dict:
+        return {
+            "task_id": request.task_id,
+            "operations": [
+                {
+                    "op": "replace_step",
+                    "target": request.original_plan.steps[0].id,
+                    "step": {
+                        "tool": tool_registry[1].id if len(tool_registry) > 1 else tool_registry[0].id,
+                        "inputs": {"sequence": "S0.sequence"},
+                        "metadata": {},
+                    },
+                }
+            ],
+            "metadata": {
+                "recovery_layer": "tool_level",
+                "reason": "llm_tool_swap",
+            },
+        }
+
+    def call_replan(self, request: ReplanRequest, tool_registry: list[ToolSpec]) -> dict:
+        return {
+            "task_id": request.task_id,
+            "steps": [
+                {
+                    "id": "S1",
+                    "tool": tool_registry[1].id if len(tool_registry) > 1 else tool_registry[0].id,
+                    "inputs": {"sequence": "MKTAYIAK"},
+                    "metadata": {},
+                }
+            ],
+            "constraints": request.original_plan.constraints,
+            "metadata": {
+                "replan_mode": "suffix_replan",
+                "preserve_prefix_until_step_index": 0,
+            },
+        }
+
 
 def _patch_request_for_topk() -> PatchRequest:
     plan = Plan(
@@ -1164,3 +1202,52 @@ class TestPlannerAgent:
 
         assert planner._llm_provider is None
         assert len(plan.steps) == 1
+
+    def test_patch_top_k_includes_llm_generated_patch_candidate(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(
+            tool_registry=_topk_registry(),
+            llm_provider=_AutoProvider("patch-llm"),
+        )
+
+        topk = planner.patch_top_k(_patch_request_for_topk(), k=4)
+
+        assert any(
+            candidate.metadata.get("planner_route", {}).get("provider_name") == "patch-llm"
+            for candidate in topk.candidates
+        )
+        assert any(
+            candidate.metadata.get("recovery_layer") == "tool_level"
+            and candidate.metadata.get("recovery_reason") == "llm_tool_swap"
+            for candidate in topk.candidates
+        )
+
+    def test_replan_top_k_includes_llm_generated_replan_candidate(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(
+            tool_registry=_topk_registry(),
+            llm_provider=_AutoProvider("replan-llm"),
+        )
+        original = Plan(
+            task_id="task_topk_replan_llm",
+            steps=[
+                PlanStep(id="S1", tool="seqgen_local", inputs={"goal": "demo"}, metadata={}),
+                PlanStep(id="S2", tool="esmfold", inputs={"sequence": "S1.sequence"}, metadata={}),
+            ],
+            constraints={"goal_type": "de_novo_design"},
+            metadata={},
+        )
+        request = ReplanRequest(
+            task_id=original.task_id,
+            original_plan=original,
+            failed_steps=["S2"],
+            safety_events=[],
+            reason="replan_after_failure",
+        )
+
+        topk = planner.replan_top_k(request, k=3)
+
+        assert any(
+            candidate.metadata.get("planner_route", {}).get("provider_name") == "replan-llm"
+            for candidate in topk.candidates
+        )
