@@ -1,7 +1,7 @@
 # 可用性补充验证报告
 
-- 生成时间：`2026-03-20T00:17:34+08:00`
-- 基线提交：`b1adda6`
+- 生成时间：`2026-03-20T14:30:00+08:00`
+- 基线提交：`95c54ff`
 - 目标：补充验证以下四类能力：
   1. Planner 的 `patch / replan` 在真实 LLM 下是否可用
   2. 根据 `AGENTS.md` 启用远程服务后，REST 工具依赖的服务是否真实可用
@@ -54,7 +54,7 @@
 其中：
 
 - `PLM REST` 使用真实模型目录 `/root/autodl-tmp/models/plm/ProtGPT2`
-- `OpenFold3 REST` 因模型目录缺失，本轮按文档使用 `OPENFOLD3_MOCK_MODE=1`
+- `OpenFold3 REST` 当前仍按 `OPENFOLD3_MOCK_MODE=1` 运行
 
 ### 2.2 OpenFold3 REST 验证结果
 
@@ -76,6 +76,7 @@
 结论：
 
 - `OpenFold3 REST` 的服务契约在 mock 模式下是可用的，REST 调用链闭环成立。
+- 本轮还通过本地仓库经 SSH 转发直连 `OpenFold3 REST`，验证了适配器侧的真实调用链，而不仅是服务端自测。
 
 ### 2.3 PLM REST 验证结果
 
@@ -86,20 +87,44 @@
 
 结果：
 
-- 服务可以成功接收任务并返回 `job_id`
-- 随后状态轮询返回：
-  - `status = failed`
-  - `failure.message = "No module named 'transformers'"`
-
-同时，远端日志还暴露出另一个问题：
-
-- 在过早轮询 `GET /job/{job_id}` 时，服务端可能读取到未写完的状态文件并抛出 JSON 解析错误，表现为 `500`
+- 服务成功接收任务并返回 `job_id`
+- 轮询状态从 `running` 进入 `completed`
+- `GET /results/{job_id}` 成功返回：
+  - 有效 `sequence`
+  - `candidates`
+  - `candidates.fasta`
+  - `summary.json`
 
 结论：
 
-- `PLM REST` 的网络与 HTTP 契约是通的，但其当前远端运行环境不完整，缺少 `transformers`
-- 此外服务端存在状态文件读取竞态，早轮询可能触发 `500`
-- 因此，本轮不能将 `ProtGPT2` 远程 REST 工具判定为“真实可用”
+- 你在 AutoDL 上补齐 `transformers` 之后，`PLM REST` 已经可以完成真实推理。
+- 先前阻塞 `ProtGPT2` 远程 REST 可用性的核心问题已经解除。
+- 本轮未再复现早先的 `status.json` 读取竞态导致的 `500`，但该问题是否彻底消失，还需要更高频轮询压测后才能下结论。
+
+### 2.4 本地仓库直连远程 REST 的真实闭环
+
+为补齐“本地 `thesis-project.dev` 直接调用远程 REST 工具”的最后一跳，本轮通过 SSH 本地端口转发建立：
+
+- `127.0.0.1:38100 -> AutoDL:8100`
+- `127.0.0.1:38200 -> AutoDL:8200`
+
+随后使用本地仓库真实适配器和执行器完成了两类验证：
+
+1. 真实双工具链：
+   - `ProtGPT2Adapter(base_url=http://127.0.0.1:38100)`
+   - `OpenFold3Adapter(execution_mode=openfold3_rest, base_url=http://127.0.0.1:38200)`
+   - 结果：`DONE -> DONE`
+   - `S1` 返回真实远程序列，`S2` 返回真实远程结构结果与 `pdb_path`
+
+2. 真实三阶段链：
+   - `S1: protgpt2`
+   - `S2: openfold3_rest`
+   - `S3: biopython_qc`
+   - `SummarizerAgent`
+   - 结果：`DONE -> DONE`
+   - `quality_gate.status = PASS`
+
+这说明此前“本机到远端服务联通方式不稳定”的问题，在本轮已经通过 SSH 转发方案被实测打通。
 
 ## 3. API 端点级验证
 
@@ -176,6 +201,60 @@ uv run pytest tests/api/test_api_endpoints.py -q --durations=20
   - 三个真实 provider 均返回可用的恢复结构
   - 返回内容可以组成完整的恢复控制链
 
+### 链路 E：真实远程 REST 工具的本地完整执行链
+
+- 入口：本地 `ExecutorAgent + SummarizerAgent`
+- 计划：
+  - `S1: protgpt2`
+  - `S2: openfold3_rest`
+  - `S3: biopython_qc`
+- 结果：
+  - 三个步骤全部成功
+  - `S1.provider = plm_rest`
+  - `S2.provider = openfold3_rest`
+  - `S3.quality_gate.status = PASS`
+  - 任务到达 `DONE`
+- 证据：
+  - 新增集成测试 [test_plm_remote_e2e.py](/home/yurikon/文档/thesis/thesis-project.dev/tests/integration/test_plm_remote_e2e.py)
+  - 新增集成测试 [test_remote_rest_full_e2e.py](/home/yurikon/文档/thesis/thesis-project.dev/tests/integration/test_remote_rest_full_e2e.py)
+  - 验证命令：
+
+```bash
+UV_CACHE_DIR=.uv-cache \
+PLM_E2E_BASE_URL=http://127.0.0.1:38100 \
+OPENFOLD3_E2E_BASE_URL=http://127.0.0.1:38200 \
+uv run pytest \
+  tests/integration/test_plm_remote_e2e.py \
+  tests/integration/test_openfold3_remote_e2e.py \
+  tests/integration/test_remote_rest_full_e2e.py \
+  -q --durations=20
+```
+
+结果：
+
+- `5 passed, 1 warning in 39.25s`
+- 主要耗时热点：
+  1. `test_plm_rest_service_submit_poll_download_e2e`：`13.55s`
+  2. `test_remote_rest_full_flow_e2e`：`12.04s`
+  3. `test_executor_protgpt2_rest_e2e`：`11.82s`
+  4. `test_openfold3_rest_service_submit_poll_download_e2e`：`0.78s`
+  5. `test_executor_openfold3_rest_e2e`：`0.48s`
+
+### 链路 F：API 入口到终态
+
+- 入口：`POST /tasks`
+- 方式：本地 ASGI 客户端调用 API，同步执行 `run_task_sync`
+- 结果：
+  - `status = DONE`
+  - `internal_status = DONE`
+  - 成功返回完整 `TaskRecord`
+  - 事件链完整写入
+
+补充说明：
+
+- 该 API 入口链路本轮确认为可用，但默认 planner 仍优先选择 `protgpt2 -> esmfold -> protein_mpnn -> esmfold` 路径，而不是 `openfold3_rest`。
+- 这不是远程 REST 不可用，而是当前 planner 的默认候选排序更偏向本地 `esmfold`。
+
 ## 5. 当前真实可用性结论
 
 ### 已确认可用
@@ -184,16 +263,18 @@ uv run pytest tests/api/test_api_endpoints.py -q --durations=20
 - `patch / replan` 的真实 provider 调用（`qwen-plus` / `deepseek-chat` / `glm-5`）
 - API 端点级功能
 - 本地完整工作流闭环
+- `PLM REST` 的真实推理调用
 - `OpenFold3 REST` 的服务契约（mock 模式）
+- 本地仓库经 SSH 转发直连远程 REST 的真实双工具链与三阶段闭环
 
 ### 已确认存在问题
 
-- `PLM REST` 当前远端环境缺少 `transformers`，无法完成真实推理
-- `PLM REST` 存在状态文件写入/读取竞态，早轮询可能触发 `500`
-- 本执行环境中的 SSH 本地端口转发不稳定，因此本轮对远程 REST 工具的验证主要在服务端侧完成，而非通过本地适配器直接联调
+- `OpenFold3 REST` 当前仍是 mock 模式，尚未验证真实模型推理
+- Planner 默认排序对 `openfold3_rest` 不友好，API 默认链路不会自然优先选到它
+- `PLM REST` 历史上存在状态文件写入/读取竞态风险，但本轮未复现，需要单独压测确认
 
 ## 6. 后续建议
 
-1. 在 AutoDL 的 `plm` 环境中补齐 `transformers` 依赖，再重做 `ProtGPT2` 远程 REST 验证。
-2. 在远程服务仓库中修复状态文件竞态，避免 `GET /job/{id}` 读取到半写入 JSON。
-3. 若需要真正完成“本地 thesis-project.dev -> 远程 REST 工具 -> 总结报告”的实链路，下一步应先解决本机 SSH 端口转发或提供可直接访问的服务地址。
+1. 如果要把 `OpenFold3 REST` 也提升为“真实模型可用”，下一步需要在 AutoDL 上补齐其模型目录并关闭 mock 模式重测。
+2. 若希望 API 默认链路自然覆盖远程结构工具，应在不改变 FSM/职责边界的前提下，重新评估 planner 对 `openfold` 的排序策略。
+3. 建议单独做一次高频轮询压测，确认 `PLM REST` 的状态文件竞态是否已经被环境变化间接缓解，或是否仍需服务端修复。
