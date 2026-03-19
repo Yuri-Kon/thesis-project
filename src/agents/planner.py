@@ -4,11 +4,14 @@ import hashlib
 import json
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
+from src.llm.provider_registry import create_provider, load_provider_catalog
+from src.agents.task_goal_parser import enrich_task_from_goal
 from src.models.contracts import (
     PatchRequest,
     PendingActionType,
@@ -146,6 +149,9 @@ _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
 }
 
 _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
+_DEFAULT_PROVIDER_CATALOG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
+_DEFAULT_LOCAL_PROVIDER_ALIAS = "openai"
+_PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 
 
 class PlannerAgent:
@@ -175,7 +181,7 @@ class PlannerAgent:
             raise ValueError(
                 "Tool registry is empty; ensure ProteinToolKG provides tools."
             )
-        self._llm_provider = llm_provider
+        self._llm_provider = llm_provider or _load_configured_llm_provider()
         self._fallback_llm_provider = (
             fallback_llm_provider
             if fallback_llm_provider is not None
@@ -198,7 +204,8 @@ class PlannerAgent:
         Returns:
             Plan: 包含步骤列表的执行计划
         """
-        return self._plan_from_route(task, use_external=use_external)
+        enriched_task = enrich_task_from_goal(task)
+        return self._plan_from_route(enriched_task, use_external=use_external)
 
     def plan_top_k(self, task: ProteinDesignTask, *, k: int = 3) -> TopKResult:
         """生成 Plan Top-K 候选（默认 K=3）。"""
@@ -414,6 +421,12 @@ class PlannerAgent:
         record: TaskRecord | None = None,
     ) -> Plan:
         """生成 Plan 并驱动 PLANNING → PLANNED/WAITING_PLAN_CONFIRM 状态变更。"""
+        task = enrich_task_from_goal(task)
+        context.task = task
+        if record is not None:
+            record.goal = task.goal
+            record.constraints = task.constraints
+            record.metadata = task.metadata
         transition_task_status(
             context,
             record,
@@ -631,7 +644,6 @@ class PlannerAgent:
             reason=reason,
         )
 
-
 # --- helpers ---
 
 
@@ -641,6 +653,39 @@ def _provider_name(provider: BaseProvider) -> str:
     if isinstance(model_name, str) and model_name.strip():
         return model_name.strip()
     return provider.__class__.__name__
+
+
+def _load_configured_llm_provider() -> BaseProvider | None:
+    provider_alias = _resolve_local_provider_alias()
+    if not provider_alias:
+        return None
+    if not _DEFAULT_PROVIDER_CATALOG_PATH.exists():
+        return None
+    try:
+        catalog = load_provider_catalog(_DEFAULT_PROVIDER_CATALOG_PATH)
+    except Exception:
+        return None
+    settings = catalog.providers.get(provider_alias)
+    if settings is None:
+        return None
+    try:
+        return create_provider(settings)
+    except Exception:
+        return None
+
+
+def _resolve_local_provider_alias() -> str | None:
+    explicit = os.getenv(_PLANNER_PROVIDER_ENV)
+    if isinstance(explicit, str):
+        explicit = explicit.strip()
+        if explicit:
+            if explicit.lower() in {"none", "disabled", "off", "baseline"}:
+                return None
+            return explicit
+
+    if os.getenv("OPENAI_API_KEY"):
+        return _DEFAULT_LOCAL_PROVIDER_ALIAS
+    return None
 
 
 def _safe_int(value: object, *, default: int) -> int:
@@ -1546,6 +1591,10 @@ def _build_top_k_result(
             "generation_note": payload.note,
             "s5_contract": _build_s5_scoring_contract(score_weights),
         }
+        payload_metadata = payload.payload.metadata if isinstance(payload.payload.metadata, dict) else {}
+        planner_route = payload_metadata.get("planner_route")
+        if isinstance(planner_route, dict):
+            metadata["planner_route"] = dict(planner_route)
         if payload.recovery_layer:
             metadata["recovery_layer"] = payload.recovery_layer
         if payload.recovery_reason:

@@ -167,6 +167,33 @@ def test_openai_provider_includes_tool_details_in_prompt(monkeypatch):
     user_prompt = calls["request_kwargs"]["messages"][1]["content"]
     assert "可用工具" in user_prompt
     assert "dummy_tool" in user_prompt
+    assert "自然语言要求" in user_prompt
+    assert "goal_type" in user_prompt
+
+
+def test_openai_provider_system_prompt_mentions_natural_language_planning(monkeypatch):
+    task = _sample_task()
+    plan_dict = {
+        "task_id": task.task_id,
+        "steps": [
+            {"id": "S1", "tool": "dummy_tool", "inputs": {}, "metadata": {}}
+        ],
+        "constraints": {},
+        "metadata": {},
+    }
+    calls = _setup_dummy_openai(monkeypatch, response_content=json.dumps(plan_dict))
+
+    config = ProviderConfig(
+        model_name="test-model",
+        api_key="test-key",
+    )
+    provider = provider_module.OpenAICompatibleProvider(config)
+
+    provider.call_planner(task, _sample_registry())
+
+    system_prompt = calls["request_kwargs"]["messages"][0]["content"]
+    assert "解析自然语言任务目标" in system_prompt
+    assert "生成可执行的结构化 Plan JSON" in system_prompt
 
 
 def test_openai_provider_stream_ignores_empty_choices(monkeypatch):

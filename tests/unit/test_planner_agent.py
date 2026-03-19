@@ -3,6 +3,8 @@ import json
 import pytest
 import src.agents.planner as planner_module
 from src.agents.planner import PlannerAgent, ToolSpec
+from src.agents.task_goal_parser import enrich_task_from_goal
+from src.llm.base_llm_provider import ProviderConfig
 from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
     PatchRequest,
@@ -227,6 +229,27 @@ def _topk_mock_kg() -> dict:
             },
         ],
     }
+
+
+class _AutoProvider:
+    def __init__(self, model_name: str = "auto-provider") -> None:
+        self.config = ProviderConfig(model_name=model_name)
+
+    def call_planner(self, task: ProteinDesignTask, tool_registry: list[ToolSpec]) -> dict:
+        tool_id = tool_registry[0].id if tool_registry else "dummy_tool"
+        return {
+            "task_id": task.task_id,
+            "steps": [
+                {
+                    "id": "S1",
+                    "tool": tool_id,
+                    "inputs": {"goal": task.goal},
+                    "metadata": {},
+                }
+            ],
+            "constraints": task.constraints,
+            "metadata": {"provider": self.config.model_name},
+        }
 
 
 def _patch_request_for_topk() -> PatchRequest:
@@ -1026,3 +1049,118 @@ class TestPlannerAgent:
             assert 0.0 <= score["overall"] <= 1.0
 
         assert score_3["objective"] >= score_1["objective"]
+
+    def test_enrich_task_from_goal_infers_goal_type_prompt_and_length_range(self):
+        task = ProteinDesignTask(
+            task_id="nl_task_001",
+            goal="设计一个长度为50的本地蛋白质，并给出结构预览",
+            constraints={},
+            metadata={},
+        )
+
+        enriched = enrich_task_from_goal(task)
+
+        assert enriched.constraints["goal_type"] == "de_novo_design"
+        assert enriched.constraints["prompt"] == task.goal
+        assert enriched.constraints["length_range"] == [50, 50]
+        assert enriched.constraints["prefer_remote"] is False
+        assert enriched.metadata["nl_parse"]["source"] == "task_goal_parser_v1"
+
+    def test_planner_uses_natural_language_task_to_build_de_novo_plan(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        task = ProteinDesignTask(
+            task_id="nl_task_002",
+            goal="Design a stable mini-protein of length 40-60 aa and produce a structure preview locally.",
+            constraints={},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert len(plan.steps) >= 4
+        assert [step.id for step in plan.steps[:4]] == ["S1", "S2", "S4", "S2R"]
+        assert plan.steps[0].tool == "seqgen_local"
+        assert plan.steps[1].tool == "esmfold"
+        assert plan.steps[2].tool == "protein_mpnn"
+        assert plan.constraints["goal_type"] == "de_novo_design"
+        assert plan.constraints["length_range"] == [40, 60]
+        assert plan.steps[0].inputs["goal"] == task.goal
+        assert plan.steps[0].inputs["prompt"] == task.goal
+
+    def test_plan_with_status_persists_enriched_natural_language_constraints(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="nl_task_003",
+            goal="Design a stable protein sequence of length 55 aa for local structure prediction.",
+            constraints={"min_candidate_confidence": 0.2, "require_plan_confirm": False},
+            metadata={},
+        )
+        context = WorkflowContext(
+            task=task,
+            plan=None,
+            step_results={},
+            safety_events=[],
+            design_result=None,
+            status=InternalStatus.CREATED,
+        )
+        record = TaskRecord(
+            id=task.task_id,
+            status=ExternalStatus.CREATED,
+            internal_status=InternalStatus.CREATED,
+            goal=task.goal,
+            constraints=task.constraints,
+            metadata=task.metadata,
+            plan=None,
+        )
+
+        planner.plan_with_status(task, context, record=record)
+
+        assert context.status == InternalStatus.PLANNED
+        assert context.task.constraints["goal_type"] == "de_novo_design"
+        assert context.task.constraints["length_range"] == [55, 55]
+        assert record.constraints["goal_type"] == "de_novo_design"
+        assert context.plan is not None
+        assert context.plan.constraints["goal_type"] == "de_novo_design"
+
+    def test_planner_autoloads_llm_provider_from_catalog(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: type("Catalog", (), {"providers": {"openai": object()}})())
+        auto_provider = _AutoProvider("catalog-openai")
+        monkeypatch.setattr(planner_module, "create_provider", lambda _settings: auto_provider)
+
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="llm_auto_001",
+            goal="Design a stable protein with structure preview.",
+            constraints={},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert planner._llm_provider is auto_provider
+        assert plan.metadata["provider"] == "catalog-openai"
+        assert plan.steps[0].inputs["goal"] == task.goal
+
+    def test_planner_can_disable_catalog_llm_provider_with_env(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("PLANNER_LLM_PROVIDER", "off")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: (_ for _ in ()).throw(AssertionError("should not load catalog")))
+
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="llm_auto_002",
+            goal="simple task",
+            constraints={"sequence": "MKTAYIAK"},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert planner._llm_provider is None
+        assert len(plan.steps) == 1

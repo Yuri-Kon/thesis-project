@@ -155,7 +155,10 @@ class OpenAICompatibleProvider(BaseProvider):
 
     def _build_system_prompt(self) -> str:
         """构建 LLM 的系统提示词"""
-        return """你是一个蛋白质设计规划助手。你的任务是为蛋白质设计任务生成多步执行计划。
+        return """你是一个蛋白质设计规划助手。你的核心职责是：
+1. 解析自然语言任务目标；
+2. 从可用工具中选择合适工具链；
+3. 生成可执行的结构化 Plan JSON。
 
 给定:
 - 一个带有目标和约束的蛋白质设计任务
@@ -188,6 +191,10 @@ class OpenAICompatibleProvider(BaseProvider):
 6. 链接步骤时考虑工具能力、输入和输出
 7. 尽可能选择更简单的计划
 8. 始终返回有效的 JSON
+9. 必须把 task.goal 视为主要自然语言需求来源；如果约束中缺少 goal_type、prompt、length_range 等，可以根据 goal 合理补充到 returned constraints 中
+10. 对 de novo 设计任务，优先生成“序列生成 -> 结构预测 -> 结构条件精修/再设计 -> 结构重映射或质量检查”的多步链，而不是退化成单步计划
+11. 如果用户表达了本地/远程偏好，应优先选择对应 adapter_mode 的工具
+12. 计划中的 inputs 应尽量保留自然语言目标或结构化约束，不要随意发明具体序列值
 """
 
     def _build_user_prompt(
@@ -214,6 +221,12 @@ class OpenAICompatibleProvider(BaseProvider):
 {tools_text}
 
 注意：如果不确定具体 tool_id，请将 tool 设置为 "unknown"，并在 metadata.capability 中提供能力标识。
+请先理解目标中的自然语言要求，例如长度、是否需要结构预览、是否强调稳定性/可溶性、是否偏好本地或远程工具。
+如果 goal 明显是蛋白质从零设计任务，请在 returned constraints 中补上:
+- goal_type: de_novo_design
+- prompt: 原始或精炼后的自然语言设计提示
+- length_range: 若能从目标中提取
+- prefer_remote: 若能从目标中提取
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
