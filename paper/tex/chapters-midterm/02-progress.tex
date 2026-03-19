@@ -1,0 +1,43 @@
+\section{已完成的研究工作及成果}
+
+\subsection{预定计划的执行情况}
+
+本节建议对照计划说明目前已完成的阶段性工作、完成时间和偏差情况。
+可以按 ``设计文档 -> 代码实现 -> 测试验证 -> 报告沉淀'' 的顺序组织。
+
+\subsection{系统总体设计}
+
+本节适合概述系统的五层结构、四类 Agent 角色和运行闭环。
+建议配合总体架构图进行说明。
+
+\subsection{系统架构设计}
+
+本节建议介绍：
+
+\begin{itemize}
+  \item 输入层、规划层、执行层、安全与汇总层、资源层；
+  \item Task / Plan / StepResult / DesignResult 等关键数据契约；
+  \item Task API、Workflow、Tool Adapter、Storage 的关系。
+\end{itemize}
+
+\subsection{模块交互设计}
+
+本节可以从任务生命周期角度说明模块间交互：
+
+\begin{itemize}
+  \item 用户输入如何转为结构化任务；
+  \item Planner 如何生成候选集与默认建议；
+  \item Executor 如何执行工具并触发恢复；
+  \item Safety 和 Summarizer 如何参与流程闭环。
+\end{itemize}
+
+\subsection{系统的详细及实现设计}
+
+本节建议进一步介绍代码结构、技术选型和关键实现点，例如：
+
+\begin{itemize}
+  \item LangGraph / FastAPI / Nextflow 的职责分工；
+  \item ToolKG 与适配器注册机制；
+  \item WAITING / Decision / EventLog / Snapshot 的实现方式；
+  \item 远端 REST 服务与本地工作流的衔接。
+\end{itemize}

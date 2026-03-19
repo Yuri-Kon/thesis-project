@@ -1,26 +1,24 @@
-\documentclass[12pt]{article}
-\input{../common/preamble}
+\documentclass[12pt,a4paper]{ctexart}
+\input{common/preamble}
+\input{common/midterm-metadata}
+\input{common/midterm-cover}
 
-\title{Thesis Midterm Report Title}
-\author{Author Name}
-\date{\today}
+\setcounter{tocdepth}{2}
 
 \begin{document}
-\maketitle
-
-\begin{abstract}
-This is a placeholder abstract for the midterm stage.
-\end{abstract}
+\hypersetup{pageanchor=false}
+\makeMidtermCover
+\clearpage
+\hypersetup{pageanchor=true}
+\setcounter{page}{1}
 
 \tableofcontents
 \newpage
 
-\input{../chapters/01-introduction}
-\input{../chapters/02-related-work}
-\input{../chapters/03-method}
-\input{../chapters/04-experiments}
-
-\bibliographystyle{plain}
-\bibliography{../bib/references}
+\input{chapters-midterm/01-overview}
+\input{chapters-midterm/02-progress}
+\input{chapters-midterm/03-next-step}
+\input{chapters-midterm/04-risks}
+\input{chapters-midterm/05-feasibility}
 
 \end{document}

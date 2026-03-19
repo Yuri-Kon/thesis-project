@@ -1,17 +1,68 @@
-% Preamble for thesis paper
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{lmodern}
 \usepackage{geometry}
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{amssymb}
-\geometry{margin=1in}
+\usepackage{titlesec}
+\usepackage{titletoc}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{ulem}
+\usepackage{fancyhdr}
+
+\geometry{
+  top=2.3cm,
+  bottom=2.3cm,
+  left=2.3cm,
+  right=2.3cm,
+  headheight=0pt,
+  headsep=0pt,
+  footskip=0.8cm
+}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\setstretch{1.25}
+\setlist[itemize]{nosep,leftmargin=2.5em}
+
+\pagestyle{plain}
+\fancyhf{}
+
 \hypersetup{
   colorlinks=true,
-  linkcolor=blue,
-  urlcolor=blue,
-  citecolor=blue
+  linkcolor=black,
+  urlcolor=black,
+  citecolor=black
 }
+
+\renewcommand{\contentsname}{目\quad 录}
+
+\titleformat{\section}
+  {\centering\heiti\bfseries\fontsize{18pt}{22pt}\selectfont}
+  {\chinese{section}}
+  {1em}
+  {}
+
+\titleformat{\subsection}
+  {\heiti\bfseries\fontsize{15pt}{20pt}\selectfont}
+  {\arabic{section}.\arabic{subsection}}
+  {0.75em}
+  {}
+
+\titlespacing*{\section}{0pt}{1.0em}{1.0em}
+\titlespacing*{\subsection}{0pt}{0.8em}{0.6em}
+
+\titlecontents{section}
+  [0em]
+  {}
+  {\contentslabel{2em}}
+  {}
+  {\titlerule*[0.6pc]{.}\contentspage}
+
+\titlecontents{subsection}
+  [2em]
+  {}
+  {\contentslabel{2.8em}}
+  {}
+  {\titlerule*[0.6pc]{.}\contentspage}

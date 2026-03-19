@@ -1,0 +1,24 @@
+\newcommand{\makeMidtermCover}{%
+  \begin{titlepage}
+    \thispagestyle{empty}
+    \vspace*{2.8cm}
+    \begin{center}
+      {\heiti\bfseries\fontsize{24pt}{28pt}\selectfont \MidtermReportType \par}
+    \end{center}
+
+    \vspace{2.8cm}
+
+    {\heiti\bfseries\fontsize{18pt}{24pt}\selectfont
+    \setlength{\tabcolsep}{0pt}
+    \renewcommand{\arraystretch}{2.2}
+    \begin{tabular}{@{}p{3.2cm}p{10.2cm}@{}}
+      题\hspace{0.75em}目： & \uline{\makebox[10.0cm][c]{\MidtermThesisTitle}} \\
+      专\hspace{1.6em}业 & \uline{\makebox[10.0cm][c]{\MidtermMajor}} \\
+      学\hspace{1.6em}生 & \uline{\makebox[10.0cm][c]{\MidtermStudentName}} \\
+      学\hspace{1.6em}号 & \uline{\makebox[10.0cm][c]{\MidtermStudentId}} \\
+      指导教师 & \uline{\makebox[10.0cm][c]{\MidtermAdvisor}} \\
+      日\hspace{1.6em}期 & \uline{\makebox[10.0cm][c]{\MidtermReportDate}} \\
+    \end{tabular}
+    }
+  \end{titlepage}
+}
