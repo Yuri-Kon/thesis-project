@@ -50,9 +50,9 @@ class DSSPAdapter(BaseToolAdapter):
             output_path = Path(tmp_dir) / "result.dssp"
             cmd = [
                 self.binary,
-                "-i",
+                "--output-format",
+                "dssp",
                 str(inputs["pdb_path"]),
-                "-o",
                 str(output_path),
             ]
             try:

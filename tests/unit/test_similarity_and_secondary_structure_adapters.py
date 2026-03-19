@@ -92,7 +92,7 @@ def test_dssp_adapter_runs_local_and_outputs_qc_metrics(monkeypatch: pytest.Monk
     pdb_path.write_text("ATOM\n", encoding="utf-8")
 
     def fake_runner(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        output_path = Path(cmd[cmd.index("-o") + 1])
+        output_path = Path(cmd[-1])
         output_path.write_text(
             "HEADER\n"
             "  #  RESIDUE AA STRUCTURE BP1 BP2  ACC\n"
@@ -110,9 +110,11 @@ def test_dssp_adapter_runs_local_and_outputs_qc_metrics(monkeypatch: pytest.Monk
     assert outputs["io_type"] == "sequence_structure_to_qc_metrics"
     assert outputs["qc_metrics"]["secondary_structure_summary"]["q3_counts"] == {"H": 1, "E": 1}
     assert metrics["requirement2"]["capability_id"] == "quality_qc"
+    assert metrics["command"][:3] == ["mkdssp", "--output-format", "dssp"]
 
 
-def test_adapters_raise_when_binary_is_missing() -> None:
+def test_adapters_raise_when_binary_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("src.adapters.mmseqs2_adapter.shutil.which", lambda _: None)
     adapter = MMseqs2Adapter()
 
     with pytest.raises(StepRunError, match="not installed"):
