@@ -2,27 +2,55 @@
   "providers": [
     {
       "provider": "qwen-plus",
-      "success": false,
-      "error": "Exception: LLM API 调用失败: Connection error.",
-      "elapsed_seconds": 1.547
+      "success": true,
+      "model": "qwen-plus",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 5.553,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_qwen_plus"
     },
     {
       "provider": "deepseek-chat",
-      "success": false,
-      "error": "Exception: LLM API 调用失败: Connection error.",
-      "elapsed_seconds": 1.269
+      "success": true,
+      "model": "deepseek-chat",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 14.096,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_deepseek_chat"
     },
     {
       "provider": "glm-5",
-      "success": false,
-      "error": "Exception: LLM API 调用失败: [Errno -3] Temporary failure in name resolution",
-      "elapsed_seconds": 0.026
+      "success": true,
+      "model": "glm-5",
+      "provider_name": "anthropic_messages",
+      "elapsed_seconds": 10.438,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_glm_5"
     },
     {
       "provider": "nemotron",
-      "success": false,
-      "error": "Exception: LLM API 调用失败: Connection error.",
-      "elapsed_seconds": 1.44
+      "success": true,
+      "model": "nvidia/nemotron-3-nano-30b-a3b",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 4.75,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_nemotron"
     }
   ]
 }
