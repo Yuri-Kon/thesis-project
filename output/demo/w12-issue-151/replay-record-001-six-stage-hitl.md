@@ -6,14 +6,14 @@
 
 ## 事件序列
 
-1. `STEP_FINISHED` | ts=2026-03-19T15:22:50+00:00 | summary=Step finished (S1)
-2. `STEP_FINISHED` | ts=2026-03-19T15:22:50+00:00 | summary=Step finished (S2)
-3. `STEP_FINISHED` | ts=2026-03-19T15:22:50+00:00 | summary=Step finished (S3)
-4. `STEP_FINISHED` | ts=2026-03-19T15:22:50+00:00 | summary=Step finished (S4)
-5. `WAITING_ENTER` | ts=2026-03-19T15:22:52+00:00 | summary=Enter waiting state
-6. `DECISION_APPLIED` | ts=2026-03-19T15:22:52+00:00 | summary=Decision applied (accept)
-7. `WAITING_EXIT` | ts=2026-03-19T15:22:52+00:00 | summary=Exit waiting state
-8. `STEP_FINISHED` | ts=2026-03-19T15:22:52+00:00 | summary=Step finished (S5)
+1. `STEP_FINISHED` | ts=2026-03-19T15:40:07+00:00 | summary=Step finished (S1)
+2. `STEP_FINISHED` | ts=2026-03-19T15:40:07+00:00 | summary=Step finished (S2)
+3. `STEP_FINISHED` | ts=2026-03-19T15:40:07+00:00 | summary=Step finished (S3)
+4. `STEP_FINISHED` | ts=2026-03-19T15:40:07+00:00 | summary=Step finished (S4)
+5. `WAITING_ENTER` | ts=2026-03-19T15:40:08+00:00 | summary=Enter waiting state
+6. `DECISION_APPLIED` | ts=2026-03-19T15:40:08+00:00 | summary=Decision applied (accept)
+7. `WAITING_EXIT` | ts=2026-03-19T15:40:08+00:00 | summary=Exit waiting state
+8. `STEP_FINISHED` | ts=2026-03-19T15:40:08+00:00 | summary=Step finished (S5)
 9. `STATE_TRANSITION` | ts=None | summary=PLANNED -> RUNNING
 10. `PENDING_ACTION_CREATED` | ts=None | summary=PendingAction created (patch_confirm)
 11. `STATE_TRANSITION` | ts=None | summary=RUNNING -> WAITING_PATCH
