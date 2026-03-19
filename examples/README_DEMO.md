@@ -37,6 +37,32 @@ After startup:
 - Event timeline: `http://127.0.0.1:8000/ui/tasks/<task_id>/events`
 - Candidate compare demo (seeded, in-process preview): `uv run python examples/run_hitl_candidate_ui_demo.py`
 
+## 全流程展示
+
+如果要用于中期答辩或评审展示，可以生成一份统一的中文操作手册，把以下内容串成一条主线：
+
+- API 可用性与冒烟检查
+- HITL 候选对比界面
+- Issue #151 回放/审计证据
+- Issue #174 / #152 实验与报告证据
+
+生成展示包：
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/build_full_flow_showcase.py
+```
+
+生成文件：
+
+- `reports/showcase/full_flow_showcase_guide.md`
+- `reports/showcase/full_flow_showcase_manifest.json`
+
+如果希望在生成手册前顺带刷新一次相关产物，可使用：
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache uv run python scripts/build_full_flow_showcase.py --prepare
+```
+
 ## Issue #142 Candidate Compare Demo
 
 Run reproducible in-process preview (no extra dependency):
