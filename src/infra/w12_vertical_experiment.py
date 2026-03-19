@@ -16,6 +16,8 @@ DEFAULT_REQUIREMENT2_CAPABILITY_MAP: dict[str, list[str]] = {
     "quality_qc": ["quality_qc"],
     "objective_scoring": ["objective_scoring"],
     "structure_prediction": ["structure_prediction"],
+    "similarity_search": ["sequence_similarity_search"],
+    "secondary_structure": ["secondary_structure_annotation"],
 }
 
 DEFAULT_OFFLINE_THRESHOLDS: dict[str, float] = {
@@ -556,6 +558,8 @@ def aggregate_group_metrics(
             "requirement2_objective_scoring": requirement2_bucket_status.get("objective_scoring", False),
             "requirement2_structure_prediction": requirement2_bucket_status.get("structure_prediction", False),
         }
+        for bucket, covered in requirement2_bucket_status.items():
+            summary_row[f"requirement2_{bucket}"] = covered
         summary_rows.append(summary_row)
 
         patch_rows.append(

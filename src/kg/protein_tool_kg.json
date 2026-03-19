@@ -1,6 +1,6 @@
 {
   "kg_id": "protein_tool_kg",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "capabilities": [
     {
       "capability_id": "structure_prediction",
@@ -25,55 +25,127 @@
       "name": "Quality QC",
       "domain": "protein/qc",
       "description": "Evaluate sequence/structure quality metrics and gate low-quality candidates."
+    },
+    {
+      "capability_id": "objective_scoring",
+      "name": "Objective Scoring",
+      "domain": "protein/score",
+      "description": "Aggregate multi-tool evidence into comparable objective scores."
+    },
+    {
+      "capability_id": "sequence_similarity_search",
+      "name": "Sequence Similarity Search",
+      "domain": "protein/similarity",
+      "description": "Search local protein databases for homologous or near-neighbor sequences."
+    },
+    {
+      "capability_id": "secondary_structure_annotation",
+      "name": "Secondary Structure Annotation",
+      "domain": "protein/annotation",
+      "description": "Annotate residue-level secondary structure and summarize Q3/Q8 composition."
     }
   ],
   "io_types": [
     {
       "io_type_id": "sequence_to_structure",
-      "input_types": ["sequence"],
-      "output_types": ["structure_pdb", "plddt"],
+      "input_types": [
+        "sequence"
+      ],
+      "output_types": [
+        "structure_pdb",
+        "plddt"
+      ],
       "combinable": true,
       "description": "Single sequence to structure prediction outputs."
     },
     {
       "io_type_id": "structure_to_sequence",
-      "input_types": ["structure_pdb"],
-      "output_types": ["sequence"],
+      "input_types": [
+        "structure_pdb"
+      ],
+      "output_types": [
+        "sequence"
+      ],
       "combinable": true,
       "description": "Design sequences from structural backbone inputs."
     },
     {
       "io_type_id": "goal_to_sequence_candidates",
-      "input_types": ["goal"],
-      "output_types": ["sequence", "sequence_candidates"],
+      "input_types": [
+        "goal"
+      ],
+      "output_types": [
+        "sequence",
+        "sequence_candidates"
+      ],
       "combinable": true,
       "description": "Generate candidate protein sequences from goal and optional prompt constraints."
     },
     {
       "io_type_id": "sequence_msa_to_structure",
-      "input_types": ["sequence", "msa"],
-      "output_types": ["structure_pdb", "plddt"],
+      "input_types": [
+        "sequence",
+        "msa"
+      ],
+      "output_types": [
+        "structure_pdb",
+        "plddt"
+      ],
       "combinable": true,
       "description": "Sequence + MSA to structure prediction outputs."
     },
     {
       "io_type_id": "sequence_structure_to_qc_metrics",
-      "input_types": ["sequence", "structure_pdb"],
-      "output_types": ["qc_metrics"],
+      "input_types": [
+        "sequence",
+        "structure_pdb"
+      ],
+      "output_types": [
+        "qc_metrics"
+      ],
       "combinable": true,
       "description": "Sequence and structure quality evaluation outputs."
+    },
+    {
+      "io_type_id": "sequence_to_similarity_hits",
+      "input_types": [
+        "sequence"
+      ],
+      "output_types": [
+        "similarity_hits",
+        "coverage",
+        "identity"
+      ],
+      "combinable": true,
+      "description": "Sequence search outputs normalized to comparable hit fields."
+    },
+    {
+      "io_type_id": "structure_to_secondary_structure",
+      "input_types": [
+        "structure_pdb"
+      ],
+      "output_types": [
+        "secondary_structure",
+        "ss_summary"
+      ],
+      "combinable": true,
+      "description": "Structure-to-secondary-structure annotation outputs."
     }
   ],
   "constraints": [
     {
       "constraint_id": "esmfold_runtime",
-      "preconditions": ["sequence_provided"],
+      "preconditions": [
+        "sequence_provided"
+      ],
       "resource_assumptions": [
         "nextflow_installed",
         "container_engine_available",
         "gpu_available"
       ],
-      "model_assumptions": ["single_chain_only"],
+      "model_assumptions": [
+        "single_chain_only"
+      ],
       "limits": {
         "max_length": 2000
       },
@@ -81,9 +153,16 @@
     },
     {
       "constraint_id": "nim_structure_runtime",
-      "preconditions": ["sequence_provided"],
-      "resource_assumptions": ["network_available", "nim_api_key_configured"],
-      "model_assumptions": ["single_chain_only"],
+      "preconditions": [
+        "sequence_provided"
+      ],
+      "resource_assumptions": [
+        "network_available",
+        "nim_api_key_configured"
+      ],
+      "model_assumptions": [
+        "single_chain_only"
+      ],
       "limits": {
         "max_length": 4096
       },
@@ -91,12 +170,16 @@
     },
     {
       "constraint_id": "protein_mpnn_runtime",
-      "preconditions": ["structure_template_provided"],
+      "preconditions": [
+        "structure_template_provided"
+      ],
       "resource_assumptions": [
         "gpu_available",
         "python_environment_ready"
       ],
-      "model_assumptions": ["backbone_required"],
+      "model_assumptions": [
+        "backbone_required"
+      ],
       "limits": {
         "max_length": 2000
       },
@@ -104,11 +187,62 @@
     },
     {
       "constraint_id": "biopython_qc_runtime",
-      "preconditions": ["sequence_or_structure_results_provided"],
-      "resource_assumptions": ["python_environment_ready"],
-      "model_assumptions": ["single_candidate_or_batch"],
+      "preconditions": [
+        "sequence_or_structure_results_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
       "limits": {},
       "description": "BioPython QC runtime requirements for quality-gate checks."
+    },
+    {
+      "constraint_id": "mmseqs2_runtime",
+      "preconditions": [
+        "input_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready",
+        "local_sequence_database_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "MMseqs2 local similarity-search runtime requirements."
+    },
+    {
+      "constraint_id": "blastp_runtime",
+      "preconditions": [
+        "input_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready",
+        "local_blast_database_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "BLASTP local similarity-search runtime requirements."
+    },
+    {
+      "constraint_id": "dssp_runtime",
+      "preconditions": [
+        "input_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready",
+        "structure_file_available"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "DSSP runtime requirements for local secondary-structure annotation."
     }
   ],
   "tools": [
@@ -118,7 +252,9 @@
       "name": "ESMFold",
       "domain": "protein/structure",
       "description": "Fast single-sequence structure prediction without MSA.",
-      "capabilities": ["structure_prediction"],
+      "capabilities": [
+        "structure_prediction"
+      ],
       "io": {
         "io_type_id": "sequence_to_structure",
         "inputs": {
@@ -128,18 +264,27 @@
           "pdb_path": "path",
           "plddt": "float"
         },
-        "input_types": ["sequence"],
-        "output_types": ["structure_pdb", "plddt"],
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "structure_pdb",
+          "plddt"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_provided"],
+        "preconditions": [
+          "sequence_provided"
+        ],
         "resource_assumptions": [
           "nextflow_installed",
           "container_engine_available",
           "gpu_available"
         ],
-        "model_assumptions": ["single_chain_only"],
+        "model_assumptions": [
+          "single_chain_only"
+        ],
         "limits": {
           "max_length": 2000
         }
@@ -148,12 +293,22 @@
       "cost_score": 0.6,
       "safety_level": 1,
       "priority": "P0",
-      "official_links": ["https://github.com/facebookresearch/esm"],
+      "official_links": [
+        "https://github.com/facebookresearch/esm"
+      ],
       "compat": {
-        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+        "from": [
+          "protein_mpnn.sequence",
+          "protgpt2.sequence"
+        ]
       },
-      "failure_modes": ["timeout", "nan_output"],
-      "preferred_next": ["biopython_qc"],
+      "failure_modes": [
+        "timeout",
+        "nan_output"
+      ],
+      "preferred_next": [
+        "biopython_qc"
+      ],
       "version": "1.0.0"
     },
     {
@@ -162,7 +317,9 @@
       "name": "NIM ESMFold",
       "domain": "protein/structure",
       "description": "Remote ESMFold via NVIDIA NIM.",
-      "capabilities": ["structure_prediction"],
+      "capabilities": [
+        "structure_prediction"
+      ],
       "io": {
         "io_type_id": "sequence_to_structure",
         "inputs": {
@@ -173,14 +330,26 @@
           "plddt": "float",
           "pdb_string": "str"
         },
-        "input_types": ["sequence"],
-        "output_types": ["structure_pdb", "plddt"],
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "structure_pdb",
+          "plddt"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_provided"],
-        "resource_assumptions": ["network_available", "nim_api_key_configured"],
-        "model_assumptions": ["single_chain_only"],
+        "preconditions": [
+          "sequence_provided"
+        ],
+        "resource_assumptions": [
+          "network_available",
+          "nim_api_key_configured"
+        ],
+        "model_assumptions": [
+          "single_chain_only"
+        ],
         "limits": {
           "max_length": 400
         }
@@ -194,11 +363,18 @@
       "cost_score": 0.3,
       "safety_level": 1,
       "priority": "P0",
-      "official_links": ["https://build.nvidia.com/nvidia/esmfold"],
+      "official_links": [
+        "https://build.nvidia.com/nvidia/esmfold"
+      ],
       "compat": {
-        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+        "from": [
+          "protein_mpnn.sequence",
+          "protgpt2.sequence"
+        ]
       },
-      "preferred_next": ["biopython_qc"],
+      "preferred_next": [
+        "biopython_qc"
+      ],
       "version": "1.0.0"
     },
     {
@@ -207,7 +383,9 @@
       "name": "AlphaFold2 (NIM)",
       "domain": "protein/structure",
       "description": "AlphaFold2 structure prediction via NVIDIA NIM.",
-      "capabilities": ["structure_prediction"],
+      "capabilities": [
+        "structure_prediction"
+      ],
       "io": {
         "io_type_id": "sequence_to_structure",
         "inputs": {
@@ -217,14 +395,26 @@
           "pdb_path": "path",
           "plddt": "float"
         },
-        "input_types": ["sequence"],
-        "output_types": ["structure_pdb", "plddt"],
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "structure_pdb",
+          "plddt"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_provided"],
-        "resource_assumptions": ["network_available", "nim_api_key_configured"],
-        "model_assumptions": ["single_chain_only"],
+        "preconditions": [
+          "sequence_provided"
+        ],
+        "resource_assumptions": [
+          "network_available",
+          "nim_api_key_configured"
+        ],
+        "model_assumptions": [
+          "single_chain_only"
+        ],
         "limits": {
           "max_length": 4096
         }
@@ -243,10 +433,18 @@
         "https://github.com/google-deepmind/alphafold"
       ],
       "compat": {
-        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+        "from": [
+          "protein_mpnn.sequence",
+          "protgpt2.sequence"
+        ]
       },
-      "failure_modes": ["timeout", "invalid_input"],
-      "preferred_next": ["biopython_qc"],
+      "failure_modes": [
+        "timeout",
+        "invalid_input"
+      ],
+      "preferred_next": [
+        "biopython_qc"
+      ],
       "version": "1.0.0"
     },
     {
@@ -255,7 +453,9 @@
       "name": "OpenFold3",
       "domain": "protein/structure",
       "description": "OpenFold3 structure prediction via NVIDIA NIM or remote REST GPU service.",
-      "capabilities": ["structure_prediction"],
+      "capabilities": [
+        "structure_prediction"
+      ],
       "io": {
         "io_type_id": "sequence_to_structure",
         "inputs": {
@@ -265,17 +465,26 @@
           "pdb_path": "path",
           "plddt": "float"
         },
-        "input_types": ["sequence"],
-        "output_types": ["structure_pdb", "plddt"],
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "structure_pdb",
+          "plddt"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_provided"],
+        "preconditions": [
+          "sequence_provided"
+        ],
         "resource_assumptions": [
           "network_available",
           "nim_api_key_configured_or_openfold3_rest_service_available"
         ],
-        "model_assumptions": ["single_chain_or_complex"],
+        "model_assumptions": [
+          "single_chain_or_complex"
+        ],
         "limits": {
           "max_length": 1000
         }
@@ -295,10 +504,18 @@
         "https://openfold-3.readthedocs.io/en/latest/"
       ],
       "compat": {
-        "from": ["protein_mpnn.sequence", "protgpt2.sequence"]
+        "from": [
+          "protein_mpnn.sequence",
+          "protgpt2.sequence"
+        ]
       },
-      "failure_modes": ["timeout", "invalid_input"],
-      "preferred_next": ["biopython_qc"],
+      "failure_modes": [
+        "timeout",
+        "invalid_input"
+      ],
+      "preferred_next": [
+        "biopython_qc"
+      ],
       "version": "1.0.0"
     },
     {
@@ -307,7 +524,9 @@
       "name": "ProteinMPNN",
       "domain": "protein/design",
       "description": "Sequence design from backbone coordinates.",
-      "capabilities": ["sequence_design"],
+      "capabilities": [
+        "sequence_design"
+      ],
       "io": {
         "io_type_id": "structure_to_sequence",
         "inputs": {
@@ -317,17 +536,25 @@
           "sequence": "str",
           "sequence_score": "float"
         },
-        "input_types": ["structure_pdb"],
-        "output_types": ["sequence"],
+        "input_types": [
+          "structure_pdb"
+        ],
+        "output_types": [
+          "sequence"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["structure_template_provided"],
+        "preconditions": [
+          "structure_template_provided"
+        ],
         "resource_assumptions": [
           "network_available",
           "nim_api_key_configured"
         ],
-        "model_assumptions": ["backbone_required"],
+        "model_assumptions": [
+          "backbone_required"
+        ],
         "limits": {
           "max_length": 2000
         }
@@ -341,7 +568,9 @@
       "cost_score": 0.4,
       "safety_level": 1,
       "priority": "P0",
-      "official_links": ["https://github.com/dauparas/ProteinMPNN"],
+      "official_links": [
+        "https://github.com/dauparas/ProteinMPNN"
+      ],
       "compat": {
         "from": [
           "esmfold.pdb_path",
@@ -350,8 +579,16 @@
           "openfold.pdb_path"
         ]
       },
-      "failure_modes": ["invalid_backbone", "missing_backbone"],
-      "preferred_next": ["esmfold", "nim_esmfold", "alphafold", "openfold"],
+      "failure_modes": [
+        "invalid_backbone",
+        "missing_backbone"
+      ],
+      "preferred_next": [
+        "esmfold",
+        "nim_esmfold",
+        "alphafold",
+        "openfold"
+      ],
       "version": "1.0.0"
     },
     {
@@ -360,7 +597,9 @@
       "name": "ProtGPT2",
       "domain": "protein/design",
       "description": "PLM-based de novo sequence generator via remote ProtGPT2 REST service.",
-      "capabilities": ["sequence_generation"],
+      "capabilities": [
+        "sequence_generation"
+      ],
       "io": {
         "io_type_id": "goal_to_sequence_candidates",
         "inputs": {
@@ -371,14 +610,26 @@
           "candidates": "list",
           "artifacts": "dict"
         },
-        "input_types": ["goal"],
-        "output_types": ["sequence", "sequence_candidates"],
+        "input_types": [
+          "goal"
+        ],
+        "output_types": [
+          "sequence",
+          "sequence_candidates"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["goal_provided"],
-        "resource_assumptions": ["network_available", "plm_rest_service_available"],
-        "model_assumptions": ["protgpt2_ready"],
+        "preconditions": [
+          "goal_provided"
+        ],
+        "resource_assumptions": [
+          "network_available",
+          "plm_rest_service_available"
+        ],
+        "model_assumptions": [
+          "protgpt2_ready"
+        ],
         "limits": {
           "max_new_tokens": 512,
           "num_candidates_max": 64
@@ -393,12 +644,23 @@
       "cost_score": 0.35,
       "safety_level": 1,
       "priority": "P0",
-      "official_links": ["https://huggingface.co/nferruz/ProtGPT2"],
+      "official_links": [
+        "https://huggingface.co/nferruz/ProtGPT2"
+      ],
       "compat": {
         "from": []
       },
-      "failure_modes": ["timeout", "invalid_generation"],
-      "preferred_next": ["esmfold", "nim_esmfold", "alphafold", "openfold", "protein_mpnn"],
+      "failure_modes": [
+        "timeout",
+        "invalid_generation"
+      ],
+      "preferred_next": [
+        "esmfold",
+        "nim_esmfold",
+        "alphafold",
+        "openfold",
+        "protein_mpnn"
+      ],
       "version": "1.0.0"
     },
     {
@@ -407,7 +669,9 @@
       "name": "BioPython QC",
       "domain": "protein/qc",
       "description": "Executor-callable BioPython QC for sequence and structure gating.",
-      "capabilities": ["quality_qc"],
+      "capabilities": [
+        "quality_qc"
+      ],
       "io": {
         "io_type_id": "sequence_structure_to_qc_metrics",
         "inputs": {
@@ -421,14 +685,25 @@
           "pass_count": "int",
           "fail_count": "int"
         },
-        "input_types": ["sequence", "structure_pdb"],
-        "output_types": ["qc_metrics"],
+        "input_types": [
+          "sequence",
+          "structure_pdb"
+        ],
+        "output_types": [
+          "qc_metrics"
+        ],
         "combinable": true
       },
       "constraints": {
-        "preconditions": ["sequence_or_structure_results_provided"],
-        "resource_assumptions": ["python_environment_ready"],
-        "model_assumptions": ["single_candidate_or_batch"],
+        "preconditions": [
+          "sequence_or_structure_results_provided"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
         "limits": {}
       },
       "execution": "python",
@@ -447,8 +722,199 @@
           "openfold.pdb_path"
         ]
       },
-      "failure_modes": ["invalid_sequence", "missing_structure"],
-      "preferred_next": ["protein_mpnn"],
+      "failure_modes": [
+        "invalid_sequence",
+        "missing_structure"
+      ],
+      "preferred_next": [
+        "protein_mpnn"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "mmseqs2",
+      "tool_id": "mmseqs2",
+      "name": "MMseqs2",
+      "domain": "protein/similarity",
+      "description": "Fast local sequence-similarity search with normalized hit schema for Requirement-2.",
+      "capabilities": [
+        "sequence_similarity_search",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "sequence_to_similarity_hits",
+        "inputs": {
+          "sequence": "str",
+          "database_path": "path"
+        },
+        "outputs": {
+          "similarity_hits": "list",
+          "top_hit": "dict",
+          "hit_count": "int"
+        },
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "similarity_hits",
+          "coverage",
+          "identity"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "sequence_provided",
+          "database_ready"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready",
+          "local_sequence_database_ready"
+        ],
+        "model_assumptions": [
+          "single_query_or_small_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.25,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://github.com/soedinglab/MMseqs2"
+      ],
+      "failure_modes": [
+        "timeout",
+        "database_missing"
+      ],
+      "preferred_next": [
+        "objective_ranker",
+        "biopython_qc"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "blastp",
+      "tool_id": "blastp",
+      "name": "BLASTP",
+      "domain": "protein/similarity",
+      "description": "Classic protein similarity baseline aligned to the MMseqs2 hit schema.",
+      "capabilities": [
+        "sequence_similarity_search",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "sequence_to_similarity_hits",
+        "inputs": {
+          "sequence": "str",
+          "database_path": "path"
+        },
+        "outputs": {
+          "similarity_hits": "list",
+          "top_hit": "dict",
+          "hit_count": "int"
+        },
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "similarity_hits",
+          "coverage",
+          "identity"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "sequence_provided",
+          "database_ready"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready",
+          "local_blast_database_ready"
+        ],
+        "model_assumptions": [
+          "single_query_or_small_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.35,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://www.ncbi.nlm.nih.gov/books/NBK279690/"
+      ],
+      "failure_modes": [
+        "timeout",
+        "database_missing"
+      ],
+      "preferred_next": [
+        "objective_ranker",
+        "biopython_qc"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "dssp",
+      "tool_id": "dssp",
+      "name": "DSSP",
+      "domain": "protein/annotation",
+      "description": "Secondary-structure annotation that can feed quality-gate and evaluation chains.",
+      "capabilities": [
+        "secondary_structure_annotation",
+        "quality_qc"
+      ],
+      "io": {
+        "io_type_id": "sequence_structure_to_qc_metrics",
+        "inputs": {
+          "pdb_path": "path",
+          "sequence": "str"
+        },
+        "outputs": {
+          "secondary_structure": "list",
+          "secondary_structure_summary": "dict",
+          "qc_metrics": "dict"
+        },
+        "input_types": [
+          "structure_pdb"
+        ],
+        "output_types": [
+          "secondary_structure",
+          "ss_summary",
+          "qc_metrics"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "structure_provided"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready",
+          "structure_file_available"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.2,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [
+        "https://github.com/PDB-REDO/dssp",
+        "https://pdb-redo.eu/dssp"
+      ],
+      "failure_modes": [
+        "invalid_structure",
+        "binary_missing"
+      ],
+      "preferred_next": [
+        "objective_ranker",
+        "biopython_qc"
+      ],
       "version": "1.0.0"
     }
   ]
