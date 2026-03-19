@@ -21,6 +21,19 @@ from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.workflow.context import WorkflowContext
 
 
+@pytest.fixture(autouse=True)
+def _disable_catalog_provider_autoload(monkeypatch):
+    monkeypatch.setenv("PLANNER_LLM_PROVIDER", "off")
+    for env_name in (
+        "OPENAI_API_KEY",
+        "DASHSCOPE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZHIPU_API_KEY",
+        "NIM_API_KEY",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+
 def _topk_registry() -> list[ToolSpec]:
     return [
         ToolSpec(
@@ -1104,6 +1117,36 @@ class TestPlannerAgent:
         assert enriched.constraints["prefer_remote"] is False
         assert enriched.metadata["nl_parse"]["source"] == "task_goal_parser_v1"
 
+    def test_enrich_task_from_goal_extracts_sequence_without_forcing_de_novo(self):
+        sequence = "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV"
+        task = ProteinDesignTask(
+            task_id="nl_task_seq_001",
+            goal=f"Please predict the structure for this protein sequence using remote tools if available: {sequence}",
+            constraints={},
+            metadata={},
+        )
+
+        enriched = enrich_task_from_goal(task)
+
+        assert enriched.constraints["sequence"] == sequence
+        assert enriched.constraints["prompt"] == task.goal
+        assert enriched.constraints["prefer_remote"] is True
+        assert "goal_type" not in enriched.constraints
+
+    def test_planner_uses_sequence_extracted_from_natural_language_goal(self):
+        sequence = "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV"
+        task = ProteinDesignTask(
+            task_id="nl_task_seq_002",
+            goal=f"Please predict the structure for this protein sequence: {sequence}",
+            constraints={},
+            metadata={},
+        )
+
+        planner = PlannerAgent()
+        plan = planner.plan(task)
+
+        assert plan.steps[0].inputs["sequence"] == sequence
+
     def test_planner_uses_natural_language_task_to_build_de_novo_plan(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())
@@ -1164,6 +1207,7 @@ class TestPlannerAgent:
         assert context.plan.constraints["goal_type"] == "de_novo_design"
 
     def test_planner_autoloads_llm_provider_from_catalog(self, monkeypatch):
+        monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: type("Catalog", (), {"providers": {"openai": object()}})())
@@ -1183,6 +1227,94 @@ class TestPlannerAgent:
         assert planner._llm_provider is auto_provider
         assert plan.metadata["provider"] == "catalog-openai"
         assert plan.steps[0].inputs["goal"] == task.goal
+
+    def test_planner_autoloads_domestic_llm_provider_from_catalog(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "test-key")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        catalog = type(
+            "Catalog",
+            (),
+            {
+                "providers": {
+                    "baseline": object(),
+                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "openai": type("Settings", (), {"api_key": None, "api_key_env": "OPENAI_API_KEY"})(),
+                }
+            },
+        )()
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
+        auto_provider = _AutoProvider("catalog-qwen")
+        monkeypatch.setattr(planner_module, "create_provider", lambda _settings: auto_provider)
+
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="llm_auto_cn_001",
+            goal="Design a stable protein with structure preview.",
+            constraints={},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert planner._llm_provider is auto_provider
+        assert plan.metadata["provider"] == "catalog-qwen"
+
+    def test_planner_prefers_qwen_when_multiple_domestic_keys_are_present(self, monkeypatch):
+        monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "qwen-key")
+        monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-key")
+        monkeypatch.setenv("ZHIPU_API_KEY", "glm-key")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        catalog = type(
+            "Catalog",
+            (),
+            {
+                "providers": {
+                    "baseline": object(),
+                    "deepseek-chat": type("Settings", (), {"api_key": None, "api_key_env": "DEEPSEEK_API_KEY"})(),
+                    "glm-5": type("Settings", (), {"api_key": None, "api_key_env": "ZHIPU_API_KEY"})(),
+                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                }
+            },
+        )()
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
+
+        assert planner_module._resolve_local_provider_alias(catalog) == "qwen-plus"
+
+    def test_planner_materializes_missing_llm_inputs_from_constraints_and_prior_steps(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+
+        class _SparseInputProvider(_AutoProvider):
+            def call_planner(self, task: ProteinDesignTask, tool_registry: list[ToolSpec]) -> dict:
+                return {
+                    "task_id": task.task_id,
+                    "steps": [
+                        {"id": "S1", "tool": "nim_esmfold", "inputs": {}, "metadata": {}},
+                        {"id": "S2", "tool": "biopython_qc", "inputs": {}, "metadata": {}},
+                    ],
+                    "constraints": {},
+                    "metadata": {"provider": self.config.model_name},
+                }
+
+        planner = PlannerAgent(
+            tool_registry=_topk_registry(),
+            llm_provider=_SparseInputProvider("sparse-llm"),
+        )
+        task = ProteinDesignTask(
+            task_id="llm_sparse_inputs_001",
+            goal="Predict structure and QC for the provided sequence.",
+            constraints={"sequence": "MKTAYIAK"},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert plan.constraints["sequence"] == "MKTAYIAK"
+        assert plan.steps[0].inputs["sequence"] == "MKTAYIAK"
+        assert plan.steps[1].inputs["sequence"] == "MKTAYIAK"
+        assert plan.steps[1].inputs["pdb_path"] == "S1.pdb_path"
 
     def test_planner_can_disable_catalog_llm_provider_with_env(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)

@@ -676,8 +676,7 @@
         "io_type_id": "sequence_structure_to_qc_metrics",
         "inputs": {
           "sequence": "str",
-          "pdb_path": "path",
-          "structure_results": "list"
+          "pdb_path": "path"
         },
         "outputs": {
           "qc_metrics": "list",

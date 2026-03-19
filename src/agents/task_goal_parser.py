@@ -29,6 +29,7 @@ _EXACT_PATTERNS = (
 )
 _PDB_PATH_PATTERN = re.compile(r"(?P<path>[\w./-]+\.pdb)\b", re.IGNORECASE)
 _PDB_ID_PATTERN = re.compile(r"\b(?P<pdb_id>[0-9][a-zA-Z0-9]{3})\b")
+_SEQUENCE_PATTERN = re.compile(r"\b(?P<sequence>[ACDEFGHIKLMNPQRSTVWY]{8,})\b")
 
 _REMOTE_HINTS = ("remote", "nim", "api", "在线", "远程")
 _LOCAL_HINTS = ("local", "offline", "本地", "离线")
@@ -71,6 +72,13 @@ def enrich_task_from_goal(task: ProteinDesignTask) -> ProteinDesignTask:
     metadata = dict(task.metadata or {})
     parse_notes: dict[str, Any] = dict(metadata.get("nl_parse") or {})
     changed = False
+
+    if not isinstance(constraints.get("sequence"), str) or not str(constraints.get("sequence")).strip():
+        inferred_sequence = _infer_sequence(goal)
+        if inferred_sequence is not None:
+            constraints["sequence"] = inferred_sequence
+            parse_notes["sequence"] = inferred_sequence
+            changed = True
 
     inferred_goal_type = _infer_goal_type(goal, constraints)
     if inferred_goal_type and not constraints.get("goal_type"):
@@ -127,6 +135,8 @@ def enrich_task_from_goal(task: ProteinDesignTask) -> ProteinDesignTask:
 def _infer_goal_type(goal: str, constraints: dict[str, Any]) -> str | None:
     if constraints.get("goal_type"):
         return None
+    if isinstance(constraints.get("sequence"), str) and str(constraints.get("sequence")).strip():
+        return None
     lowered = goal.lower()
     if any(token in lowered for token in _SEQUENCE_HINTS):
         return _DE_NOVO_GOAL_TYPE
@@ -173,6 +183,13 @@ def _infer_template(goal: str) -> str | None:
         if pdb_id_match is not None:
             return pdb_id_match.group("pdb_id").upper()
     return None
+
+
+def _infer_sequence(goal: str) -> str | None:
+    match = _SEQUENCE_PATTERN.search(goal.upper())
+    if match is None:
+        return None
+    return match.group("sequence")
 
 
 def _is_valid_length_range(value: Any) -> bool:

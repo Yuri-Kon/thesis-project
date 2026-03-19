@@ -22,10 +22,19 @@ class ProviderConfig(BaseModel):
     model_name: str
     api_key: Optional[str] = None
     timeout: int = 300
-    max_tokens: int = 2000
+    max_tokens: int | None = 2000
     temperature: float = 0.7
     top_p: float = 1.0
     stream: bool = False
+    api_style: str | None = None
+    structured_output_mode: str | None = None
+    tool_strategy: str | None = None
+    supports_patch: bool = True
+    supports_replan: bool = True
+    supports_reasoning: bool = False
+    headers: Optional[Dict[str, str]] = None
+    organization: str | None = None
+    anthropic_version: str | None = None
     extra_body: Optional[Dict[str, Any]] = None
     use_response_format: bool = True
 

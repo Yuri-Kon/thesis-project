@@ -21,7 +21,13 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
-from src.models.contracts import PatchRequest, ProteinDesignTask, ReplanRequest
+from src.models.contracts import (
+    PatchRequest,
+    Plan,
+    PlanPatch,
+    ProteinDesignTask,
+    ReplanRequest,
+)
 
 if TYPE_CHECKING:
     from src.agents.planner import ToolSpec
@@ -57,6 +63,10 @@ class OpenAICompatibleProvider(BaseProvider):
         client_kwargs = {"api_key": config.api_key or "dummy-key"}
         if endpoint:
             client_kwargs["base_url"] = endpoint
+        if config.organization:
+            client_kwargs["organization"] = config.organization
+        if config.headers:
+            client_kwargs["default_headers"] = config.headers
 
         self.client = OpenAI(**client_kwargs)
 
@@ -85,24 +95,12 @@ class OpenAICompatibleProvider(BaseProvider):
         # 调用 LLM
         start_time = time.time()
         try:
-            request_kwargs = {
-                "model": self.config.model_name,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "max_tokens": self.config.max_tokens,
-                "timeout": self.config.timeout,
-                "temperature": self.config.temperature,
-                "top_p": self.config.top_p,
-            }
-            if self.config.extra_body:
-                request_kwargs["extra_body"] = self.config.extra_body
-            if self.config.stream:
-                request_kwargs["stream"] = True
-            elif self.config.use_response_format:
-                request_kwargs["response_format"] = {"type": "json_object"}
-
+            request_kwargs = self._build_request_kwargs(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                schema_name="plan",
+                schema_model=Plan,
+            )
             response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
             raise Exception(f"LLM API 调用失败: {e}")
@@ -158,7 +156,12 @@ class OpenAICompatibleProvider(BaseProvider):
     ) -> Dict | None:
         system_prompt = self._build_patch_system_prompt()
         user_prompt = self._build_patch_user_prompt(request, tool_registry)
-        patch_dict = self._request_json(system_prompt, user_prompt)
+        patch_dict = self._request_json(
+            system_prompt,
+            user_prompt,
+            schema_name="plan_patch",
+            schema_model=PlanPatch,
+        )
         if patch_dict is None:
             return None
         if "task_id" not in patch_dict:
@@ -182,7 +185,12 @@ class OpenAICompatibleProvider(BaseProvider):
     ) -> Dict | None:
         system_prompt = self._build_replan_system_prompt()
         user_prompt = self._build_replan_user_prompt(request, tool_registry)
-        plan_dict = self._request_json(system_prompt, user_prompt)
+        plan_dict = self._request_json(
+            system_prompt,
+            user_prompt,
+            schema_name="replan",
+            schema_model=Plan,
+        )
         if plan_dict is None:
             return None
         if "task_id" not in plan_dict:
@@ -201,27 +209,22 @@ class OpenAICompatibleProvider(BaseProvider):
             raise ValueError(f"LLM 生成的 Replan 无效: {plan_dict}")
         return plan_dict
 
-    def _request_json(self, system_prompt: str, user_prompt: str) -> Dict | None:
+    def _request_json(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        schema_name: str,
+        schema_model,
+    ) -> Dict | None:
         start_time = time.time()
         try:
-            request_kwargs = {
-                "model": self.config.model_name,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "max_tokens": self.config.max_tokens,
-                "timeout": self.config.timeout,
-                "temperature": self.config.temperature,
-                "top_p": self.config.top_p,
-            }
-            if self.config.extra_body:
-                request_kwargs["extra_body"] = self.config.extra_body
-            if self.config.stream:
-                request_kwargs["stream"] = True
-            elif self.config.use_response_format:
-                request_kwargs["response_format"] = {"type": "json_object"}
-
+            request_kwargs = self._build_request_kwargs(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                schema_name=schema_name,
+                schema_model=schema_model,
+            )
             response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
             raise Exception(f"LLM API 调用失败: {e}")
@@ -320,6 +323,54 @@ class OpenAICompatibleProvider(BaseProvider):
 
 请生成一个多步计划来完成这个蛋白质设计任务。仅返回遵循系统提示中 schema 的有效 JSON。
 """
+
+    def _build_request_kwargs(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        schema_name: str,
+        schema_model,
+    ) -> dict:
+        request_kwargs = {
+            "model": self.config.model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "timeout": self.config.timeout,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+        }
+        if self.config.max_tokens is not None:
+            request_kwargs["max_tokens"] = self.config.max_tokens
+        if self.config.extra_body:
+            request_kwargs["extra_body"] = self.config.extra_body
+        if self.config.stream:
+            request_kwargs["stream"] = True
+        else:
+            response_format = self._build_response_format(
+                schema_name=schema_name,
+                schema_model=schema_model,
+            )
+            if response_format is not None:
+                request_kwargs["response_format"] = response_format
+        return request_kwargs
+
+    def _build_response_format(self, *, schema_name: str, schema_model) -> dict | None:
+        if not self.config.use_response_format:
+            return None
+        mode = (self.config.structured_output_mode or "json_object").strip().lower()
+        if mode == "json_schema":
+            return {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": schema_name,
+                    "schema": schema_model.model_json_schema(),
+                    "strict": True,
+                },
+            }
+        return {"type": "json_object"}
 
     def _build_patch_system_prompt(self) -> str:
         return """你是一个蛋白质设计恢复规划助手。你的任务是在步骤失败后生成最小可执行 PlanPatch JSON。

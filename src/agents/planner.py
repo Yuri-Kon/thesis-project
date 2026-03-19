@@ -150,8 +150,15 @@ _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
 
 _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
 _DEFAULT_PROVIDER_CATALOG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
-_DEFAULT_LOCAL_PROVIDER_ALIAS = "openai"
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
+_PREFERRED_LOCAL_PROVIDER_ORDER = (
+    "qwen-plus",
+    "glm-5",
+    "deepseek-chat",
+    "deepseek-reasoner",
+    "nemotron",
+    "openai",
+)
 
 
 class PlannerAgent:
@@ -390,6 +397,11 @@ class PlannerAgent:
             plan,
             self._tool_registry,
             task.constraints,
+        )
+        plan = _materialize_missing_plan_inputs(
+            plan,
+            self._tool_registry,
+            task,
         )
         _ensure_plan_tools_in_registry(plan, self._tool_registry)
         return _attach_kg_explanation(plan)
@@ -752,14 +764,14 @@ def _provider_name(provider: BaseProvider) -> str:
 
 
 def _load_configured_llm_provider() -> BaseProvider | None:
-    provider_alias = _resolve_local_provider_alias()
-    if not provider_alias:
-        return None
     if not _DEFAULT_PROVIDER_CATALOG_PATH.exists():
         return None
     try:
         catalog = load_provider_catalog(_DEFAULT_PROVIDER_CATALOG_PATH)
     except Exception:
+        return None
+    provider_alias = _resolve_local_provider_alias(catalog)
+    if not provider_alias:
         return None
     settings = catalog.providers.get(provider_alias)
     if settings is None:
@@ -770,7 +782,7 @@ def _load_configured_llm_provider() -> BaseProvider | None:
         return None
 
 
-def _resolve_local_provider_alias() -> str | None:
+def _resolve_local_provider_alias(catalog: object | None = None) -> str | None:
     explicit = os.getenv(_PLANNER_PROVIDER_ENV)
     if isinstance(explicit, str):
         explicit = explicit.strip()
@@ -779,8 +791,30 @@ def _resolve_local_provider_alias() -> str | None:
                 return None
             return explicit
 
-    if os.getenv("OPENAI_API_KEY"):
-        return _DEFAULT_LOCAL_PROVIDER_ALIAS
+    providers = getattr(catalog, "providers", None)
+    if isinstance(providers, dict):
+        ordered_aliases: list[str] = []
+        seen_aliases: set[str] = set()
+        for alias in _PREFERRED_LOCAL_PROVIDER_ORDER:
+            if alias in providers:
+                ordered_aliases.append(alias)
+                seen_aliases.add(alias)
+        for alias in providers:
+            if alias not in seen_aliases:
+                ordered_aliases.append(alias)
+
+        for alias in ordered_aliases:
+            if alias == "baseline":
+                continue
+            settings = providers[alias]
+            api_key = getattr(settings, "api_key", None)
+            if isinstance(api_key, str) and api_key.strip():
+                return alias
+            api_key_env = getattr(settings, "api_key_env", None)
+            if isinstance(api_key_env, str) and api_key_env.strip() and os.getenv(api_key_env):
+                return alias
+            if alias == "openai" and os.getenv("OPENAI_API_KEY"):
+                return alias
     return None
 
 
@@ -2546,6 +2580,80 @@ def _resolve_plan_tools(
             available_inputs.update(spec.outputs)
 
     return plan.model_copy(update={"steps": resolved_steps}, deep=True)
+
+
+def _materialize_missing_plan_inputs(
+    plan: Plan,
+    registry: Sequence[ToolSpec],
+    task: ProteinDesignTask,
+) -> Plan:
+    registry_map = {spec.id: spec for spec in registry}
+    output_sources: dict[str, str] = {}
+    resolved_steps: list[PlanStep] = []
+
+    for step in plan.steps:
+        spec = registry_map.get(step.tool)
+        if spec is None:
+            resolved_steps.append(step)
+            continue
+
+        resolved_inputs = _fill_missing_required_inputs(
+            spec=spec,
+            task=task,
+            existing_inputs=step.inputs,
+            output_sources=output_sources,
+        )
+        resolved_steps.append(
+            step.model_copy(update={"inputs": resolved_inputs}, deep=True)
+        )
+
+        for output_name in spec.outputs:
+            output_sources[output_name] = step.id
+
+    merged_constraints = dict(task.constraints or {})
+    merged_constraints.update(plan.constraints or {})
+    return plan.model_copy(
+        update={
+            "steps": resolved_steps,
+            "constraints": merged_constraints,
+        },
+        deep=True,
+    )
+
+
+def _fill_missing_required_inputs(
+    *,
+    spec: ToolSpec,
+    task: ProteinDesignTask,
+    existing_inputs: dict[str, Any],
+    output_sources: dict[str, str],
+) -> dict[str, Any]:
+    resolved_inputs = dict(existing_inputs)
+    constraints = task.constraints or {}
+    template = _extract_template_pdb(constraints)
+    defaults = {
+        "goal": task.goal,
+        "length_range": _extract_length_range(constraints),
+        "prompt": constraints.get("prompt"),
+        "template": template,
+        "pdb_path": template,
+    }
+
+    for required_key in spec.inputs:
+        if required_key in resolved_inputs:
+            continue
+        if required_key in constraints:
+            resolved_inputs[required_key] = constraints[required_key]
+            continue
+        source_step_id = output_sources.get(required_key)
+        if source_step_id is not None:
+            resolved_inputs[required_key] = f"{source_step_id}.{required_key}"
+            continue
+        default_value = defaults.get(required_key)
+        if default_value is not None:
+            resolved_inputs[required_key] = default_value
+
+    return resolved_inputs
 
 
 def _extract_step_capability(metadata: dict | None) -> str:

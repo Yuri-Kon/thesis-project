@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 from src.agents.planner import ToolSpec
 from src.llm.base_llm_provider import ProviderConfig
-from src.models.contracts import ProteinDesignTask
+from src.models.contracts import PatchRequest, Plan, PlanStep, ProteinDesignTask
 import src.llm.openai_compatible_provider as provider_module
 
 
@@ -110,6 +110,36 @@ def test_openai_provider_uses_config_options(monkeypatch):
     assert request_kwargs["timeout"] == 12
     assert request_kwargs["extra_body"] == {"foo": "bar"}
     assert request_kwargs["response_format"] == {"type": "json_object"}
+
+
+def test_openai_provider_supports_json_schema_response_format(monkeypatch):
+    task = _sample_task()
+    plan_dict = {
+        "task_id": task.task_id,
+        "steps": [
+            {"id": "S1", "tool": "dummy_tool", "inputs": {}, "metadata": {}}
+        ],
+        "constraints": {},
+        "metadata": {},
+    }
+    calls = _setup_dummy_openai(monkeypatch, response_content=json.dumps(plan_dict))
+
+    provider = provider_module.OpenAICompatibleProvider(
+        ProviderConfig(
+            model_name="qwen-plus",
+            api_key="test-key",
+            max_tokens=None,
+            structured_output_mode="json_schema",
+        ),
+        endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+    provider.call_planner(task, _sample_registry())
+
+    request_kwargs = calls["request_kwargs"]
+    assert "max_tokens" not in request_kwargs
+    assert request_kwargs["response_format"]["type"] == "json_schema"
+    assert request_kwargs["response_format"]["json_schema"]["name"] == "plan"
 
 
 def test_openai_provider_streams_content(monkeypatch):
@@ -244,3 +274,52 @@ def test_openai_provider_stream_ignores_empty_choices(monkeypatch):
     plan = provider.call_planner(task, _sample_registry())
 
     assert plan["task_id"] == task.task_id
+
+
+def test_openai_provider_uses_plan_patch_schema_for_patch(monkeypatch):
+    patch_dict = {
+        "task_id": "task_patch",
+        "operations": [
+            {
+                "op": "replace_step",
+                "target": "S1",
+                "step": {
+                    "tool": "dummy_tool",
+                    "inputs": {},
+                    "metadata": {},
+                },
+            }
+        ],
+        "metadata": {"recovery_layer": "tool_level", "reason": "swap"},
+    }
+    calls = _setup_dummy_openai(monkeypatch, response_content=json.dumps(patch_dict))
+    provider = provider_module.OpenAICompatibleProvider(
+        ProviderConfig(
+            model_name="qwen-plus",
+            api_key="test-key",
+            structured_output_mode="json_schema",
+        )
+    )
+
+    patch = provider.call_patch(
+        PatchRequest(
+            task_id="task_patch",
+            original_plan=Plan(
+                task_id="task_patch",
+                steps=[
+                    PlanStep(
+                        id="S1", tool="dummy_tool", inputs={}, metadata={}
+                    )
+                ],
+                constraints={},
+                metadata={},
+            ),
+            context_step_results=[],
+            safety_events=[],
+            reason="retry exhausted",
+        ),
+        _sample_registry(),
+    )
+
+    assert patch is not None
+    assert calls["request_kwargs"]["response_format"]["json_schema"]["name"] == "plan_patch"

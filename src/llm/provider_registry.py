@@ -24,10 +24,19 @@ class ProviderSettings(BaseModel):
     api_key_env: Optional[str] = None
     endpoint: Optional[str] = None
     timeout: int = 30
-    max_tokens: int = 2000
+    max_tokens: int | None = 2000
     temperature: float = 0.7
     top_p: float = 1.0
     stream: bool = False
+    api_style: str | None = None
+    structured_output_mode: str | None = None
+    tool_strategy: str | None = None
+    supports_patch: bool = True
+    supports_replan: bool = True
+    supports_reasoning: bool = False
+    headers: Optional[Dict[str, str]] = None
+    organization: str | None = None
+    anthropic_version: str | None = None
     extra_body: Optional[Dict[str, Any]] = None
     use_response_format: bool = True
 
@@ -69,6 +78,7 @@ def register_provider(provider_type: str, factory: ProviderFactory) -> None:
 def _register_builtins() -> None:
     register_provider("baseline", _create_baseline_provider)
     register_provider("openai_compatible", _create_openai_provider)
+    register_provider("anthropic_messages", _create_anthropic_provider)
 
 
 def _ensure_registry() -> None:
@@ -93,6 +103,14 @@ def _create_openai_provider(
     return OpenAICompatibleProvider(config, endpoint=endpoint)
 
 
+def _create_anthropic_provider(
+    config: ProviderConfig, endpoint: Optional[str]
+) -> BaseProvider:
+    from src.llm.anthropic_messages_provider import AnthropicMessagesProvider
+
+    return AnthropicMessagesProvider(config, endpoint=endpoint)
+
+
 def create_provider(
     settings: ProviderSettings, *, api_key_override: Optional[str] = None
 ) -> BaseProvider:
@@ -107,6 +125,15 @@ def create_provider(
         temperature=settings.temperature,
         top_p=settings.top_p,
         stream=settings.stream,
+        api_style=settings.api_style,
+        structured_output_mode=settings.structured_output_mode,
+        tool_strategy=settings.tool_strategy,
+        supports_patch=settings.supports_patch,
+        supports_replan=settings.supports_replan,
+        supports_reasoning=settings.supports_reasoning,
+        headers=settings.headers,
+        organization=settings.organization,
+        anthropic_version=settings.anthropic_version,
         extra_body=settings.extra_body,
         use_response_format=settings.use_response_format,
     )

@@ -39,3 +39,13 @@ def test_generation_to_prediction_chain_is_compatible() -> None:
     esmfold_inputs = set(esmfold["io"]["inputs"].keys())
 
     assert esmfold_inputs.issubset(generation_outputs)
+
+
+def test_biopython_qc_accepts_single_structure_inputs() -> None:
+    kg = load_tool_kg()
+    tools = {tool["id"]: tool for tool in kg["tools"]}
+
+    biopython_qc = tools["biopython_qc"]
+    qc_inputs = set(biopython_qc["io"]["inputs"].keys())
+
+    assert qc_inputs == {"sequence", "pdb_path"}
