@@ -199,3 +199,79 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert row["to_group"] == "A1"
     assert row["delta"] is not None
     assert row["pairing"] == "paired"
+
+
+def test_requirement2_rows_include_new_similarity_and_secondary_structure_tools(
+    tmp_path: Path,
+) -> None:
+    runs = [
+        {
+            "run_id": "r1",
+            "task_id": "task1",
+            "task_key": "k1",
+            "group_id": "A0",
+            "replicate": 1,
+            "freeze_id": "f1",
+            "event_log_path": "",
+            "snapshot_path": "",
+            "report_path": "",
+            "started_at": "2026-03-15T10:00:00+00:00",
+            "finished_at": "2026-03-15T10:00:02+00:00",
+            "duration_ms": 2000.0,
+            "final_status": "DONE",
+            "success": True,
+            "first_pass_success": True,
+            "schema_valid": True,
+            "executable_plan": True,
+            "patch_event_count": 0,
+            "replan_event_count": 0,
+            "suffix_replan_event_count": 0,
+            "waiting_enter_count": 0,
+            "step_failed_count": 0,
+            "step_finished_count": 3,
+            "waiting_chain_complete": True,
+            "failure_traceable": True,
+            "layer_counter": {},
+            "tool_usage": {"mmseqs2": 1, "blastp": 1, "dssp": 1},
+            "capability_usage": {
+                "sequence_similarity_search": 2,
+                "secondary_structure_annotation": 1,
+                "quality_qc": 1,
+            },
+            "requirement2_coverage": {
+                "sequence_core": False,
+                "quality_qc": True,
+                "objective_scoring": False,
+                "structure_prediction": False,
+                "similarity_search": True,
+                "secondary_structure": True,
+            },
+            "suffix_prefix_samples": [],
+            "abnormal_reasons": [],
+            "step_failed_details": [],
+        }
+    ]
+
+    aggregated = aggregate_group_metrics(
+        runs,
+        group_order=["A0"],
+        iterations=100,
+        seed=7,
+        thresholds={
+            "schema_valid_rate": 0.995,
+            "executable_plan_rate": 0.95,
+            "patch_minimality_hit_rate": 0.8,
+            "suffix_replan_prefix_preservation_rate": 1.0,
+        },
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    summary = aggregated["summary_rows"][0]
+    rows = aggregated["requirement2_rows"]
+    row_lookup = {(row["slice_type"], row["name"]): row for row in rows}
+
+    assert summary["requirement2_similarity_search"] is True
+    assert summary["requirement2_secondary_structure"] is True
+    assert row_lookup[("tool", "mmseqs2")]["usage_count"] == 1
+    assert row_lookup[("tool", "blastp")]["usage_count"] == 1
+    assert row_lookup[("tool", "dssp")]["usage_count"] == 1

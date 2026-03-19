@@ -3,9 +3,12 @@ from __future__ import annotations
 import os
 
 from src.adapters.alphafold_adapter import AlphaFold2Adapter
+from src.adapters.blastp_adapter import BlastPAdapter
 from src.adapters.biopython_qc_adapter import BioPythonQCAdapter
+from src.adapters.dssp_adapter import DSSPAdapter
 from src.adapters.dummy_adapter import DummyToolAdapter
 from src.adapters.esmfold_adapter import ESMFoldAdapter
+from src.adapters.mmseqs2_adapter import MMseqs2Adapter
 from src.adapters.nim_adapter import NIMESMFoldAdapter
 from src.adapters.openfold_adapter import OpenFold3Adapter
 from src.adapters.protein_mpnn_adapter import ProteinMPNNAdapter
@@ -73,3 +76,15 @@ def ensure_builtin_adapters() -> None:
         get_adapter(BioPythonQCAdapter.tool_id)
     except KeyError:
         register_adapter(BioPythonQCAdapter())
+    try:
+        get_adapter(MMseqs2Adapter.tool_id)
+    except KeyError:
+        register_adapter(MMseqs2Adapter())
+    try:
+        get_adapter(BlastPAdapter.tool_id)
+    except KeyError:
+        register_adapter(BlastPAdapter())
+    try:
+        get_adapter(DSSPAdapter.tool_id)
+    except KeyError:
+        register_adapter(DSSPAdapter())

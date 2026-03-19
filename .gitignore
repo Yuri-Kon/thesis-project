@@ -102,6 +102,11 @@ nf/.nextflow/
 
 # 13. 不需要上传到master的文件
 docs/
+!docs/
+docs/*
+!docs/algorithm-and-llm/
+docs/algorithm-and-llm/*
+!docs/algorithm-and-llm/requirement2-similarity-secondary-structure-tools.md
 plan/
 shared/
 drafts/
