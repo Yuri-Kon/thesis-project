@@ -1,0 +1,46 @@
+{
+  "providers": [
+    {
+      "provider": "qwen-plus",
+      "success": true,
+      "patch_tools": [
+        "esmfold"
+      ],
+      "patch_op_count": 1,
+      "replan_steps": [
+        "protgpt2",
+        "esmfold",
+        "biopython_qc"
+      ],
+      "replan_step_count": 3
+    },
+    {
+      "provider": "deepseek-chat",
+      "success": true,
+      "patch_tools": [
+        "esmfold"
+      ],
+      "patch_op_count": 1,
+      "replan_steps": [
+        "protgpt2",
+        "esmfold",
+        "biopython_qc"
+      ],
+      "replan_step_count": 3
+    },
+    {
+      "provider": "glm-5",
+      "success": true,
+      "patch_tools": [
+        "esmfold"
+      ],
+      "patch_op_count": 1,
+      "replan_steps": [
+        "protgpt2",
+        "esmfold",
+        "biopython_qc"
+      ],
+      "replan_step_count": 3
+    }
+  ]
+}
