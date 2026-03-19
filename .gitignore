@@ -9,7 +9,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx 
+*.idx
 *.ilg
 *.ind
 *.ist
@@ -85,3 +85,6 @@ tests/
 nf/
 data/
 scripts/
+*.pdb
+
+openfold3.json
