@@ -92,12 +92,18 @@ When work needs the shared AutoDL remote server, use the server state verified i
 - The shared account is `root`; do not assume per-user Linux accounts exist.
 - Current project roots live under `/root/projects/<student_id>/`.
 - The currently confirmed project root for this thesis work is `/root/projects/2022112879/`.
+- The currently confirmed remote service repository is `/root/projects/2022112879/remote-model-rest`.
 - The actively used Conda/Mamba installation is `/root/autodl-tmp/conda`, not `/root/miniconda3`.
 - The current experiment environment is `plm` at `/root/autodl-tmp/envs/plm`.
+- Remote service startup should default to the `plm` environment unless the user explicitly says otherwise.
+- The currently known PLM REST and OpenFold3 REST deployments do **not** use authentication by default.
+- Do not instruct users to set `PLM_REST_API_TOKEN` or `OPENFOLD3_REST_API_TOKEN` unless they explicitly ask to enable auth.
 - When documenting or running remote commands, prefer:
   - `ssh autodl`
   - `conda activate plm`
-  - `cd /root/projects/2022112879/...`
+  - `cd /root/projects/2022112879/remote-model-rest`
+  - `python -m uvicorn services.plm_rest_server.app:app --host 0.0.0.0 --port 8100`
+  - `python -m uvicorn services.openfold3_rest_server.app:app --host 0.0.0.0 --port 8200`
 - Do not assume `HF_HOME`, `TRANSFORMERS_CACHE`, or `TORCH_HOME` are preconfigured on the server; set them explicitly when a task depends on redirected caches.
 
 ## 5. Scope Control And Escalation
