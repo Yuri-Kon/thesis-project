@@ -1,0 +1,15 @@
+issue,artifact_type,path,exists,role
+148,training_summary,output/training/w12-issue-148/v0.3.0-rc1/issue148-p0-p1/training_summary.json,yes,训练摘要与版本冻结
+148,model_card,output/training/w12-issue-148/v0.3.0-rc1/issue148-p0-p1/model_card.md,yes,模型适用范围与已知限制
+149,release_benchmark_json,output/experiment/w12-expr-2/issue149-offline-benchmark/release_benchmark.json,yes,离线门禁与基线对比
+150,runtime_fallback_config,configs/runtime/w12_issue150_dual_route_fallback.json,yes,回退默认配置与熔断开关
+150,runtime_runbook,scripts/w12-issue-150-dual-route-fallback.md,yes,双路回退使用说明
+151,demo_summary,output/demo/w12-issue-151/demo-summary.json,yes,端到端演示摘要
+151,release_validation,output/demo/w12-issue-151/release-validation.md,yes,RC Gate-D 演示验证
+171,vertical_report,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_report.md,yes,A0-A6 纵向实验摘要
+171,vertical_summary_csv,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,yes,统一指标总表
+173,governance_summary,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json,yes,治理指标 JSON
+173,governance_report,output/experiment/w12-expr-2/issue173-governance-review/governance-report.md,yes,治理复核报告
+174,midterm_chapter,reports/w12-issue-174/midterm_experiment_chapter.md,yes,中期实验章节草稿（当前可交子集）
+174,figure_index,reports/w12-issue-174/figure_table_index.csv,yes,图表证据索引
+172,horizontal_comparison,deferred,no,外部平台依赖，当前窗口延期
