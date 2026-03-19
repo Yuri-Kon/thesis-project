@@ -67,9 +67,17 @@
 
 ## Runtime Prerequisites (remote host)
 
-- Python 3.12 + uv
+- Conda (Miniconda/Anaconda) + Python 3.12
 - `torch` + `transformers`
 - ProtGPT2 model files
+
+示例（conda）：
+
+```bash
+conda create -n plm-rest python=3.12 -y
+conda activate plm-rest
+pip install fastapi uvicorn pydantic torch transformers
+```
 
 ## Environment Variables
 
@@ -80,7 +88,7 @@
 ## Start
 
 ```bash
-uv run uvicorn services.plm_rest_server.app:app --host 0.0.0.0 --port 8100
+python -m uvicorn services.plm_rest_server.app:app --host 0.0.0.0 --port 8100
 ```
 
 ## Quick Check
