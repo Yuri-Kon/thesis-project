@@ -3,6 +3,11 @@
 
 本指南说明如何在 PlannerAgent 中使用可插拔的 LLM providers。
 
+若需要为后续实现提供可直接执行的外部 API 接入细则，请优先阅读：
+
+- `docs/impl/planner_llm_api_integration.md`
+- [ref:SID:impl.planner_llm.overview]
+
 ## 概述
 
 Issue #75 引入了可插拔的 LLM provider 架构，允许在不同的 LLM 后端之间切换以生成计划，同时保持向后兼容性。

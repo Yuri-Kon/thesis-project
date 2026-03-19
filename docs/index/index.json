@@ -2,7 +2,7 @@
   "version": "1.0",
   "generated_at": "2026-03-01",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 98,
+  "total_specs": 110,
   "documents": [
     {
       "doc_key": "arch",
@@ -75,6 +75,17 @@
       "version": "1.0",
       "depends_on": [
         "impl"
+      ]
+    },
+    {
+      "doc_key": "impl_planner_llm",
+      "title": "Planner 外部 LLM 接入规范",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "impl",
+        "agent"
       ]
     },
     {
@@ -1600,7 +1611,7 @@
       "path": "docs/impl/llm_provider_guide.md",
       "locator": {
         "type": "comment",
-        "line": 50,
+        "line": 55,
         "marker": "<!-- SID:impl.llm_provider.external_providers -->"
       },
       "level": "Block",
@@ -2106,6 +2117,274 @@
       "depends_on": [
         "planner.algorithm.candidate_scoring",
         "impl.llm_provider.guide"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.overview",
+      "title": "Planner 外部 LLM 接入规范",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.planner_llm.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "overview",
+        "integration"
+      ],
+      "depends_on": [
+        "planner.responsibilities.must",
+        "planner.responsibilities.must_not",
+        "impl.planner.tool_resolution",
+        "impl.remote_model_invocation.provider_config"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.provider_selection",
+      "title": "Provider 选型与适配层建议",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 31,
+        "marker": "<!-- SID:impl.planner_llm.provider_selection -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "provider_selection"
+      ],
+      "depends_on": [
+        "impl.planner_llm.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.parameter_baseline",
+      "title": "Planner 参数基线",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 52,
+        "marker": "<!-- SID:impl.planner_llm.parameter_baseline -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "parameters",
+        "baseline"
+      ],
+      "depends_on": [
+        "impl.planner_llm.provider_selection"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.structured_output_contract",
+      "title": "结构化输出契约",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 72,
+        "marker": "<!-- SID:impl.planner_llm.structured_output_contract -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "structured_output",
+        "contract"
+      ],
+      "depends_on": [
+        "impl.planner_llm.parameter_baseline"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.config_contract",
+      "title": "Provider 配置契约",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 107,
+        "marker": "<!-- SID:impl.planner_llm.config_contract -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "config",
+        "provider"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.provider_config",
+        "impl.planner_llm.structured_output_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.openai",
+      "title": "OpenAI GPT-5.4 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 176,
+        "marker": "<!-- SID:impl.planner_llm.openai -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "openai",
+        "gpt_5_4"
+      ],
+      "depends_on": [
+        "impl.planner_llm.config_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.anthropic",
+      "title": "Anthropic Claude 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 207,
+        "marker": "<!-- SID:impl.planner_llm.anthropic -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "anthropic",
+        "claude"
+      ],
+      "depends_on": [
+        "impl.planner_llm.config_contract",
+        "impl.planner_llm.structured_output_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.deepseek",
+      "title": "DeepSeek 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 234,
+        "marker": "<!-- SID:impl.planner_llm.deepseek -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "deepseek"
+      ],
+      "depends_on": [
+        "impl.planner_llm.config_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.qwen",
+      "title": "Qwen / DashScope 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 261,
+        "marker": "<!-- SID:impl.planner_llm.qwen -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "qwen",
+        "dashscope"
+      ],
+      "depends_on": [
+        "impl.planner_llm.config_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.glm",
+      "title": "GLM / 智谱 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 294,
+        "marker": "<!-- SID:impl.planner_llm.glm -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "glm",
+        "zhipu"
+      ],
+      "depends_on": [
+        "impl.planner_llm.anthropic"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.nemotron",
+      "title": "NVIDIA NIM Nemotron 接入",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 320,
+        "marker": "<!-- SID:impl.planner_llm.nemotron -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "nvidia_nim",
+        "nemotron"
+      ],
+      "depends_on": [
+        "impl.planner_llm.config_contract"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner_llm.validation_and_fallback",
+      "title": "输出校验、重试与回退",
+      "doc_key": "impl_planner_llm",
+      "path": "docs/impl/planner_llm_api_integration.md",
+      "locator": {
+        "type": "comment",
+        "line": 345,
+        "marker": "<!-- SID:impl.planner_llm.validation_and_fallback -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner_llm",
+        "validation",
+        "fallback"
+      ],
+      "depends_on": [
+        "impl.planner_llm.structured_output_contract",
+        "impl.planner_llm.config_contract"
       ],
       "stability": "stable"
     }

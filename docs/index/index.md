@@ -12,9 +12,9 @@
 ## 索引总览
 
 **版本**: 1.0
-**生成日期**: 2026-02-05
-**总规范数**: 96
-**文档数**: 11
+**生成日期**: 2026-03-19
+**总规范数**: 110
+**文档数**: 14
 
 ---
 
@@ -29,10 +29,13 @@
 | `impl` | 系统实现设计 | [docs/design/system-implementation-design.md](../design/system-implementation-design.md) | stable | arch, agent |
 | `impl_index` | 实现代码索引与结构化总览 | [docs/impl/implementation_index.md](../impl/implementation_index.md) | stable | impl |
 | `impl_llm_provider` | LLM Provider 集成指南 | [docs/impl/llm_provider_guide.md](../impl/llm_provider_guide.md) | stable | impl |
+| `impl_planner_llm` | Planner 外部 LLM 接入规范 | [docs/impl/planner_llm_api_integration.md](../impl/planner_llm_api_integration.md) | stable | impl, agent |
 | `impl_snapshot_recovery` | Snapshot Recovery for Remote Jobs | [docs/impl/snapshot-recovery.md](../impl/snapshot-recovery.md) | stable | impl |
 | `impl_remote_model_invocation` | Remote Model Invocation Service | [docs/impl/remote_model_invocation.md](../impl/remote_model_invocation.md) | stable | impl |
 | `tools` | Tools Catalog | [docs/design/tools-catalog.md](../design/tools-catalog.md) | stable | impl |
 | `hitl` | HITL 扩展设计 | [docs/design/hitl-extension.md](../design/hitl-extension.md) | stable | arch, agent, impl, algo |
+| `algocore` | 核心算法定义 | [docs/algorithm-and-llm/core-algorithm-define.md](../algorithm-and-llm/core-algorithm-define.md) | stable | - |
+| `llmtrain` | Planner 大模型能力要求与专用训练方案 | [docs/algorithm-and-llm/train-llm.md](../algorithm-and-llm/train-llm.md) | stable | planner.algorithm.candidate_scoring, impl.llm_provider.guide |
 
 ---
 
@@ -231,6 +234,18 @@
 | `impl.index.codebase_overview` | 实现代码索引与结构化总览 | Section | impl, index, codebase, overview |
 | `impl.llm_provider.guide` | LLM Provider 集成指南 | Section | impl, llm_provider, guide, overview |
 | `impl.llm_provider.external_providers` | OpenAICompatibleProvider | Block | impl, llm_provider, external, openai_compatible |
+| `impl.planner_llm.overview` | Planner 外部 LLM 接入规范 | Section | impl, planner_llm, overview, integration |
+| `impl.planner_llm.provider_selection` | Provider 选型与适配层建议 | Block | impl, planner_llm, provider_selection |
+| `impl.planner_llm.parameter_baseline` | Planner 参数基线 | Block | impl, planner_llm, parameters, baseline |
+| `impl.planner_llm.structured_output_contract` | 结构化输出契约 | Block | impl, planner_llm, structured_output, contract |
+| `impl.planner_llm.config_contract` | Provider 配置契约 | Block | impl, planner_llm, config, provider |
+| `impl.planner_llm.openai` | OpenAI GPT-5.4 接入 | Block | impl, planner_llm, openai, gpt_5_4 |
+| `impl.planner_llm.anthropic` | Anthropic Claude 接入 | Block | impl, planner_llm, anthropic, claude |
+| `impl.planner_llm.deepseek` | DeepSeek 接入 | Block | impl, planner_llm, deepseek |
+| `impl.planner_llm.qwen` | Qwen / DashScope 接入 | Block | impl, planner_llm, qwen, dashscope |
+| `impl.planner_llm.glm` | GLM / 智谱 接入 | Block | impl, planner_llm, glm, zhipu |
+| `impl.planner_llm.nemotron` | NVIDIA NIM Nemotron 接入 | Block | impl, planner_llm, nvidia_nim, nemotron |
+| `impl.planner_llm.validation_and_fallback` | 输出校验、重试与回退 | Block | impl, planner_llm, validation, fallback |
 | `impl.snapshot_recovery.overview` | Snapshot Recovery for Remote Jobs | Section | impl, snapshot_recovery, overview |
 | `impl.snapshot_recovery.snapshot_schema` | 快照结构 | Block | impl, snapshot_recovery, snapshot, schema |
 | `impl.snapshot_recovery.recovery_flow` | 恢复流程 | Block | impl, snapshot_recovery, recovery, flow |
@@ -263,13 +278,17 @@
 | agent-design.md | 8 | 9 | 9 | 26 |
 | core-algorithm-spec.md | 2 | 6 | 3 | 11 |
 | system-implementation-design.md | 2 | 5 | 5 | 12 |
+| de-novo-workflow.md | 7 | 6 | 0 | 13 |
 | implementation_index.md | 1 | 0 | 0 | 1 |
 | llm_provider_guide.md | 1 | 1 | 0 | 2 |
+| planner_llm_api_integration.md | 1 | 11 | 0 | 12 |
 | snapshot-recovery.md | 1 | 2 | 0 | 3 |
 | remote_model_invocation.md | 3 | 3 | 0 | 6 |
 | tools-catalog.md | 1 | 4 | 1 | 6 |
+| core-algorithm-define.md | 1 | 0 | 0 | 1 |
+| train-llm.md | 1 | 0 | 0 | 1 |
 | hitl-extension.md | 0 | 0 | 0 | 0 (differential index) |
-| **总计** | **24** | **33** | **26** | **83** |
+| **总计** | **34** | **50** | **26** | **110** |
 
 **注**: hitl-extension.md 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 

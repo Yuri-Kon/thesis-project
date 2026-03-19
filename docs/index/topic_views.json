@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated_at": "2026-03-01",
+  "generated_at": "2026-03-19",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -692,8 +692,8 @@
     },
     "llm_provider": {
       "title": "LLM Provider 集成",
-      "description": "外部 LLM Provider 接入与 Planner 侧调用的实现指南",
-      "use_case": "扩展或替换 Planner 的外部 LLM Provider 时需要注入的最小规范集合",
+      "description": "外部 LLM Provider 接入、Planner 侧结构化输出和多厂商 API 适配指南",
+      "use_case": "扩展或替换 Planner 的外部 LLM Provider，并选择 OpenAI/Claude/DeepSeek/Qwen/GLM/Nemotron 时需要注入的最小规范集合",
       "specs": [
         {
           "sid": "impl.llm_provider.guide",
@@ -710,11 +710,107 @@
           "path": "docs/impl/llm_provider_guide.md",
           "priority": "high",
           "rationale": "外部 OpenAI 兼容 Provider 的接入与用法"
+        },
+        {
+          "sid": "impl.planner_llm.overview",
+          "title": "Planner 外部 LLM 接入规范",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "critical",
+          "rationale": "Planner 外部模型接入的总入口，定义边界、目标与接入原则"
+        },
+        {
+          "sid": "impl.planner_llm.provider_selection",
+          "title": "Provider 选型与适配层建议",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "critical",
+          "rationale": "决定不同厂商应映射到何种 provider_type 与协议层"
+        },
+        {
+          "sid": "impl.planner_llm.parameter_baseline",
+          "title": "Planner 参数基线",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "给出适合 Planner 的默认采样、输出和 thinking 策略"
+        },
+        {
+          "sid": "impl.planner_llm.structured_output_contract",
+          "title": "结构化输出契约",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "critical",
+          "rationale": "统一不同厂商的结构化输出落点，保证可回填到 Plan/Patch/Replan"
+        },
+        {
+          "sid": "impl.planner_llm.config_contract",
+          "title": "Provider 配置契约",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "critical",
+          "rationale": "定义 configs/llm_providers.json 的扩展字段与兼容策略"
+        },
+        {
+          "sid": "impl.planner_llm.openai",
+          "title": "OpenAI GPT-5.4 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 GPT-5.4 的推荐 API 路径、参数和结构化输出做法"
+        },
+        {
+          "sid": "impl.planner_llm.anthropic",
+          "title": "Anthropic Claude 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 Claude/Claude Code 应落到 Messages API 与 tool use 方案"
+        },
+        {
+          "sid": "impl.planner_llm.deepseek",
+          "title": "DeepSeek 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 DeepSeek 的 OpenAI 兼容接入与 strict tools 升级路径"
+        },
+        {
+          "sid": "impl.planner_llm.qwen",
+          "title": "Qwen / DashScope 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 Qwen 的 json_schema、function calling 与 Responses 兼容接口"
+        },
+        {
+          "sid": "impl.planner_llm.glm",
+          "title": "GLM / 智谱 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 GLM 通过 Anthropic 兼容接口接入的建议方式"
+        },
+        {
+          "sid": "impl.planner_llm.nemotron",
+          "title": "NVIDIA NIM Nemotron 接入",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "high",
+          "rationale": "说明 Nemotron/NIM 的参数特性、thinking 控制与 fallback 角色"
+        },
+        {
+          "sid": "impl.planner_llm.validation_and_fallback",
+          "title": "输出校验、重试与回退",
+          "doc_key": "impl_planner_llm",
+          "path": "docs/impl/planner_llm_api_integration.md",
+          "priority": "critical",
+          "rationale": "定义多 provider 统一的本地校验与降级策略"
         }
       ],
-      "total_specs": 2,
-      "critical_specs": 1,
-      "high_specs": 1
+      "total_specs": 14,
+      "critical_specs": 6,
+      "high_specs": 8
     },
     "snapshot_recovery": {
       "title": "Snapshot 恢复",

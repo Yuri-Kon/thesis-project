@@ -164,6 +164,7 @@ src/
 
 - `docs/impl/issue_75_implementation_summary.md`
 - `docs/impl/llm_provider_guide.md`
+- `docs/impl/planner_llm_api_integration.md`
 - `docs/impl/remote_model_invocation.md`
 - `docs/impl/snapshot-recovery.md`
 
@@ -173,3 +174,4 @@ src/
 | --- | --- |
 | 2026-01-11 | 初始版本，建立代码结构快览与模块/流程索引 |
 | 2026-01-25 | 新增 Issue #101-#108 模块索引（NIM 集成、Provider 配置、失败码分类） |
+| 2026-03-19 | 补充 Planner 外部 LLM API 接入规范文档索引 |
