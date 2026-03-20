@@ -9,7 +9,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx 
+*.idx
 *.ilg
 *.ind
 *.ist
@@ -30,7 +30,6 @@
 
 # 2. 输出目录
 
-ppt/
 
 # 3. 临时文件 & 备份文件
 
@@ -78,7 +77,7 @@ venv/
 .env.*
 *.egg-info/
 
-# 10. 日志与中间数据 
+# 10. 日志与中间数据
 
 data/logs/
 data/outputs/
@@ -91,4 +90,3 @@ data/inputs/tmp/
 .nextflow.log
 nf/work/
 nf/.nextflow/
-
