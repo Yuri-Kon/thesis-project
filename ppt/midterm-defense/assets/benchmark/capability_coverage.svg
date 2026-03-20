@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1236" viewBox="0 0 1280 1236">
+<rect width="100%" height="100%" fill="#FFFFFF" />
+<text x="52" y="56" fill="#111827" font-size="30" font-weight="700">Validated Mechanism Coverage</text>
+<text x="52" y="88" fill="#6B7280" font-size="18">Bar length = number of passing scenarios that validate the capability</text>
+<line x1="280.0" y1="100" x2="280.0" y2="1146" stroke="#E5E7EB" stroke-width="1" />
+<text x="280.0" y="92" fill="#6B7280" font-size="14" text-anchor="middle">0</text>
+<line x1="537.1" y1="100" x2="537.1" y2="1146" stroke="#E5E7EB" stroke-width="1" />
+<text x="537.1" y="92" fill="#6B7280" font-size="14" text-anchor="middle">2</text>
+<line x1="794.3" y1="100" x2="794.3" y2="1146" stroke="#E5E7EB" stroke-width="1" />
+<text x="794.3" y="92" fill="#6B7280" font-size="14" text-anchor="middle">4</text>
+<line x1="1051.4" y1="100" x2="1051.4" y2="1146" stroke="#E5E7EB" stroke-width="1" />
+<text x="1051.4" y="92" fill="#6B7280" font-size="14" text-anchor="middle">6</text>
+<line x1="1180.0" y1="100" x2="1180.0" y2="1146" stroke="#E5E7EB" stroke-width="1" />
+<text x="1180.0" y="92" fill="#6B7280" font-size="14" text-anchor="middle">7</text>
+<text x="264" y="142" fill="#111827" font-size="17" text-anchor="end">candidate_scoring</text>
+<rect x="280" y="124" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="124" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="142" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="196" fill="#111827" font-size="17" text-anchor="end">decision_replay</text>
+<rect x="280" y="178" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="178" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="196" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="250" fill="#111827" font-size="17" text-anchor="end">end_to_end_execution</text>
+<rect x="280" y="232" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="232" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="250" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="304" fill="#111827" font-size="17" text-anchor="end">event_audit</text>
+<rect x="280" y="286" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="286" width="900.0" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="304" fill="#374151" font-size="15">7/7 scenarios</text>
+<text x="264" y="358" fill="#111827" font-size="17" text-anchor="end">failure_adaptation</text>
+<rect x="280" y="340" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="340" width="128.6" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="358" fill="#374151" font-size="15">1/1 scenarios</text>
+<text x="264" y="412" fill="#111827" font-size="17" text-anchor="end">failure_traceability</text>
+<rect x="280" y="394" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="394" width="128.6" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="412" fill="#374151" font-size="15">1/1 scenarios</text>
+<text x="264" y="466" fill="#111827" font-size="17" text-anchor="end">fsm_reconstruction</text>
+<rect x="280" y="448" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="448" width="128.6" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="466" fill="#374151" font-size="15">1/1 scenarios</text>
+<text x="264" y="520" fill="#111827" font-size="17" text-anchor="end">gate_control</text>
+<rect x="280" y="502" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="502" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="520" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="574" fill="#111827" font-size="17" text-anchor="end">hitl_decision</text>
+<rect x="280" y="556" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="556" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="574" fill="#374151" font-size="15">3/3 scenarios</text>
+<text x="264" y="628" fill="#111827" font-size="17" text-anchor="end">patch_recovery</text>
+<rect x="280" y="610" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="610" width="771.4" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="628" fill="#374151" font-size="15">6/6 scenarios</text>
+<text x="264" y="682" fill="#111827" font-size="17" text-anchor="end">planner_routing</text>
+<rect x="280" y="664" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="664" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="682" fill="#374151" font-size="15">3/3 scenarios</text>
+<text x="264" y="736" fill="#111827" font-size="17" text-anchor="end">quality_gate_recovery</text>
+<rect x="280" y="718" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="718" width="128.6" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="736" fill="#374151" font-size="15">1/1 scenarios</text>
+<text x="264" y="790" fill="#111827" font-size="17" text-anchor="end">replan_escalation</text>
+<rect x="280" y="772" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="772" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="790" fill="#374151" font-size="15">3/3 scenarios</text>
+<text x="264" y="844" fill="#111827" font-size="17" text-anchor="end">report_artifact</text>
+<rect x="280" y="826" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="826" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="844" fill="#374151" font-size="15">3/3 scenarios</text>
+<text x="264" y="898" fill="#111827" font-size="17" text-anchor="end">resilience</text>
+<rect x="280" y="880" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="880" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="898" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="952" fill="#111827" font-size="17" text-anchor="end">result_summarization</text>
+<rect x="280" y="934" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="934" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="952" fill="#374151" font-size="15">3/3 scenarios</text>
+<text x="264" y="1006" fill="#111827" font-size="17" text-anchor="end">risk_gating</text>
+<rect x="280" y="988" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="988" width="128.6" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="1006" fill="#374151" font-size="15">1/1 scenarios</text>
+<text x="264" y="1060" fill="#111827" font-size="17" text-anchor="end">tool_fallback</text>
+<rect x="280" y="1042" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="1042" width="257.1" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="1060" fill="#374151" font-size="15">2/2 scenarios</text>
+<text x="264" y="1114" fill="#111827" font-size="17" text-anchor="end">waiting_gate</text>
+<rect x="280" y="1096" width="900" height="24" rx="8" fill="#F3F4F6" />
+<rect x="280" y="1096" width="385.7" height="24" rx="8" fill="#1E9D61" />
+<text x="1196" y="1114" fill="#374151" font-size="15">3/3 scenarios</text>
+</svg>
