@@ -2,42 +2,95 @@
 
 \subsection{预定计划的执行情况}
 
-本节建议对照计划说明目前已完成的阶段性工作、完成时间和偏差情况。
-可以按 ``设计文档 -> 代码实现 -> 测试验证 -> 报告沉淀'' 的顺序组织。
+按照开题阶段的预定安排，本课题在中期之前的工作重点并不是追求完整实验结论的提前收束，而是优先完成系统主链、控制机制、领域工作流与验证证据的搭建，从而为后续实验扩展和正式论文写作建立稳定基础。从目前的完成情况来看，这一阶段的核心目标已经基本达成。首先，系统总体架构、数据契约和模块职责边界已经稳定下来，任务能够围绕 \texttt{Task -> Plan -> StepResult -> DesignResult} 的主线完成表示与流转。其次，以显式有限状态机为中心的运行闭环已经形成，任务可以在创建、规划、待确认、执行、恢复、总结和完成等状态之间进行规范推进，人工确认不再是脱离系统外部的临时操作，而是内嵌于状态机中的正式环节。再次，围绕蛋白质设计任务组织的六阶段工作流已经从设计层进入实现层，并与工具知识图谱、适配器、日志、快照和 API 接口形成了较为完整的工程闭环。最后，支撑中期报告的验证材料、图示、实验设计和进度材料也已经整理成型，能够为本章的论述提供直接证据。
+
+需要说明的是，本课题当前的“已完成”主要是指系统设计、运行机制和工程证据的完成，而不是全部研究问题都已经得出终局结论。尤其是在实验层面，纵向增量实验的设计和执行管线已经较为完整，治理复核和功能验证也已形成报告，但横向对比实验仍处于后续推进阶段。因此，中期阶段更准确的判断应当是：系统实现和控制机制已经形成可展示、可验证的基础版本，实验比较部分则处于阶段性完成状态。这种表述既能真实反映项目进展，也与当前仓库中的实现和 issue 进度保持一致。
+
+\begin{table}[htbp]
+  \centering
+  \caption{中期阶段主要工作完成情况}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{p{3.2cm}p{7.0cm}p{3.0cm}}
+    \toprule
+    工作模块 & 当前完成情况 & 阶段判断 \\
+    \midrule
+    总体架构与角色边界 & 已完成五层架构设计，明确 Planner、Executor、Safety、Summarizer 的职责边界，并固化为设计文档与实现入口 & 已完成 \\
+    状态机与 HITL 主链 & 已实现 \texttt{CREATED} 到 \texttt{DONE} 的显式状态推进，支持 \texttt{WAITING\_PLAN\_CONFIRM}、\texttt{WAITING\_PATCH\_CONFIRM}、\texttt{WAITING\_REPLAN\_CONFIRM} 等等待态 & 已完成 \\
+    六阶段工作流能力 & 已形成 S1 到 S6 的能力组织方式，并实现序列探索、结构映射、质量门禁、结构条件精修、多目标打分与恢复控制主链 & 基本完成 \\
+    工具接入与适配层 & 已完成本地工具、远端 REST 服务与适配器注册机制的接入，具备从规划到执行的统一调用路径 & 基本完成 \\
+    可观测与可恢复机制 & 已实现 PendingAction、Decision、EventLog、TaskSnapshot 等机制，支持等待态固化、决策回放和恢复执行 & 已完成 \\
+    验证与实验材料 & 已完成全流程功能验证、可用性补充验证、纵向实验设计与证据整理；横向对比结果仍待后续补齐 & 部分完成 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+从验证证据来看，当前系统已经具备较强的中期展示支撑能力。全流程功能验证报告表明，系统已经覆盖自然语言任务解析、候选集门控、质量门控、分层 Patch/Replan 恢复、等待态回放、事件日志闭环以及总结器汇总等关键链路；可用性补充验证进一步表明，真实 LLM Provider 的 \texttt{patch} 与 \texttt{replan} 调用可返回结构化恢复结果，远端 REST 工具链可以通过本地适配器接入到执行流程中，API 端点级别的契约也已经通过测试验证。这意味着本课题在中期阶段并非停留在设计方案描述层，而是已经拥有较为明确的代码落点、测试支撑和产物沉淀。
 
 \subsection{系统总体设计}
 
-本节适合概述系统的五层结构、四类 Agent 角色和运行闭环。
-建议配合总体架构图进行说明。
+本系统的总体设计目标，是把面向蛋白质设计的复杂科研任务从“依赖人工串联多个工具与脚本”的离散流程，重构为“由显式状态机控制、由多 Agent 分工协作、由工具适配层统一承接执行”的连续系统。围绕这一目标，系统采用了五层组织方式：输入层负责接收自然语言目标与结构化约束；规划与控制层负责根据任务目标、工具知识图谱和治理策略生成候选计划并进行门禁判断；执行与恢复层负责实际调用工具并在失败时触发分层恢复；安全与汇总层负责风险评估和结果汇总；资源层负责沉淀工具元数据、事件日志、快照和最终产物。这样设计的核心原因在于，蛋白质设计任务本身并不是单次模型推理就能完成的线性问题，而是一个需要在规划、执行、检查、修复和人工确认之间反复切换的过程，因此系统必须拥有稳定的控制面和清晰的职责边界。
+
+从角色划分上看，Planner 负责产生结构化候选，而不直接执行工具；Executor 负责串联计划执行、失败检测和恢复触发，但不拥有人工决策权；Safety 负责对输入、步骤和输出进行风险评估，只输出允许、告警或阻断结论；Summarizer 负责将过程性结果整理为可读报告，而不改变控制决策。这样的角色边界与当前实现是一致的：规划逻辑主要集中在 \texttt{src/agents/planner.py}，执行主链集中在 \texttt{src/agents/executor.py} 与 \texttt{src/workflow/}，等待态和决策应用则通过专门的工作流模块处理。通过这种划分，系统在工程上避免了“谁都可以决定下一步如何执行”的混乱状态，也为后续测试和审计提供了明确的责任归属。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/component-views.pdf}
+  \caption{系统总体组件视图}
+  \label{fig:midterm-component-views}
+\end{figure}
+
+图 \ref{fig:midterm-component-views} 展示了当前系统的总体组件关系。与传统的“单个代理直接调用若干工具”不同，本文系统在接口层之下显式引入了工作流控制层与等待态决策层。用户或 API 提交的任务会进入统一的 \texttt{Workflow Runtime}，在此基础上由 Planner 结合 ToolKG、候选打分与门禁逻辑生成 \texttt{Plan / PlanPatch / Replan} 候选，再由 Executor 进入具体执行；一旦触发等待态，系统通过 PendingAction 和 Decision 机制暂停自动推进，并在恢复后继续运行。资源层中的 EventLog、TaskSnapshot 与报告产物则持续记录系统运行证据，使整个执行闭环既能自动完成，也能在需要时被人工回看和解释。这种设计正是本课题在中期阶段已经较为成熟的系统主线。
 
 \subsection{系统架构设计}
 
-本节建议介绍：
+在具体架构层面，系统目前已经形成较为清晰的分层实现。输入层主要由 FastAPI 和任务对象构成，承担用户请求接入、任务创建和基础查询能力；规划层围绕 PlannerAgent 展开，负责从任务目标中抽取意图、结合 ToolKG 选择能力路径，并生成结构化的候选计划；执行层围绕 ExecutorAgent、PlanRunner、PatchRunner 和 StepRunner 展开，承担具体步骤调度、工具调用和失败恢复；安全与汇总层通过 SafetyAgent 和 SummarizerAgent 对执行过程进行风险评估与结果整理；资源层则通过本地存储、日志、快照和输出产物目录对整个系统运行过程进行持久化。五层之间并不是简单的串行调用关系，而是通过统一数据契约、状态迁移和待确认动作保持协同。
 
-\begin{itemize}
-  \item 输入层、规划层、执行层、安全与汇总层、资源层；
-  \item Task / Plan / StepResult / DesignResult 等关键数据契约；
-  \item Task API、Workflow、Tool Adapter、Storage 的关系。
-\end{itemize}
+\begin{table}[htbp]
+  \centering
+  \caption{系统架构分层及其当前实现对应}
+  \renewcommand{\arraystretch}{1.25}
+  \begin{tabular}{p{2.5cm}p{4.4cm}p{5.6cm}}
+    \toprule
+    架构层次 & 主要职责 & 当前实现对应 \\
+    \midrule
+    输入层 & 接收任务、组织请求、暴露查询与决策接口 & \path{src/api/main.py}，以及任务创建与 PendingAction 查询接口 \\
+    规划与控制层 & 任务解析、ToolKG 检索、候选生成、打分与门禁 & \path{src/agents/planner.py}，\path{src/models/validation.py} \\
+    执行与恢复层 & 按步骤执行计划、检测失败、触发 patch/replan、恢复执行 & \path{src/agents/executor.py}，\path{src/workflow/plan_runner.py}，\path{src/workflow/patch_runner.py} \\
+    安全与汇总层 & 输入/过程/输出风险检查、结果汇总与报告生成 & \path{src/agents/safety.py}，\path{src/agents/summarizer.py} \\
+    资源层 & 工具元数据、事件日志、快照、产物与报告持久化 & \path{src/kg/}，\path{src/storage/}，\path{output/} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+系统架构中最关键的一点，是数据契约与状态语义被放在与功能实现同等重要的位置。当前系统围绕 \texttt{ProteinDesignTask}、\texttt{Plan}、\texttt{StepResult}、\texttt{DesignResult}、\texttt{PendingAction} 和 \texttt{Decision} 等对象建立了较稳定的契约，这些对象共同承担了“任务如何表示、候选如何交付、执行结果如何回写、人工决策如何生效”的问题。以 \texttt{Plan} 为例，它不仅保存步骤序列，也通过步骤输入、工具标识和元信息约束执行链如何落地；以 \texttt{StepResult} 为例，它不仅记录某一步成功或失败，还保留工具输出、度量指标、失败类型和时间戳，为后续恢复、总结和追溯提供依据；以 \texttt{DesignResult} 为例，它将最终序列、结构、得分和报告路径统一封装为面向用户和论文材料的输出对象。这些契约保证了系统运行不是依赖一系列临时变量或松散脚本，而是建立在可被校验、可被持久化的结构化对象之上。
+
+除数据契约外，系统还将执行合法性和候选质量控制前置到了规划阶段。当前实现中，Planner 在生成初始 Plan、Patch 或 Replan 候选后，并不会简单地把结果直接交给执行器，而是先通过候选校验和打分逻辑检查工具可用性、输入输出闭包、参数合法性以及恢复容忍策略，再结合风险、成本与置信度决定是否自动放行或进入等待态。这样做的价值在于，一方面可以在执行前过滤掉明显不可用的候选，另一方面也使人工确认的介入具有明确触发条件，而不是依赖临时主观判断。对中期论文而言，这部分机制体现了系统架构的一个重要特点，即规划与执行不是松耦合的前后两个阶段，而是通过契约和门禁逻辑紧密衔接的整体。
 
 \subsection{模块交互设计}
 
-本节可以从任务生命周期角度说明模块间交互：
+从任务生命周期的视角观察，当前系统的模块交互已经形成一条完整主链。用户首先通过 API 或界面提交自然语言任务，系统将其封装为统一任务对象，并进入 \texttt{CREATED} 与 \texttt{PLANNING} 状态。随后，Planner 根据任务目标、约束信息与 ToolKG 检索结果生成候选计划集合；如果门禁判断认为当前候选存在较高风险、较高成本或较低置信度，则系统会创建 \texttt{PendingAction(plan\_confirm)}，进入 \texttt{WAITING\_PLAN\_CONFIRM}，由人工从候选集中进行确认；如果满足自动放行条件，则系统会直接固化默认候选并推进到执行态。该过程意味着 Planner 并不直接“决定”系统下一步做什么，而是输出候选、默认建议和解释信息，真正的状态推进由工作流控制逻辑负责。
 
-\begin{itemize}
-  \item 用户输入如何转为结构化任务；
-  \item Planner 如何生成候选集与默认建议；
-  \item Executor 如何执行工具并触发恢复；
-  \item Safety 和 Summarizer 如何参与流程闭环。
-\end{itemize}
+进入执行阶段后，Executor 会基于当前 Plan 逐步调度 StepRunner 与工具适配器完成具体步骤执行。若步骤正常完成，结果会被写入上下文并作为后续步骤输入；若步骤失败，系统首先遵循既定的重试策略，重试耗尽或检测到可修复失败类型后，再由 PatchRunner 触发局部修复候选生成。如果 Patch 候选需要人工确认，则任务进入 \texttt{WAITING\_PATCH\_CONFIRM}；若高风险或局部修复无法成立，则进一步升级到 Replan 流程，并在必要时进入 \texttt{WAITING\_REPLAN\_CONFIRM}。在这一过程中，Executor 负责发现问题和暂停执行，但不拥有“自行接受某个 Patch 或 Replan”的权限，这一点保证了执行控制和人工决策之间的边界清晰可见。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/total-sequence.pdf}
+  \caption{任务执行与 HITL 决策的总体时序}
+  \label{fig:midterm-total-sequence}
+\end{figure}
+
+图 \ref{fig:midterm-total-sequence} 展示了当前系统从任务提交、候选生成到执行恢复和总结完成的总体时序。可以看到，系统的主链不是简单的直线过程，而是围绕三个等待态组织了明确的控制分支：计划确认负责处理初始规划的不确定性，Patch 确认负责处理局部失败后的最小代价修复，Replan 确认则负责在局部修复无效或风险过高时调整整体策略。只有在决策被应用之后，系统才会继续向 \texttt{RUNNING}、\texttt{PATCHING} 或重新规划路径推进。这种设计使模块之间的交互关系既符合复杂科研任务中的实际需要，也能在日志与回放中保留清晰证据。
+
+在模块交互闭环中，Safety 和 Summarizer 也承担着不可替代的作用。Safety 并不是执行结束后才进行的一次性检查，而是可以在任务输入、单步结果乃至最终输出阶段参与风险判断，输出允许、告警或阻断结论。一旦出现阻断，系统就会重新进入恢复控制链，而不是继续沿错误路径运行。Summarizer 则位于执行和展示之间，将分散在多个步骤中的结果、指标和产物路径整理为统一的 \texttt{DesignResult} 与报告文件，使系统输出能够同时服务于用户理解、结果归档和论文材料整理。由此可见，当前系统的模块交互设计并不是围绕“如何完成一次工具调用”展开，而是围绕“如何稳定地完成一项复杂任务”展开的。
 
 \subsection{系统的详细及实现设计}
 
-本节建议进一步介绍代码结构、技术选型和关键实现点，例如：
+在实现层面，当前系统已经形成了较清晰的代码组织。API 入口位于 \path{src/api/main.py}，负责处理任务创建、任务查询、待确认动作查询、人工决策提交以及事件流展示等操作；同步运行主链通过 \texttt{run\_task\_sync} 串联 Planner、Executor 与 Summarizer，构成最小可用执行闭环。Planner 的实现集中在 \path{src/agents/planner.py}，在保留基于 ToolKG 的静态能力路径选择之外，还进一步支持 \texttt{plan\_top\_k}、\texttt{patch\_top\_k} 和 \texttt{replan\_top\_k} 三类候选生成接口，并通过候选打分、默认建议与门禁判断决定系统是自动放行还是进入等待态。Executor 的实现位于 \path{src/agents/executor.py}，其下通过 PlanRunner、PatchRunner 和 StepRunner 将执行调度、单步运行与恢复控制拆分为不同粒度的组件，以避免复杂逻辑全部堆叠在同一个模块中。
 
-\begin{itemize}
-  \item LangGraph / FastAPI / Nextflow 的职责分工；
-  \item ToolKG 与适配器注册机制；
-  \item WAITING / Decision / EventLog / Snapshot 的实现方式；
-  \item 远端 REST 服务与本地工作流的衔接。
-\end{itemize}
+从执行控制细节来看，PlanRunner 负责维持计划执行的主循环，在必要时将任务从 \texttt{PLANNED} 推进到 \texttt{RUNNING}，并在执行结束后推进到 \texttt{SUMMARIZING}。PatchRunner 则承担失败恢复中的关键角色：它先对单步结果进行失败类型判断，再根据情况构造 Patch 请求、生成候选集、执行门禁判断，并决定是直接应用自动路径还是进入等待态。对于可自动执行的低风险 Patch，系统会经历 \texttt{WAITING\_PATCH}、\texttt{PATCHING} 再回到 \texttt{RUNNING}；对于高风险或不适合局部修复的场景，则会升级为 Replan。与此同时，\texttt{resolve\_s6\_recovery\_action} 等逻辑将恢复控制与六阶段工作流结合起来，使系统的恢复策略不只是通用异常处理，而是与蛋白质设计任务的阶段语义保持一致。这样的实现方式表明，本系统并不是在发生错误后“临时加一个补丁流程”，而是把恢复控制作为架构中的正式组成部分。
+
+等待态与人工决策机制的实现也是当前系统的重要完成成果之一。进入等待态之前，系统会先构造 PendingAction，写入候选集、默认建议和解释信息，再通过事件日志与任务快照将当前上下文完整持久化，之后才允许状态切换到相应的 \texttt{WAITING\_*}。这样做的直接好处是，即使系统在等待期间中断或重启，也能够基于最近一次快照恢复到一致的待确认场景。待用户提交 Decision 后，\texttt{decision\_apply.py} 会根据动作类型将批准、重规划或取消等操作映射为后续状态推进，同时写入 \texttt{WAITING\_EXIT} 与 \texttt{DECISION\_APPLIED} 等结构化事件。这一实现使“人工参与”成为可被审计、可被重放的正式系统行为，而不是仅存在于界面层的外部点击动作。
+
+在可观测与持久化方面，当前系统已经具备较为完整的证据沉淀能力。任务状态变化会同步写入事件日志；在生成新 Plan、应用 Patch、进入等待态等关键节点，系统会额外写入 TaskSnapshot，以保存当前计划版本、已完成步骤索引、相关产物路径以及待确认动作标识。这些数据不仅支持问题排查和过程回放，也直接服务于后续的验证报告和论文写作。结合当前已经完成的全流程功能验证、API 端点验证、真实 Provider 可用性验证以及远端 REST 工具链接入验证，可以认为系统的详细实现已经超出了“功能演示原型”的范围，开始具备面向实际科研工作流继续演进的基础条件。
+
+最后，从当前代码与验证材料的对应关系来看，本课题已经形成了较完整的“设计文档、代码实现、测试验证、报告沉淀”四位一体结构。设计文档给出了状态机、角色边界、候选契约和恢复顺序等系统约束；代码实现将这些约束落实到 API、工作流、适配器和存储模块中；测试与验证报告则进一步证明这些机制并非纸面设计，而是已经能够在实际运行中形成闭环。对于中期论文而言，这种一致性具有重要意义，因为它说明当前章节中的介绍并不是抽象设想，而是与现有项目仓库中的真实实现保持一致的阶段性成果。
