@@ -24,6 +24,13 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stag
 - `paper/output/` stage outputs (ignored by git)
 - `paper/build/` scratch build artifacts (ignored by git)
 
+## Figures
+
+- `paper/figures/component-views.pdf` / `.svg`: current system component overview
+- `paper/figures/total-sequence.pdf` / `.svg`: end-to-end workflow with HITL and recovery
+- `paper/figures/single-step-sequence.pdf` / `.svg`: single-step retry / patch / replan loop
+- Prefer `\includegraphics{../../figures/<name>.pdf}` in LaTeX for stable builds
+
 ## Midterm Template Notes
 
 - `stages/midterm.tex` now follows the formatting extracted from `../reference/毛星.docx`.
