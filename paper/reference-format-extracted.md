@@ -42,10 +42,24 @@ The extracted title-page text in the reference file is:
 - Main body headings:
   - use black/heiti-like style
   - section heading around `30` half-points in style definition
+  - alignment in body is not centered; the extracted first-level heading uses `jc=both`
 - Body text:
   - songti-like body font
   - paragraph first-line indent around `480` twips
   - line spacing around `240` twips in body style
+
+## Alignment Check
+
+- Cover page report title: centered
+- Cover page field lines: left-starting field layout
+- `目录`: centered in the reference docx
+- First-level body headings such as `一 毕业设计（论文）内容概述`: not centered
+- Second-level headings such as `1.1 项目来源及开发目的和意义`: not centered
+
+Current LaTeX policy in this repository:
+
+- The cover page is omitted from `stages/midterm.tex`
+- All remaining titles in the LaTeX midterm template are left aligned, including the table of contents title
 
 ## Midterm Section Structure
 

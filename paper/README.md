@@ -27,5 +27,6 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stag
 ## Midterm Template Notes
 
 - `stages/midterm.tex` now follows the formatting extracted from `../reference/毛星.docx`.
-- The cover page is recreated in LaTeX with the same structure and field layout, so it can be edited directly.
-- Edit `paper/tex/common/midterm-metadata.tex` to change title, student name, advisor, and date.
+- The body layout and heading hierarchy follow the extracted reference formatting.
+- The LaTeX-rendered cover page is currently not included in `stages/midterm.tex`; you can insert an external PDF cover later.
+- If you want to reuse the LaTeX cover later, edit `paper/tex/common/midterm-metadata.tex` and `paper/tex/common/midterm-cover.tex`.
