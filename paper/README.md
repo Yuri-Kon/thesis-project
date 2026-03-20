@@ -27,6 +27,8 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stag
 ## Figures
 
 - `paper/figures/component-views.pdf` / `.svg`: current system component overview
+- `paper/figures/multi-agent-core.pdf` / `.svg`: multi-agent collaboration core view
+- `paper/figures/system-architecture-overview.pdf` / `.svg`: simplified layered architecture overview
 - `paper/figures/total-sequence.pdf` / `.svg`: end-to-end workflow with HITL and recovery
 - `paper/figures/single-step-sequence.pdf` / `.svg`: single-step retry / patch / replan loop
 - Prefer `\includegraphics{../../figures/<name>.pdf}` in LaTeX for stable builds

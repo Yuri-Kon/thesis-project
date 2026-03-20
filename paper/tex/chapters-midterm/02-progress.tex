@@ -34,6 +34,15 @@
 
 \begin{figure}[htbp]
   \centering
+  \includegraphics[width=0.96\textwidth]{../figures/multi-agent-core.pdf}
+  \caption{多 Agent 协作核心视图}
+  \label{fig:midterm-multi-agent-core}
+\end{figure}
+
+图 \ref{fig:midterm-multi-agent-core} 从课题标题所强调的“多 Agent 驱动”出发，对系统的核心协作关系进行了进一步抽象。与一般仅强调工具编排的系统不同，本文系统将用户交互、工作流控制、四类 Agent、知识与执行底座以及可观测存储层清晰拆分开来：Planner 面向“应该做什么”，Executor 面向“如何把计划执行出来”，Safety 面向“结果是否允许继续推进”，Summarizer 面向“如何把过程结果整理为对人类友好的输出”。这些 Agent 并不是并列运行的松散模块，而是通过统一的 Workflow Runtime 和 FSM 状态推进形成有约束的协作网络。这样的组织方式使“多 Agent”真正成为系统主叙事中的控制核心，而不是对单一代理功能的简单拆分。
+
+\begin{figure}[htbp]
+  \centering
   \includegraphics[width=\textwidth]{../figures/component-views.pdf}
   \caption{系统总体组件视图}
   \label{fig:midterm-component-views}
@@ -44,6 +53,15 @@
 \subsection{系统架构设计}
 
 在具体架构层面，系统目前已经形成较为清晰的分层实现。输入层主要由 FastAPI 和任务对象构成，承担用户请求接入、任务创建和基础查询能力；规划层围绕 PlannerAgent 展开，负责从任务目标中抽取意图、结合 ToolKG 选择能力路径，并生成结构化的候选计划；执行层围绕 ExecutorAgent、PlanRunner、PatchRunner 和 StepRunner 展开，承担具体步骤调度、工具调用和失败恢复；安全与汇总层通过 SafetyAgent 和 SummarizerAgent 对执行过程进行风险评估与结果整理；资源层则通过本地存储、日志、快照和输出产物目录对整个系统运行过程进行持久化。五层之间并不是简单的串行调用关系，而是通过统一数据契约、状态迁移和待确认动作保持协同。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../figures/system-architecture-overview.pdf}
+  \caption{系统分层架构概览}
+  \label{fig:midterm-architecture-overview}
+\end{figure}
+
+图 \ref{fig:midterm-architecture-overview} 给出了一个比详细组件图更易于快速理解的分层架构版本，适合作为论文阅读和后续答辩展示中的总览图。该图突出展示了系统从表现层、编排层、Agent 层到底层执行与持久化层的分工关系，有助于在较短时间内说明“请求如何进入系统、状态如何被控制、Agent 如何协同、工具如何被调用、证据如何被保存”这五个核心问题。相较于更细粒度的组件关系图，这种分层图更强调架构边界和责任分布，适合在论文中承担“快速建立整体认知”的功能。
 
 \begin{table}[htbp]
   \centering
@@ -88,6 +106,15 @@
 在实现层面，当前系统已经形成了较清晰的代码组织。API 入口位于 \path{src/api/main.py}，负责处理任务创建、任务查询、待确认动作查询、人工决策提交以及事件流展示等操作；同步运行主链通过 \texttt{run\_task\_sync} 串联 Planner、Executor 与 Summarizer，构成最小可用执行闭环。Planner 的实现集中在 \path{src/agents/planner.py}，在保留基于 ToolKG 的静态能力路径选择之外，还进一步支持 \texttt{plan\_top\_k}、\texttt{patch\_top\_k} 和 \texttt{replan\_top\_k} 三类候选生成接口，并通过候选打分、默认建议与门禁判断决定系统是自动放行还是进入等待态。Executor 的实现位于 \path{src/agents/executor.py}，其下通过 PlanRunner、PatchRunner 和 StepRunner 将执行调度、单步运行与恢复控制拆分为不同粒度的组件，以避免复杂逻辑全部堆叠在同一个模块中。
 
 从执行控制细节来看，PlanRunner 负责维持计划执行的主循环，在必要时将任务从 \texttt{PLANNED} 推进到 \texttt{RUNNING}，并在执行结束后推进到 \texttt{SUMMARIZING}。PatchRunner 则承担失败恢复中的关键角色：它先对单步结果进行失败类型判断，再根据情况构造 Patch 请求、生成候选集、执行门禁判断，并决定是直接应用自动路径还是进入等待态。对于可自动执行的低风险 Patch，系统会经历 \texttt{WAITING\_PATCH}、\texttt{PATCHING} 再回到 \texttt{RUNNING}；对于高风险或不适合局部修复的场景，则会升级为 Replan。与此同时，\texttt{resolve\_s6\_recovery\_action} 等逻辑将恢复控制与六阶段工作流结合起来，使系统的恢复策略不只是通用异常处理，而是与蛋白质设计任务的阶段语义保持一致。这样的实现方式表明，本系统并不是在发生错误后“临时加一个补丁流程”，而是把恢复控制作为架构中的正式组成部分。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=\textwidth]{../figures/single-step-sequence.pdf}
+  \caption{单步失败下的 retry、patch、replan 与 HITL 闭环}
+  \label{fig:midterm-single-step-sequence}
+\end{figure}
+
+图 \ref{fig:midterm-single-step-sequence} 更具体地展示了单步失败时的控制路径。系统并不会在第一次失败后直接宣告任务结束，而是先尝试受限重试；当重试耗尽后，再进入 Patch 候选生成与门禁判断；若 Patch 风险过高、人工拒绝或局部修复无法成立，则进一步升级到 Replan。这个过程中，\texttt{WAITING\_PATCH\_CONFIRM} 和 \texttt{WAITING\_REPLAN\_CONFIRM} 不仅是状态名称，更是系统暂停自动执行、等待人类确认的正式节点。因此，retry、patch、replan 与 HITL 并不是彼此独立的附加功能，而是共同构成了当前系统最核心的控制机制之一。
 
 等待态与人工决策机制的实现也是当前系统的重要完成成果之一。进入等待态之前，系统会先构造 PendingAction，写入候选集、默认建议和解释信息，再通过事件日志与任务快照将当前上下文完整持久化，之后才允许状态切换到相应的 \texttt{WAITING\_*}。这样做的直接好处是，即使系统在等待期间中断或重启，也能够基于最近一次快照恢复到一致的待确认场景。待用户提交 Decision 后，\texttt{decision\_apply.py} 会根据动作类型将批准、重规划或取消等操作映射为后续状态推进，同时写入 \texttt{WAITING\_EXIT} 与 \texttt{DECISION\_APPLIED} 等结构化事件。这一实现使“人工参与”成为可被审计、可被重放的正式系统行为，而不是仅存在于界面层的外部点击动作。
 

@@ -1,0 +1,66 @@
+flowchart TB
+
+classDef layer fill:#F8FAFC,stroke:#475569,color:#0F172A,stroke-width:1.2px;
+classDef nodeA fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.2px;
+classDef nodeB fill:#EDE9FE,stroke:#7C3AED,color:#0F172A,stroke-width:1.2px;
+classDef nodeC fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.2px;
+classDef nodeD fill:#CCFBF1,stroke:#0F766E,color:#111827,stroke-width:1.2px;
+classDef nodeE fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.2px;
+
+subgraph L1[Presentation Layer]
+direction LR
+U[Researcher / User]:::nodeA
+API[FastAPI + UI]:::nodeA
+end
+style L1 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+
+subgraph L2[Orchestration Layer]
+direction LR
+WF[Workflow Runtime]:::nodeB
+FSM[FSM State Control]:::nodeB
+HITL[PendingAction / Decision]:::nodeB
+end
+style L2 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+
+subgraph L3[Agent Layer]
+direction LR
+PL[PlannerAgent]:::nodeC
+EX[ExecutorAgent]:::nodeC
+SA[SafetyAgent]:::nodeC
+SU[SummarizerAgent]:::nodeC
+end
+style L3 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+
+subgraph L4[Execution Substrate]
+direction LR
+KG[ToolKG]:::nodeD
+AR[Adapter Registry]:::nodeD
+ENG[Local Tools / Remote REST Services]:::nodeD
+end
+style L4 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+
+subgraph L5[Persistence & Outputs]
+direction LR
+EV[EventLog]:::nodeE
+SN[TaskSnapshot]:::nodeE
+RP[Reports / Artifacts]:::nodeE
+end
+style L5 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+
+U --> API
+API --> WF
+WF <--> FSM
+FSM <--> HITL
+WF --> PL
+WF --> EX
+WF --> SA
+WF --> SU
+PL --> KG
+EX --> AR
+AR --> ENG
+PL --> EV
+EX --> EV
+SA --> EV
+FSM --> SN
+EX --> RP
+SU --> RP
