@@ -32,6 +32,38 @@
 - 用途：
   - 展示 Planner / Executor / Safety / Summarizer 的协作结构
 
+
+### split/multi-agent-core-part-1-core-orchestration
+
+- 推荐页面：
+  - 已完成工作（一）：系统骨架
+  - 已完成工作（二）：关键机制
+- 用途：
+  - 保留 `WorkflowRuntime + Planner / Executor / Safety / Summarizer` 主链，是讲系统骨架时最值得放的一张子图
+
+### split/multi-agent-core-part-2-planning-execution
+
+- 推荐页面：
+  - 已完成工作（二）：关键运行机制
+- 用途：
+  - 聚焦 `PlannerAgent / ExecutorAgent / ToolKG / ToolAdapter / Plan / StepResult`，适合讲“生成方案并调用工具执行”这条主链
+
+### split/multi-agent-core-part-3-hitl-audit
+
+- 推荐页面：
+  - 实验案例一
+  - 已完成工作（三）：工程证据与可展示能力
+- 用途：
+  - 聚焦 `PendingAction / Decision / EventLog`，适合讲等待态、人工确认和审计回流
+
+### split/multi-agent-core-part-4-artifacts-output
+
+- 推荐页面：
+  - 已完成工作（三）：工程证据与可展示能力
+  - 实验案例二
+- 用途：
+  - 聚焦 `EventLog / TaskSnapshot / DesignResult`，适合讲日志、快照和结果文件如何沉淀为可追溯证据
+
 ### recovery-hitl-overview
 
 - 推荐页面：
