@@ -15,6 +15,7 @@ Available assets:
 - `single-step-sequence.pdf` / `single-step-sequence.svg`
 - `multi-agent-core.pdf` / `multi-agent-core.svg`
 - `system-architecture-overview.pdf` / `system-architecture-overview.svg`
+- `recovery-hitl-overview.pdf` / `recovery-hitl-overview.svg`
 
 Suggested usage in LaTeX:
 
@@ -31,5 +32,6 @@ Recommended chapter mapping:
 - `component-views`: 系统总体设计 / 系统架构
 - `multi-agent-core`: 多 Agent 核心协作关系
 - `system-architecture-overview`: 分层架构总览 / 答辩总图
+- `recovery-hitl-overview`: 恢复控制与 HITL 机制总览
 - `total-sequence`: 系统工作流程 / HITL 执行闭环
 - `single-step-sequence`: 单步失败恢复 / Patch 与 Replan 机制

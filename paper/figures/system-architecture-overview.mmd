@@ -1,66 +1,62 @@
 flowchart TB
 
-classDef layer fill:#F8FAFC,stroke:#475569,color:#0F172A,stroke-width:1.2px;
-classDef nodeA fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.2px;
-classDef nodeB fill:#EDE9FE,stroke:#7C3AED,color:#0F172A,stroke-width:1.2px;
-classDef nodeC fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.2px;
-classDef nodeD fill:#CCFBF1,stroke:#0F766E,color:#111827,stroke-width:1.2px;
-classDef nodeE fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.2px;
+classDef layer fill:#F8FAFC,stroke:#CBD5E1,color:#0F172A,stroke-width:1.2px;
+classDef presentation fill:#E0F2FE,stroke:#0284C7,color:#0F172A,stroke-width:1.4px;
+classDef control fill:#F5F3FF,stroke:#7C3AED,color:#111827,stroke-width:1.4px;
+classDef agent fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.4px;
+classDef runtime fill:#DCFCE7,stroke:#15803D,color:#111827,stroke-width:1.4px;
+classDef storage fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.4px;
 
 subgraph L1[Presentation Layer]
 direction LR
-U[Researcher / User]:::nodeA
-API[FastAPI + UI]:::nodeA
+A1[Researcher / Task Submission]:::presentation
+A2[FastAPI / Web UI]:::presentation
 end
-style L1 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+style L1 fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px
 
-subgraph L2[Orchestration Layer]
+subgraph L2[Control Layer]
 direction LR
-WF[Workflow Runtime]:::nodeB
-FSM[FSM State Control]:::nodeB
-HITL[PendingAction / Decision]:::nodeB
+B1[Workflow Runtime]:::control
+B2[FSM State Control]:::control
+B3[PendingAction / Decision]:::control
 end
-style L2 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+style L2 fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px
 
 subgraph L3[Agent Layer]
 direction LR
-PL[PlannerAgent]:::nodeC
-EX[ExecutorAgent]:::nodeC
-SA[SafetyAgent]:::nodeC
-SU[SummarizerAgent]:::nodeC
+C1[PlannerAgent]:::agent
+C2[ExecutorAgent]:::agent
+C3[SafetyAgent]:::agent
+C4[SummarizerAgent]:::agent
 end
-style L3 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+style L3 fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px
 
-subgraph L4[Execution Substrate]
+subgraph L4[Execution Layer]
 direction LR
-KG[ToolKG]:::nodeD
-AR[Adapter Registry]:::nodeD
-ENG[Local Tools / Remote REST Services]:::nodeD
+D1[ToolKG]:::runtime
+D2[Adapter Registry]:::runtime
+D3[Local Tools / Remote REST]:::runtime
 end
-style L4 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+style L4 fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px
 
-subgraph L5[Persistence & Outputs]
+subgraph L5[Persistence Layer]
 direction LR
-EV[EventLog]:::nodeE
-SN[TaskSnapshot]:::nodeE
-RP[Reports / Artifacts]:::nodeE
+E1[EventLog]:::storage
+E2[TaskSnapshot]:::storage
+E3[Reports / Artifacts]:::storage
 end
-style L5 fill:#F8FAFC,stroke:#94A3B8,stroke-width:1px
+style L5 fill:#F8FAFC,stroke:#CBD5E1,stroke-width:1px
 
-U --> API
-API --> WF
-WF <--> FSM
-FSM <--> HITL
-WF --> PL
-WF --> EX
-WF --> SA
-WF --> SU
-PL --> KG
-EX --> AR
-AR --> ENG
-PL --> EV
-EX --> EV
-SA --> EV
-FSM --> SN
-EX --> RP
-SU --> RP
+A1 --> A2 --> B1
+B1 <--> B2
+B2 <--> B3
+B1 --> C1
+B1 --> C2
+B1 --> C3
+B1 --> C4
+C1 --> D1
+C2 --> D2 --> D3
+B1 --> E1
+B1 --> E2
+C4 --> E3
+E1 --> E3

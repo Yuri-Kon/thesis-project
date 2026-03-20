@@ -1,45 +1,39 @@
 flowchart LR
 
-classDef actor fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.2px;
-classDef agent fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.2px;
-classDef control fill:#EDE9FE,stroke:#7C3AED,color:#111827,stroke-width:1.2px;
-classDef tool fill:#CCFBF1,stroke:#0F766E,color:#111827,stroke-width:1.2px;
-classDef store fill:#E2E8F0,stroke:#334155,color:#111827,stroke-width:1.2px;
+classDef actor fill:#E0F2FE,stroke:#0284C7,color:#0F172A,stroke-width:1.4px;
+classDef core fill:#F5F3FF,stroke:#7C3AED,color:#111827,stroke-width:1.6px;
+classDef agent fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.4px;
+classDef tool fill:#CCFBF1,stroke:#0F766E,color:#111827,stroke-width:1.4px;
+classDef store fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.4px;
 
-U[Researcher / User]:::actor
-H[API / UI / HITL Panel]:::actor
-FSM[Workflow Runtime + FSM]:::control
+U[Researcher]:::actor
+UI[API / UI / HITL Panel]:::actor
+WF[Workflow Runtime<br/>FSM Control]:::core
 
-subgraph A[Multi-Agent Core]
-direction TB
 P[PlannerAgent<br/>Plan / Patch / Replan]:::agent
-E[ExecutorAgent<br/>Step execution / recovery trigger]:::agent
+E[ExecutorAgent<br/>Step Scheduling / Recovery Trigger]:::agent
 S[SafetyAgent<br/>allow / warn / block]:::agent
-M[SummarizerAgent<br/>DesignResult / report]:::agent
-end
+M[SummarizerAgent<br/>DesignResult / Report]:::agent
 
 KG[ToolKG]:::tool
 AD[Adapter Registry]:::tool
 TL[Local Tools / Remote REST]:::tool
-PA[PendingAction / Decision]:::store
-OBS[EventLog / TaskSnapshot]:::store
-OUT[Reports / Artifacts]:::store
 
-U --> H
-H --> FSM
-FSM --> P
+PA[PendingAction / Decision]:::store
+EV[EventLog / TaskSnapshot]:::store
+OUT[Artifacts / Reports]:::store
+
+U --> UI --> WF
+WF --> P
+WF --> E
+WF --> S
+WF --> M
 P <--> KG
-P --> FSM
-FSM --> E
-E --> AD
-AD --> TL
-E --> S
-S --> FSM
-E --> M
-S --> M
-FSM <--> PA
-FSM --> OBS
-P --> OBS
-E --> OBS
+E --> AD --> TL
+WF <--> PA
+WF --> EV
+P --> EV
+E --> EV
+S --> EV
 M --> OUT
-OBS --> OUT
+EV --> OUT

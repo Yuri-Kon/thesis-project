@@ -34,12 +34,12 @@
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=0.96\textwidth]{../figures/multi-agent-core.pdf}
-  \caption{多 Agent 协作核心视图}
+  \includegraphics[width=0.88\textwidth]{../figures/multi-agent-core.pdf}
+  \caption{多 Agent 核心协作类图}
   \label{fig:midterm-multi-agent-core}
 \end{figure}
 
-图 \ref{fig:midterm-multi-agent-core} 从课题标题所强调的“多 Agent 驱动”出发，对系统的核心协作关系进行了进一步抽象。与一般仅强调工具编排的系统不同，本文系统将用户交互、工作流控制、四类 Agent、知识与执行底座以及可观测存储层清晰拆分开来：Planner 面向“应该做什么”，Executor 面向“如何把计划执行出来”，Safety 面向“结果是否允许继续推进”，Summarizer 面向“如何把过程结果整理为对人类友好的输出”。这些 Agent 并不是并列运行的松散模块，而是通过统一的 Workflow Runtime 和 FSM 状态推进形成有约束的协作网络。这样的组织方式使“多 Agent”真正成为系统主叙事中的控制核心，而不是对单一代理功能的简单拆分。
+图 \ref{fig:midterm-multi-agent-core} 采用类图形式，从课题标题所强调的“多 Agent 驱动”出发，对系统的核心协作关系和关键对象进行了进一步抽象。与一般仅强调工具编排的系统不同，本文系统将用户任务、工作流控制、四类 Agent、工具知识图谱、适配器、待确认动作以及结果对象纳入同一张结构图中：Planner 面向“应该做什么”，Executor 面向“如何把计划执行出来”，Safety 面向“结果是否允许继续推进”，Summarizer 面向“如何把过程结果整理为对人类友好的输出”。这些 Agent 并不是并列运行的松散模块，而是通过统一的 Workflow Runtime 和 FSM 状态推进形成有约束的协作网络。这样的组织方式使“多 Agent”真正成为系统主叙事中的控制核心，而不是对单一代理功能的简单拆分。
 
 \begin{figure}[htbp]
   \centering
@@ -82,39 +82,30 @@
 
 系统架构中最关键的一点，是数据契约与状态语义被放在与功能实现同等重要的位置。当前系统围绕 \texttt{ProteinDesignTask}、\texttt{Plan}、\texttt{StepResult}、\texttt{DesignResult}、\texttt{PendingAction} 和 \texttt{Decision} 等对象建立了较稳定的契约，这些对象共同承担了“任务如何表示、候选如何交付、执行结果如何回写、人工决策如何生效”的问题。以 \texttt{Plan} 为例，它不仅保存步骤序列，也通过步骤输入、工具标识和元信息约束执行链如何落地；以 \texttt{StepResult} 为例，它不仅记录某一步成功或失败，还保留工具输出、度量指标、失败类型和时间戳，为后续恢复、总结和追溯提供依据；以 \texttt{DesignResult} 为例，它将最终序列、结构、得分和报告路径统一封装为面向用户和论文材料的输出对象。这些契约保证了系统运行不是依赖一系列临时变量或松散脚本，而是建立在可被校验、可被持久化的结构化对象之上。
 
-除数据契约外，系统还将执行合法性和候选质量控制前置到了规划阶段。当前实现中，Planner 在生成初始 Plan、Patch 或 Replan 候选后，并不会简单地把结果直接交给执行器，而是先通过候选校验和打分逻辑检查工具可用性、输入输出闭包、参数合法性以及恢复容忍策略，再结合风险、成本与置信度决定是否自动放行或进入等待态。这样做的价值在于，一方面可以在执行前过滤掉明显不可用的候选，另一方面也使人工确认的介入具有明确触发条件，而不是依赖临时主观判断。对中期论文而言，这部分机制体现了系统架构的一个重要特点，即规划与执行不是松耦合的前后两个阶段，而是通过契约和门禁逻辑紧密衔接的整体。
+除数据契约外，系统还将执行合法性和候选质量控制前置到了规划阶段。当前实现中，Planner 在生成初始 Plan、Patch 或 Replan 候选后，并不会简单地把结果直接交给执行器，而是先通过候选校验和打分逻辑检查工具可用性、输入输出闭包、参数合法性以及恢复容忍策略，再结合风险、成本与置信度决定是否自动放行或进入等待态。也就是说，本系统的核心算法虽然并不是本章的展开重点，但已经明确体现为“候选生成 -> 候选筛选 -> 门禁决策”的受控路径，而不是单次生成后直接执行。这样做的价值在于，一方面可以在执行前过滤掉明显不可用的候选，另一方面也使人工确认的介入具有明确触发条件，而不是依赖临时主观判断。对中期论文而言，这部分机制体现了系统架构的一个重要特点，即规划与执行不是松耦合的前后两个阶段，而是通过契约和门禁逻辑紧密衔接的整体。
 
 \subsection{模块交互设计}
 
 从任务生命周期的视角观察，当前系统的模块交互已经形成一条完整主链。用户首先通过 API 或界面提交自然语言任务，系统将其封装为统一任务对象，并进入 \texttt{CREATED} 与 \texttt{PLANNING} 状态。随后，Planner 根据任务目标、约束信息与 ToolKG 检索结果生成候选计划集合；如果门禁判断认为当前候选存在较高风险、较高成本或较低置信度，则系统会创建 \texttt{PendingAction(plan\_confirm)}，进入 \texttt{WAITING\_PLAN\_CONFIRM}，由人工从候选集中进行确认；如果满足自动放行条件，则系统会直接固化默认候选并推进到执行态。该过程意味着 Planner 并不直接“决定”系统下一步做什么，而是输出候选、默认建议和解释信息，真正的状态推进由工作流控制逻辑负责。
 
-进入执行阶段后，Executor 会基于当前 Plan 逐步调度 StepRunner 与工具适配器完成具体步骤执行。若步骤正常完成，结果会被写入上下文并作为后续步骤输入；若步骤失败，系统首先遵循既定的重试策略，重试耗尽或检测到可修复失败类型后，再由 PatchRunner 触发局部修复候选生成。如果 Patch 候选需要人工确认，则任务进入 \texttt{WAITING\_PATCH\_CONFIRM}；若高风险或局部修复无法成立，则进一步升级到 Replan 流程，并在必要时进入 \texttt{WAITING\_REPLAN\_CONFIRM}。在这一过程中，Executor 负责发现问题和暂停执行，但不拥有“自行接受某个 Patch 或 Replan”的权限，这一点保证了执行控制和人工决策之间的边界清晰可见。
+进入执行阶段后，Executor 会基于当前 Plan 逐步调度 StepRunner 与工具适配器完成具体步骤执行。若步骤正常完成，结果会被写入上下文并作为后续步骤输入；若步骤失败，系统首先遵循既定的重试策略，重试耗尽或检测到可修复失败类型后，再由 PatchRunner 触发局部修复候选生成。如果 Patch 候选需要人工确认，则任务进入 \texttt{WAITING\_PATCH\_CONFIRM}；若高风险或局部修复无法成立，则进一步升级到 Replan 流程，并在必要时进入 \texttt{WAITING\_REPLAN\_CONFIRM}。在这一过程中，Executor 负责发现问题和暂停执行，但不拥有“自行接受某个 Patch 或 Replan”的权限，这一点保证了执行控制和人工决策之间的边界清晰可见。换言之，系统在交互层面看似是一个可操作、可确认的研究辅助平台，但在控制逻辑上仍有一条清晰的亮点机制主线，即 \texttt{retry -> patch -> replan} 与 HITL 决策共同组成的分层恢复闭环。
 
 \begin{figure}[htbp]
   \centering
-  \includegraphics[width=\textwidth]{../figures/total-sequence.pdf}
-  \caption{任务执行与 HITL 决策的总体时序}
-  \label{fig:midterm-total-sequence}
+  \includegraphics[width=0.96\textwidth]{../figures/recovery-hitl-overview.pdf}
+  \caption{恢复控制与 HITL 机制概览}
+  \label{fig:midterm-recovery-hitl}
 \end{figure}
 
-图 \ref{fig:midterm-total-sequence} 展示了当前系统从任务提交、候选生成到执行恢复和总结完成的总体时序。可以看到，系统的主链不是简单的直线过程，而是围绕三个等待态组织了明确的控制分支：计划确认负责处理初始规划的不确定性，Patch 确认负责处理局部失败后的最小代价修复，Replan 确认则负责在局部修复无效或风险过高时调整整体策略。只有在决策被应用之后，系统才会继续向 \texttt{RUNNING}、\texttt{PATCHING} 或重新规划路径推进。这种设计使模块之间的交互关系既符合复杂科研任务中的实际需要，也能在日志与回放中保留清晰证据。
+图 \ref{fig:midterm-recovery-hitl} 以更紧凑的方式展示了恢复控制与人在环机制之间的关系。可以看到，系统并不会在单步失败后立即进入全局重规划，而是先进行受限重试，再根据情况生成 Patch 候选并经过门禁判断；只有在 Patch 不可行、高风险或被人工拒绝时，才进一步升级到 Replan。这个过程说明，HITL 机制并不是游离在系统之外的额外确认步骤，而是和恢复控制共同构成了当前系统最重要的亮点机制之一。相较于复杂的详细时序图，这种机制图更适合在中期报告中承担“快速说明控制主线”的作用，也更方便后续直接转化为答辩展示图。
 
 在模块交互闭环中，Safety 和 Summarizer 也承担着不可替代的作用。Safety 并不是执行结束后才进行的一次性检查，而是可以在任务输入、单步结果乃至最终输出阶段参与风险判断，输出允许、告警或阻断结论。一旦出现阻断，系统就会重新进入恢复控制链，而不是继续沿错误路径运行。Summarizer 则位于执行和展示之间，将分散在多个步骤中的结果、指标和产物路径整理为统一的 \texttt{DesignResult} 与报告文件，使系统输出能够同时服务于用户理解、结果归档和论文材料整理。由此可见，当前系统的模块交互设计并不是围绕“如何完成一次工具调用”展开，而是围绕“如何稳定地完成一项复杂任务”展开的。
 
 \subsection{系统的详细及实现设计}
 
-在实现层面，当前系统已经形成了较清晰的代码组织。API 入口位于 \path{src/api/main.py}，负责处理任务创建、任务查询、待确认动作查询、人工决策提交以及事件流展示等操作；同步运行主链通过 \texttt{run\_task\_sync} 串联 Planner、Executor 与 Summarizer，构成最小可用执行闭环。Planner 的实现集中在 \path{src/agents/planner.py}，在保留基于 ToolKG 的静态能力路径选择之外，还进一步支持 \texttt{plan\_top\_k}、\texttt{patch\_top\_k} 和 \texttt{replan\_top\_k} 三类候选生成接口，并通过候选打分、默认建议与门禁判断决定系统是自动放行还是进入等待态。Executor 的实现位于 \path{src/agents/executor.py}，其下通过 PlanRunner、PatchRunner 和 StepRunner 将执行调度、单步运行与恢复控制拆分为不同粒度的组件，以避免复杂逻辑全部堆叠在同一个模块中。
+在实现层面，当前系统已经形成了较清晰的代码组织。API 入口位于 \path{src/api/main.py}，负责处理任务创建、任务查询、待确认动作查询、人工决策提交以及事件流展示等操作；同步运行主链通过 \texttt{run\_task\_sync} 串联 Planner、Executor 与 Summarizer，构成最小可用执行闭环。Planner 的实现集中在 \path{src/agents/planner.py}，在保留基于 ToolKG 的静态能力路径选择之外，还进一步支持 \texttt{plan\_top\_k}、\texttt{patch\_top\_k} 和 \texttt{replan\_top\_k} 三类候选生成接口，并通过候选打分、默认建议与门禁判断决定系统是自动放行还是进入等待态。这里的算法亮点并未脱离系统实现单独存在，而是直接落在候选对象与评分字段中，例如 \texttt{score\_breakdown}、\texttt{risk\_level}、\texttt{cost\_estimate} 和 \texttt{default\_recommendation} 等信息都会随着候选一起进入后续控制链。Executor 的实现位于 \path{src/agents/executor.py}，其下通过 PlanRunner、PatchRunner 和 StepRunner 将执行调度、单步运行与恢复控制拆分为不同粒度的组件，以避免复杂逻辑全部堆叠在同一个模块中。
 
-从执行控制细节来看，PlanRunner 负责维持计划执行的主循环，在必要时将任务从 \texttt{PLANNED} 推进到 \texttt{RUNNING}，并在执行结束后推进到 \texttt{SUMMARIZING}。PatchRunner 则承担失败恢复中的关键角色：它先对单步结果进行失败类型判断，再根据情况构造 Patch 请求、生成候选集、执行门禁判断，并决定是直接应用自动路径还是进入等待态。对于可自动执行的低风险 Patch，系统会经历 \texttt{WAITING\_PATCH}、\texttt{PATCHING} 再回到 \texttt{RUNNING}；对于高风险或不适合局部修复的场景，则会升级为 Replan。与此同时，\texttt{resolve\_s6\_recovery\_action} 等逻辑将恢复控制与六阶段工作流结合起来，使系统的恢复策略不只是通用异常处理，而是与蛋白质设计任务的阶段语义保持一致。这样的实现方式表明，本系统并不是在发生错误后“临时加一个补丁流程”，而是把恢复控制作为架构中的正式组成部分。
-
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=\textwidth]{../figures/single-step-sequence.pdf}
-  \caption{单步失败下的 retry、patch、replan 与 HITL 闭环}
-  \label{fig:midterm-single-step-sequence}
-\end{figure}
-
-图 \ref{fig:midterm-single-step-sequence} 更具体地展示了单步失败时的控制路径。系统并不会在第一次失败后直接宣告任务结束，而是先尝试受限重试；当重试耗尽后，再进入 Patch 候选生成与门禁判断；若 Patch 风险过高、人工拒绝或局部修复无法成立，则进一步升级到 Replan。这个过程中，\texttt{WAITING\_PATCH\_CONFIRM} 和 \texttt{WAITING\_REPLAN\_CONFIRM} 不仅是状态名称，更是系统暂停自动执行、等待人类确认的正式节点。因此，retry、patch、replan 与 HITL 并不是彼此独立的附加功能，而是共同构成了当前系统最核心的控制机制之一。
+从执行控制细节来看，PlanRunner 负责维持计划执行的主循环，在必要时将任务从 \texttt{PLANNED} 推进到 \texttt{RUNNING}，并在执行结束后推进到 \texttt{SUMMARIZING}。PatchRunner 则承担失败恢复中的关键角色：它先对单步结果进行失败类型判断，再根据情况构造 Patch 请求、生成候选集、执行门禁判断，并决定是直接应用自动路径还是进入等待态。对于可自动执行的低风险 Patch，系统会经历 \texttt{WAITING\_PATCH}、\texttt{PATCHING} 再回到 \texttt{RUNNING}；对于高风险或不适合局部修复的场景，则会升级为 Replan。与此同时，\texttt{resolve\_s6\_recovery\_action} 等逻辑将恢复控制与六阶段工作流结合起来，使系统的恢复策略不只是通用异常处理，而是与蛋白质设计任务的阶段语义保持一致。换言之，核心算法中的亮点机制在代码层主要表现为三点：一是候选生成与门禁判断始终绑定出现；二是恢复控制遵循从局部到整体的递进顺序；三是再规划默认尽量保留已成功前缀，而不是无差别推翻整条链路。这样的实现方式表明，本系统并不是在发生错误后“临时加一个补丁流程”，而是把这些亮点机制直接嵌入到了正式运行主链中。
 
 等待态与人工决策机制的实现也是当前系统的重要完成成果之一。进入等待态之前，系统会先构造 PendingAction，写入候选集、默认建议和解释信息，再通过事件日志与任务快照将当前上下文完整持久化，之后才允许状态切换到相应的 \texttt{WAITING\_*}。这样做的直接好处是，即使系统在等待期间中断或重启，也能够基于最近一次快照恢复到一致的待确认场景。待用户提交 Decision 后，\texttt{decision\_apply.py} 会根据动作类型将批准、重规划或取消等操作映射为后续状态推进，同时写入 \texttt{WAITING\_EXIT} 与 \texttt{DECISION\_APPLIED} 等结构化事件。这一实现使“人工参与”成为可被审计、可被重放的正式系统行为，而不是仅存在于界面层的外部点击动作。
 

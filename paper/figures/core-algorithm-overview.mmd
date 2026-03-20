@@ -1,0 +1,40 @@
+flowchart LR
+
+classDef start fill:#DBEAFE,stroke:#2563EB,color:#0F172A,stroke-width:1.4px;
+classDef planning fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.4px;
+classDef control fill:#EDE9FE,stroke:#7C3AED,color:#111827,stroke-width:1.4px;
+classDef exec fill:#DCFCE7,stroke:#15803D,color:#111827,stroke-width:1.4px;
+classDef audit fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.4px;
+classDef decision fill:#FCE7F3,stroke:#BE185D,color:#111827,stroke-width:1.4px;
+
+T[ProteinDesignTask<br/>goal + constraints]:::start
+R[Task goal parsing<br/>constraint enrichment]:::planning
+K[ToolKG retrieval<br/>candidate tool chains]:::planning
+C[Candidate generation<br/>Plan / Patch / Replan Top-K]:::planning
+V[Executability validation<br/>schema / I/O / params]:::planning
+S[S5 scoring and ranking<br/>feasibility / objective / risk / cost / confidence]:::planning
+G{Gate}:::decision
+H[PendingAction + Decision<br/>WAITING_*_CONFIRM]:::decision
+A[Selected candidate<br/>default recommendation]:::control
+E[Plan execution<br/>step scheduling + adapters]:::exec
+F{Step outcome}:::decision
+RT[Bounded retry]:::control
+P[Patch<br/>minimal local repair]:::control
+RP[Replan<br/>suffix_replan preferred]:::control
+SUM[Summarizer<br/>DesignResult + report]:::exec
+AU[EventLog + TaskSnapshot<br/>audit / replay / recovery]:::audit
+
+T --> R --> K --> C --> V --> S --> G
+G -- auto --> A --> E
+G -- HITL --> H --> A
+E --> F
+F -- success --> SUM
+F -- retryable --> RT --> F
+F -- local failure --> P --> G
+F -- safety block / patch exhausted --> RP --> G
+T -. persist .-> AU
+H -. persist .-> AU
+E -. persist .-> AU
+P -. persist .-> AU
+RP -. persist .-> AU
+SUM -. output .-> AU

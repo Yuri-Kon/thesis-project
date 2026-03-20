@@ -1,0 +1,24 @@
+flowchart LR
+
+classDef state fill:#F8FAFC,stroke:#475569,color:#0F172A,stroke-width:1.3px;
+classDef action fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.4px;
+classDef wait fill:#FCE7F3,stroke:#BE185D,color:#111827,stroke-width:1.4px;
+classDef resume fill:#DCFCE7,stroke:#15803D,color:#111827,stroke-width:1.4px;
+
+R1[Step Failure]:::state
+R2[Bounded Retry]:::action
+R3{Recovered?}:::state
+R4[Patch Top-K]:::action
+R5{Gate}:::state
+R6[WAITING_PATCH_CONFIRM]:::wait
+R7[Apply Patch<br/>Resume RUNNING]:::resume
+R8[Replan Candidate]:::action
+R9[WAITING_REPLAN_CONFIRM]:::wait
+R10[Suffix Replan Preferred<br/>Resume RUNNING]:::resume
+
+R1 --> R2 --> R3
+R3 -- yes --> R7
+R3 -- no --> R4 --> R5
+R5 -- auto --> R7
+R5 -- HITL patch --> R6 --> R7
+R5 -- high risk / exhausted --> R8 --> R9 --> R10
