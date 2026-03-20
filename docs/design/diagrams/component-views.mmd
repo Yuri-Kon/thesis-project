@@ -1,61 +1,70 @@
-graph LR
-subgraph "Interface & Core"
-  TA["TaskAPI\n(CLI)"]
-  WF[Workflow]
-  DC["DataContract\n(ProteinDesignTask / DesignResult)"]
+flowchart LR
+
+subgraph I["Interface & HITL"]
+  U["Researcher"]
+  API["FastAPI / UI\nTask API + PendingAction Dashboard + Timeline"]
+  DA["Decision Apply\nplan_confirm / patch_confirm / replan_confirm"]
 end
 
-subgraph "Agents"
-  PL[PlannerAgent]
-  EX[ExecutorAgent]
-  SA[SafetyAgent]
-  SU[SummarizerAgent]
+subgraph C["Planning & Control"]
+  WF["Workflow Runtime\nrun_task_sync / WorkflowContext / TaskRecord"]
+  PL["PlannerAgent"]
+  KG["ProteinToolKG"]
+  LLM["LLM Providers / Baseline Route"]
 end
 
-subgraph "Tool Adapters"
-  MPN[ProteinMPNNAdapter]
-  ESM[ESMFoldAdapter]
-  RDK[RDKitPropsAdapter]
+subgraph E["Execution & Recovery"]
+  EX["ExecutorAgent\nPlanRunner / PatchRunner"]
+  SR["StepRunner + AdapterRegistry"]
+  SA["SafetyAgent"]
+  SU["SummarizerAgent"]
 end
 
-subgraph "Knowledge"
-  KG["ProteinToolKG\n(json → later Neo4j)"]
+subgraph T["Tooling"]
+  TA["Tool Adapters\nProteinMPNN / ProtGPT2 / ESMFold / OpenFold3\nBioPython QC / MMseqs2 / BLASTP / DSSP"]
+  RE["Remote / Local Engines\nremote_model_service / python adapters / visualization"]
 end
 
-subgraph "Storage"
-  REP["output/reports/*.json | *.md"]
-  ART["output/{pdb, metrics, artifacts}"]
-  LOG["data/logs/*.jsonl"]
-  INP["data/inputs"]
+subgraph P["Persistence & Outputs"]
+  LOG["EventLog\n(data/logs/*.jsonl)"]
+  SNAP["TaskSnapshot\n(data/snapshots/*.jsonl)"]
+  OUT["Reports & Artifacts\n(output/reports / HTML / PDB / metrics)"]
 end
 
-TA --> WF
+U --> API
+API --> WF
+API --> DA
+DA --> WF
+
 WF --> PL
-WF --> EX
-WF --> SA
-WF --> SU
-
 PL --> KG
-PL --> EX
+PL --> LLM
+WF --> EX
 
-EX --> MPN
-EX --> ESM
-EX --> RDK
+EX --> SR
+SR --> TA
+TA --> RE
+SR --> SA
+EX --> SA
+EX --> SU
 
-SU --> REP
-EX --> ART
+WF --> LOG
+WF --> SNAP
 EX --> LOG
-TA --> INP
+EX --> SNAP
+SU --> OUT
+SA --> LOG
+DA --> LOG
+DA --> SNAP
 
-classDef core fill:#E0E7FF,stroke:#6366F1,stroke-width:1.2px,color:#111827;
-classDef agent fill:#DCFCE7,stroke:#16A34A,stroke-width:1.2px,color:#052e16;
-classDef adapter fill:#FFE4E6,stroke:#DC2626,stroke-width:1.2px,color:#450a0a;
-classDef knowledge fill:#E0F2FE,stroke:#0284C7,stroke-width:1.2px,color:#0c4a6e;
-classDef storage fill:#F1F5F9,stroke:#334155,stroke-width:1.2px,color:#0f172a;
+classDef interface fill:#DBEAFE,stroke:#2563EB,stroke-width:1.2px,color:#0F172A;
+classDef control fill:#EDE9FE,stroke:#7C3AED,stroke-width:1.2px,color:#0F172A;
+classDef exec fill:#DCFCE7,stroke:#15803D,stroke-width:1.2px,color:#0F172A;
+classDef tooling fill:#CCFBF1,stroke:#0F766E,stroke-width:1.2px,color:#0F172A;
+classDef storage fill:#E2E8F0,stroke:#334155,stroke-width:1.2px,color:#0F172A;
 
-class TA,WF,DC core;
-class PL,EX,SA,SU agent;
-class MPN,ESM,RDK adapter;
-class KG knowledge;
-class REP,ART,LOG,INP storage;
-
+class U,API,DA interface;
+class WF,PL,KG,LLM control;
+class EX,SR,SA,SU exec;
+class TA,RE tooling;
+class LOG,SNAP,OUT storage;

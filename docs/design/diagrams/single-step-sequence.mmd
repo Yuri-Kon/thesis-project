@@ -1,39 +1,63 @@
 sequenceDiagram
   autonumber
-  participant E as ExecutorAgent
+  participant EX as PatchRunner / ExecutorAgent
+  participant ST as StepRunner
+  participant AD as ToolAdapter
+  participant SA as SafetyAgent
   participant P as PlannerAgent
-  participant KG as ProteinToolKG
-  participant A as ToolAdapter(X)
-  participant S as SafetyAgent
-  participant D as DataStore
+  participant H as PendingAction / Decision
+  participant L as EventLog
+  participant K as TaskSnapshot
 
-  Note over E: 执行某步Sk
-  E->>A: run(inputs)
-  alt 成功
-    A-->>E: outputs
-    E->>S: safety_check(step_outputs)
-    S-->>E: ok|warn
-    E->>D: log(step=S_k, satus=OK, warn?)
-  else 失败(Exception/TImeout/Bad IO)
-    A-->>E: error(detail)
-    E->>D: log(step=S_k, status=FAIL, detail)
-    E->>E: retry(backoff: 1s->3s, max=2)
-    alt 重试仍失败
-      E-->>P:request_local_fix(context: inputs, error)
-      P->>KG: query(alternatives for capability_fo(X))
-      KG-->>P: candidates(sorted by cost/safeyt/io-compact)
-      P-->>E: patch_step(S_k->X') + params_delta(threshold, batch, cutoff)
-      E->>D: log(step=S_k, action=REPLACE_TOOL, new=X')
-      E->>A: run'(inputs')
-      A-->>E: outputs'
-      E->>S: safety_check(outputs')
-      alt block
-        E-->>P: request_replan(upstream change?)
-        P-->>E: subplan_replace(S_{k-1...k+1})
-      else ok|warn
-        E->>D: log(step=S_k', status=OK, flags)
+  EX->>ST: run_step_with_patch(step_k)
+  ST->>SA: check_pre_step(step_k)
+
+  alt pre-step block
+    SA-->>ST: block
+    ST->>L: STEP_FAILED (failure_type = safety_block)
+    EX->>P: replan_top_k(request)
+  else continue execution
+    ST->>AD: resolve_inputs + run(tool, inputs)
+
+    alt tool success
+      AD-->>ST: outputs + metrics
+      ST->>SA: check_post_step(step_result)
+      alt allow or warn
+        ST->>L: STEP_FINISHED
+        EX-->>EX: continue next step
+      else block
+        ST->>L: STEP_FAILED (post-step safety block)
+        EX->>P: replan_top_k(request)
       end
-    else 重试成功
-      E->>D: log(step=S_k, status=OK_after_retry)
+
+    else tool failure
+      AD-->>ST: error / timeout / bad io
+      ST->>L: STEP_FAILED
+
+      alt retryable and attempts remain
+        ST-->>ST: backoff + retry
+      else retry exhausted or patch_required
+        EX->>P: patch_top_k(request)
+        P-->>EX: Patch candidates
+
+        alt patch gate requires HITL
+          EX->>L: WAITING_ENTER(patch_confirm)
+          EX->>K: write TaskSnapshot(patch_confirm)
+          H-->>EX: Decision(accept | replan | cancel)
+          alt accept patch
+            EX->>L: DECISION_APPLIED + WAITING_EXIT
+            EX-->>EX: apply patch -> PATCHING
+            EX->>ST: rerun patched step
+          else replan
+            EX->>L: WAITING_ENTER(replan_confirm)
+            EX->>K: write TaskSnapshot(replan_confirm)
+          else cancel
+            EX->>L: terminal transition / cancellation
+          end
+        else auto patch path
+          EX-->>EX: apply default patch candidate
+          EX->>ST: rerun patched step
+        end
+      end
     end
   end
