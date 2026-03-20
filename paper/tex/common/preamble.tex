@@ -30,7 +30,27 @@
 \setlength{\parskip}{0pt}
 \setstretch{1.25}
 \setlist[itemize]{nosep,leftmargin=2.5em}
-\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{Liberation Serif}}
+\IfFontExistsTF{Times New Roman}{
+  \setmainfont{Times New Roman}
+  \newfontfamily\tnrfont{Times New Roman}
+}{
+  \setmainfont{Liberation Serif}
+  \newfontfamily\tnrfont{Liberation Serif}
+}
+\IfFontExistsTF{SimSun}{
+  \setCJKmainfont{SimSun}
+  \newCJKfontfamily\thesissong{SimSun}
+}{
+  \setCJKmainfont{Noto Serif CJK SC}
+  \newCJKfontfamily\thesissong{Noto Serif CJK SC}
+}
+\IfFontExistsTF{Noto Sans CJK SC}{
+  \setCJKsansfont{Noto Sans CJK SC}[AutoFakeBold=2]
+  \newCJKfontfamily\thesishei{Noto Sans CJK SC}[AutoFakeBold=2]
+}{
+  \setCJKsansfont{Noto Sans CJK SC}[AutoFakeBold=2]
+  \newCJKfontfamily\thesishei{Noto Sans CJK SC}[AutoFakeBold=2]
+}
 
 \pagestyle{plain}
 \fancyhf{}
@@ -51,22 +71,22 @@
 \renewcommand{\thefigure}{\arabic{section}-\arabic{figure}}
 \renewcommand{\thetable}{\arabic{section}-\arabic{table}}
 
-\DeclareCaptionFont{songwuhao}{\songti\fontsize{10.5pt}{15pt}\selectfont}
-\DeclareCaptionLabelFormat{zhfigure}{图\thefigure}
-\DeclareCaptionLabelFormat{zhtable}{表\thetable}
-\captionsetup{justification=centering,singlelinecheck=false,font=songwuhao}
+\DeclareCaptionFont{captionfont}{\thesishei\fontsize{10pt}{14pt}\selectfont}
+\DeclareCaptionLabelFormat{zhfigure}{图{\tnrfont\thefigure}}
+\DeclareCaptionLabelFormat{zhtable}{表{\tnrfont\thetable}}
+\captionsetup{justification=centering,singlelinecheck=false,font=captionfont}
 \captionsetup[figure]{labelformat=zhfigure,labelsep=space}
 \captionsetup[table]{labelformat=zhtable,labelsep=space}
 
 \titleformat{\section}
-  {\raggedright\heiti\bfseries\fontsize{18pt}{22pt}\selectfont}
+  {\raggedright\thesishei\bfseries\fontsize{18pt}{22pt}\selectfont}
   {\chinese{section}}
   {1em}
   {}
 
 \titleformat{\subsection}
-  {\heiti\bfseries\fontsize{15pt}{20pt}\selectfont}
-  {\arabic{section}.\arabic{subsection}}
+  {\thesishei\bfseries\fontsize{15pt}{20pt}\selectfont}
+  {{\tnrfont\arabic{section}.\arabic{subsection}}}
   {0.75em}
   {}
 
