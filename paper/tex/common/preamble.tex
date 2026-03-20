@@ -4,6 +4,9 @@
 \usepackage{hyperref}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{caption}
 \usepackage{titlesec}
 \usepackage{titletoc}
 \usepackage{setspace}
@@ -26,6 +29,7 @@
 \setlength{\parskip}{0pt}
 \setstretch{1.25}
 \setlist[itemize]{nosep,leftmargin=2.5em}
+\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{Liberation Serif}}
 
 \pagestyle{plain}
 \fancyhf{}
@@ -38,6 +42,20 @@
 }
 
 \renewcommand{\contentsname}{目\quad 录}
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+\renewcommand{\thefigure}{\arabic{section}-\arabic{figure}}
+\renewcommand{\thetable}{\arabic{section}-\arabic{table}}
+
+\DeclareCaptionFont{songwuhao}{\songti\fontsize{10.5pt}{15pt}\selectfont}
+\DeclareCaptionLabelFormat{zhfigure}{图\thefigure}
+\DeclareCaptionLabelFormat{zhtable}{表\thetable}
+\captionsetup{justification=centering,singlelinecheck=false,font=songwuhao}
+\captionsetup[figure]{labelformat=zhfigure,labelsep=space}
+\captionsetup[table]{labelformat=zhtable,labelsep=space}
 
 \titleformat{\section}
   {\raggedright\heiti\bfseries\fontsize{18pt}{22pt}\selectfont}

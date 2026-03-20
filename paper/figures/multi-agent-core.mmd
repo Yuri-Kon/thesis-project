@@ -1,39 +1,118 @@
-flowchart LR
+classDiagram
+direction LR
 
-classDef actor fill:#E0F2FE,stroke:#0284C7,color:#0F172A,stroke-width:1.4px;
-classDef core fill:#F5F3FF,stroke:#7C3AED,color:#111827,stroke-width:1.6px;
-classDef agent fill:#FEF3C7,stroke:#D97706,color:#111827,stroke-width:1.4px;
-classDef tool fill:#CCFBF1,stroke:#0F766E,color:#111827,stroke-width:1.4px;
-classDef store fill:#E2E8F0,stroke:#334155,color:#0F172A,stroke-width:1.4px;
+class ProteinDesignTask {
+  +task_id: str
+  +state: TaskState
+  +goal: str
+  +constraints: dict
+  +plan_version: int
+}
 
-U[Researcher]:::actor
-UI[API / UI / HITL Panel]:::actor
-WF[Workflow Runtime<br/>FSM Control]:::core
+class WorkflowRuntime {
+  +run_task_sync(task)
+  +advance_state(task, state)
+  +emit_event(event)
+  +create_snapshot(task)
+}
 
-P[PlannerAgent<br/>Plan / Patch / Replan]:::agent
-E[ExecutorAgent<br/>Step Scheduling / Recovery Trigger]:::agent
-S[SafetyAgent<br/>allow / warn / block]:::agent
-M[SummarizerAgent<br/>DesignResult / Report]:::agent
+class PlannerAgent {
+  +plan_top_k(task)
+  +patch_top_k(task, step_result)
+  +replan_top_k(task)
+}
 
-KG[ToolKG]:::tool
-AD[Adapter Registry]:::tool
-TL[Local Tools / Remote REST]:::tool
+class ExecutorAgent {
+  +execute(plan, task)
+  +retry_step(step)
+  +trigger_patch(step_result)
+  +trigger_replan(step_result)
+}
 
-PA[PendingAction / Decision]:::store
-EV[EventLog / TaskSnapshot]:::store
-OUT[Artifacts / Reports]:::store
+class SafetyAgent {
+  +assess_input(task)
+  +assess_step(step_result)
+  +assess_output(result)
+}
 
-U --> UI --> WF
-WF --> P
-WF --> E
-WF --> S
-WF --> M
-P <--> KG
-E --> AD --> TL
-WF <--> PA
-WF --> EV
-P --> EV
-E --> EV
-S --> EV
-M --> OUT
-EV --> OUT
+class SummarizerAgent {
+  +build_result(task)
+  +write_report(result)
+}
+
+class ToolKG {
+  +lookup_capability(goal)
+  +check_constraints(step)
+}
+
+class ToolAdapter {
+  +run(step_input)
+  +normalize_output()
+}
+
+class Plan {
+  +plan_id: str
+  +steps: Step[]
+  +score_breakdown: dict
+  +risk_level: str
+  +cost_estimate: float
+}
+
+class StepResult {
+  +step_id: str
+  +status: str
+  +metrics: dict
+  +failure_code: str
+  +artifacts: dict
+}
+
+class PendingAction {
+  +action_id: str
+  +action_type: str
+  +candidates: CandidateSet
+  +default_recommendation: str
+}
+
+class Decision {
+  +decision_id: str
+  +choice: str
+  +selected_candidate_id: str
+}
+
+class EventLog {
+  +event_id: str
+  +event_type: str
+  +timestamp: datetime
+}
+
+class TaskSnapshot {
+  +snapshot_id: str
+  +step_index: int
+  +plan_version: int
+}
+
+class DesignResult {
+  +sequence: str
+  +structure_path: str
+  +scores: dict
+  +report_path: str
+}
+
+ProteinDesignTask "1" --> "1" WorkflowRuntime : enters
+WorkflowRuntime "1" --> "1" PlannerAgent : orchestrates
+WorkflowRuntime "1" --> "1" ExecutorAgent : orchestrates
+WorkflowRuntime "1" --> "1" SafetyAgent : consults
+WorkflowRuntime "1" --> "1" SummarizerAgent : invokes
+PlannerAgent "1" --> "1" ToolKG : queries
+PlannerAgent "1" --> "1..*" Plan : generates
+ExecutorAgent "1" --> "1" Plan : executes
+ExecutorAgent "1" --> "1..*" ToolAdapter : dispatches
+ToolAdapter "1" --> "1..*" StepResult : returns
+SafetyAgent "1" --> "1..*" StepResult : evaluates
+SummarizerAgent "1" --> "1" DesignResult : produces
+WorkflowRuntime "1" *-- "0..1" PendingAction : creates
+PendingAction "1" --> "0..1" Decision : resolved by
+WorkflowRuntime "1" *-- "0..*" EventLog : writes
+WorkflowRuntime "1" *-- "0..*" TaskSnapshot : persists
+ProteinDesignTask "1" o-- "0..1" Plan : active plan
+ProteinDesignTask "1" o-- "0..1" DesignResult : final result
