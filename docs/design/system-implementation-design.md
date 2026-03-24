@@ -330,7 +330,7 @@ class Decision(BaseModel):
 - 当前任务状态(FSM 状态)
 - 当前 Plan 版本及其标识
 - 已完成步骤的索引/列表
-- 关键 artifacts(中间产物、结果文件) 的存储路径
+- 关键 artifacts（中间产物、结果文件路径与运行时恢复摘要）
 - 若当前处于等待人工决策阶段，则关联 `pending_action_id`
 
 示例模型:  
@@ -355,9 +355,9 @@ class TaskSnapshot(BaseModel):
     # 已完成步骤的 id 列表（可选，用于更精细的恢复）
     completed_step_ids: List[str] = []
 
-    # 关键中间产物、结果文件的路径映射
-    # 例如 {"design_dir": "output/task_xxx/", "mpnn_result": "..."}
-    artifacts: Dict[str, str] = {}
+    # 关键中间产物、结果文件路径与运行时恢复摘要
+    # 例如 {"design_dir": "output/task_xxx/", "runtime_state": {...}}
+    artifacts: Dict[str, Any] = {}
 
     # 若当前处于 WAITING_* 状态，可关联当前的 PendingAction
     pending_action_id: Optional[str] = None
@@ -373,6 +373,70 @@ class TaskSnapshot(BaseModel):
   - 依赖  `plan_version`/`current_step_index`/`artifacts` 重建执行上下文
 
 后续在执行层设计中，将给出 "何时写入快照" 和 "如何从快照恢复" 的具体流程
+
+#### RuntimeState / BeliefState 与持久化边界
+<!-- SID:impl.runtime_state.persistence -->
+
+为承接“高代价工作流中的自适应规划算法”，实现层需要在不改变现有 Agent 边界的前提下，引入一个轻量运行时状态容器。推荐在实现层统一使用 `runtime_state` 作为首选命名；若代码中保留 `belief_state` 别名，也必须保持语义等价。
+
+推荐的数据结构如下：
+
+```python
+class RuntimeState(BaseModel):
+    p_success: float
+    p_structural_failure: float
+    recovery_margin: float
+    expected_remaining_cost: float
+    last_update_source: str
+    observation_summary: Dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowContext(BaseModel):
+    task: ProteinDesignTask
+    plan: Optional[Plan] = None
+    step_results: List[StepResult] = Field(default_factory=list)
+    safety_events: List[SafetyResult] = Field(default_factory=list)
+    runtime_state: Optional[RuntimeState] = None
+```
+
+边界约束如下：
+
+- `WorkflowContext.runtime_state` 是运行中的单一工作副本，供 Workflow / PlanRunner / PatchRunner 在每次步骤完成后更新；
+- `TaskSnapshot.artifacts` 是 `runtime_state` 的持久化载体，而不是新的契约所有者；
+- `Plan.metadata` 可以引用与当前决策相关的摘要，但不得承载可变运行时状态；
+- Planner 可以读取 `runtime_state` 摘要参与 `patch/replan` 生成与运行时重排序，但不得直接修改 `WorkflowContext`、`TaskSnapshot` 或任务状态。
+
+推荐的快照写入方式：
+
+```python
+snapshot.artifacts["runtime_state"] = {
+    "p_success": context.runtime_state.p_success,
+    "p_structural_failure": context.runtime_state.p_structural_failure,
+    "recovery_margin": context.runtime_state.recovery_margin,
+    "expected_remaining_cost": context.runtime_state.expected_remaining_cost,
+    "last_update_source": context.runtime_state.last_update_source,
+}
+```
+
+如需额外保留观测摘要，建议放入：
+
+- `TaskSnapshot.artifacts["runtime_observation_summary"]`
+- `TaskSnapshot.artifacts["recovery_history"]`
+
+但应坚持“最小可恢复上下文”原则，不把可从 `StepResult / SafetyResult / EventLog` 重建的大对象重复塞入 `runtime_state`。
+
+运行时状态的更新职责应明确分层：
+
+- `Workflow / PlanRunner`：在步骤结束、安全检查返回、进入 patch/replan 分支、恢复执行时更新 `runtime_state`；
+- `snapshots.py / recovery.py`：负责 `runtime_state` 的序列化、反序列化与恢复绑定；
+- `PlannerAgent`：消费 `runtime_state` 摘要，只负责产出候选与建议，不拥有状态写回权；
+- `TaskSnapshot.artifacts`：只承担恢复与审计载体，不改变算法语义。
+
+这一定义保证了：
+
+- 运行时状态既不会污染静态 Plan 契约；
+- 任务在 `WAITING_*` 与系统重启后仍可恢复到一致的算法上下文；
+- 后续编码 issue 可以直接据此在 `WorkflowContext`、`snapshots.py` 与 `planner.py` 之间分工实现。
 
 ### API层(`src/api/main/py`)
 

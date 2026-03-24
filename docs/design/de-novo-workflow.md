@@ -82,6 +82,38 @@ depends_on: [arch, agent, algo, tools]
 - **控制语义**：不是线性步骤，而是贯穿式控制层，可在任一阶段介入。
 - **候选生成**：遵循 Patch/Replan 规则（参见 [ref:SID:planner.contracts.patch_candidate]）。
 
+### 高代价步骤与运行时恢复感知控制
+<!-- SID:workflow.stage.high_cost_control -->
+
+高代价步骤不是新的工作流阶段，而是对现有六阶段中的若干步骤进行**运行时重点治理**。其目标是在进入昂贵步骤前积累足够证据，在昂贵步骤失败或信号恶化时尽快转入 `patch/replan/stop`。
+
+在当前 de novo 设计流程中，通常应视为高代价或高暴露的步骤包括：
+
+- `结构映射`：如 ESMFold / OpenFold3 一类结构预测调用；
+- `结构条件下的序列精修`：如 ProteinMPNN 多轮采样、约束设计与回放；
+- `目标/功能/物性评估` 中的重型评估器：如远程模型、批量结构打分或高耗时筛选。
+
+相对而言，`序列探索` 与 `质量门禁` 更适合作为低成本证据积累与早停过滤层，用于减少无效高代价调用。
+
+六阶段与运行时观测/动作的关系建议如下：
+
+| 阶段 | 典型成本画像 | 关键运行时观测 | 典型控制动作 |
+| --- | --- | --- | --- |
+| 序列探索 | 低到中 | 候选多样性、约束满足度、早期失败码 | `continue` / 收缩候选 / 早停 |
+| 结构映射 | 高 | `pLDDT`、结构置信度、超时/失败模式 | `continue` / `patch_local` / `suffix_replan` |
+| 质量门禁 | 低 | QC flags、非法字符、低复杂度、结构完整性 | `continue` / `stop` / 触发局部 patch |
+| 结构精修 | 高 | 改进幅度、重复失败、上下游 I/O 是否仍闭合 | `continue` / `patch_local` / `suffix_replan` |
+| 目标打分 | 中到高 | 分数分歧、Top-K 差距、预算消耗、Safety 告警 | `continue` / `suffix_replan` / `stop` |
+| Patch/Replan 控制层 | 取决于上下文 | 恢复历史、剩余预算、可保留前缀长度 | `patch_local` / `suffix_replan` / `stop` |
+
+控制注入点遵循以下约束：
+
+- 在进入高代价步骤前，Workflow 应先消费最新运行时状态估计（见 [ref:SID:planner.algorithm.runtime_state_estimation]）；
+- 若证据不足、预算过紧或恢复余量过低，应优先执行廉价验证、局部修补或直接止损，而不是机械继续；
+- 任意等待人工决策的分支都必须先完成快照写入（见 [ref:SID:arch.contracts.task_snapshot]），不得在高代价步骤前后留下不可恢复空洞。
+
+这意味着“恢复感知控制”不是附着在工作流末端的补丁，而是贯穿六阶段、尤其在高代价步骤前后发挥作用的控制切面。
+
 ## 模块化接口与可替换原则
 <!-- SID:workflow.modules.interface -->
 

@@ -122,6 +122,106 @@ B) CandidateSetOutput（HITL 路径）
 
 ---
 
+## 3.4 高代价工作流中的自适应规划问题
+<!-- SID:algo.adaptive.problem_formulation -->
+
+本课题中的“新算法”不是把 ToolKG 检索替换为另一种检索器，而是把 Planner 提升为**面向高代价、长链路、可失败、可恢复工作流**的动态工具链规划器。
+
+其问题形式化如下：
+
+- 输入：设计目标 `g`、结构化约束 `c`、工具能力图 `K`、当前执行上下文 `x_t`、运行时观测 `o_t`。
+- 输出：当前候选工具链集合 `Pi_t`、默认建议链 `pi*`，或在失败/偏离时输出 `patch` / `suffix_replan` / `stop` 建议。
+- 约束：不得绕过既有 `retry -> patch -> replan` 恢复契约，不新增 FSM 状态，不改变 Planner/Executor/Safety/Summarizer 的职责边界。
+
+因此，本算法研究的核心不是“从几个工具中选一个”，而是：
+
+- 如何把少量高代价工具组织成可执行、多阶段、可恢复的候选链路；
+- 如何在中间观测到来后，决定继续、局部修补、保前缀重规划或止损；
+- 如何在控制高代价调用次数的同时维持最终任务成功率。
+
+### 3.4.1 优化目标与效用分解
+<!-- SID:algo.adaptive.optimization_objective -->
+
+算法的优化目标是获得更优的“成功率-成本-恢复复杂度”权衡，而不是单独最大化某一条静态链的先验分数。
+
+第一版建议采用可解释的多目标效用分解：
+
+`Utility(pi, x_t) = alpha * Feasibility + beta * GoalFit - gamma * Cost - delta * Risk - eta * RecoveryComplexity - zeta * HumanInterventionCost`
+
+其中：
+
+- `Feasibility` 是硬约束，不可执行候选必须直接淘汰；
+- `GoalFit` 表示与当前设计目标及已获得证据的一致程度；
+- `Cost` 覆盖计算成本、时间成本与剩余高代价步骤暴露；
+- `Risk` 表示结构失败、低质量结果或安全阻断的风险；
+- `RecoveryComplexity` 表示失败后可保留前缀、可 patch 性与恢复代价；
+- `HumanInterventionCost` 用于抑制不必要的人工介入，但不得覆盖强制 HITL 规则。
+
+该效用仅用于候选排序与动作选择，不改变 [ref:SID:planner.algorithm.hitl_gate] 中已有的风险/成本门控语义。
+
+### 3.4.2 运行时状态估计（Lite belief-state）
+<!-- SID:planner.algorithm.runtime_state_estimation -->
+
+为避免把算法退化为固定阈值门控，Planner/Workflow 需要维护一个**轻量运行时状态估计模块**。该模块是内部估计器，而不是新的控制器或新的 Agent。
+
+第一版建议维护以下状态量：
+
+- `p_success`：当前链路继续执行后最终成功的估计概率；
+- `p_structural_failure`：当前链路发生结构性失败或低质量结构结果的估计概率；
+- `recovery_margin`：在不丢失有效前缀的前提下继续恢复的余量；
+- `expected_remaining_cost`：从当前时刻继续执行到结束的剩余成本估计。
+
+状态更新的主要观测来源限定为：
+
+- `StepResult.metrics / outputs / error_details`；
+- `SafetyResult` 中的 `risk_flags` 与 `action`；
+- 当前任务的 patch/replan 历史、已消耗预算、已完成高代价步骤；
+- 必要的人类确认记录，但第一版不把 HITL 价值作为强主状态。
+
+该估计器不要求 full POMDP，也不要求学习式策略更新；第一版以可解释、可审计的规则更新或分层加权更新为主。
+
+### 3.4.3 运行时重排序与预算感知裁剪
+<!-- SID:planner.algorithm.runtime_reranking -->
+
+静态评分回答“这条候选链先验上是否值得尝试”，运行时重排序回答“在当前已经走到这里时，这条链是否仍值得继续”。
+
+因此运行时重排序必须遵循以下组合原则：
+
+- 复用 [ref:SID:planner.algorithm.candidate_scoring] 定义的静态 `score_breakdown` 作为先验分；
+- 使用运行时状态估计生成 `runtime_adjustment`，对候选链进行重新排序或裁剪；
+- 推荐组合形式为 `final_score = static_score + runtime_adjustment`，而不是重写静态评分器；
+- 不得跳过可执行性校验、风险/成本解释与 Candidate schema。
+
+预算感知裁剪应至少支持以下行为：
+
+- 在预算紧张或高代价步骤临近时减少候选展开深度；
+- 在证据不足时优先执行廉价验证/质量门禁，再决定是否进入高代价步骤；
+- 在 `expected_remaining_cost` 持续走高且 `p_success` 走低时提前收缩候选或进入恢复路径。
+
+### 3.4.4 动作选择与恢复感知控制
+<!-- SID:planner.algorithm.runtime_action_selection -->
+
+运行时动作选择必须服务于既有恢复闭环，而不是替代恢复闭环。第一版动作空间限定为：
+
+- `continue`：继续当前计划或当前后缀；
+- `patch_local`：进入局部修补路径，优先保持上下文与成功前缀；
+- `suffix_replan`：保留已验证前缀，替换未完成后缀；
+- `stop`：在成功概率过低且剩余成本/恢复代价过高时止损。
+
+仅作为后续扩展而非第一版核心的动作包括：
+
+- `expand_candidates`
+- `shrink_candidates`
+- `request_hitl`
+- `full_replan`
+
+动作选择的基本偏好应保持可解释：
+
+- `p_success` 尚可且问题局部化时，优先 `patch_local`；
+- `p_structural_failure` 高、`recovery_margin` 低时，优先 `suffix_replan`；
+- `expected_remaining_cost` 高且 `p_success` 低时，允许 `stop`；
+- 任意动作都不得绕过 [ref:SID:fsm.transitions.overview] 与 [ref:SID:arch.contracts.task_snapshot] 规定的状态与快照约束。
+
 ## 4. 核心算法总览
 
 Planner 的核心算法由三个模式构成：
