@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-03-01",
+  "generated_at": "2026-03-24",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 110,
+  "total_specs": 117,
   "documents": [
     {
       "doc_key": "arch",
@@ -219,7 +219,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 82,
+        "line": 97,
         "marker": "<!-- SID:arch.flow.end_to_end -->"
       },
       "level": "Section",
@@ -238,7 +238,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 390,
+        "line": 411,
         "marker": "<!-- SID:arch.dataflow.overview -->"
       },
       "level": "Section",
@@ -256,7 +256,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 423,
+        "line": 444,
         "marker": "<!-- SID:arch.kg.overview -->"
       },
       "level": "Block",
@@ -275,8 +275,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 345,
-        "line_end": 363,
+        "line_start": 366,
+        "line_end": 384,
         "marker_begin": "<!-- SID:arch.contracts.pending_action BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.pending_action END -->"
       },
@@ -297,8 +297,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 358,
-        "line_end": 362,
+        "line_start": 379,
+        "line_end": 383,
         "marker_begin": "<!-- SID:arch.contracts.decision BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.decision END -->"
       },
@@ -319,8 +319,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 366,
-        "line_end": 387,
+        "line_start": 387,
+        "line_end": 408,
         "marker_begin": "<!-- SID:arch.contracts.task_snapshot BEGIN -->",
         "marker_end": "<!-- SID:arch.contracts.task_snapshot END -->"
       },
@@ -341,7 +341,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 404,
+        "line": 425,
         "marker": "<!-- SID:arch.contracts.plan -->"
       },
       "level": "Spec-Item",
@@ -360,7 +360,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 310,
+        "line": 331,
         "marker": "<!-- SID:fsm.lifecycle.overview -->"
       },
       "level": "Section",
@@ -379,7 +379,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "comment",
-        "line": 315,
+        "line": 336,
         "marker": "<!-- SID:fsm.states.definitions -->"
       },
       "level": "Block",
@@ -398,7 +398,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 323,
+        "line": 344,
         "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
       },
       "level": "Spec-Item",
@@ -418,7 +418,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 326,
+        "line": 347,
         "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
       },
       "level": "Spec-Item",
@@ -438,7 +438,7 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "inline",
-        "line": 327,
+        "line": 348,
         "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
       },
       "level": "Spec-Item",
@@ -458,8 +458,8 @@
       "path": "docs/design/architecture.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 336,
-        "line_end": 342,
+        "line_start": 357,
+        "line_end": 363,
         "marker_begin": "<!-- SID:fsm.transitions.overview BEGIN -->",
         "marker_end": "<!-- SID:fsm.transitions.overview END -->"
       },
@@ -1007,7 +1007,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 13,
+        "line": 17,
         "marker": "<!-- SID:algo.scope.overview -->"
       },
       "level": "Section",
@@ -1025,7 +1025,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 30,
+        "line": 40,
         "marker": "<!-- SID:algo.definitions.overview -->"
       },
       "level": "Section",
@@ -1043,7 +1043,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 58,
+        "line": 73,
         "marker": "<!-- SID:planner.contracts.io_overview -->"
       },
       "level": "Block",
@@ -1065,7 +1065,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 117,
+        "line": 52,
         "marker": "<!-- SID:planner.contracts.candidate_schema -->"
       },
       "level": "Block",
@@ -1084,7 +1084,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 123,
+        "line": 56,
         "marker": "<!-- SID:planner.contracts.plan_candidate -->"
       },
       "level": "Spec-Item",
@@ -1104,7 +1104,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 148,
+        "line": 57,
         "marker": "<!-- SID:planner.contracts.patch_candidate -->"
       },
       "level": "Spec-Item",
@@ -1124,7 +1124,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 174,
+        "line": 58,
         "marker": "<!-- SID:planner.contracts.replan_candidate -->"
       },
       "level": "Spec-Item",
@@ -1138,13 +1138,125 @@
       "stability": "stable"
     },
     {
+      "sid": "algo.adaptive.problem_formulation",
+      "title": "高代价工作流中的自适应规划问题",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 126,
+        "marker": "<!-- SID:algo.adaptive.problem_formulation -->"
+      },
+      "level": "Section",
+      "tags": [
+        "algo",
+        "adaptive",
+        "problem_formulation"
+      ],
+      "depends_on": [
+        "planner.contracts.io_overview",
+        "fsm.transitions.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "algo.adaptive.optimization_objective",
+      "title": "优化目标与效用分解",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 143,
+        "marker": "<!-- SID:algo.adaptive.optimization_objective -->"
+      },
+      "level": "Block",
+      "tags": [
+        "algo",
+        "adaptive",
+        "optimization_objective"
+      ],
+      "depends_on": [
+        "algo.adaptive.problem_formulation",
+        "planner.algorithm.candidate_scoring"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.runtime_state_estimation",
+      "title": "运行时状态估计（Lite belief-state）",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 163,
+        "marker": "<!-- SID:planner.algorithm.runtime_state_estimation -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "runtime_state_estimation"
+      ],
+      "depends_on": [
+        "algo.adaptive.problem_formulation",
+        "agent.contracts.step_result",
+        "agent.contracts.safety_result"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.runtime_reranking",
+      "title": "运行时重排序与预算感知裁剪",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 184,
+        "marker": "<!-- SID:planner.algorithm.runtime_reranking -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "runtime_reranking"
+      ],
+      "depends_on": [
+        "planner.algorithm.candidate_scoring",
+        "planner.algorithm.runtime_state_estimation"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.runtime_action_selection",
+      "title": "动作选择与恢复感知控制",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 202,
+        "marker": "<!-- SID:planner.algorithm.runtime_action_selection -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "runtime_action_selection"
+      ],
+      "depends_on": [
+        "planner.algorithm.runtime_state_estimation",
+        "fsm.transitions.overview",
+        "arch.contracts.task_snapshot"
+      ],
+      "stability": "stable"
+    },
+    {
       "sid": "planner.algorithm.tool_retrieval",
       "title": "工具检索算法",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 202,
+        "line": 244,
         "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
       },
       "level": "Block",
@@ -1163,7 +1275,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 298,
+        "line": 330,
         "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
       },
       "level": "Block",
@@ -1184,7 +1296,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 345,
+        "line": 377,
         "marker": "<!-- SID:planner.algorithm.hitl_gate -->"
       },
       "level": "Block",
@@ -1205,7 +1317,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 394,
+        "line": 403,
         "marker": "<!-- SID:planner.algorithm.decision_application -->"
       },
       "level": "Block",
@@ -1263,7 +1375,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 961,
+        "line": 1025,
         "marker": "<!-- SID:impl.planner.tool_resolution -->"
       },
       "level": "Block",
@@ -1285,7 +1397,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 826,
+        "line": 890,
         "marker": "<!-- SID:impl.nextflow.control_flow_constraints -->"
       },
       "level": "Block",
@@ -1301,13 +1413,35 @@
       "stability": "stable"
     },
     {
+      "sid": "impl.runtime_state.persistence",
+      "title": "RuntimeState / BeliefState 与持久化边界",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 378,
+        "marker": "<!-- SID:impl.runtime_state.persistence -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "runtime_state",
+        "persistence"
+      ],
+      "depends_on": [
+        "arch.contracts.task_snapshot",
+        "planner.algorithm.runtime_state_estimation"
+      ],
+      "stability": "stable"
+    },
+    {
       "sid": "api.rest.overview",
       "title": "REST API 总览",
       "doc_key": "impl",
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 452,
+        "line": 516,
         "marker": "<!-- SID:api.rest.overview -->"
       },
       "level": "Section",
@@ -1325,7 +1459,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 455,
+        "line": 519,
         "marker": "<!-- SID:api.rest.create_task -->"
       },
       "level": "Spec-Item",
@@ -1346,7 +1480,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 592,
+        "line": 656,
         "marker": "<!-- SID:api.rest.get_pending_actions -->"
       },
       "level": "Spec-Item",
@@ -1368,7 +1502,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 621,
+        "line": 685,
         "marker": "<!-- SID:api.rest.submit_decision -->"
       },
       "level": "Spec-Item",
@@ -1390,7 +1524,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 673,
+        "line": 737,
         "marker": "<!-- SID:api.rest.get_report -->"
       },
       "level": "Spec-Item",
@@ -1411,7 +1545,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 1482,
+        "line": 1640,
         "marker": "<!-- SID:obs.observability.overview -->"
       },
       "level": "Block",
@@ -1430,7 +1564,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 1487,
+        "line": 1645,
         "marker": "<!-- SID:obs.eventlog.schema -->"
       },
       "level": "Block",
@@ -1449,7 +1583,7 @@
       "path": "docs/design/system-implementation-design.md",
       "locator": {
         "type": "comment",
-        "line": 1550,
+        "line": 1708,
         "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
       },
       "level": "Spec-Item",
@@ -1471,7 +1605,7 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 21,
+        "line": 22,
         "marker": "<!-- SID:tools.executor.overview -->"
       },
       "level": "Section",
@@ -1489,7 +1623,7 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 31,
+        "line": 33,
         "marker": "<!-- SID:tools.protgpt2.spec -->"
       },
       "level": "Block",
@@ -1509,7 +1643,7 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 77,
+        "line": 79,
         "marker": "<!-- SID:tools.esmfold.spec -->"
       },
       "level": "Block",
@@ -1528,7 +1662,7 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 153,
+        "line": 157,
         "marker": "<!-- SID:tools.alphafold.spec -->"
       },
       "level": "Block",
@@ -1547,8 +1681,8 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "begin_end",
-        "line_start": 335,
-        "line_end": 357,
+        "line_start": 457,
+        "line_end": 480,
         "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
         "marker_end": "<!-- SID:tools.adapter.constraints END -->"
       },
@@ -1709,7 +1843,7 @@
       "path": "docs/impl/remote_model_invocation.md",
       "locator": {
         "type": "comment",
-        "line": 11,
+        "line": 13,
         "marker": "<!-- SID:impl.remote_model_invocation.components -->"
       },
       "level": "Block",
@@ -1728,7 +1862,7 @@
       "path": "docs/impl/remote_model_invocation.md",
       "locator": {
         "type": "comment",
-        "line": 149,
+        "line": 169,
         "marker": "<!-- SID:impl.remote_model_invocation.rest_api -->"
       },
       "level": "Section",
@@ -1747,7 +1881,7 @@
       "path": "docs/design/tools-catalog.md",
       "locator": {
         "type": "comment",
-        "line": 113,
+        "line": 116,
         "marker": "<!-- SID:tools.nim_esmfold.spec -->"
       },
       "level": "Block",
@@ -1999,13 +2133,36 @@
       "stability": "stable"
     },
     {
+      "sid": "workflow.stage.high_cost_control",
+      "title": "高代价步骤与运行时恢复感知控制",
+      "doc_key": "de_novo_workflow",
+      "path": "docs/design/de-novo-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 86,
+        "marker": "<!-- SID:workflow.stage.high_cost_control -->"
+      },
+      "level": "Block",
+      "tags": [
+        "workflow",
+        "stage",
+        "high_cost_control"
+      ],
+      "depends_on": [
+        "planner.algorithm.runtime_state_estimation",
+        "planner.algorithm.runtime_action_selection",
+        "arch.contracts.task_snapshot"
+      ],
+      "stability": "stable"
+    },
+    {
       "sid": "workflow.modules.interface",
       "title": "模块化接口与可替换原则",
       "doc_key": "de_novo_workflow",
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 86,
+        "line": 118,
         "marker": "<!-- SID:workflow.modules.interface -->"
       },
       "level": "Section",
@@ -2024,7 +2181,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 104,
+        "line": 136,
         "marker": "<!-- SID:workflow.loops.and_crosscut -->"
       },
       "level": "Section",
@@ -2043,7 +2200,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 138,
+        "line": 170,
         "marker": "<!-- SID:workflow.integration.responsibilities -->"
       },
       "level": "Section",
@@ -2062,7 +2219,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 146,
+        "line": 178,
         "marker": "<!-- SID:workflow.examples.template -->"
       },
       "level": "Section",
@@ -2081,7 +2238,7 @@
       "path": "docs/algorithm-and-llm/core-algorithm-define.md",
       "locator": {
         "type": "comment",
-        "line": 2,
+        "line": 3,
         "marker": "<!-- SID:algollm.core.algorithm_define -->"
       },
       "level": "Section",
@@ -2103,7 +2260,7 @@
       "path": "docs/algorithm-and-llm/train-llm.md",
       "locator": {
         "type": "comment",
-        "line": 2,
+        "line": 3,
         "marker": "<!-- SID:algollm.llm.training_plan -->"
       },
       "level": "Section",

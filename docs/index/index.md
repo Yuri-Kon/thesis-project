@@ -12,8 +12,8 @@
 ## 索引总览
 
 **版本**: 1.0
-**生成日期**: 2026-03-19
-**总规范数**: 110
+**生成日期**: 2026-03-24
+**总规范数**: 117
 **文档数**: 14
 
 ---
@@ -117,6 +117,11 @@
 | `planner.contracts.plan_candidate` | PlanCandidate 模式定义 | Spec-Item | planner, contracts, candidate, planning |
 | `planner.contracts.patch_candidate` | PatchCandidate 模式定义 | Spec-Item | planner, contracts, candidate, execution |
 | `planner.contracts.replan_candidate` | ReplanCandidate 模式定义 | Spec-Item | planner, contracts, candidate, planning |
+| `algo.adaptive.problem_formulation` | 高代价工作流中的自适应规划问题 | Section | algo, adaptive, problem_formulation |
+| `algo.adaptive.optimization_objective` | 优化目标与效用分解 | Block | algo, adaptive, optimization_objective |
+| `planner.algorithm.runtime_state_estimation` | 运行时状态估计（Lite belief-state） | Block | planner, algorithm, runtime_state_estimation |
+| `planner.algorithm.runtime_reranking` | 运行时重排序与预算感知裁剪 | Block | planner, algorithm, runtime_reranking |
+| `planner.algorithm.runtime_action_selection` | 动作选择与恢复感知控制 | Block | planner, algorithm, runtime_action_selection |
 | `planner.algorithm.tool_retrieval` | 工具检索算法 | Block | planner, algorithm, tool_retrieval |
 | `planner.algorithm.candidate_scoring` | 候选方案评分规则 | Block | planner, algorithm, scoring |
 | `planner.algorithm.hitl_gate` | HITL 门控决策规则 | Block | planner, algorithm, hitl |
@@ -177,6 +182,7 @@
 | `workflow.stage.structure_refinement` | 结构精修 | Block | workflow, stage, structure_refinement |
 | `workflow.stage.objective_scoring` | 目标打分 | Block | workflow, stage, objective_scoring |
 | `workflow.stage.patch_replan_control` | Patch/Replan 控制层 | Block | workflow, stage, patch_replan_control |
+| `workflow.stage.high_cost_control` | 高代价步骤与运行时恢复感知控制 | Block | workflow, stage, high_cost_control |
 | `workflow.modules.interface` | 模块化接口与可替换原则 | Section | workflow, modules, interface |
 | `workflow.loops.and_crosscut` | 可循环步骤与贯穿步骤 | Section | workflow, loops, crosscut |
 | `workflow.integration.responsibilities` | 分工映射 | Section | workflow, integration, responsibilities |
@@ -192,6 +198,8 @@
 |-----|------|------|------|
 | `algo.scope.overview` | 算法规范范围说明 | Section | algo, scope |
 | `algo.definitions.overview` | 算法定义总览 | Section | algo, definitions |
+| `algo.adaptive.problem_formulation` | 高代价工作流中的自适应规划问题 | Section | algo, adaptive, problem_formulation |
+| `algo.adaptive.optimization_objective` | 优化目标与效用分解 | Block | algo, adaptive, optimization_objective |
 
 ---
 
@@ -229,6 +237,7 @@
 |-----|------|------|------|
 | `impl.overview.introduction` | 实现层总览 | Section | impl, overview |
 | `impl.techstack.overview` | 技术栈选型 | Block | impl, techstack |
+| `impl.runtime_state.persistence` | RuntimeState / BeliefState 与持久化边界 | Block | impl, runtime_state, persistence |
 | `impl.planner.tool_resolution` | Planner 工具解析与 KG-only 约束 | Block | impl, planner, tool_resolution, kg |
 | `impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block | impl, nextflow, control_flow, constraints |
 | `impl.index.codebase_overview` | 实现代码索引与结构化总览 | Section | impl, index, codebase, overview |
@@ -276,9 +285,9 @@
 |------|---------|-------|-----------|------|
 | architecture.md | 5 | 3 | 8 | 16 |
 | agent-design.md | 8 | 9 | 9 | 26 |
-| core-algorithm-spec.md | 2 | 6 | 3 | 11 |
-| system-implementation-design.md | 2 | 5 | 5 | 12 |
-| de-novo-workflow.md | 7 | 6 | 0 | 13 |
+| core-algorithm-spec.md | 3 | 10 | 3 | 16 |
+| system-implementation-design.md | 2 | 6 | 5 | 13 |
+| de-novo-workflow.md | 7 | 7 | 0 | 14 |
 | implementation_index.md | 1 | 0 | 0 | 1 |
 | llm_provider_guide.md | 1 | 1 | 0 | 2 |
 | planner_llm_api_integration.md | 1 | 11 | 0 | 12 |
@@ -288,7 +297,7 @@
 | core-algorithm-define.md | 1 | 0 | 0 | 1 |
 | train-llm.md | 1 | 0 | 0 | 1 |
 | hitl-extension.md | 0 | 0 | 0 | 0 (differential index) |
-| **总计** | **34** | **50** | **26** | **110** |
+| **总计** | **35** | **56** | **26** | **117** |
 
 **注**: hitl-extension.md 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 
@@ -298,9 +307,9 @@
 
 | 粒度 | 数量 | 占比 |
 |------|------|------|
-| Section | 24 | 29% |
-| Block | 33 | 40% |
-| Spec-Item | 26 | 31% |
+| Section | 35 | 30% |
+| Block | 56 | 48% |
+| Spec-Item | 26 | 22% |
 
 ---
 
@@ -355,6 +364,7 @@ jq '.specs[] | select(.sid == "arch.contracts.pending_action")' index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.2 | 2026-03-24 | 纳入自适应规划新 SID，修复 docslice locator 漂移，更新 planning/execution/observability 索引统计（总计 117） |
 | 1.1 | 2026-02-01 | 新增 ProtGPT2 工具规约，更新 tools 索引与统计（总计 83） |
 | 1.0 | 2026-01-11 | 索引 77 个规范，覆盖 10 个文档（新增 Remote Model Invocation 索引） |
 

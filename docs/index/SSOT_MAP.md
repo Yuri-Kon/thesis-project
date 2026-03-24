@@ -113,6 +113,9 @@
 | `SID:planner.contracts.plan_candidate` | PlanCandidate 模式定义 | Spec-Item |
 | `SID:planner.contracts.patch_candidate` | PatchCandidate 模式定义 | Spec-Item |
 | `SID:planner.contracts.replan_candidate` | ReplanCandidate 模式定义 | Spec-Item |
+| `SID:planner.algorithm.runtime_state_estimation` | 运行时状态估计（Lite belief-state） | Block |
+| `SID:planner.algorithm.runtime_reranking` | 运行时重排序与预算感知裁剪 | Block |
+| `SID:planner.algorithm.runtime_action_selection` | 动作选择与恢复感知控制 | Block |
 | `SID:planner.algorithm.tool_retrieval` | 工具检索算法 | Block |
 | `SID:planner.algorithm.candidate_scoring` | 候选方案评分规则 | Block |
 | `SID:planner.algorithm.hitl_gate` | HITL 门控决策规则 | Block |
@@ -121,6 +124,7 @@
 **引用规则**：
 - 引用 PlannerAgent 接口时 → `SID:planner.interface.overview`
 - 引用候选评分算法时 → `SID:planner.algorithm.candidate_scoring`
+- 引用运行时状态估计/动作选择时 → `SID:planner.algorithm.runtime_state_estimation` / `SID:planner.algorithm.runtime_action_selection`
 - 引用 HITL 职责约束时 → `SID:planner.responsibilities.must` / `must_not`
 
 ---
@@ -170,6 +174,7 @@
 | `SID:workflow.stage.structure_refinement` | 结构条件精修阶段定义 | Block |
 | `SID:workflow.stage.objective_scoring` | 目标打分阶段定义 | Block |
 | `SID:workflow.stage.patch_replan_control` | Patch/Replan 控制层定义 | Block |
+| `SID:workflow.stage.high_cost_control` | 高代价步骤与运行时恢复感知控制 | Block |
 | `SID:workflow.modules.interface` | 模块化接口与可替换原则 | Section |
 | `SID:workflow.loops.and_crosscut` | 循环步骤与贯穿步骤 | Section |
 | `SID:workflow.integration.responsibilities` | Planner/Executor/Safety 分工映射 | Section |
@@ -230,6 +235,7 @@
 |-----|------|------|
 | `SID:impl.overview.introduction` | 实现层总览 | Section |
 | `SID:impl.techstack.overview` | 技术栈选型 | Block |
+| `SID:impl.runtime_state.persistence` | RuntimeState / BeliefState 与持久化边界 | Block |
 | `SID:impl.nextflow.control_flow_constraints` | Nextflow 接入边界与控制流约束 | Block |
 
 ---
@@ -240,6 +246,8 @@
 |-----|------|------|
 | `SID:algo.scope.overview` | 算法规范范围说明 | Section |
 | `SID:algo.definitions.overview` | 算法定义总览 | Section |
+| `SID:algo.adaptive.problem_formulation` | 高代价工作流中的自适应规划问题 | Section |
+| `SID:algo.adaptive.optimization_objective` | 优化目标与效用分解 | Block |
 
 ---
 
@@ -293,6 +301,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.2 | 2026-03-24 | 新增自适应规划相关 SID，补充 workflow/impl/algo 映射，并对齐 docslice 检索入口 |
 | 1.1 | 2026-02-05 | 新增 workflow Domain 与 de-novo-workflow.md 的核心 SID 列表 |
 | 1.0 | 2025-12-31 | 初始版本，定义 12 个 Domain 的 SSOT 文档映射与核心 SID 列表 |
 

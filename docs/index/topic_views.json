@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "generated_at": "2026-03-19",
+  "generated_at": "2026-03-24",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -237,28 +237,12 @@
           "rationale": "Plan 在架构层的作用定义"
         },
         {
-          "sid": "fsm.states.waiting_plan_confirm",
-          "title": "WAITING_PLAN_CONFIRM 状态定义",
-          "doc_key": "arch",
-          "path": "docs/design/architecture.md",
-          "priority": "high",
-          "rationale": "Plan 确认状态定义"
-        },
-        {
-          "sid": "fsm.states.waiting_replan_confirm",
-          "title": "WAITING_REPLAN_CONFIRM 状态定义",
-          "doc_key": "arch",
-          "path": "docs/design/architecture.md",
-          "priority": "high",
-          "rationale": "Replan 确认状态定义"
-        },
-        {
           "sid": "agent.contracts.protein_design_task",
           "title": "ProteinDesignTask 数据结构",
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "Planner 的输入契约"
+          "rationale": "任务输入与约束的基础契约"
         },
         {
           "sid": "agent.contracts.plan",
@@ -266,15 +250,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "Plan 的数据结构定义"
-        },
-        {
-          "sid": "planner.interface.overview",
-          "title": "PlannerAgent 接口总览",
-          "doc_key": "agent",
-          "path": "docs/design/agent-design.md",
-          "priority": "critical",
-          "rationale": "PlannerAgent 的完整接口定义"
+          "rationale": "Planner 输出 Plan 的结构契约"
         },
         {
           "sid": "planner.responsibilities.must",
@@ -282,7 +258,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "PlannerAgent 的强制职责"
+          "rationale": "Planner 必须输出候选与默认建议"
         },
         {
           "sid": "planner.responsibilities.must_not",
@@ -290,69 +266,20 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "PlannerAgent 的禁止行为"
+          "rationale": "Planner 不得越权执行或直接改状态"
         },
         {
-          "sid": "planner.contracts.io_overview",
-          "title": "Planner 输入输出契约",
-          "doc_key": "algo",
-          "path": "docs/design/core-algorithm-spec.md",
-          "priority": "high",
-          "rationale": "Planner 的 I/O 契约详细说明"
-        },
-        {
-          "sid": "planner.contracts.candidate_schema",
-          "title": "Candidate 对象模式总览",
+          "sid": "algo.adaptive.problem_formulation",
+          "title": "高代价工作流中的自适应规划问题",
           "doc_key": "algo",
           "path": "docs/design/core-algorithm-spec.md",
           "priority": "critical",
-          "rationale": "候选方案的数据模式"
-        },
-        {
-          "sid": "planner.contracts.plan_candidate",
-          "title": "PlanCandidate 模式定义",
-          "doc_key": "algo",
-          "path": "docs/design/core-algorithm-spec.md",
-          "priority": "high",
-          "rationale": "初始 Plan 候选的模式"
-        },
-        {
-          "sid": "planner.contracts.replan_candidate",
-          "title": "ReplanCandidate 模式定义",
-          "doc_key": "algo",
-          "path": "docs/design/core-algorithm-spec.md",
-          "priority": "high",
-          "rationale": "Replan 候选的模式"
-        },
-        {
-          "sid": "planner.algorithm.tool_retrieval",
-          "title": "工具检索算法",
-          "doc_key": "algo",
-          "path": "docs/design/core-algorithm-spec.md",
-          "priority": "critical",
-          "rationale": "如何从 KG 检索工具的算法"
-        },
-        {
-          "sid": "planner.algorithm.candidate_scoring",
-          "title": "候选方案评分规则",
-          "doc_key": "algo",
-          "path": "docs/design/core-algorithm-spec.md",
-          "priority": "critical",
-          "rationale": "候选方案评分与排序算法"
-        },
-        {
-          "sid": "arch.kg.overview",
-          "title": "ProteinToolKG 在架构中的位置",
-          "doc_key": "arch",
-          "path": "docs/design/architecture.md",
-          "priority": "medium",
-          "rationale": "KG 在规划中的作用"
+          "rationale": "新算法的问题定义与边界"
         }
       ],
-      "total_specs": 15,
-      "critical_specs": 9,
-      "high_specs": 5,
-      "medium_specs": 1
+      "total_specs": 6,
+      "critical_specs": 6,
+      "high_specs": 0
     },
     "execution": {
       "title": "Task Execution",
@@ -373,7 +300,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "每个 Step 的执行结果契约"
+          "rationale": "步骤执行结果的核心数据结构"
         },
         {
           "sid": "agent.contracts.design_result",
@@ -381,15 +308,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "最终执行结果契约"
-        },
-        {
-          "sid": "fsm.states.waiting_patch_confirm",
-          "title": "WAITING_PATCH_CONFIRM 状态定义",
-          "doc_key": "arch",
-          "path": "docs/design/architecture.md",
-          "priority": "high",
-          "rationale": "Patch 确认状态定义"
+          "rationale": "最终结果的核心数据结构"
         },
         {
           "sid": "executor.hitl.responsibilities",
@@ -397,7 +316,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "high",
-          "rationale": "ExecutorAgent 的职责边界"
+          "rationale": "Executor 在 HITL 场景下的职责"
         },
         {
           "sid": "executor.hitl.patch_confirm",
@@ -405,7 +324,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "high",
-          "rationale": "Patch 机制详细说明"
+          "rationale": "Patch 确认流程的执行边界"
         },
         {
           "sid": "executor.responsibilities.must",
@@ -413,7 +332,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "ExecutorAgent 的强制职责"
+          "rationale": "Executor 必须执行与中止的规则"
         },
         {
           "sid": "executor.responsibilities.must_not",
@@ -421,7 +340,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "critical",
-          "rationale": "ExecutorAgent 的禁止行为"
+          "rationale": "Executor 不得越权决策"
         },
         {
           "sid": "planner.contracts.patch_candidate",
@@ -429,7 +348,39 @@
           "doc_key": "algo",
           "path": "docs/design/core-algorithm-spec.md",
           "priority": "high",
-          "rationale": "Patch 候选的数据模式"
+          "rationale": "Patch 候选的结构化输出"
+        },
+        {
+          "sid": "planner.algorithm.runtime_state_estimation",
+          "title": "运行时状态估计（Lite belief-state）",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "执行期依赖运行时状态估计更新"
+        },
+        {
+          "sid": "planner.algorithm.runtime_action_selection",
+          "title": "动作选择与恢复感知控制",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "执行期恢复动作选择的算法边界"
+        },
+        {
+          "sid": "workflow.stage.high_cost_control",
+          "title": "高代价步骤与运行时恢复感知控制",
+          "doc_key": "de_novo_workflow",
+          "path": "docs/design/de-novo-workflow.md",
+          "priority": "high",
+          "rationale": "高代价步骤前后的控制注入点"
+        },
+        {
+          "sid": "impl.runtime_state.persistence",
+          "title": "RuntimeState / BeliefState 与持久化边界",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "执行态 runtime_state 的落点与恢复边界"
         },
         {
           "sid": "tools.executor.overview",
@@ -437,7 +388,7 @@
           "doc_key": "tools",
           "path": "docs/design/tools-catalog.md",
           "priority": "high",
-          "rationale": "可用工具清单"
+          "rationale": "执行期可选工具总览"
         },
         {
           "sid": "tools.adapter.constraints",
@@ -445,7 +396,7 @@
           "doc_key": "tools",
           "path": "docs/design/tools-catalog.md",
           "priority": "critical",
-          "rationale": "工具适配器必须遵守的约束"
+          "rationale": "ToolAdapter 设计与约束"
         },
         {
           "sid": "arch.execution.nextflow_boundary",
@@ -453,7 +404,7 @@
           "doc_key": "arch",
           "path": "docs/design/architecture.md",
           "priority": "high",
-          "rationale": "明确 Nextflow 不参与多步编排，控制流仍由系统负责"
+          "rationale": "Nextflow 仅作为单步执行后端"
         },
         {
           "sid": "impl.nextflow.control_flow_constraints",
@@ -461,7 +412,15 @@
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",
           "priority": "critical",
-          "rationale": "执行失败传播与单步执行约束，避免控制流分裂"
+          "rationale": "Nextflow 接入时的控制流约束"
+        },
+        {
+          "sid": "fsm.states.waiting_patch_confirm",
+          "title": "WAITING_PATCH_CONFIRM 状态定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "medium",
+          "rationale": "Patch 等待确认的外部语义状态"
         },
         {
           "sid": "tools.esmfold.spec",
@@ -469,13 +428,13 @@
           "doc_key": "tools",
           "path": "docs/design/tools-catalog.md",
           "priority": "medium",
-          "rationale": "示例工具规约"
+          "rationale": "高代价结构预测工具的代表规约"
         }
       ],
-      "total_specs": 14,
-      "critical_specs": 7,
-      "high_specs": 6,
-      "medium_specs": 1
+      "total_specs": 18,
+      "critical_specs": 9,
+      "high_specs": 7,
+      "medium_specs": 2
     },
     "de_novo_workflow": {
       "title": "De Novo Workflow",
@@ -610,7 +569,7 @@
           "doc_key": "arch",
           "path": "docs/design/architecture.md",
           "priority": "critical",
-          "rationale": "所有状态的定义，用于状态追踪"
+          "rationale": "所有状态名称与含义的权威定义"
         },
         {
           "sid": "fsm.transitions.overview",
@@ -618,7 +577,7 @@
           "doc_key": "arch",
           "path": "docs/design/architecture.md",
           "priority": "critical",
-          "rationale": "状态转换规则，用于追踪异常转换"
+          "rationale": "合法状态流转的可审计基准"
         },
         {
           "sid": "arch.contracts.task_snapshot",
@@ -626,7 +585,15 @@
           "doc_key": "arch",
           "path": "docs/design/architecture.md",
           "priority": "critical",
-          "rationale": "快照机制，支持恢复与审计"
+          "rationale": "快照契约定义恢复边界"
+        },
+        {
+          "sid": "impl.runtime_state.persistence",
+          "title": "RuntimeState / BeliefState 与持久化边界",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "runtime_state 写入 TaskSnapshot.artifacts 的实现边界"
         },
         {
           "sid": "agent.contracts.step_result",
@@ -634,7 +601,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "high",
-          "rationale": "Step 级别的执行结果，用于细粒度追踪"
+          "rationale": "步骤结果是日志与监控的重要来源"
         },
         {
           "sid": "agent.contracts.design_result",
@@ -642,7 +609,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "high",
-          "rationale": "最终结果，用于任务级别追踪"
+          "rationale": "最终结果的可观测输出"
         },
         {
           "sid": "agent.contracts.safety_result",
@@ -650,7 +617,7 @@
           "doc_key": "agent",
           "path": "docs/design/agent-design.md",
           "priority": "high",
-          "rationale": "安全检查结果，用于风险追踪"
+          "rationale": "Safety 事件的结构化输出"
         },
         {
           "sid": "obs.eventlog.schema",
@@ -658,7 +625,7 @@
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",
           "priority": "critical",
-          "rationale": "日志记录的数据模式"
+          "rationale": "EventLog 结构定义"
         },
         {
           "sid": "obs.observability.overview",
@@ -666,7 +633,7 @@
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",
           "priority": "medium",
-          "rationale": "可观测设计总体约束与范围说明"
+          "rationale": "可观测设计总览"
         },
         {
           "sid": "obs.eventlog.mandatory_events",
@@ -674,7 +641,7 @@
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",
           "priority": "critical",
-          "rationale": "强制日志事件，确保可审计性"
+          "rationale": "事件日志写入的硬约束"
         },
         {
           "sid": "api.rest.overview",
@@ -682,12 +649,12 @@
           "doc_key": "impl",
           "path": "docs/design/system-implementation-design.md",
           "priority": "medium",
-          "rationale": "API 也需要日志与监控"
+          "rationale": "API 层暴露的状态与追踪面"
         }
       ],
-      "total_specs": 11,
+      "total_specs": 12,
       "critical_specs": 6,
-      "high_specs": 3,
+      "high_specs": 4,
       "medium_specs": 2
     },
     "llm_provider": {
@@ -908,8 +875,8 @@
     }
   },
   "summary": {
-    "total_topics": 9,
-    "total_unique_specs": 72,
+    "total_topics": 10,
+    "total_unique_specs": 81,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {
