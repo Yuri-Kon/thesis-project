@@ -7,25 +7,25 @@
 从当前完成情况来看，系统主体、关键控制机制和主要工程证据已经形成，能够支撑中期答辩中的系统演示与技术论述；但仍有部分工作尚未完成，主要集中在外部模型专用训练、横向对比实验、统一评估收口以及论文图表与结论的最终定稿。因此，对中期阶段的准确判断应当是：系统实现已基本成型，实验与评估部分处于阶段性完成状态，后续工作仍具有明确而集中的推进重点。
 
 \begin{table}[htbp]
-  \centering
-  \caption{项目进度及毕业设计（论文）工作计划完成情况表}
-  \label{tab:midterm-plan-progress}
-  \renewcommand{\arraystretch}{1.25}
-  \fontsize{9.5pt}{13pt}\selectfont
-  \begin{tabularx}{\textwidth}{p{2.1cm}p{2.1cm}>{\raggedright\arraybackslash}X p{2.7cm}}
-    \toprule
-    起始时间 & 完成时间 & 计划工作内容 & 备注（是否已完成） \\
-    \midrule
-    2025.12.26 & 2026.01.15 & 完成 FSM/HITL 重构、PendingAction/Decision/TaskSnapshot/EventLog 等核心对象设计，建立任务状态推进、人工决策与审计记录的基本框架。 & 已完成 \\
-    2026.01.14 & 2026.01.25 & 完成 ProteinToolKG 最小可用形态，以及从头蛋白质设计最小闭环，初步实现“规划、执行、失败判定、结果汇总”的连续链路。 & 已完成 \\
-    2026.02.01 & 2026.03.08 & 完成系统演示链路与工具扩展，补齐启动脚本、任务状态展示、PendingAction 决策界面、事件时间线以及远程工具接入能力。 & 已完成 \\
-    2026.03.01 & 2026.03.15 & 完成 CandidateSet v1、Top-K 候选生成、风险与成本门控、候选校验器，以及六阶段工作流前四阶段的关键实现。 & 已完成 \\
-    2026.03.01 & 2026.03.15 & 完成 Patch/Replan 分层恢复、恢复链可观测性增强、训练数据抽取与质量门禁，并补齐六阶段后两阶段的关键能力。 & 已完成 \\
-    2026.03.14 & 2026.03.15 & 完成中期实验计划冻结、数据版本冻结、纵向增量实验和治理复核，为中期阶段的系统论证和后续实验推进提供基础。 & 已完成 \\
-    2026.03.01 & --- & 外部模型专用训练尚未启动，后续需要在统一数据口径和评估标准下完成训练实施、结果复核和回退策略验证。 & 未开始 \\
-    2026.03.14 & --- & 横向对比实验、统一评估结果收口、多工具验收以及论文图表和阶段总结的最终定稿仍需继续推进。 & 进行中 \\
-    \bottomrule
-  \end{tabularx}
+	\centering
+	\caption{项目进度及毕业设计（论文）工作计划完成情况表}
+	\label{tab:midterm-plan-progress}
+	\renewcommand{\arraystretch}{1.25}
+	\fontsize{9.5pt}{13pt}\selectfont
+	\begin{tabularx}{\textwidth}{p{2.1cm}p{2.1cm}>{\raggedright\arraybackslash}X p{2.7cm}}
+		\toprule
+		起始时间       & 完成时间       & 计划工作内容                                                                                       & 备注（是否已完成） \\
+		\midrule
+		2025.12.26 & 2026.01.15 & 完成 FSM/HITL 重构、PendingAction/Decision/TaskSnapshot/EventLog 等核心对象设计，建立任务状态推进、人工决策与审计记录的基本框架。 & 已完成       \\
+		2026.01.14 & 2026.01.25 & 完成 ProteinToolKG 最小可用形态，以及从头蛋白质设计最小闭环，初步实现“规划、执行、失败判定、结果汇总”的连续链路。                            & 已完成       \\
+		2026.02.01 & 2026.03.08 & 完成系统演示链路与工具扩展，补齐启动脚本、任务状态展示、PendingAction 决策界面、事件时间线以及远程工具接入能力。                              & 已完成       \\
+		2026.03.01 & 2026.03.15 & 完成 CandidateSet v1、Top-K 候选生成、风险与成本门控、候选校验器，以及六阶段工作流前四阶段的关键实现。                               & 已完成       \\
+		2026.03.01 & 2026.03.15 & 完成 Patch/Replan 分层恢复、恢复链可观测性增强、训练数据抽取与质量门禁，并补齐六阶段后两阶段的关键能力。                                  & 已完成       \\
+		2026.03.14 & 2026.03.15 & 完成中期实验计划冻结、数据版本冻结、纵向增量实验和治理复核，为中期阶段的系统论证和后续实验推进提供基础。                                         & 已完成       \\
+		2026.03.01 & ---        & 外部模型专用训练尚未启动，后续需要在统一数据口径和评估标准下完成训练实施、结果复核和回退策略验证。                                            & 未开始       \\
+		2026.03.14 & ---        & 横向对比实验、统一评估结果收口、多工具验收以及论文图表和阶段总结的最终定稿仍需继续推进。                                                 & 进行中       \\
+		\bottomrule
+	\end{tabularx}
 \end{table}
 
 \normalsize
@@ -40,22 +40,22 @@
 在实验验证方面，现阶段已经完成纵向实验方案的组织与阶段性运行，并完成治理复核，说明实验框架、指标口径和证据链已经基本建立。但横向对比实验尚未完成，统一评估结果仍需在后续阶段继续收口；同时，外部模型专用训练尚未正式启动，因此训练效果及其对规划质量的影响暂时还不能作为中期阶段的既有结论。如表 \ref{tab:midterm-evaluation-status} 所示，系统评估被划分为功能闭环、运行可用性、治理审计、纵向实验、横向对比和训练评估等几个方面，其中前四项已经形成不同程度的阶段性结果，后两项仍处于未完成状态。
 
 \begin{table}[htbp]
-  \centering
-  \caption{系统评估工作阶段性情况}
-  \label{tab:midterm-evaluation-status}
-  \renewcommand{\arraystretch}{1.25}
-  \begin{tabularx}{\textwidth}{p{3.0cm}p{2.5cm}>{\raggedright\arraybackslash}X}
-    \toprule
-    评估内容 & 当前状态 & 说明 \\
-    \midrule
-    功能闭环验证 & 已完成 & 已验证任务创建、候选生成、门禁判断、等待态处理、人工决策、失败恢复和结果汇总等核心链路。 \\
-    运行可用性验证 & 已完成 & 已验证工具适配、远程调用、接口联动与恢复机制，说明系统具备实际运行能力。 \\
-    治理与审计复核 & 已完成 & 已形成 PendingAction、Decision、EventLog、TaskSnapshot 的可追溯证据链。 \\
-    纵向实验验证 & 部分完成 & 已完成实验组织、阶段性运行与治理复核，可用于说明实验框架和工程闭环已建立。 \\
-    横向对比实验 & 未完成 & 基线方案和比较思路已明确，但正式运行和结果整理仍待后续完成。 \\
-    外部模型训练评估 & 未开始 & 外部模型专用训练尚未启动，因此训练效果及相关评估尚未展开。 \\
-    \bottomrule
-  \end{tabularx}
+	\centering
+	\caption{系统评估工作阶段性情况}
+	\label{tab:midterm-evaluation-status}
+	\renewcommand{\arraystretch}{1.25}
+	\begin{tabularx}{\textwidth}{p{3.0cm}p{2.5cm}>{\raggedright\arraybackslash}X}
+		\toprule
+		评估内容     & 当前状态 & 说明                                                        \\
+		\midrule
+		功能闭环验证   & 已完成  & 已验证任务创建、候选生成、门禁判断、等待态处理、人工决策、失败恢复和结果汇总等核心链路。              \\
+		运行可用性验证  & 已完成  & 已验证工具适配、远程调用、接口联动与恢复机制，说明系统具备实际运行能力。                      \\
+		治理与审计复核  & 已完成  & 已形成 PendingAction、Decision、EventLog、TaskSnapshot 的可追溯证据链。 \\
+		纵向实验验证   & 部分完成 & 已完成实验组织、阶段性运行与治理复核，可用于说明实验框架和工程闭环已建立。                     \\
+		横向对比实验   & 未完成  & 基线方案和比较思路已明确，但正式运行和结果整理仍待后续完成。                            \\
+		外部模型训练评估 & 未开始  & 外部模型专用训练尚未启动，因此训练效果及相关评估尚未展开。                             \\
+		\bottomrule
+	\end{tabularx}
 \end{table}
 
 \subsection{系统总体设计}
@@ -65,19 +65,19 @@
 从角色划分上看，Planner 负责产生结构化候选，而不直接执行工具；Executor 负责串联计划执行、失败检测和恢复触发，但不拥有人工决策权；Safety 负责对输入、步骤和输出进行风险评估，仅输出允许、告警或阻断结论；Summarizer 负责将过程性结果整理为可读报告，而不改变控制决策。通过这种划分，系统在工程上避免了职责边界混乱的问题，也为后续测试和审计提供了明确的责任归属。
 
 \begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.88\textwidth]{../figures/multi-agent-core.pdf}
-  \caption{多 Agent 核心协作类图}
-  \label{fig:midterm-multi-agent-core}
+	\centering
+	\includegraphics[width=0.88\textwidth]{../figures/multi-agent-core.pdf}
+	\caption{多 Agent 核心协作类图}
+	\label{fig:midterm-multi-agent-core}
 \end{figure}
 
 如图 \ref{fig:midterm-multi-agent-core} 所示，系统的核心对象围绕任务运行主线形成了较为清晰的关联关系。任务对象位于协作结构的中心位置，工作流控制器负责状态推进与运行编排，Planner、Executor、Safety 和 Summarizer 分别围绕候选生成、执行调度、安全审查和结果汇总展开协作；ToolKG、工具适配器、待确认动作、日志快照和结果对象则与上述主体共同构成完整的运行上下文。图中的关系表明，各类 Agent 并不是彼此独立的并行模块，而是在统一任务对象和工作流控制之下完成分工协作。
 
 \begin{figure}[htbp]
-  \centering
-  \includegraphics[width=\textwidth]{../figures/component-views.pdf}
-  \caption{系统总体组件视图}
-  \label{fig:midterm-component-views}
+	\centering
+	\includegraphics[width=\textwidth]{../figures/component-views.pdf}
+	\caption{系统总体组件视图}
+	\label{fig:midterm-component-views}
 \end{figure}
 
 如图 \ref{fig:midterm-component-views} 所示，系统总体组件按照请求接入、工作流控制、候选决策、执行恢复和资源沉淀几部分展开。任务从接口侧进入后，首先由 \texttt{Workflow Runtime} 统一承接，再分别连接 Planner 的候选生成、Executor 的执行推进以及 PendingAction 与 Decision 所对应的确认流程；在执行链下方，EventLog、TaskSnapshot 和报告产物持续记录运行过程。图中的组件组织关系表明，任务推进并不是由单一代理直接驱动，而是沿着“接入、控制、执行、记录”这一主线逐层展开。
@@ -87,30 +87,30 @@
 在具体架构层面，系统目前已经形成较为清晰的分层实现。输入层主要由任务接入接口和任务对象构成，承担用户请求接入、任务创建和基础查询能力；规划层围绕 PlannerAgent 展开，负责从任务目标中抽取意图、结合 ToolKG 选择能力路径，并生成结构化的候选计划；执行层围绕 ExecutorAgent、PlanRunner、PatchRunner 和 StepRunner 展开，承担具体步骤调度、工具调用和失败恢复；安全与汇总层通过 SafetyAgent 和 SummarizerAgent 对执行过程进行风险评估与结果整理；资源层则通过本地存储、日志、快照和输出产物目录对整个系统运行过程进行持久化。上述五层并非简单的串行调用关系，而是通过统一数据契约、状态迁移和待确认动作保持协同。
 
 \begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.95\textwidth]{../figures/system-architecture-overview.pdf}
-  \caption{系统分层架构概览}
-  \label{fig:midterm-architecture-overview}
+	\centering
+	\includegraphics[width=0.95\textwidth]{../figures/system-architecture-overview.pdf}
+	\caption{系统分层架构概览}
+	\label{fig:midterm-architecture-overview}
 \end{figure}
 
 如图 \ref{fig:midterm-architecture-overview} 所示，系统整体结构沿着自上而下的分层方式展开。最上层为请求接入与展示层，其下依次为编排与控制层、Agent 协作层、工具执行与适配层以及资源持久化层。不同层之间形成了由任务请求到状态控制、由角色协作到工具执行、再到日志快照与产物沉淀的连续关系，层与层之间的职责边界较为明确。
 
 \begin{table}[htbp]
-  \centering
-  \caption{系统架构分层及其当前实现形态}
-  \label{tab:midterm-architecture-layers}
-  \renewcommand{\arraystretch}{1.25}
-  \begin{tabular}{p{2.5cm}p{4.4cm}p{5.6cm}}
-    \toprule
-    架构层次 & 主要职责 & 当前实现形态 \\
-    \midrule
-    输入层 & 接收任务、组织请求、暴露查询与决策接口 & 以 API 接口和任务服务为主，负责系统入口与任务管理 \\
-    规划与控制层 & 任务解析、ToolKG 检索、候选生成、打分与门禁 & 以 Planner、候选校验和门禁逻辑为主，负责控制面生成与筛选 \\
-    执行与恢复层 & 按步骤执行计划、检测失败、触发 patch/replan、恢复执行 & 以执行器、步骤调度器和恢复控制组件为主，负责运行主链 \\
-    安全与汇总层 & 输入/过程/输出风险检查、结果汇总与报告生成 & 以风险审查和结果整理模块为主，负责约束与输出解释 \\
-    资源层 & 工具元数据、事件日志、快照、产物与报告持久化 & 以工具注册表、日志快照存储和产物目录为主，负责证据沉淀 \\
-    \bottomrule
-  \end{tabular}
+	\centering
+	\caption{系统架构分层及其当前实现形态}
+	\label{tab:midterm-architecture-layers}
+	\renewcommand{\arraystretch}{1.25}
+	\begin{tabular}{p{2.5cm}p{4.4cm}p{5.6cm}}
+		\toprule
+		架构层次   & 主要职责                              & 当前实现形态                           \\
+		\midrule
+		输入层    & 接收任务、组织请求、暴露查询与决策接口               & 以 API 接口和任务服务为主，负责系统入口与任务管理      \\
+		规划与控制层 & 任务解析、ToolKG 检索、候选生成、打分与门禁         & 以 Planner、候选校验和门禁逻辑为主，负责控制面生成与筛选 \\
+		执行与恢复层 & 按步骤执行计划、检测失败、触发 patch/replan、恢复执行 & 以执行器、步骤调度器和恢复控制组件为主，负责运行主链       \\
+		安全与汇总层 & 输入/过程/输出风险检查、结果汇总与报告生成            & 以风险审查和结果整理模块为主，负责约束与输出解释         \\
+		资源层    & 工具元数据、事件日志、快照、产物与报告持久化            & 以工具注册表、日志快照存储和产物目录为主，负责证据沉淀      \\
+		\bottomrule
+	\end{tabular}
 \end{table}
 
 如表 \ref{tab:midterm-architecture-layers} 所示，系统的各个架构层次均对应了相对明确的职责与实现形态。输入层与任务接入、规划与控制层与候选生成和门禁判断、执行与恢复层与步骤调度及异常恢复、安全与汇总层与风险审查及结果整理、资源层与日志快照及产物持久化之间形成了一一对应关系。表中所列内容与前文分层结构保持一致，体现出架构设计与当前实现之间的对应性。
@@ -126,10 +126,10 @@
 进入执行阶段后，Executor 会基于当前 Plan 逐步调度 StepRunner 与工具适配器完成具体步骤执行。若步骤正常完成，结果会被写入上下文并作为后续步骤输入；若步骤失败，系统首先遵循既定的重试策略，待重试耗尽或检测到可修复失败类型后，再由 PatchRunner 触发局部修复候选生成。如果 Patch 候选需要人工确认，则任务进入 \texttt{WAITING\_PATCH\_CONFIRM}；若高风险或局部修复无法成立，则进一步升级到 Replan 流程，并在必要时转入再规划确认等待态。在这一过程中，Executor 负责发现问题并暂停执行，但不拥有自行接受某个 Patch 或 Replan 的权限，这一点保证了执行控制和人工决策之间的边界清晰可见。换言之，系统在交互层面表现为一个可操作、可确认的研究辅助平台，而在控制逻辑上则始终遵循由 \texttt{retry -> patch -> replan} 与 HITL 决策共同构成的分层恢复闭环。
 
 \begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.96\textwidth]{../figures/recovery-hitl-overview.pdf}
-  \caption{恢复控制与 HITL 机制概览}
-  \label{fig:midterm-recovery-hitl}
+	\centering
+	\includegraphics[width=0.96\textwidth]{../figures/recovery-hitl-overview.pdf}
+	\caption{恢复控制与 HITL 机制概览}
+	\label{fig:midterm-recovery-hitl}
 \end{figure}
 
 如图 \ref{fig:midterm-recovery-hitl} 所示，系统在单步失败后的处理路径按照重试、局部修复和再规划的顺序逐层展开。Patch 候选的生成与门禁判断、等待态确认以及 Replan 的触发被组织在同一条恢复链上，人工决策节点位于自动恢复流程的关键分叉位置。图中的流程关系表明，恢复控制与人在环机制并不是分离的两部分，而是在同一执行主链中连续衔接。
