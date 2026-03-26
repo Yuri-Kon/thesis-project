@@ -21,6 +21,9 @@ from src.models.contracts import (
     Plan,
     PlanStep,
     ProteinDesignTask,
+    RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RuntimeState,
     StepResult,
     TaskSnapshot,
     now_iso,
@@ -371,6 +374,7 @@ def restore_context_from_snapshot(
     context = WorkflowContext(
         task=task,
         plan=plan,
+        runtime_state=_extract_runtime_state(snapshot),
         status=internal_status,
     )
 
@@ -407,6 +411,27 @@ def extract_remote_job_context(
     try:
         return RemoteJobContext.from_dict(job_data)
     except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _extract_runtime_state(snapshot: TaskSnapshot) -> RuntimeState | None:
+    runtime_payload = snapshot.artifacts.get(RUNTIME_STATE_ARTIFACT_KEY)
+    if not isinstance(runtime_payload, dict):
+        return None
+
+    payload = dict(runtime_payload)
+    observation_summary = snapshot.artifacts.get(
+        RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY
+    )
+    if (
+        "observation_summary" not in payload
+        and isinstance(observation_summary, dict)
+    ):
+        payload["observation_summary"] = observation_summary
+
+    try:
+        return RuntimeState.model_validate(payload)
+    except Exception:
         return None
 
 

@@ -10,6 +10,9 @@ from src.models.contracts import (
     Plan,
     PlanStep,
     ProteinDesignTask,
+    RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RuntimeState,
     TaskSnapshot,
     now_iso,
 )
@@ -53,6 +56,49 @@ def test_restore_context_from_snapshot_restores_completed_steps():
     assert "S1" in context.step_results
     assert context.step_results["S1"].tool == "esmfold"
     assert context.step_results["S1"].status == "success"
+
+
+@pytest.mark.unit
+def test_restore_context_from_snapshot_restores_runtime_state():
+    task = ProteinDesignTask(
+        task_id="task_recovery_runtime_state",
+        goal="recover runtime state",
+        constraints={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(id="S1", tool="esmfold", inputs={"sequence": "ACDE"}, metadata={}),
+        ],
+    )
+    runtime_state = RuntimeState(
+        p_success=0.61,
+        p_structural_failure=0.21,
+        recovery_margin=0.28,
+        expected_remaining_cost=7.0,
+        last_update_source="step_result:S1",
+        observation_summary={"completed_steps": 1},
+    )
+    snapshot = TaskSnapshot(
+        snapshot_id="snapshot_runtime_state_001",
+        task_id=task.task_id,
+        state=ExternalStatus.RUNNING.value,
+        plan_version=1,
+        step_index=1,
+        completed_step_ids=["S1"],
+        artifacts={
+            RUNTIME_STATE_ARTIFACT_KEY: runtime_state.to_snapshot_payload(),
+            RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY: runtime_state.observation_summary,
+        },
+        created_at=now_iso(),
+    )
+
+    context = restore_context_from_snapshot(task=task, plan=plan, snapshot=snapshot)
+
+    assert context is not None
+    assert context.runtime_state is not None
+    assert context.runtime_state.p_success == pytest.approx(0.61)
+    assert context.runtime_state.observation_summary == {"completed_steps": 1}
 
 
 @pytest.mark.unit
