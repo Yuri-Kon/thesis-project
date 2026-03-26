@@ -51,8 +51,8 @@ def test_extract_run_metrics_and_requirement2(tmp_path: Path) -> None:
             {
                 "event": "STEP_FINISHED",
                 "task_id": "task_a0",
-                "step_id": "S1",
-                "tool": "protgpt2",
+                "step_id": "S2",
+                "tool": "esmfold",
                 "status": "success",
                 "timestamp": "2026-03-15T10:00:02+00:00",
             },
@@ -113,9 +113,11 @@ def test_extract_run_metrics_and_requirement2(tmp_path: Path) -> None:
     assert metrics["patch_event_count"] == 1
     assert metrics["replan_event_count"] == 1
     assert metrics["waiting_chain_complete"] is True
-    assert metrics["requirement2_coverage"]["sequence_core"] is True
-    assert metrics["requirement2_coverage"]["structure_prediction"] is False
+    assert metrics["requirement2_coverage"]["sequence_core"] is False
+    assert metrics["requirement2_coverage"]["structure_prediction"] is True
     assert metrics["layer_counter"]["parameter_level"] == 1
+    assert metrics["high_cost_call_count"] == 1
+    assert metrics["high_cost_rule_hits"]["structure_mapping"] == 1
 
 
 def test_aggregate_and_deltas(tmp_path: Path) -> None:
@@ -185,6 +187,7 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert summary["A0"]["success_rate"] == 0.5
     assert summary["A1"]["success_rate"] == 1.0
     assert summary["A1"]["patch_events_mean"] == 0.0
+    assert summary["A0"]["high_cost_call_mean"] == 0.0
 
     deltas = compute_increment_deltas(
         runs,

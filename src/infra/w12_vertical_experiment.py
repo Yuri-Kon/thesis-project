@@ -27,6 +27,36 @@ DEFAULT_OFFLINE_THRESHOLDS: dict[str, float] = {
     "suffix_replan_prefix_preservation_rate": 1.0,
 }
 
+DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = [
+    {
+        "rule_id": "structure_mapping",
+        "label": "结构映射",
+        "stage_ids": ["S2"],
+        "tool_ids": ["esmfold", "nim_esmfold", "openfold3"],
+        "capability_ids": ["structure_prediction"],
+        "cost_tier": "high",
+        "rationale": "结构预测调用通常消耗远程/重模型预算，是高代价主来源。",
+    },
+    {
+        "rule_id": "structure_refinement",
+        "label": "结构条件下的序列精修",
+        "stage_ids": ["S4"],
+        "tool_ids": ["protein_mpnn"],
+        "capability_ids": ["sequence_design"],
+        "cost_tier": "high",
+        "rationale": "ProteinMPNN 多轮采样与回放属于高暴露恢复环节。",
+    },
+    {
+        "rule_id": "heavy_objective_evaluation",
+        "label": "重型目标评估",
+        "stage_ids": ["S5"],
+        "tool_ids": [],
+        "capability_ids": ["objective_scoring"],
+        "cost_tier": "medium_high",
+        "rationale": "重型目标/物性评估会引入额外模型或批量打分成本。",
+    },
+]
+
 _PATCH_EVENT_NAMES = {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}
 
 
@@ -129,6 +159,59 @@ def load_tool_capability_map(kg_path: Path) -> dict[str, list[str]]:
     return mapping
 
 
+def normalize_high_cost_rules(raw_rules: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw_rules, list):
+        raw_rules = DEFAULT_HIGH_COST_RULES
+
+    normalized: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_rules):
+        if not isinstance(raw, dict):
+            continue
+        rule_id = raw.get("rule_id")
+        if not isinstance(rule_id, str) or not rule_id.strip():
+            rule_id = f"high_cost_rule_{index + 1}"
+
+        def _normalize_str_list(value: Any) -> list[str]:
+            if not isinstance(value, list):
+                return []
+            return [str(item) for item in value if isinstance(item, str) and item]
+
+        normalized.append(
+            {
+                "rule_id": rule_id.strip(),
+                "label": str(raw.get("label") or rule_id).strip(),
+                "stage_ids": _normalize_str_list(raw.get("stage_ids")),
+                "tool_ids": _normalize_str_list(raw.get("tool_ids")),
+                "capability_ids": _normalize_str_list(raw.get("capability_ids")),
+                "cost_tier": str(raw.get("cost_tier") or "unknown"),
+                "rationale": str(raw.get("rationale") or ""),
+            }
+        )
+
+    return normalized or list(DEFAULT_HIGH_COST_RULES)
+
+
+def _match_high_cost_rule(
+    *,
+    row: dict[str, Any],
+    tool: str,
+    capabilities: list[str],
+    rule: dict[str, Any],
+) -> bool:
+    stage_ids = set(rule.get("stage_ids") or [])
+    tool_ids = set(rule.get("tool_ids") or [])
+    capability_ids = set(rule.get("capability_ids") or [])
+
+    step_id = row.get("step_id")
+    if stage_ids and not (isinstance(step_id, str) and step_id in stage_ids):
+        return False
+    if tool_ids and tool not in tool_ids:
+        return False
+    if capability_ids and not capability_ids.intersection(capabilities):
+        return False
+    return bool(stage_ids or tool_ids or capability_ids)
+
+
 def validate_freeze_manifest(
     manifest: dict[str, Any],
     *,
@@ -227,15 +310,18 @@ def extract_run_metrics(
     *,
     tool_capability_map: dict[str, list[str]],
     requirement2_capability_map: dict[str, list[str]],
+    high_cost_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     event_log_path = Path(str(run.get("event_log_path") or ""))
     rows = read_jsonl(event_log_path)
+    resolved_high_cost_rules = normalize_high_cost_rules(high_cost_rules)
 
     timestamps: list[datetime] = []
     step_failed_details: list[dict[str, Any]] = []
     layer_counter: Counter[str] = Counter()
     tool_usage: Counter[str] = Counter()
     capability_usage: Counter[str] = Counter()
+    high_cost_rule_hits: Counter[str] = Counter()
 
     waiting_enter_ids: set[str] = set()
     waiting_exit_ids: set[str] = set()
@@ -248,6 +334,8 @@ def extract_run_metrics(
     step_failed_count = 0
     step_finished_count = 0
     waiting_enter_count = 0
+    high_cost_call_count = 0
+    high_cost_failure_count = 0
 
     suffix_prefix_samples: list[bool] = []
     final_status: str | None = None
@@ -324,8 +412,25 @@ def extract_run_metrics(
             tool = row.get("tool")
             if isinstance(tool, str) and tool:
                 tool_usage[tool] += 1
-                for capability in tool_capability_map.get(tool, []):
+                capabilities = tool_capability_map.get(tool, [])
+                for capability in capabilities:
                     capability_usage[capability] += 1
+                matched_rules = [
+                    rule["rule_id"]
+                    for rule in resolved_high_cost_rules
+                    if _match_high_cost_rule(
+                        row=row,
+                        tool=tool,
+                        capabilities=capabilities,
+                        rule=rule,
+                    )
+                ]
+                if matched_rules:
+                    high_cost_call_count += 1
+                    if status == "failed" or event_name == "STEP_FAILED":
+                        high_cost_failure_count += 1
+                    for rule_id in matched_rules:
+                        high_cost_rule_hits[rule_id] += 1
 
     if final_status is None:
         explicit = run.get("status_external")
@@ -410,6 +515,9 @@ def extract_run_metrics(
         "layer_counter": dict(layer_counter),
         "tool_usage": dict(tool_usage),
         "capability_usage": dict(capability_usage),
+        "high_cost_call_count": high_cost_call_count,
+        "high_cost_failure_count": high_cost_failure_count,
+        "high_cost_rule_hits": dict(high_cost_rule_hits),
         "requirement2_coverage": requirement2_coverage,
         "suffix_prefix_samples": suffix_prefix_samples,
         "abnormal_reasons": abnormal_reasons,
@@ -461,6 +569,7 @@ def aggregate_group_metrics(
 
     summary_rows: list[dict[str, Any]] = []
     patch_rows: list[dict[str, Any]] = []
+    high_cost_rows: list[dict[str, Any]] = []
     requirement2_rows: list[dict[str, Any]] = []
     abnormal_rows: list[dict[str, Any]] = []
     gate_rows: list[dict[str, Any]] = []
@@ -481,16 +590,31 @@ def aggregate_group_metrics(
         replan_counts = [float(item.get("replan_event_count", 0) or 0) for item in rows]
         suffix_counts = [float(item.get("suffix_replan_event_count", 0) or 0) for item in rows]
         duration_values = [float(item.get("duration_ms", 0.0) or 0.0) for item in rows]
+        high_cost_counts = [float(item.get("high_cost_call_count", 0) or 0) for item in rows]
+        high_cost_failure_counts = [
+            float(item.get("high_cost_failure_count", 0) or 0) for item in rows
+        ]
 
         patch_summary = _mean_summary(patch_counts, iterations=iterations, seed=seed + idx * 11 + 1)
         replan_summary = _mean_summary(replan_counts, iterations=iterations, seed=seed + idx * 11 + 2)
         suffix_summary = _mean_summary(suffix_counts, iterations=iterations, seed=seed + idx * 11 + 3)
         duration_summary = _mean_summary(duration_values, iterations=iterations, seed=seed + idx * 11 + 4)
+        high_cost_summary = _mean_summary(
+            high_cost_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 5,
+        )
+        high_cost_failure_summary = _mean_summary(
+            high_cost_failure_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 6,
+        )
 
         patch_layer_counter: Counter[str] = Counter()
         suffix_prefix_samples: list[bool] = []
         capability_counter: Counter[str] = Counter()
         tool_counter: Counter[str] = Counter()
+        high_cost_rule_counter: Counter[str] = Counter()
         total_patch_events_with_layer = 0
 
         for row in rows:
@@ -504,6 +628,9 @@ def aggregate_group_metrics(
             for key, value in (row.get("tool_usage") or {}).items():
                 if isinstance(key, str) and isinstance(value, (int, float)):
                     tool_counter[key] += int(value)
+            for key, value in (row.get("high_cost_rule_hits") or {}).items():
+                if isinstance(key, str) and isinstance(value, (int, float)):
+                    high_cost_rule_counter[key] += int(value)
             suffix_prefix_samples.extend([bool(v) for v in row.get("suffix_prefix_samples") or []])
 
         patch_minimality_hit_rate = None
@@ -551,6 +678,12 @@ def aggregate_group_metrics(
             "duration_ms_mean": duration_summary["mean"],
             "duration_ms_ci_low": duration_summary["ci_low"],
             "duration_ms_ci_high": duration_summary["ci_high"],
+            "high_cost_call_mean": high_cost_summary["mean"],
+            "high_cost_call_ci_low": high_cost_summary["ci_low"],
+            "high_cost_call_ci_high": high_cost_summary["ci_high"],
+            "high_cost_failure_mean": high_cost_failure_summary["mean"],
+            "high_cost_failure_ci_low": high_cost_failure_summary["ci_low"],
+            "high_cost_failure_ci_high": high_cost_failure_summary["ci_high"],
             "patch_minimality_hit_rate": patch_minimality_hit_rate,
             "suffix_replan_prefix_preservation_rate": suffix_prefix_preservation_rate,
             "requirement2_sequence_core": requirement2_bucket_status.get("sequence_core", False),
@@ -574,6 +707,15 @@ def aggregate_group_metrics(
                 "patch_minimality_hit_rate": patch_minimality_hit_rate,
                 "suffix_prefix_sample_size": len(suffix_prefix_samples),
                 "suffix_prefix_preservation_rate": suffix_prefix_preservation_rate,
+            }
+        )
+
+        high_cost_rows.append(
+            {
+                "group_id": group_id,
+                "high_cost_calls_total": sum(high_cost_counts),
+                "high_cost_failures_total": sum(high_cost_failure_counts),
+                "high_cost_rule_hits": dict(high_cost_rule_counter),
             }
         )
 
@@ -651,6 +793,7 @@ def aggregate_group_metrics(
     return {
         "summary_rows": summary_rows,
         "patch_rows": patch_rows,
+        "high_cost_rows": high_cost_rows,
         "requirement2_rows": requirement2_rows,
         "abnormal_rows": abnormal_rows,
         "gate_rows": gate_rows,
@@ -775,18 +918,19 @@ def build_markdown_report(
     lines.append("## Unified Metrics (effect / mechanism / cost / governance)")
     lines.append("")
     lines.append(
-        "| group | runs | success_rate | first_pass | schema_valid | executable | patch_mean | replan_mean | duration_ms_mean |"
+        "| group | runs | success_rate | first_pass | schema_valid | executable | high_cost_mean | patch_mean | replan_mean | duration_ms_mean |"
     )
-    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
     for row in summary_rows:
         lines.append(
-            "| {group_id} | {runs} | {success_rate:.4f} | {first_pass_success_rate:.4f} | {schema_valid_rate:.4f} | {executable_plan_rate:.4f} | {patch_events_mean:.4f} | {replan_events_mean:.4f} | {duration_ms_mean:.2f} |".format(
+            "| {group_id} | {runs} | {success_rate:.4f} | {first_pass_success_rate:.4f} | {schema_valid_rate:.4f} | {executable_plan_rate:.4f} | {high_cost_call_mean:.4f} | {patch_events_mean:.4f} | {replan_events_mean:.4f} | {duration_ms_mean:.2f} |".format(
                 group_id=row.get("group_id"),
                 runs=row.get("runs", 0),
                 success_rate=float(row.get("success_rate") or 0.0),
                 first_pass_success_rate=float(row.get("first_pass_success_rate") or 0.0),
                 schema_valid_rate=float(row.get("schema_valid_rate") or 0.0),
                 executable_plan_rate=float(row.get("executable_plan_rate") or 0.0),
+                high_cost_call_mean=float(row.get("high_cost_call_mean") or 0.0),
                 patch_events_mean=float(row.get("patch_events_mean") or 0.0),
                 replan_events_mean=float(row.get("replan_events_mean") or 0.0),
                 duration_ms_mean=float(row.get("duration_ms_mean") or 0.0),
