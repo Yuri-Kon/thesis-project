@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 from uuid import uuid4
 
-from src.models.contracts import TaskSnapshot, now_iso
+from src.models.contracts import (
+    RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RuntimeState,
+    TaskSnapshot,
+    now_iso,
+)
 from src.models.db import ExternalStatus, to_external_status
 from src.storage.snapshot_store import append_snapshot
 from src.workflow.context import WorkflowContext
@@ -40,6 +46,7 @@ def build_task_snapshot(
     external_state = state_override or to_external_status(context.status)
     step_ids = list(context.step_results.keys())
     artifacts_payload = dict(artifacts or {})
+    _inject_runtime_state_artifacts(context.runtime_state, artifacts_payload)
     if context.pending_action is not None:
         artifacts_payload.setdefault(
             "pending_action", context.pending_action.model_dump()
@@ -71,3 +78,22 @@ def _extract_plan_version(context: WorkflowContext) -> Optional[int]:
         except (TypeError, ValueError):
             return None
     return None
+
+
+def _inject_runtime_state_artifacts(
+    runtime_state: RuntimeState | None,
+    artifacts_payload: dict[str, Any],
+) -> None:
+    if runtime_state is None:
+        return
+
+    artifacts_payload.setdefault(
+        RUNTIME_STATE_ARTIFACT_KEY,
+        runtime_state.to_snapshot_payload(),
+    )
+
+    if runtime_state.observation_summary:
+        artifacts_payload.setdefault(
+            RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+            dict(runtime_state.observation_summary),
+        )
