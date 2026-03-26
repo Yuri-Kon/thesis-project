@@ -110,6 +110,7 @@ def main() -> int:
             row,
             tool_capability_map=tool_capability_map,
             requirement2_capability_map=requirement2_capability_map,
+            high_cost_rules=manifest.get("high_cost_rules"),
         )
         for row in runs
         if isinstance(row, dict)
@@ -132,6 +133,7 @@ def main() -> int:
         "patch_event_count",
         "replan_event_count",
         "duration_ms",
+        "high_cost_call_count",
     ]
     delta_rows = []
     for metric in delta_metrics:
@@ -150,6 +152,7 @@ def main() -> int:
 
     summary_rows = aggregated["summary_rows"]
     patch_rows = aggregated["patch_rows"]
+    high_cost_rows = aggregated["high_cost_rows"]
     requirement2_rows = aggregated["requirement2_rows"]
     abnormal_rows = aggregated["abnormal_rows"]
     gate_rows = aggregated["gate_rows"]
@@ -185,6 +188,12 @@ def main() -> int:
         "duration_ms_mean",
         "duration_ms_ci_low",
         "duration_ms_ci_high",
+        "high_cost_call_mean",
+        "high_cost_call_ci_low",
+        "high_cost_call_ci_high",
+        "high_cost_failure_mean",
+        "high_cost_failure_ci_low",
+        "high_cost_failure_ci_high",
         "patch_minimality_hit_rate",
         "suffix_replan_prefix_preservation_rate",
         "requirement2_sequence_core",
@@ -208,6 +217,14 @@ def main() -> int:
         "suffix_prefix_preservation_rate",
     ]
     write_csv(output_dir / "patch_replan_breakdown.csv", patch_rows, patch_fields)
+
+    high_cost_fields = [
+        "group_id",
+        "high_cost_calls_total",
+        "high_cost_failures_total",
+        "high_cost_rule_hits",
+    ]
+    write_csv(output_dir / "high_cost_breakdown.csv", high_cost_rows, high_cost_fields)
 
     requirement2_fields = ["group_id", "slice_type", "name", "covered", "usage_count"]
     write_csv(
