@@ -80,6 +80,29 @@ ______________________________________________________________________
 - 一份基于当前代码的接口缺口清单。
 - 一份冻结后的任务集/基线/指标说明。
 
+### 基于 Issue #208 的增补拆分（2026-03-25）
+
+`W13-03` 的代码基线审计已经确认：当前系统不缺 Top-K、gate、patch/replan、snapshot、event log 主骨架；真正需要继续拆分的是 `runtime_state` 契约、动作选择接缝、等待态/快照恢复摘要，以及实验端对 action-level / belief-state-level 证据的聚合能力。
+
+因此，Week 14 到 Week 16 在原有 15 个 issue 之外，建议增补以下 8 个细化 issue，作为既有 issue 的前置落点或中间插入位：
+
+| 周次 | 建议插入位置 | 新增 issue | 对应缺口 | 主要目的 |
+| :--- | :----------- | :--------- | :------- | :------- |
+| Week 14 | `#211` 之前 | W14-Contracts-1a RuntimeState schema、snapshot 键与版本字段冻结 | D1 | 先把运行时状态模型与持久化键固定下来，避免后续字段漂移 |
+| Week 14 | `#211` 与 `#212` 之间 | W14-Contracts-1b PendingActionCandidate / WAITING 运行时摘要契约 | D2 | 固定候选与等待态中的状态摘要、默认建议原因和最小 HITL 回放字段 |
+| Week 14 | `#212` 之后 | W14-Workflow-2a belief-state 更新纯函数与字段语义标定 | F1 | 把状态更新逻辑独立出来，先做可重放、可测试的更新器核心 |
+| Week 14 | `#213` 之前 | W14-Observability-3a WAITING 前 runtime_state snapshot 持久化 | E2 | 确保运行时状态能跨 `WAITING_*` 和恢复路径保留 |
+| Week 14 | `#213` 与 `#214` 之间 | W14-Observability-3b action/runtime 审计事件字段补齐 | E1 | 为动作选择、升级原因、shadow score 等补齐事件证据 |
+| Week 15 | `#216` 与 `#217` 之间 | W15-Workflow-1a 统一动作选择器接口与 recovery 映射 | F2 | 在不改变 FSM 的前提下，把四种动作映射回既有恢复闭环 |
+| Week 15 | `#217` 之前 | W15-Planner-2a shadow rerank 与 adjusted score 接口 | F3 | 先补静态评分与运行时修正的接口层，再谈默认建议接管 |
+| Week 16 | `#221` 与 `#222` 之间 | W16-Evaluation-2a action-level / belief-state 聚合指标扩展 | E3 | 让四组方法在同一聚合脚本下可比较动作与状态证据 |
+
+补充说明：
+
+- 原有 `#211` 到 `#225` 保持为月度主 issue，不删除、不改语义。
+- 新增 issue 的定位是“把 `#208` 识别出的真正缺口拆成可执行前置项”，用于避免后续实现继续在大 issue 内混写契约、控制流和证据字段。
+- project 排序应按上表插入，使实现顺序与缺口依赖顺序一致。
+
 ______________________________________________________________________
 
 ## Week 14(03.31-04.06)
