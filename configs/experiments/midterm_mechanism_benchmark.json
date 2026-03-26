@@ -1,0 +1,184 @@
+{
+  "benchmark_id": "midterm_mechanism_benchmark",
+  "description": "Midterm mechanism validation benchmark built from reproducible integration scenarios.",
+  "output_root": "output/experiment/midterm-mechanism-benchmark",
+  "scenarios": [
+    {
+      "id": "plan_gate_paths",
+      "label": "Plan Gate Paths",
+      "family": "Gate",
+      "runner": "pytest",
+      "target": "tests/integration/test_candidate_score_gate.py::test_plan_gate_waiting_and_auto_paths",
+      "capabilities": ["gate_control", "waiting_gate", "candidate_scoring"]
+    },
+    {
+      "id": "patch_gate_paths",
+      "label": "Patch Gate Paths",
+      "family": "Gate",
+      "runner": "pytest",
+      "target": "tests/integration/test_candidate_score_gate.py::test_patch_gate_waiting_and_auto_paths",
+      "capabilities": ["gate_control", "patch_recovery", "waiting_gate"]
+    },
+    {
+      "id": "waiting_enter_event",
+      "label": "Waiting Enter Event",
+      "family": "HITL & Audit",
+      "runner": "pytest",
+      "target": "tests/integration/test_event_log_integration.py::test_enter_waiting_state_emits_waiting_enter_event",
+      "capabilities": ["event_audit", "hitl_decision", "waiting_gate"]
+    },
+    {
+      "id": "decision_apply_events",
+      "label": "Decision Apply Events",
+      "family": "HITL & Audit",
+      "runner": "pytest",
+      "target": "tests/integration/test_event_log_integration.py::test_decision_apply_emits_waiting_exit_and_decision_applied",
+      "capabilities": ["event_audit", "hitl_decision", "decision_replay"]
+    },
+    {
+      "id": "fsm_reconstruction",
+      "label": "FSM Reconstruction",
+      "family": "HITL & Audit",
+      "runner": "pytest",
+      "target": "tests/integration/test_event_log_integration.py::test_fsm_reconstruction_from_logs",
+      "capabilities": ["event_audit", "fsm_reconstruction"]
+    },
+    {
+      "id": "six_stage_hitl_replay",
+      "label": "Six Stage HITL Replay",
+      "family": "HITL & Audit",
+      "runner": "pytest",
+      "target": "tests/integration/test_s6_control_layer_e2e.py::test_six_stage_waiting_patch_decision_replay_to_done",
+      "capabilities": ["hitl_decision", "decision_replay", "patch_recovery", "end_to_end_execution", "event_audit"],
+      "task_id": "int_s6_patch_decision_replay_done",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_s6_patch_decision_replay_done.jsonl"},
+        {"kind": "snapshot", "path": "data/snapshots/int_s6_patch_decision_replay_done.jsonl"}
+      ],
+      "expected_signals": ["waiting_chain_complete", "done_transition", "patching_transition"]
+    },
+    {
+      "id": "s3_failure_to_replan",
+      "label": "S3 Failure To Replan",
+      "family": "Recovery",
+      "runner": "pytest",
+      "target": "tests/integration/test_s6_control_layer_e2e.py::test_s6_trigger_matrix_routes_s3_failure_to_replan",
+      "capabilities": ["replan_escalation", "quality_gate_recovery", "event_audit"],
+      "task_id": "int_s6_trigger_matrix_s3_replan",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_s6_trigger_matrix_s3_replan.jsonl"},
+        {"kind": "snapshot", "path": "data/snapshots/int_s6_trigger_matrix_s3_replan.jsonl"}
+      ],
+      "expected_signals": ["s6_replan_step_failed"]
+    },
+    {
+      "id": "layered_patch_tool_success",
+      "label": "Layered Patch Tool Success",
+      "family": "Recovery",
+      "runner": "pytest",
+      "target": "tests/integration/test_recovery_layered_patch.py::test_layered_patch_promotes_from_parameter_to_tool_level",
+      "capabilities": ["patch_recovery", "tool_fallback", "event_audit"],
+      "task_id": "int_layered_patch_tool_success",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_layered_patch_tool_success.jsonl"}
+      ],
+      "expected_signals": ["replace_tool_event"]
+    },
+    {
+      "id": "layered_patch_remote_local",
+      "label": "Remote To Local Fallback",
+      "family": "Recovery",
+      "runner": "pytest",
+      "target": "tests/integration/test_recovery_layered_patch.py::test_layered_patch_promotes_remote_to_local_tool_level",
+      "capabilities": ["patch_recovery", "tool_fallback", "event_audit"],
+      "task_id": "int_layered_patch_remote_to_local",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_layered_patch_remote_to_local.jsonl"}
+      ],
+      "expected_signals": ["replace_tool_event", "patching_transition"]
+    },
+    {
+      "id": "patch_failure_to_replan",
+      "label": "Patch Failure To Replan",
+      "family": "Recovery",
+      "runner": "pytest",
+      "target": "tests/integration/test_recovery_layered_patch.py::test_layered_patch_failure_escalates_to_replan_with_trace",
+      "capabilities": ["patch_recovery", "replan_escalation", "failure_traceability"],
+      "task_id": "int_layered_patch_all_failed",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_layered_patch_all_failed.jsonl"}
+      ],
+      "expected_signals": ["recovery_escalated_patch_failed"]
+    },
+    {
+      "id": "high_risk_patch_to_replan",
+      "label": "High Risk Patch To Replan",
+      "family": "Recovery",
+      "runner": "pytest",
+      "target": "tests/integration/test_recovery_layered_patch.py::test_high_risk_patch_escalates_to_replan",
+      "capabilities": ["patch_recovery", "replan_escalation", "risk_gating"],
+      "task_id": "int_layered_patch_high_risk",
+      "artifacts": [
+        {"kind": "event_log", "path": "data/logs/int_layered_patch_high_risk.jsonl"}
+      ],
+      "expected_signals": ["recovery_escalated_patch_high_risk"]
+    },
+    {
+      "id": "mock_remote_full_flow",
+      "label": "Mock Remote Full Flow",
+      "family": "Execution & Summary",
+      "runner": "pytest",
+      "target": "tests/integration/test_mock_remote_full_flow.py::test_mock_remote_full_flow",
+      "capabilities": ["end_to_end_execution", "report_artifact", "result_summarization"],
+      "artifacts": [
+        {"kind": "report", "path": "output/reports/task_mock_remote_flow.json"}
+      ]
+    },
+    {
+      "id": "esmfold_summarizer_integration",
+      "label": "ESMFold Summarizer",
+      "family": "Execution & Summary",
+      "runner": "pytest",
+      "target": "tests/integration/test_esmfold_summarizer_integration.py::test_esmfold_summarizer_integration",
+      "capabilities": ["result_summarization", "report_artifact"],
+      "artifacts": [
+        {"kind": "report", "path": "output/reports/esmfold_test_001.json"}
+      ]
+    },
+    {
+      "id": "summarizer_empty_results",
+      "label": "Summary On Empty Results",
+      "family": "Execution & Summary",
+      "runner": "pytest",
+      "target": "tests/integration/test_esmfold_summarizer_integration.py::test_summarizer_handles_empty_esmfold_results",
+      "capabilities": ["result_summarization", "resilience", "report_artifact"],
+      "artifacts": [
+        {"kind": "report", "path": "output/reports/esmfold_test_002.json"}
+      ]
+    },
+    {
+      "id": "dual_route_failures",
+      "label": "Dual Route On Failures",
+      "family": "Planner Routing",
+      "runner": "pytest",
+      "target": "tests/integration/test_planner_dual_route_fallback.py::test_dual_route_triggers_external_on_consecutive_failures",
+      "capabilities": ["planner_routing", "failure_adaptation"]
+    },
+    {
+      "id": "dual_route_recovery",
+      "label": "Dual Route Recovery",
+      "family": "Planner Routing",
+      "runner": "pytest",
+      "target": "tests/integration/test_planner_dual_route_fallback.py::test_dual_route_recovers_back_to_local_after_trigger_cleared",
+      "capabilities": ["planner_routing", "resilience"]
+    },
+    {
+      "id": "dual_route_exec_rate",
+      "label": "Dual Route On Low Executable Rate",
+      "family": "Planner Routing",
+      "runner": "pytest",
+      "target": "tests/integration/test_planner_dual_route_fallback.py::test_dual_route_switches_to_external_when_executable_rate_is_low",
+      "capabilities": ["planner_routing", "candidate_scoring"]
+    }
+  ]
+}
