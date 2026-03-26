@@ -19,6 +19,7 @@ from src.models.contracts import (
     PendingAction,
     Plan,
     ProteinDesignTask,
+    RuntimeState,
     SafetyResult,
     StepResult,
 )
@@ -53,6 +54,12 @@ class WorkflowContext(BaseModel):
         safety_events: List[SafetyResult]
             历史安全检查列表
             包括输入预检、步骤级 pre/post 检查、最终输出检查等
+
+        runtime_state: Optional[RuntimeState]
+            运行时状态的单一工作副本
+            - 用于承载轻量 belief-state / runtime_state 估计
+            - 由 Workflow / Runner 在执行中更新
+            - 可通过 TaskSnapshot.artifacts["runtime_state"] 持久化恢复
             
         design_result: Optional[DesignResult]
             SummarizerAgent 在 SUMMARIZING 阶段生成的最终设计成果
@@ -68,6 +75,7 @@ class WorkflowContext(BaseModel):
     plan: Optional[Plan] = None
     step_results: Dict[str, StepResult] = Field(default_factory=dict)
     safety_events: List[SafetyResult] = Field(default_factory=list)
+    runtime_state: Optional[RuntimeState] = None
     design_result: Optional[DesignResult] = None
     pending_action: Optional[PendingAction] = None
     status: InternalStatus = InternalStatus.CREATED

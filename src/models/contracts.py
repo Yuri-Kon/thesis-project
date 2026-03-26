@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Literal, cast
@@ -11,6 +12,11 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, model_valida
 def now_iso() -> str:
     """Small helper to generate ISO8601 timestamp strings."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+RUNTIME_STATE_SCHEMA_VERSION = 1
+RUNTIME_STATE_ARTIFACT_KEY = "runtime_state"
+RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY = "runtime_observation_summary"
 
 
 class ProteinDesignTask(BaseModel):
@@ -93,6 +99,91 @@ class StepResult(BaseModel):
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     logs_path: Optional[str] = None
     timestamp: str
+
+
+class RuntimeState(BaseModel):
+    """稳定的运行时状态 schema。
+
+    该模型冻结 issue #227 所需的最小字段集合；后续扩展必须保持 additive。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=RUNTIME_STATE_SCHEMA_VERSION)
+    p_success: float
+    p_structural_failure: float
+    recovery_margin: float
+    expected_remaining_cost: float
+    last_update_source: str
+    observation_summary: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, value: int) -> int:
+        if value != RUNTIME_STATE_SCHEMA_VERSION:
+            raise ValueError(
+                f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}"
+            )
+        return value
+
+    @field_validator("p_success", "p_structural_failure")
+    @classmethod
+    def _validate_probability(cls, value: float) -> float:
+        if isinstance(value, bool):
+            raise ValueError("probability fields must be numeric")
+        normalized = float(value)
+        if not math.isfinite(normalized):
+            raise ValueError("probability fields must be finite")
+        if not 0.0 <= normalized <= 1.0:
+            raise ValueError("probability fields must be between 0 and 1")
+        return normalized
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_recovery_margin(cls, value: float) -> float:
+        if isinstance(value, bool):
+            raise ValueError("recovery_margin must be numeric")
+        normalized = float(value)
+        if not math.isfinite(normalized):
+            raise ValueError("recovery_margin must be finite")
+        return normalized
+
+    @field_validator("expected_remaining_cost")
+    @classmethod
+    def _validate_expected_remaining_cost(cls, value: float) -> float:
+        if isinstance(value, bool):
+            raise ValueError("expected_remaining_cost must be numeric")
+        normalized = float(value)
+        if not math.isfinite(normalized):
+            raise ValueError("expected_remaining_cost must be finite")
+        if normalized < 0.0:
+            raise ValueError("expected_remaining_cost must be >= 0")
+        return normalized
+
+    @field_validator("last_update_source")
+    @classmethod
+    def _validate_last_update_source(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("last_update_source must not be empty")
+        return normalized
+
+    @field_validator("observation_summary")
+    @classmethod
+    def _validate_observation_summary(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError("observation_summary must be a mapping")
+        try:
+            json.dumps(value, ensure_ascii=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "observation_summary must be JSON-serializable"
+            ) from exc
+        return value
+
+    def to_snapshot_payload(self) -> Dict[str, Any]:
+        """Serialize the stable persisted fields for TaskSnapshot.artifacts."""
+        return self.model_dump(exclude={"observation_summary"})
 
 
 class DesignResult(BaseModel):
