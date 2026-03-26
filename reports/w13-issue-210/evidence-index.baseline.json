@@ -1,0 +1,116 @@
+{
+  "schema_version": "w13.issue210.evidence-index.v1",
+  "naming_convention_version": "w13-issue-210-v1",
+  "issue_id": 210,
+  "freeze_id": "ISSUE209_FREEZE_ID",
+  "run_id": "EXPERIMENT_RUN_ID",
+  "report_pack": "reports/w16-experiment-pack",
+  "generated_at": "2026-03-27T00:00:00+08:00",
+  "roots": {
+    "raw_logs": "data/logs",
+    "snapshots": "data/snapshots",
+    "experiment_output": "output/experiment/<experiment_family>/<run_id>",
+    "report_output": "reports/<report_pack>"
+  },
+  "traceability_chains": {
+    "chart": {
+      "required_refs": [
+        "config_path",
+        "resolved_config_snapshot_path",
+        "run_manifest_path",
+        "run_log_index_path",
+        "aggregate_source_path",
+        "chart_source_manifest_path",
+        "chart_artifact_path"
+      ],
+      "chain_rule": "config -> resolved_config -> run_manifest/run_log_index -> aggregate -> chart_sources -> chart"
+    },
+    "case_study": {
+      "required_refs": [
+        "run_log_index_path",
+        "event_log_path",
+        "snapshot_path",
+        "task_report_path",
+        "case_artifact_path"
+      ],
+      "chain_rule": "run_log_index -> event_log -> snapshot -> task_report -> case_markdown"
+    }
+  },
+  "artifacts": [
+    {
+      "artifact_id": "figure-1-success-latency",
+      "artifact_type": "chart",
+      "title": "成功率-时延平衡图",
+      "status": "planned",
+      "path": "reports/<report_pack>/charts/figure-1-success-latency.svg",
+      "run_ref": {
+        "issue_id": 171,
+        "freeze_id": "ISSUE209_FREEZE_ID",
+        "run_id": "EXPERIMENT_RUN_ID",
+        "group_scope": [
+          "static_top1",
+          "fixed_threshold_gate",
+          "dynamic_no_belief_state",
+          "lite_belief_state"
+        ]
+      },
+      "source_refs": {
+        "config_path": "configs/experiments/<issue_or_pack>_<topic>.json",
+        "resolved_config_snapshot_path": "output/experiment/<experiment_family>/<run_id>/resolved_config_snapshot.json",
+        "run_manifest_path": "output/experiment/<experiment_family>/<run_id>/runs_manifest.json",
+        "run_log_index_path": "output/experiment/<experiment_family>/<run_id>/run_log_index.csv",
+        "aggregate_source_path": "output/experiment/<experiment_family>/<run_id>/vertical_metrics_summary.csv",
+        "chart_source_manifest_path": "reports/<report_pack>/charts/figure-1-success-latency.sources.json"
+      },
+      "upstream_refs": [
+        "table-1-overall-summary"
+      ],
+      "generated_by": {
+        "script_path": "scripts/<chart_script>.py",
+        "command": "uv run python scripts/<chart_script>.py ..."
+      },
+      "conclusion": "TODO: summary conclusion",
+      "tags": [
+        "chart",
+        "effect",
+        "latency",
+        "paper-ready"
+      ]
+    },
+    {
+      "artifact_id": "case-1-loss-control",
+      "artifact_type": "case_study",
+      "title": "止损成功案例",
+      "status": "planned",
+      "path": "reports/<report_pack>/cases/case-1-loss-control.md",
+      "run_ref": {
+        "issue_id": 171,
+        "freeze_id": "ISSUE209_FREEZE_ID",
+        "run_id": "EXPERIMENT_RUN_ID",
+        "task_key": "binding_scaffold",
+        "group_id": "lite_belief_state",
+        "task_id": "TASK_ID"
+      },
+      "source_refs": {
+        "run_log_index_path": "output/experiment/<experiment_family>/<run_id>/run_log_index.csv",
+        "event_log_path": "data/logs/<task_id>.jsonl",
+        "snapshot_path": "data/snapshots/<task_id>.jsonl",
+        "task_report_path": "output/reports/<task_id>.json",
+        "case_artifact_manifest_path": "reports/<report_pack>/cases/case-1-loss-control.artifacts.json"
+      },
+      "upstream_refs": [
+        "summary-row-binding-scaffold-lite-belief-state"
+      ],
+      "generated_by": {
+        "script_path": "manual_or_scripted",
+        "command": "manual synthesis from indexed evidence"
+      },
+      "conclusion": "TODO: summary conclusion",
+      "tags": [
+        "case-study",
+        "recovery",
+        "traceability"
+      ]
+    }
+  ]
+}
