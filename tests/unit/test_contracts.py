@@ -8,6 +8,7 @@ from src.models.contracts import (
     ProteinDesignTask,
     Plan,
     PlanStep,
+    RuntimeState,
     StepResult,
     DesignResult,
     RiskFlag,
@@ -154,6 +155,35 @@ class TestDesignResult:
 
 
 @pytest.mark.unit
+class TestRuntimeState:
+    """RuntimeState 测试类"""
+
+    def test_runtime_state_creation(self):
+        state = RuntimeState(
+            p_success=0.8,
+            p_structural_failure=0.15,
+            recovery_margin=0.35,
+            expected_remaining_cost=4.5,
+            last_update_source="step_result:S2",
+            observation_summary={"completed_high_cost_steps": 1},
+        )
+
+        assert state.schema_version == 1
+        assert state.p_success == 0.8
+        assert state.observation_summary["completed_high_cost_steps"] == 1
+
+    def test_runtime_state_rejects_invalid_probability(self):
+        with pytest.raises(ValidationError):
+            RuntimeState(
+                p_success=1.1,
+                p_structural_failure=0.2,
+                recovery_margin=0.35,
+                expected_remaining_cost=4.5,
+                last_update_source="step_result:S2",
+            )
+
+
+@pytest.mark.unit
 class TestWorkflowContext:
     """WorkflowContext测试类"""
 
@@ -164,6 +194,7 @@ class TestWorkflowContext:
             plan=None,
             step_results={},
             safety_events=[],
+            runtime_state=None,
             design_result=None,
             status=InternalStatus.CREATED,
         )
@@ -172,6 +203,7 @@ class TestWorkflowContext:
         assert context.plan is None
         assert isinstance(context.step_results, dict)
         assert isinstance(context.safety_events, list)
+        assert context.runtime_state is None
         assert context.status == InternalStatus.CREATED
 
 
