@@ -2,6 +2,8 @@
 import pytest
 from pydantic import ValidationError
 from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
     PendingActionType,
@@ -9,6 +11,8 @@ from src.models.contracts import (
     Plan,
     PlanStep,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
+    SHADOW_SCORE_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     RuntimeState,
     StepResult,
     DesignResult,
@@ -448,3 +452,65 @@ class TestCandidateSetContracts:
                     }
                 },
             )
+
+    def test_candidate_runtime_contract_metadata_is_normalized(self, sample_plan: Plan):
+        candidate = PendingActionCandidate(
+            candidate_id="plan_runtime_contract",
+            payload=sample_plan,
+            metadata={
+                RUNTIME_STATE_SUMMARY_METADATA_KEY: {
+                    "schema_version": 1,
+                    "p_success": 0.81,
+                    "p_structural_failure": 0.11,
+                    "recovery_margin": 0.49,
+                    "expected_remaining_cost": 3.0,
+                },
+                DEFAULT_RECOMMENDATION_REASON_METADATA_KEY: {
+                    "code": "plan_ranked_first",
+                    "message": "selected by deterministic rank",
+                },
+                ACTION_SCORE_METADATA_KEY: {
+                    "value": 0.81,
+                    "source": "score_breakdown.overall",
+                },
+                SHADOW_SCORE_METADATA_KEY: {
+                    "value": 0.81,
+                    "source": "score_breakdown.overall_passthrough",
+                },
+            },
+        )
+
+        assert candidate.metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["code"] == "plan_ranked_first"
+        assert candidate.metadata[ACTION_SCORE_METADATA_KEY]["value"] == pytest.approx(0.81)
+        assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall_passthrough"
+
+    def test_pending_action_waiting_runtime_summary_is_normalized(
+        self, sample_task: ProteinDesignTask, sample_plan: Plan
+    ):
+        candidate = PendingActionCandidate(candidate_id="plan_a", payload=sample_plan)
+        action = PendingAction(
+            pending_action_id="pa_waiting_summary",
+            task_id=sample_task.task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            candidates=[candidate],
+            explanation="test",
+            default_recommendation="plan_a",
+            metadata={
+                WAITING_RUNTIME_SUMMARY_METADATA_KEY: {
+                    "selected_candidate_id": "plan_a",
+                    "default_recommendation": "plan_a",
+                    "waiting_reason": "plan_high_risk",
+                    "default_recommendation_reason": {
+                        "code": "plan_ranked_first",
+                        "message": "selected by deterministic rank",
+                    },
+                    "action_score": {
+                        "value": 0.88,
+                        "source": "score_breakdown.overall",
+                    },
+                }
+            },
+        )
+
+        assert action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["selected_candidate_id"] == "plan_a"
+        assert action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["action_score"]["value"] == pytest.approx(0.88)
