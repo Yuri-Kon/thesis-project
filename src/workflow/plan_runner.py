@@ -262,7 +262,7 @@ class PlanRunner:
                             step_result,
                             pending_patch,
                         )
-                    context.step_results[step_result.step_id] = step_result
+                    self._add_step_result(context, step_result)
                     self._emit_step_event(context, step_result)
                     # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
                     step_result.metrics.setdefault(
@@ -446,6 +446,13 @@ class PlanRunner:
             context.add_safety_event(event)
         else:
             context.safety_events.append(event)
+
+    def _add_step_result(self, context: WorkflowContext, result: StepResult) -> None:
+        """步骤结果写入上下文，优先复用 WorkflowContext 辅助方法。"""
+        if hasattr(context, "add_step_result"):
+            context.add_step_result(result)
+        else:
+            context.step_results[result.step_id] = result
 
     def _add_failed_step_safety_event(
         self,

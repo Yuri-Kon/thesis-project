@@ -24,6 +24,7 @@ from src.models.contracts import (
     StepResult,
 )
 from src.models.db import InternalStatus
+from src.workflow.belief_state import extract_failure_context, update_runtime_state
 
 __all__ = ["WorkflowContext"]
 
@@ -94,6 +95,13 @@ class WorkflowContext(BaseModel):
             如果 step_id 已存在，会覆盖之前的结果
         """
         self.step_results[result.step_id] = result
+        self.runtime_state = update_runtime_state(
+            previous_state=self.runtime_state,
+            step_result=result,
+            failure_context=extract_failure_context(result),
+            completed_steps=len(self.step_results),
+            total_steps=self._get_total_step_count(),
+        )
     
     def add_safety_event(self, event: SafetyResult) -> None:
         """记录一次安全检查结果
@@ -102,6 +110,12 @@ class WorkflowContext(BaseModel):
             event: 安全检查结果事件
         """
         self.safety_events.append(event)
+        self.runtime_state = update_runtime_state(
+            previous_state=self.runtime_state,
+            safety_result=event,
+            completed_steps=len(self.step_results),
+            total_steps=self._get_total_step_count(),
+        )
 
     def get_step_output(self, step_id: str, key: str) -> Any:
         """便捷访问，读取某一步的输出字段
@@ -185,3 +199,8 @@ class WorkflowContext(BaseModel):
         if key not in result.outputs:
             raise KeyError(f"Output key '{key}' not found in step '{result.step_id}'")
         return result.outputs[key]
+
+    def _get_total_step_count(self) -> int | None:
+        if self.plan is None:
+            return None
+        return len(self.plan.steps)
