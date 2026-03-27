@@ -7,6 +7,8 @@ from src.agents.task_goal_parser import enrich_task_from_goal
 from src.llm.base_llm_provider import ProviderConfig
 from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     PatchRequest,
     PendingActionType,
     Plan,
@@ -14,6 +16,8 @@ from src.models.contracts import (
     PlanStep,
     ProteinDesignTask,
     ReplanRequest,
+    SHADOW_SCORE_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     StepResult,
     now_iso,
 )
@@ -543,6 +547,49 @@ class TestPlannerAgent:
             for candidate in first.candidates
         }
         assert len(capability_buckets) >= 2
+        default_metadata = first.candidates[0].metadata
+        assert default_metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["code"] == "plan_ranked_first"
+        assert default_metadata[ACTION_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall"
+        assert default_metadata[SHADOW_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall_passthrough"
+
+    def test_plan_with_status_waiting_metadata_keeps_runtime_summary_fields(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_waiting_runtime_summary",
+            goal="de_novo_design",
+            constraints={
+                "length_range": [40, 60],
+                "require_plan_confirm": True,
+            },
+            metadata={},
+        )
+        context = WorkflowContext(
+            task=task,
+            status=InternalStatus.CREATED,
+            plan=None,
+            step_results={},
+            safety_events=[],
+            pending_action=None,
+            design_result=None,
+        )
+        record = TaskRecord(
+            id=task.task_id,
+            goal=task.goal,
+            status=ExternalStatus.CREATED,
+            internal_status=InternalStatus.CREATED,
+            plan=None,
+            pending_action=None,
+            design_result=None,
+        )
+
+        planner.plan_with_status(task, context, record=record)
+
+        assert context.pending_action is not None
+        waiting_summary = context.pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]
+        assert waiting_summary["selected_candidate_id"] == context.pending_action.default_recommendation
+        assert waiting_summary["default_recommendation_reason"]["code"] == "plan_ranked_first"
+        assert waiting_summary["action_score"]["source"] == "score_breakdown.overall"
 
     def test_plan_top_k_has_s5_contract_and_stable_weights(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())

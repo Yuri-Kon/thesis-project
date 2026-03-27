@@ -18,6 +18,10 @@ RUNTIME_STATE_SCHEMA_VERSION = 1
 RUNTIME_STATE_ARTIFACT_KEY = "runtime_state"
 RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY = "runtime_observation_summary"
 RUNTIME_STATE_SUMMARY_METADATA_KEY = "runtime_state_summary"
+DEFAULT_RECOMMENDATION_REASON_METADATA_KEY = "default_recommendation_reason"
+ACTION_SCORE_METADATA_KEY = "action_score"
+SHADOW_SCORE_METADATA_KEY = "shadow_score"
+WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
 
 
 def _validate_runtime_state_schema_version(value: int) -> int:
@@ -45,6 +49,13 @@ def _validate_finite_float_value(value: float, *, field_name: str) -> float:
     normalized = float(value)
     if not math.isfinite(normalized):
         raise ValueError(f"{field_name} must be finite")
+    return normalized
+
+
+def _validate_non_empty_text(value: str, *, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must not be empty")
     return normalized
 
 
@@ -250,6 +261,67 @@ class RuntimeStateSummary(BaseModel):
         )
 
 
+class RecommendationReason(BaseModel):
+    """默认建议理由的最小稳定摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+
+    @field_validator("code", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+
+class ScoreSummary(BaseModel):
+    """动作分或 shadow 分的最小稳定摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float
+    source: str
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(value, field_name="value")
+        if not 0.0 <= normalized <= 1.0:
+            raise ValueError("value must be between 0 and 1")
+        return normalized
+
+    @field_validator("source")
+    @classmethod
+    def _validate_source(cls, value: str) -> str:
+        return _validate_non_empty_text(value, field_name="source")
+
+
+class WaitingRuntimeSummary(BaseModel):
+    """WAITING 场景下用于 HITL 回放的最小状态摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    selected_candidate_id: str | None = None
+    default_recommendation: str | None = None
+    waiting_reason: str | None = None
+    runtime_state_summary: RuntimeStateSummary | None = None
+    default_recommendation_reason: RecommendationReason | None = None
+    action_score: ScoreSummary | None = None
+    shadow_score: ScoreSummary | None = None
+
+    @field_validator(
+        "selected_candidate_id",
+        "default_recommendation",
+        "waiting_reason",
+    )
+    @classmethod
+    def _validate_optional_text(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return value
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+
 class DesignResult(BaseModel):
     """SummarizerAgent 汇总后的最终设计结果"""
 
@@ -379,6 +451,8 @@ class PendingActionCandidate(BaseModel):
         summary: 候选摘要信息。
         metadata: 额外元数据。
             - `runtime_state_summary` 可承载候选展示所需的轻量状态摘要。
+            - `default_recommendation_reason` 可承载默认建议理由。
+            - `action_score` / `shadow_score` 用于承载动作分摘要。
     """
 
     candidate_id: str
@@ -485,10 +559,16 @@ class PendingActionCandidate(BaseModel):
         metadata = dict(self.metadata or {})
         self.metadata = metadata
         summary_payload = metadata.get(RUNTIME_STATE_SUMMARY_METADATA_KEY)
-        if summary_payload is None:
-            return self
-        metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = _normalize_runtime_state_summary(
-            summary_payload
+        normalized_summary = (
+            _normalize_runtime_state_summary(summary_payload)
+            if summary_payload is not None
+            else None
+        )
+        if normalized_summary is not None:
+            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = normalized_summary
+        _normalize_candidate_runtime_contracts(
+            metadata,
+            runtime_state_summary=normalized_summary,
         )
         return self
 
@@ -558,6 +638,65 @@ def _normalize_runtime_state_summary(summary_payload: Any) -> Dict[str, Any]:
     )
 
 
+def _normalize_recommendation_reason(reason_payload: Any) -> Dict[str, Any]:
+    if isinstance(reason_payload, RecommendationReason):
+        return reason_payload.model_dump()
+    if isinstance(reason_payload, dict):
+        return RecommendationReason.model_validate(reason_payload).model_dump()
+    raise ValueError(
+        f"metadata.{DEFAULT_RECOMMENDATION_REASON_METADATA_KEY} must be a mapping"
+    )
+
+
+def _normalize_score_summary(score_payload: Any, *, field_name: str) -> Dict[str, Any]:
+    if isinstance(score_payload, ScoreSummary):
+        return score_payload.model_dump()
+    if isinstance(score_payload, dict):
+        return ScoreSummary.model_validate(score_payload).model_dump()
+    raise ValueError(f"metadata.{field_name} must be a mapping")
+
+
+def _normalize_candidate_runtime_contracts(
+    metadata: Dict[str, Any],
+    *,
+    runtime_state_summary: Dict[str, Any] | None = None,
+) -> None:
+    if runtime_state_summary is not None:
+        metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = runtime_state_summary
+
+    reason_payload = metadata.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
+    if reason_payload is not None:
+        metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = _normalize_recommendation_reason(
+            reason_payload
+        )
+
+    action_score_payload = metadata.get(ACTION_SCORE_METADATA_KEY)
+    if action_score_payload is not None:
+        metadata[ACTION_SCORE_METADATA_KEY] = _normalize_score_summary(
+            action_score_payload,
+            field_name=ACTION_SCORE_METADATA_KEY,
+        )
+
+    shadow_score_payload = metadata.get(SHADOW_SCORE_METADATA_KEY)
+    if shadow_score_payload is not None:
+        metadata[SHADOW_SCORE_METADATA_KEY] = _normalize_score_summary(
+            shadow_score_payload,
+            field_name=SHADOW_SCORE_METADATA_KEY,
+        )
+
+
+def _normalize_waiting_runtime_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, WaitingRuntimeSummary):
+        return summary_payload.model_dump(exclude_none=True)
+    if isinstance(summary_payload, dict):
+        return WaitingRuntimeSummary.model_validate(summary_payload).model_dump(
+            exclude_none=True
+        )
+    raise ValueError(
+        f"metadata.{WAITING_RUNTIME_SUMMARY_METADATA_KEY} must be a mapping"
+    )
+
+
 class PendingAction(BaseModel):
     """等待人工决策的结构化对象。
 
@@ -573,6 +712,7 @@ class PendingAction(BaseModel):
         created_at: 创建时间戳。
         decided_at: 决策完成时间戳。
         created_by: 创建者标识（通常为 system）。
+        metadata: WAITING 回放或审计所需的附加摘要。
     """
 
     pending_action_id: str
@@ -586,6 +726,7 @@ class PendingAction(BaseModel):
     created_at: str = Field(default_factory=now_iso)
     decided_at: Optional[str] = None
     created_by: str = "system"
+    metadata: Dict = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _sync_default_recommendation(self):
@@ -598,6 +739,18 @@ class PendingAction(BaseModel):
         resolved = recommendation or suggestion
         self.default_suggestion = resolved
         self.default_recommendation = resolved
+        return self
+
+    @model_validator(mode="after")
+    def _sync_waiting_runtime_summary_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+        summary_payload = metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+        if summary_payload is None:
+            return self
+        metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY] = _normalize_waiting_runtime_summary(
+            summary_payload
+        )
         return self
 
 
