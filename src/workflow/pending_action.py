@@ -10,10 +10,15 @@ from uuid import uuid4
 
 from src.infra.event_log_factory import make_waiting_enter
 from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
     PendingActionType,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
+    SHADOW_SCORE_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord, to_external_status
@@ -44,6 +49,7 @@ def build_pending_action(
     default_suggestion: Optional[str] = None,
     default_recommendation: Optional[str] = None,
     explanation: str,
+    metadata: Optional[dict] = None,
     created_by: str = "system",
 ) -> PendingAction:
     """构造最小化 PendingAction 实例。
@@ -56,6 +62,7 @@ def build_pending_action(
         default_suggestion: 默认建议的候选 ID。
         default_recommendation: CandidateSetOutput v1 默认推荐候选 ID。
         explanation: 解释说明文本。
+        metadata: 可选的 WAITING 回放 / 审计元数据。
         created_by: 创建者标识（默认 system）。
 
     Returns:
@@ -73,6 +80,7 @@ def build_pending_action(
         created_at=now_iso(),
         decided_at=None,
         created_by=created_by,
+        metadata=dict(metadata or {}),
     )
 
 
@@ -144,6 +152,16 @@ def enter_waiting_state(
         if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
         else {}
     )
+    waiting_runtime_summary = _build_waiting_runtime_summary(
+        pending_action=pending_action,
+        selected_candidate=selected_candidate,
+        waiting_reason=reason,
+    )
+    if waiting_runtime_summary:
+        pending_action.metadata.setdefault(
+            WAITING_RUNTIME_SUMMARY_METADATA_KEY,
+            waiting_runtime_summary,
+        )
     waiting_enter_event = make_waiting_enter(
         task_id=context.task.task_id,
         pending_action_id=pending_action.pending_action_id,
@@ -173,6 +191,11 @@ def enter_waiting_state(
                 selected_candidate.adapter_mode
                 if selected_candidate
                 else selected_meta.get("adapter_mode")
+            ),
+            "waiting_runtime_summary": (
+                pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+                if isinstance(pending_action.metadata, dict)
+                else None
             ),
         },
     )
@@ -244,3 +267,35 @@ def _default_event_logger(event: dict) -> None:
     if not task_id:
         return
     append_event(task_id, event)
+
+
+def _build_waiting_runtime_summary(
+    *,
+    pending_action: PendingAction,
+    selected_candidate: PendingActionCandidate | None,
+    waiting_reason: str | None,
+) -> dict | None:
+    candidate_metadata = (
+        selected_candidate.metadata
+        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        else {}
+    )
+    summary: dict[str, object] = {}
+    if selected_candidate is not None:
+        summary["selected_candidate_id"] = selected_candidate.candidate_id
+    if pending_action.default_recommendation:
+        summary["default_recommendation"] = pending_action.default_recommendation
+    if waiting_reason:
+        summary["waiting_reason"] = waiting_reason
+
+    for key in (
+        RUNTIME_STATE_SUMMARY_METADATA_KEY,
+        DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+        ACTION_SCORE_METADATA_KEY,
+        SHADOW_SCORE_METADATA_KEY,
+    ):
+        value = candidate_metadata.get(key)
+        if value is not None:
+            summary[key] = value
+
+    return summary or None

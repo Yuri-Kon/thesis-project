@@ -13,6 +13,8 @@ from src.llm.baseline_provider import BaselineProvider
 from src.llm.provider_registry import create_provider, load_provider_catalog
 from src.agents.task_goal_parser import enrich_task_from_goal
 from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     PatchRequest,
     PendingActionType,
     PendingActionCandidate,
@@ -23,7 +25,11 @@ from src.models.contracts import (
     PlanStep,
     ProteinDesignTask,
     ReplanRequest,
+    ScoreSummary,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     StepResult,
+    SHADOW_SCORE_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
 from src.models.validation import (
@@ -596,6 +602,11 @@ class PlannerAgent:
             record.plan = plan
 
         if gate.requires_hitl:
+            pending_action_metadata = _build_pending_action_runtime_metadata(
+                default_candidate=candidate,
+                default_recommendation=top_k.default_recommendation,
+                waiting_reason=gate.reason,
+            )
             pending_action = build_pending_action(
                 task_id=task.task_id,
                 action_type=PendingActionType.PLAN_CONFIRM,
@@ -603,6 +614,7 @@ class PlannerAgent:
                 default_suggestion=top_k.default_recommendation,
                 default_recommendation=top_k.default_recommendation,
                 explanation=f"{top_k.explanation} gate={gate.reason}",
+                metadata=pending_action_metadata,
             )
             validate_candidate_set_output(
                 pending_action,
@@ -1791,6 +1803,8 @@ def _build_top_k_result(
             "adapter_mode": adapter_mode,
             "generation_note": payload.note,
             "s5_contract": _build_s5_scoring_contract(score_weights),
+            ACTION_SCORE_METADATA_KEY: _build_action_score_summary(score_breakdown),
+            SHADOW_SCORE_METADATA_KEY: _build_shadow_score_summary(score_breakdown),
         }
         payload_metadata = payload.payload.metadata if isinstance(payload.payload.metadata, dict) else {}
         planner_route = payload_metadata.get("planner_route")
@@ -1855,6 +1869,13 @@ def _build_top_k_result(
     selected_rows = sorted(selected_rows, key=lambda row: row[1])
     candidates = [row[0] for row in selected_rows]
     default_recommendation = candidates[0].candidate_id if candidates else None
+    if candidates:
+        candidates[0].metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
+            _build_default_recommendation_reason(
+                candidate_kind=candidate_kind,
+                candidate_id=candidates[0].candidate_id,
+            )
+        )
     explanation = (
         f"{candidate_kind} Top-K generated with deterministic sort "
         f"(requested={top_k}, returned={len(candidates)}). "
@@ -1871,6 +1892,68 @@ def _build_top_k_result(
         default_recommendation=default_recommendation,
         explanation=explanation,
     )
+
+
+def _build_action_score_summary(score_breakdown: dict[str, float]) -> dict[str, Any]:
+    summary = ScoreSummary(
+        value=float(score_breakdown.get("overall", 0.0)),
+        source="score_breakdown.overall",
+    )
+    return summary.model_dump()
+
+
+def _build_shadow_score_summary(score_breakdown: dict[str, float]) -> dict[str, Any]:
+    summary = ScoreSummary(
+        value=float(score_breakdown.get("overall", 0.0)),
+        source="score_breakdown.overall_passthrough",
+    )
+    return summary.model_dump()
+
+
+def _build_default_recommendation_reason(
+    *,
+    candidate_kind: str,
+    candidate_id: str,
+) -> dict[str, str]:
+    return {
+        "code": f"{candidate_kind}_ranked_first",
+        "message": (
+            f"{candidate_kind} candidate {candidate_id} is the current default "
+            "recommendation after deterministic ranking."
+        ),
+    }
+
+
+def _build_pending_action_runtime_metadata(
+    *,
+    default_candidate: PendingActionCandidate,
+    default_recommendation: str | None,
+    waiting_reason: str,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    candidate_metadata = (
+        default_candidate.metadata
+        if isinstance(default_candidate.metadata, dict)
+        else {}
+    )
+    waiting_summary: dict[str, Any] = {
+        "selected_candidate_id": default_candidate.candidate_id,
+        "waiting_reason": waiting_reason,
+    }
+    if default_recommendation:
+        waiting_summary["default_recommendation"] = default_recommendation
+    for key in (
+        RUNTIME_STATE_SUMMARY_METADATA_KEY,
+        DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+        ACTION_SCORE_METADATA_KEY,
+        SHADOW_SCORE_METADATA_KEY,
+    ):
+        value = candidate_metadata.get(key)
+        if value is not None:
+            waiting_summary[key] = value
+    if waiting_summary:
+        metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY] = waiting_summary
+    return metadata
 
 
 def _select_diverse_top_k(
