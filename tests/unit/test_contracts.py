@@ -8,6 +8,7 @@ from src.models.contracts import (
     ProteinDesignTask,
     Plan,
     PlanStep,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     RuntimeState,
     StepResult,
     DesignResult,
@@ -181,6 +182,24 @@ class TestRuntimeState:
                 expected_remaining_cost=4.5,
                 last_update_source="step_result:S2",
             )
+
+    def test_runtime_state_can_emit_candidate_summary_payload(self):
+        state = RuntimeState(
+            p_success=0.74,
+            p_structural_failure=0.19,
+            recovery_margin=0.32,
+            expected_remaining_cost=5.5,
+            last_update_source="step_result:S3",
+            observation_summary={"completed_steps": 2},
+        )
+
+        assert state.to_summary_payload() == {
+            "schema_version": 1,
+            "p_success": 0.74,
+            "p_structural_failure": 0.19,
+            "recovery_margin": 0.32,
+            "expected_remaining_cost": 5.5,
+        }
 
 
 @pytest.mark.unit
@@ -383,4 +402,49 @@ class TestCandidateSetContracts:
                 explanation="test",
                 default_suggestion="plan_a",
                 default_recommendation="plan_b",
+            )
+
+    def test_candidate_runtime_state_summary_is_normalized(self, sample_plan: Plan):
+        state = RuntimeState(
+            p_success=0.81,
+            p_structural_failure=0.11,
+            recovery_margin=0.49,
+            expected_remaining_cost=3.0,
+            last_update_source="safety:post_step",
+        )
+        candidate = PendingActionCandidate(
+            candidate_id="plan_state_summary",
+            payload=sample_plan,
+            metadata={
+                RUNTIME_STATE_SUMMARY_METADATA_KEY: state.to_summary_payload(),
+            },
+        )
+
+        assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] == {
+            "schema_version": 1,
+            "p_success": 0.81,
+            "p_structural_failure": 0.11,
+            "recovery_margin": 0.49,
+            "expected_remaining_cost": 3.0,
+        }
+
+    def test_candidate_invalid_runtime_state_summary_rejected(
+        self, sample_plan: Plan
+    ):
+        with pytest.raises(
+            ValueError,
+            match="probability fields must be between 0 and 1",
+        ):
+            PendingActionCandidate(
+                candidate_id="plan_bad_state_summary",
+                payload=sample_plan,
+                metadata={
+                    RUNTIME_STATE_SUMMARY_METADATA_KEY: {
+                        "schema_version": 1,
+                        "p_success": 1.2,
+                        "p_structural_failure": 0.2,
+                        "recovery_margin": 0.1,
+                        "expected_remaining_cost": 4.0,
+                    }
+                },
             )

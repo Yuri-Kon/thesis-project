@@ -17,6 +17,35 @@ def now_iso() -> str:
 RUNTIME_STATE_SCHEMA_VERSION = 1
 RUNTIME_STATE_ARTIFACT_KEY = "runtime_state"
 RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY = "runtime_observation_summary"
+RUNTIME_STATE_SUMMARY_METADATA_KEY = "runtime_state_summary"
+
+
+def _validate_runtime_state_schema_version(value: int) -> int:
+    if value != RUNTIME_STATE_SCHEMA_VERSION:
+        raise ValueError(
+            f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}"
+        )
+    return value
+
+
+def _validate_probability_value(value: float) -> float:
+    if isinstance(value, bool):
+        raise ValueError("probability fields must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError("probability fields must be finite")
+    if not 0.0 <= normalized <= 1.0:
+        raise ValueError("probability fields must be between 0 and 1")
+    return normalized
+
+
+def _validate_finite_float_value(value: float, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"{field_name} must be finite")
+    return normalized
 
 
 class ProteinDesignTask(BaseModel):
@@ -120,42 +149,25 @@ class RuntimeState(BaseModel):
     @field_validator("schema_version")
     @classmethod
     def _validate_schema_version(cls, value: int) -> int:
-        if value != RUNTIME_STATE_SCHEMA_VERSION:
-            raise ValueError(
-                f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}"
-            )
-        return value
+        return _validate_runtime_state_schema_version(value)
 
     @field_validator("p_success", "p_structural_failure")
     @classmethod
     def _validate_probability(cls, value: float) -> float:
-        if isinstance(value, bool):
-            raise ValueError("probability fields must be numeric")
-        normalized = float(value)
-        if not math.isfinite(normalized):
-            raise ValueError("probability fields must be finite")
-        if not 0.0 <= normalized <= 1.0:
-            raise ValueError("probability fields must be between 0 and 1")
-        return normalized
+        return _validate_probability_value(value)
 
     @field_validator("recovery_margin")
     @classmethod
     def _validate_recovery_margin(cls, value: float) -> float:
-        if isinstance(value, bool):
-            raise ValueError("recovery_margin must be numeric")
-        normalized = float(value)
-        if not math.isfinite(normalized):
-            raise ValueError("recovery_margin must be finite")
-        return normalized
+        return _validate_finite_float_value(value, field_name="recovery_margin")
 
     @field_validator("expected_remaining_cost")
     @classmethod
     def _validate_expected_remaining_cost(cls, value: float) -> float:
-        if isinstance(value, bool):
-            raise ValueError("expected_remaining_cost must be numeric")
-        normalized = float(value)
-        if not math.isfinite(normalized):
-            raise ValueError("expected_remaining_cost must be finite")
+        normalized = _validate_finite_float_value(
+            value,
+            field_name="expected_remaining_cost",
+        )
         if normalized < 0.0:
             raise ValueError("expected_remaining_cost must be >= 0")
         return normalized
@@ -184,6 +196,58 @@ class RuntimeState(BaseModel):
     def to_snapshot_payload(self) -> Dict[str, Any]:
         """Serialize the stable persisted fields for TaskSnapshot.artifacts."""
         return self.model_dump(exclude={"observation_summary"})
+
+    def to_summary_payload(self) -> Dict[str, Any]:
+        """Serialize the candidate-facing runtime state summary."""
+        return RuntimeStateSummary.from_runtime_state(self).model_dump()
+
+
+class RuntimeStateSummary(BaseModel):
+    """候选展示态可复用的运行时状态摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=RUNTIME_STATE_SCHEMA_VERSION)
+    p_success: float
+    p_structural_failure: float
+    recovery_margin: float
+    expected_remaining_cost: float
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, value: int) -> int:
+        return _validate_runtime_state_schema_version(value)
+
+    @field_validator("p_success", "p_structural_failure")
+    @classmethod
+    def _validate_probability(cls, value: float) -> float:
+        return _validate_probability_value(value)
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_recovery_margin(cls, value: float) -> float:
+        return _validate_finite_float_value(value, field_name="recovery_margin")
+
+    @field_validator("expected_remaining_cost")
+    @classmethod
+    def _validate_expected_remaining_cost(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(
+            value,
+            field_name="expected_remaining_cost",
+        )
+        if normalized < 0.0:
+            raise ValueError("expected_remaining_cost must be >= 0")
+        return normalized
+
+    @classmethod
+    def from_runtime_state(cls, runtime_state: RuntimeState) -> "RuntimeStateSummary":
+        return cls(
+            schema_version=runtime_state.schema_version,
+            p_success=runtime_state.p_success,
+            p_structural_failure=runtime_state.p_structural_failure,
+            recovery_margin=runtime_state.recovery_margin,
+            expected_remaining_cost=runtime_state.expected_remaining_cost,
+        )
 
 
 class DesignResult(BaseModel):
@@ -314,6 +378,7 @@ class PendingActionCandidate(BaseModel):
         adapter_mode: 适配器模式（local/remote/mock/hybrid/unknown）。
         summary: 候选摘要信息。
         metadata: 额外元数据。
+            - `runtime_state_summary` 可承载候选展示所需的轻量状态摘要。
     """
 
     candidate_id: str
@@ -415,6 +480,18 @@ class PendingActionCandidate(BaseModel):
 
         return self
 
+    @model_validator(mode="after")
+    def _sync_runtime_state_summary_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+        summary_payload = metadata.get(RUNTIME_STATE_SUMMARY_METADATA_KEY)
+        if summary_payload is None:
+            return self
+        metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = _normalize_runtime_state_summary(
+            summary_payload
+        )
+        return self
+
 
 def _sync_metadata_field(
     metadata: Dict[str, Any],
@@ -469,6 +546,16 @@ def _sync_adapter_mode(
         raise ValueError("metadata.adapter_mode must match adapter_mode")
     metadata["adapter_mode"] = field_value
     return field_value
+
+
+def _normalize_runtime_state_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, RuntimeStateSummary):
+        return summary_payload.model_dump()
+    if isinstance(summary_payload, dict):
+        return RuntimeStateSummary.model_validate(summary_payload).model_dump()
+    raise ValueError(
+        f"metadata.{RUNTIME_STATE_SUMMARY_METADATA_KEY} must be a mapping"
+    )
 
 
 class PendingAction(BaseModel):
