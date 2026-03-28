@@ -102,6 +102,56 @@ def test_restore_context_from_snapshot_restores_runtime_state():
 
 
 @pytest.mark.unit
+def test_restore_context_from_snapshot_backfills_partial_runtime_state_payload():
+    task = ProteinDesignTask(
+        task_id="task_recovery_runtime_state_partial",
+        goal="recover partial runtime state",
+        constraints={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(id="S1", tool="esmfold", inputs={"sequence": "ACDE"}, metadata={}),
+            PlanStep(id="S2", tool="dummy_tool", inputs={"sequence": "S1.sequence"}, metadata={}),
+        ],
+    )
+    snapshot = TaskSnapshot(
+        snapshot_id="snapshot_runtime_state_partial_001",
+        task_id=task.task_id,
+        state=ExternalStatus.WAITING_PATCH_CONFIRM.value,
+        plan_version=1,
+        step_index=1,
+        completed_step_ids=["S1"],
+        artifacts={
+            RUNTIME_STATE_ARTIFACT_KEY: {
+                "last_update_source": "waiting_snapshot",
+            },
+            RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY: {
+                "selected_candidate_id": "patch_a",
+            },
+        },
+        created_at=now_iso(),
+    )
+
+    context = restore_context_from_snapshot(task=task, plan=plan, snapshot=snapshot)
+
+    assert context is not None
+    assert context.runtime_state is not None
+    assert context.runtime_state.last_update_source == "waiting_snapshot"
+    assert context.runtime_state.p_success == pytest.approx(0.5)
+    assert context.runtime_state.p_structural_failure == pytest.approx(0.25)
+    assert context.runtime_state.recovery_margin == pytest.approx(0.6)
+    assert context.runtime_state.expected_remaining_cost == pytest.approx(1.0)
+    assert context.runtime_state.observation_summary == {
+        "completed_steps": 1,
+        "total_steps": 2,
+        "remaining_steps": 1,
+        "completed_ratio": 0.5,
+        "selected_candidate_id": "patch_a",
+    }
+
+
+@pytest.mark.unit
 def test_recover_context_with_event_logs_updates_status_and_clears_pending_action():
     task = ProteinDesignTask(
         task_id="task_recovery_eventlog",

@@ -205,6 +205,7 @@ def enter_waiting_state(
         context,
         state_override=new_status,
         pending_action_id=pending_action.pending_action_id,
+        require_runtime_state=True,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
     _ = reason

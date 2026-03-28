@@ -11,6 +11,7 @@ from src.models.contracts import (
     PlanPatch,
     PlanPatchOp,
     PlanStep,
+    RUNTIME_STATE_ARTIFACT_KEY,
     now_iso,
 )
 from src.models.db import InternalStatus, TaskRecord, to_external_status
@@ -108,6 +109,9 @@ def test_plan_confirm_accept_transitions_to_planned(sample_task, sample_plan):
     assert events[0]["event"] == "DECISION_SUBMITTED"
     assert events[-1]["event"] == "DECISION_APPLIED"
     assert snapshots, "snapshot should be written after decision applied"
+    assert snapshots[0].artifacts[RUNTIME_STATE_ARTIFACT_KEY]["last_update_source"] == (
+        "runtime_bootstrap"
+    )
 
 
 @pytest.mark.unit
