@@ -1,0 +1,138 @@
+{
+  "sample_id": "runtime_shadow_success_sample",
+  "source": {
+    "freeze_id": "issue209-baseline-freeze-smoke",
+    "task_key": "a3-runtime-shadow",
+    "source_manifest": "output/experiment/w13-expr-0/issue209-baseline-freeze-smoke/baseline_freeze_manifest.json"
+  },
+  "purpose": "Replay a completed waiting-to-success path with runtime_state and shadow outputs attached.",
+  "run": {
+    "run_id": "runtime_shadow_success_sample_r1",
+    "task_id": "task_runtime_shadow_success",
+    "group_id": "A3",
+    "replicate": 1,
+    "started_at": "2026-04-04T10:00:00+00:00",
+    "finished_at": "2026-04-04T10:00:05+00:00",
+    "status_external": "DONE"
+  },
+  "event_log": [
+    {
+      "event": "TASK_STATUS_CHANGED",
+      "task_id": "task_runtime_shadow_success",
+      "from_status": "RUNNING",
+      "to_status": "WAITING_PATCH_CONFIRM",
+      "reason": "patch_review_requested",
+      "timestamp": "2026-04-04T10:00:00+00:00"
+    },
+    {
+      "event": "WAITING_ENTER",
+      "task_id": "task_runtime_shadow_success",
+      "pending_action_id": "pa_runtime_001",
+      "ts": "2026-04-04T10:00:01+00:00",
+      "data": {
+        "action_name": "patch",
+        "waiting_runtime_summary": {
+          "selected_candidate_id": "cand_patch_1",
+          "default_recommendation": "cand_patch_1",
+          "runtime_state_summary": {
+            "schema_version": 1,
+            "p_success": 0.41,
+            "p_structural_failure": 0.52,
+            "recovery_margin": 0.12,
+            "expected_remaining_cost": 2.7
+          },
+          "action_score": {
+            "value": 0.62,
+            "source": "score_breakdown.overall"
+          },
+          "shadow_score": {
+            "value": 0.49,
+            "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+          },
+          "shadow_action": "suffix_replan"
+        }
+      }
+    },
+    {
+      "event": "DECISION_APPLIED",
+      "task_id": "task_runtime_shadow_success",
+      "pending_action_id": "pa_runtime_001",
+      "decision_id": "dec_runtime_001",
+      "ts": "2026-04-04T10:00:02+00:00",
+      "data": {
+        "choice": "accept",
+        "action_name": "patch",
+        "shadow_score": {
+          "value": 0.49,
+          "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+        },
+        "shadow_action": "suffix_replan",
+        "runtime_state_summary": {
+          "schema_version": 1,
+          "p_success": 0.41,
+          "p_structural_failure": 0.52,
+          "recovery_margin": 0.12,
+          "expected_remaining_cost": 2.7
+        }
+      }
+    },
+    {
+      "event": "WAITING_EXIT",
+      "task_id": "task_runtime_shadow_success",
+      "pending_action_id": "pa_runtime_001",
+      "ts": "2026-04-04T10:00:03+00:00"
+    },
+    {
+      "event": "STEP_FINISHED",
+      "task_id": "task_runtime_shadow_success",
+      "step_id": "S2",
+      "tool": "esmfold",
+      "status": "success",
+      "timestamp": "2026-04-04T10:00:04+00:00",
+      "data": {
+        "runtime_state_summary": {
+          "schema_version": 1,
+          "p_success": 0.74,
+          "p_structural_failure": 0.18,
+          "recovery_margin": 0.45,
+          "expected_remaining_cost": 1.1
+        }
+      }
+    },
+    {
+      "event": "TASK_STATUS_CHANGED",
+      "task_id": "task_runtime_shadow_success",
+      "from_status": "SUMMARIZING",
+      "to_status": "DONE",
+      "reason": "summarizer_placeholder",
+      "timestamp": "2026-04-04T10:00:05+00:00"
+    }
+  ],
+  "snapshot": {
+    "task_id": "task_runtime_shadow_success",
+    "state": "DONE",
+    "artifacts": {
+      "runtime_state": {
+        "schema_version": 1,
+        "p_success": 0.74,
+        "p_structural_failure": 0.18,
+        "recovery_margin": 0.45,
+        "expected_remaining_cost": 1.1,
+        "last_update_source": "sample"
+      },
+      "decision_summary": {
+        "shadow_action": "suffix_replan",
+        "shadow_score": {
+          "value": 0.49,
+          "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+        }
+      }
+    }
+  },
+  "report": {
+    "summary": {
+      "status": "done",
+      "notes": "minimal replay sample"
+    }
+  }
+}

@@ -4,10 +4,16 @@ import json
 from pathlib import Path
 
 from src.infra.w12_vertical_experiment import (
+    DEFAULT_REPLAY_SAMPLE_DIR,
     DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
     aggregate_group_metrics,
     compute_increment_deltas,
     extract_run_metrics,
+    load_replay_sample,
+    materialize_replay_sample,
+    replay_sample,
+    replay_samples,
+    stable_hash,
     wilson_interval,
 )
 
@@ -120,6 +126,94 @@ def test_extract_run_metrics_and_requirement2(tmp_path: Path) -> None:
     assert metrics["high_cost_rule_hits"]["structure_mapping"] == 1
 
 
+def test_replay_sample_materialization_extracts_runtime_snapshot_and_shadow_fields(
+    tmp_path: Path,
+) -> None:
+    sample = load_replay_sample(
+        DEFAULT_REPLAY_SAMPLE_DIR / "runtime_shadow_success_sample.json"
+    )
+    run = materialize_replay_sample(sample, output_dir=tmp_path)
+    tool_map = {
+        "seqgen_local": ["sequence_generation"],
+        "esmfold": ["structure_prediction"],
+    }
+
+    metrics = extract_run_metrics(
+        run,
+        tool_capability_map=tool_map,
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["success"] is True
+    assert metrics["waiting_chain_complete"] is True
+    assert metrics["snapshot_linked"] is True
+    assert metrics["report_linked"] is True
+    assert metrics["runtime_state_observable"] is True
+    assert metrics["shadow_output_observable"] is True
+    assert metrics["replay_sample_id"] == "runtime_shadow_success_sample"
+    assert metrics["replay_source_freeze_id"] == "issue209-baseline-freeze-smoke"
+
+
+def test_replay_sample_is_deterministic_for_same_fixture(tmp_path: Path) -> None:
+    sample_path = DEFAULT_REPLAY_SAMPLE_DIR / "runtime_shadow_success_sample.json"
+    tool_map = {
+        "seqgen_local": ["sequence_generation"],
+        "esmfold": ["structure_prediction"],
+    }
+
+    first = replay_sample(
+        sample_path,
+        output_dir=tmp_path / "bundle",
+        tool_capability_map=tool_map,
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+    second = replay_sample(
+        sample_path,
+        output_dir=tmp_path / "bundle",
+        tool_capability_map=tool_map,
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    keys = (
+        "success",
+        "final_status",
+        "waiting_chain_complete",
+        "runtime_state_observable",
+        "shadow_output_observable",
+        "high_cost_call_count",
+        "requirement2_coverage",
+        "step_finished_count",
+    )
+    first_subset = {key: first[key] for key in keys}
+    second_subset = {key: second[key] for key in keys}
+    assert first_subset == second_subset
+    assert stable_hash(first_subset) == stable_hash(second_subset)
+
+
+def test_replay_samples_batch_returns_reusable_metrics(tmp_path: Path) -> None:
+    tool_map = {
+        "seqgen_local": ["sequence_generation"],
+        "esmfold": ["structure_prediction"],
+    }
+    sample_paths = [
+        DEFAULT_REPLAY_SAMPLE_DIR / "runtime_shadow_success_sample.json",
+        DEFAULT_REPLAY_SAMPLE_DIR / "replan_waiting_shadow_sample.json",
+    ]
+
+    rows = replay_samples(
+        sample_paths,
+        output_dir=tmp_path / "batch",
+        tool_capability_map=tool_map,
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert len(rows) == 2
+    by_id = {row["replay_sample_id"]: row for row in rows}
+    assert by_id["runtime_shadow_success_sample"]["shadow_output_observable"] is True
+    assert by_id["replan_waiting_shadow_sample"]["replan_event_count"] == 1
+    assert by_id["replan_waiting_shadow_sample"]["requirement2_coverage"]["sequence_core"] is True
+
+
 def test_aggregate_and_deltas(tmp_path: Path) -> None:
     def make_run(group_id: str, task_key: str, replicate: int, success: bool, patch_count: int) -> dict:
         return {
@@ -188,6 +282,8 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert summary["A1"]["success_rate"] == 1.0
     assert summary["A1"]["patch_events_mean"] == 0.0
     assert summary["A0"]["high_cost_call_mean"] == 0.0
+    assert summary["A0"]["runtime_state_observable_rate"] == 0.0
+    assert summary["A1"]["shadow_output_observable_rate"] == 0.0
 
     deltas = compute_increment_deltas(
         runs,

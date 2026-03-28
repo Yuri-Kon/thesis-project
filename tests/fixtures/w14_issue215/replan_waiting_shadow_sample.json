@@ -1,0 +1,146 @@
+{
+  "sample_id": "replan_waiting_shadow_sample",
+  "source": {
+    "freeze_id": "issue209-baseline-freeze-smoke",
+    "task_key": "a4-replan-shadow",
+    "source_manifest": "output/experiment/w13-expr-0/issue209-baseline-freeze-smoke/baseline_freeze_manifest.json"
+  },
+  "purpose": "Replay a replan-oriented waiting chain with suffix_replan shadow evidence and stable snapshot linkage.",
+  "run": {
+    "run_id": "replan_waiting_shadow_sample_r1",
+    "task_id": "task_replan_waiting_shadow",
+    "group_id": "A4",
+    "replicate": 1,
+    "started_at": "2026-04-04T11:00:00+00:00",
+    "finished_at": "2026-04-04T11:00:06+00:00",
+    "status_external": "DONE"
+  },
+  "event_log": [
+    {
+      "event": "TASK_STATUS_CHANGED",
+      "task_id": "task_replan_waiting_shadow",
+      "from_status": "RUNNING",
+      "to_status": "REPLANNING",
+      "reason": "suffix_replan_requested",
+      "timestamp": "2026-04-04T11:00:00+00:00"
+    },
+    {
+      "event": "RECOVERY_ESCALATED",
+      "task_id": "task_replan_waiting_shadow",
+      "step_id": "S3",
+      "timestamp": "2026-04-04T11:00:01+00:00",
+      "data": {
+        "reason": "patch_high_risk",
+        "recovery": {
+          "recovery_layer": "tool_level",
+          "shadow_score": {
+            "value": 0.33,
+            "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+          },
+          "shadow_action": "suffix_replan",
+          "runtime_state_summary": {
+            "schema_version": 1,
+            "p_success": 0.27,
+            "p_structural_failure": 0.77,
+            "recovery_margin": -0.22,
+            "expected_remaining_cost": 3.9
+          }
+        }
+      }
+    },
+    {
+      "event": "WAITING_ENTER",
+      "task_id": "task_replan_waiting_shadow",
+      "pending_action_id": "pa_replan_001",
+      "ts": "2026-04-04T11:00:02+00:00",
+      "data": {
+        "action_name": "replan",
+        "waiting_runtime_summary": {
+          "selected_candidate_id": "cand_replan_1",
+          "default_recommendation": "cand_replan_1",
+          "runtime_state_summary": {
+            "schema_version": 1,
+            "p_success": 0.27,
+            "p_structural_failure": 0.77,
+            "recovery_margin": -0.22,
+            "expected_remaining_cost": 3.9
+          },
+          "action_score": {
+            "value": 0.58,
+            "source": "score_breakdown.overall"
+          },
+          "shadow_score": {
+            "value": 0.33,
+            "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+          },
+          "shadow_action": "suffix_replan"
+        }
+      }
+    },
+    {
+      "event": "DECISION_APPLIED",
+      "task_id": "task_replan_waiting_shadow",
+      "pending_action_id": "pa_replan_001",
+      "decision_id": "dec_replan_001",
+      "ts": "2026-04-04T11:00:03+00:00"
+    },
+    {
+      "event": "WAITING_EXIT",
+      "task_id": "task_replan_waiting_shadow",
+      "pending_action_id": "pa_replan_001",
+      "ts": "2026-04-04T11:00:04+00:00"
+    },
+    {
+      "event": "STEP_FINISHED",
+      "task_id": "task_replan_waiting_shadow",
+      "step_id": "S1",
+      "tool": "seqgen_local",
+      "status": "success",
+      "timestamp": "2026-04-04T11:00:05+00:00",
+      "data": {
+        "runtime_state_summary": {
+          "schema_version": 1,
+          "p_success": 0.51,
+          "p_structural_failure": 0.24,
+          "recovery_margin": 0.18,
+          "expected_remaining_cost": 1.9
+        }
+      }
+    },
+    {
+      "event": "TASK_STATUS_CHANGED",
+      "task_id": "task_replan_waiting_shadow",
+      "from_status": "SUMMARIZING",
+      "to_status": "DONE",
+      "reason": "summarizer_placeholder",
+      "timestamp": "2026-04-04T11:00:06+00:00"
+    }
+  ],
+  "snapshot": {
+    "task_id": "task_replan_waiting_shadow",
+    "state": "DONE",
+    "artifacts": {
+      "runtime_state": {
+        "schema_version": 1,
+        "p_success": 0.51,
+        "p_structural_failure": 0.24,
+        "recovery_margin": 0.18,
+        "expected_remaining_cost": 1.9,
+        "last_update_source": "sample"
+      },
+      "decision_summary": {
+        "shadow_action": "suffix_replan",
+        "shadow_score": {
+          "value": 0.33,
+          "source": "score_breakdown.overall+runtime_state.suffix_replan.v1"
+        }
+      }
+    }
+  },
+  "report": {
+    "summary": {
+      "status": "done",
+      "notes": "replan replay sample"
+    }
+  }
+}
