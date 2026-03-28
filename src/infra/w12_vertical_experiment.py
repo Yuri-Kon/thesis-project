@@ -58,6 +58,9 @@ DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = [
 ]
 
 _PATCH_EVENT_NAMES = {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}
+DEFAULT_REPLAY_SAMPLE_DIR = (
+    Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "w14_issue215"
+)
 
 
 def now_iso() -> str:
@@ -92,7 +95,7 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    if not path.exists():
+    if not path.exists() or not path.is_file():
         return rows
     with path.open("r", encoding="utf-8") as f:
         for raw in f:
@@ -106,6 +109,128 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
             if isinstance(value, dict):
                 rows.append(value)
     return rows
+
+
+def load_replay_sample(path: Path) -> dict[str, Any]:
+    payload = load_json(path)
+    sample_id = payload.get("sample_id")
+    if not isinstance(sample_id, str) or not sample_id.strip():
+        raise ValueError("replay sample missing sample_id")
+
+    source = payload.get("source")
+    if not isinstance(source, dict):
+        raise ValueError("replay sample missing source")
+    freeze_id = source.get("freeze_id")
+    if not isinstance(freeze_id, str) or not freeze_id.strip():
+        raise ValueError("replay sample source.freeze_id is required")
+    task_key = source.get("task_key")
+    if not isinstance(task_key, str) or not task_key.strip():
+        raise ValueError("replay sample source.task_key is required")
+
+    purpose = payload.get("purpose")
+    if not isinstance(purpose, str) or not purpose.strip():
+        raise ValueError("replay sample purpose is required")
+
+    run = payload.get("run")
+    if not isinstance(run, dict):
+        raise ValueError("replay sample missing run")
+    event_log = payload.get("event_log")
+    if not isinstance(event_log, list) or not event_log:
+        raise ValueError("replay sample event_log must be a non-empty list")
+
+    snapshot = payload.get("snapshot")
+    if snapshot is not None and not isinstance(snapshot, dict):
+        raise ValueError("replay sample snapshot must be a mapping")
+
+    report = payload.get("report")
+    if report is not None and not isinstance(report, dict):
+        raise ValueError("replay sample report must be a mapping")
+
+    return payload
+
+
+def materialize_replay_sample(
+    sample: dict[str, Any],
+    *,
+    output_dir: Path,
+) -> dict[str, Any]:
+    sample_id = str(sample["sample_id"])
+    sample_dir = output_dir / sample_id
+    sample_dir.mkdir(parents=True, exist_ok=True)
+
+    event_log_path = sample_dir / "event_log.jsonl"
+    write_jsonl(event_log_path, sample["event_log"])
+
+    snapshot_path = sample_dir / "snapshot.json"
+    snapshot_payload = sample.get("snapshot")
+    if isinstance(snapshot_payload, dict):
+        write_json(snapshot_path, snapshot_payload)
+        resolved_snapshot_path: Path | None = snapshot_path
+    else:
+        resolved_snapshot_path = None
+
+    report_path = sample_dir / "report.json"
+    report_payload = sample.get("report")
+    if isinstance(report_payload, dict):
+        write_json(report_path, report_payload)
+        resolved_report_path: Path | None = report_path
+    else:
+        resolved_report_path = None
+
+    run = dict(sample["run"])
+    source = dict(sample["source"])
+    run.setdefault("freeze_id", source.get("freeze_id"))
+    run.setdefault("task_key", source.get("task_key"))
+    run["event_log_path"] = str(event_log_path)
+    run["snapshot_path"] = str(resolved_snapshot_path) if resolved_snapshot_path else ""
+    run["report_path"] = str(resolved_report_path) if resolved_report_path else ""
+    run["replay_sample_id"] = sample_id
+    run["replay_source_freeze_id"] = str(source.get("freeze_id") or "")
+    return run
+
+
+def replay_sample(
+    sample_path: Path,
+    *,
+    output_dir: Path,
+    tool_capability_map: dict[str, list[str]],
+    requirement2_capability_map: dict[str, list[str]],
+    high_cost_rules: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    sample = load_replay_sample(sample_path)
+    run = materialize_replay_sample(sample, output_dir=output_dir)
+    metrics = extract_run_metrics(
+        run,
+        tool_capability_map=tool_capability_map,
+        requirement2_capability_map=requirement2_capability_map,
+        high_cost_rules=high_cost_rules,
+    )
+    metrics["replay_sample_id"] = run.get("replay_sample_id")
+    metrics["replay_source_freeze_id"] = run.get("replay_source_freeze_id")
+    metrics["replay_sample_purpose"] = sample.get("purpose")
+    return metrics
+
+
+def replay_samples(
+    sample_paths: Iterable[Path],
+    *,
+    output_dir: Path,
+    tool_capability_map: dict[str, list[str]],
+    requirement2_capability_map: dict[str, list[str]],
+    high_cost_rules: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    results: list[dict[str, Any]] = []
+    for sample_path in sample_paths:
+        results.append(
+            replay_sample(
+                sample_path,
+                output_dir=output_dir,
+                tool_capability_map=tool_capability_map,
+                requirement2_capability_map=requirement2_capability_map,
+                high_cost_rules=high_cost_rules,
+            )
+        )
+    return results
 
 
 def parse_iso_datetime(value: Any) -> datetime | None:
@@ -305,6 +430,66 @@ def _nested(row: dict[str, Any], *path: str) -> Any:
     return current
 
 
+def _has_runtime_state_observation(row: dict[str, Any]) -> bool:
+    data = row.get("data")
+    if not isinstance(data, dict):
+        data = {}
+    if isinstance(data.get("runtime_state_summary"), dict):
+        return True
+    waiting_summary = data.get("waiting_runtime_summary")
+    if isinstance(waiting_summary, dict) and isinstance(
+        waiting_summary.get("runtime_state_summary"),
+        dict,
+    ):
+        return True
+    recovery = data.get("recovery")
+    if isinstance(recovery, dict) and isinstance(recovery.get("runtime_state_summary"), dict):
+        return True
+    return False
+
+
+def _has_shadow_output(row: dict[str, Any]) -> bool:
+    data = row.get("data")
+    if not isinstance(data, dict):
+        data = {}
+    if isinstance(data.get("shadow_score"), dict):
+        return True
+    if isinstance(data.get("shadow_action"), str) and data.get("shadow_action"):
+        return True
+    waiting_summary = data.get("waiting_runtime_summary")
+    if isinstance(waiting_summary, dict):
+        if isinstance(waiting_summary.get("shadow_score"), dict):
+            return True
+        if isinstance(waiting_summary.get("shadow_action"), str) and waiting_summary.get("shadow_action"):
+            return True
+    recovery = data.get("recovery")
+    if isinstance(recovery, dict):
+        if isinstance(recovery.get("shadow_score"), dict):
+            return True
+        if isinstance(recovery.get("shadow_action"), str) and recovery.get("shadow_action"):
+            return True
+    return False
+
+
+def _load_snapshot_payload(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = load_json(path)
+    except Exception:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _optional_path(value: Any) -> Path | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not text:
+        return None
+    return Path(text)
+
+
 def extract_run_metrics(
     run: dict[str, Any],
     *,
@@ -312,9 +497,17 @@ def extract_run_metrics(
     requirement2_capability_map: dict[str, list[str]],
     high_cost_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    event_log_path = Path(str(run.get("event_log_path") or ""))
+    event_log_path = _optional_path(run.get("event_log_path")) or Path("")
+    snapshot_path = _optional_path(run.get("snapshot_path"))
+    report_path = _optional_path(run.get("report_path"))
     rows = read_jsonl(event_log_path)
     resolved_high_cost_rules = normalize_high_cost_rules(high_cost_rules)
+    snapshot_payload = _load_snapshot_payload(snapshot_path) if snapshot_path else None
+    snapshot_artifacts = (
+        snapshot_payload.get("artifacts")
+        if isinstance(snapshot_payload, dict) and isinstance(snapshot_payload.get("artifacts"), dict)
+        else {}
+    )
 
     timestamps: list[datetime] = []
     step_failed_details: list[dict[str, Any]] = []
@@ -336,12 +529,16 @@ def extract_run_metrics(
     waiting_enter_count = 0
     high_cost_call_count = 0
     high_cost_failure_count = 0
+    runtime_state_observable = False
+    shadow_output_observable = False
 
     suffix_prefix_samples: list[bool] = []
     final_status: str | None = None
 
     for row in rows:
         event_name = _event_name(row)
+        runtime_state_observable = runtime_state_observable or _has_runtime_state_observation(row)
+        shadow_output_observable = shadow_output_observable or _has_shadow_output(row)
 
         ts = parse_iso_datetime(row.get("timestamp") or row.get("ts"))
         if ts is not None:
@@ -486,6 +683,15 @@ def extract_run_metrics(
     for bucket, capabilities in requirement2_capability_map.items():
         requirement2_coverage[bucket] = any(capability_usage.get(cap, 0) > 0 for cap in capabilities)
 
+    if isinstance(snapshot_artifacts.get("runtime_state"), dict):
+        runtime_state_observable = True
+    if isinstance(snapshot_artifacts.get("decision_summary"), dict):
+        decision_summary = snapshot_artifacts.get("decision_summary") or {}
+        if isinstance(decision_summary.get("shadow_score"), dict):
+            shadow_output_observable = True
+        if isinstance(decision_summary.get("shadow_action"), str) and decision_summary.get("shadow_action"):
+            shadow_output_observable = True
+
     return {
         "run_id": run.get("run_id"),
         "task_id": run.get("task_id"),
@@ -493,9 +699,9 @@ def extract_run_metrics(
         "group_id": run.get("group_id"),
         "replicate": run.get("replicate"),
         "freeze_id": run.get("freeze_id"),
-        "event_log_path": str(event_log_path),
-        "snapshot_path": str(run.get("snapshot_path") or ""),
-        "report_path": str(run.get("report_path") or ""),
+        "event_log_path": str(event_log_path) if str(event_log_path) != "." else "",
+        "snapshot_path": str(snapshot_path) if snapshot_path else "",
+        "report_path": str(report_path) if report_path else "",
         "started_at": run.get("started_at"),
         "finished_at": run.get("finished_at"),
         "duration_ms": round(duration_ms_value, 3),
@@ -512,6 +718,10 @@ def extract_run_metrics(
         "step_finished_count": step_finished_count,
         "waiting_chain_complete": waiting_chain_complete,
         "failure_traceable": failure_traceable,
+        "snapshot_linked": bool(snapshot_path and snapshot_path.exists()),
+        "report_linked": bool(report_path and report_path.exists()),
+        "runtime_state_observable": runtime_state_observable,
+        "shadow_output_observable": shadow_output_observable,
         "layer_counter": dict(layer_counter),
         "tool_usage": dict(tool_usage),
         "capability_usage": dict(capability_usage),
@@ -522,6 +732,8 @@ def extract_run_metrics(
         "suffix_prefix_samples": suffix_prefix_samples,
         "abnormal_reasons": abnormal_reasons,
         "step_failed_details": step_failed_details,
+        "replay_sample_id": run.get("replay_sample_id"),
+        "replay_source_freeze_id": run.get("replay_source_freeze_id"),
     }
 
 
@@ -585,6 +797,13 @@ def aggregate_group_metrics(
         executable = _proportion_summary([bool(item.get("executable_plan")) for item in rows])
         waiting_chain = _proportion_summary([bool(item.get("waiting_chain_complete")) for item in rows])
         traceability = _proportion_summary([bool(item.get("failure_traceable")) for item in rows])
+        snapshot_linked = _proportion_summary([bool(item.get("snapshot_linked")) for item in rows])
+        runtime_state_observable = _proportion_summary(
+            [bool(item.get("runtime_state_observable")) for item in rows]
+        )
+        shadow_output_observable = _proportion_summary(
+            [bool(item.get("shadow_output_observable")) for item in rows]
+        )
 
         patch_counts = [float(item.get("patch_event_count", 0) or 0) for item in rows]
         replan_counts = [float(item.get("replan_event_count", 0) or 0) for item in rows]
@@ -666,6 +885,9 @@ def aggregate_group_metrics(
             "executable_ci_high": executable["ci_high"],
             "waiting_chain_complete_rate": waiting_chain["rate"],
             "failure_traceable_rate": traceability["rate"],
+            "snapshot_linked_rate": snapshot_linked["rate"],
+            "runtime_state_observable_rate": runtime_state_observable["rate"],
+            "shadow_output_observable_rate": shadow_output_observable["rate"],
             "patch_events_mean": patch_summary["mean"],
             "patch_events_ci_low": patch_summary["ci_low"],
             "patch_events_ci_high": patch_summary["ci_high"],
