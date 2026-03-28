@@ -32,6 +32,7 @@ from src.models.db import ExternalStatus, InternalStatus
 from src.models.event_log import EventLog, EventType
 from src.storage.log_store import DEFAULT_LOG_DIR, read_event_logs
 from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DIR
+from src.workflow.belief_state import update_runtime_state
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 
@@ -374,7 +375,7 @@ def restore_context_from_snapshot(
     context = WorkflowContext(
         task=task,
         plan=plan,
-        runtime_state=_extract_runtime_state(snapshot),
+        runtime_state=_extract_runtime_state(snapshot, plan),
         status=internal_status,
     )
 
@@ -414,25 +415,95 @@ def extract_remote_job_context(
         return None
 
 
-def _extract_runtime_state(snapshot: TaskSnapshot) -> RuntimeState | None:
+def _extract_runtime_state(
+    snapshot: TaskSnapshot,
+    plan: Plan,
+) -> RuntimeState | None:
     runtime_payload = snapshot.artifacts.get(RUNTIME_STATE_ARTIFACT_KEY)
-    if not isinstance(runtime_payload, dict):
-        return None
+    if runtime_payload is not None and not isinstance(runtime_payload, dict):
+        runtime_payload = None
 
-    payload = dict(runtime_payload)
+    if not isinstance(runtime_payload, dict):
+        payload: dict[str, Any] = {}
+    else:
+        payload = dict(runtime_payload)
+
     observation_summary = snapshot.artifacts.get(
         RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY
     )
-    if (
+    bootstrap = None
+    if not _has_complete_runtime_state_payload(payload):
+        bootstrap = _bootstrap_runtime_state_from_snapshot(snapshot, plan)
+    if bootstrap is not None:
+        payload = {
+            **bootstrap.model_dump(),
+            **payload,
+        }
+        if isinstance(observation_summary, dict):
+            payload["observation_summary"] = {
+                **bootstrap.observation_summary,
+                **observation_summary,
+            }
+    elif (
         "observation_summary" not in payload
         and isinstance(observation_summary, dict)
     ):
         payload["observation_summary"] = observation_summary
 
+    if not payload:
+        return None
+
     try:
         return RuntimeState.model_validate(payload)
     except Exception:
+        return bootstrap
+
+
+def _has_complete_runtime_state_payload(payload: dict[str, Any]) -> bool:
+    required_keys = {
+        "p_success",
+        "p_structural_failure",
+        "recovery_margin",
+        "expected_remaining_cost",
+        "last_update_source",
+    }
+    return required_keys.issubset(payload.keys())
+
+
+def _bootstrap_runtime_state_from_snapshot(
+    snapshot: TaskSnapshot,
+    plan: Plan,
+) -> RuntimeState | None:
+    completed_steps = _resolve_completed_steps(snapshot)
+    total_steps = len(plan.steps)
+    if (
+        completed_steps == 0
+        and snapshot.state not in {
+            ExternalStatus.WAITING_PLAN_CONFIRM.value,
+            ExternalStatus.WAITING_PATCH_CONFIRM.value,
+            ExternalStatus.WAITING_REPLAN_CONFIRM.value,
+        }
+        and not isinstance(
+            snapshot.artifacts.get(RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY),
+            dict,
+        )
+        and not isinstance(snapshot.artifacts.get(RUNTIME_STATE_ARTIFACT_KEY), dict)
+    ):
         return None
+    return update_runtime_state(
+        previous_state=None,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+
+
+def _resolve_completed_steps(snapshot: TaskSnapshot) -> int:
+    if snapshot.completed_step_ids:
+        return len(snapshot.completed_step_ids)
+    return max(
+        int(snapshot.current_step_index or 0),
+        int(snapshot.step_index or 0),
+    )
 
 
 def recover_context_with_event_logs(
