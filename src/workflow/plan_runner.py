@@ -29,6 +29,7 @@ from src.workflow.patch_runner import PatchRunner, PendingPatch
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.agents.safety import SafetyAgent
 from src.workflow.status import transition_task_status
+from src.workflow.snapshots import build_context_runtime_state_summary
 from src.workflow.errors import (
     FailureType,
     PlanRunError,
@@ -769,6 +770,9 @@ class PlanRunner:
             "external_status": to_external_status(context.status).value,
         }
         event_data = _build_step_trace_data(step_result)
+        runtime_state_summary = build_context_runtime_state_summary(context)
+        if runtime_state_summary is not None:
+            event_data["runtime_state_summary"] = runtime_state_summary
         if event_data:
             event_payload["data"] = event_data
         append_event(
