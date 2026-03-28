@@ -16,6 +16,8 @@ from src.models.contracts import (
     PlanStep,
     ProteinDesignTask,
     ReplanRequest,
+    RuntimeState,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     StepResult,
@@ -572,6 +574,13 @@ class TestPlannerAgent:
             safety_events=[],
             pending_action=None,
             design_result=None,
+            runtime_state=RuntimeState(
+                p_success=0.58,
+                p_structural_failure=0.21,
+                recovery_margin=0.36,
+                expected_remaining_cost=1.4,
+                last_update_source="unit_test",
+            ),
         )
         record = TaskRecord(
             id=task.task_id,
@@ -590,6 +599,10 @@ class TestPlannerAgent:
         assert waiting_summary["selected_candidate_id"] == context.pending_action.default_recommendation
         assert waiting_summary["default_recommendation_reason"]["code"] == "plan_ranked_first"
         assert waiting_summary["action_score"]["source"] == "score_breakdown.overall"
+        assert waiting_summary["runtime_state_summary"]["p_success"] == pytest.approx(0.58)
+        assert waiting_summary["shadow_score"]["source"].startswith(
+            "score_breakdown.overall+runtime_state.continue"
+        )
 
     def test_plan_top_k_has_s5_contract_and_stable_weights(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
@@ -665,6 +678,104 @@ class TestPlannerAgent:
 
         assert objective_weighted["objective"] > objective_weighted["risk"]
         assert objective_weighted["overall"] > risk_weighted["overall"]
+
+    def test_plan_top_k_accepts_runtime_state_shadow_without_changing_default(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="task_topk_runtime_shadow_plan",
+            goal="de_novo_design",
+            constraints={"length_range": [40, 60]},
+            metadata={},
+        )
+        baseline = planner.plan_top_k(task, k=3)
+        runtime_state = RuntimeState(
+            p_success=0.62,
+            p_structural_failure=0.18,
+            recovery_margin=0.44,
+            expected_remaining_cost=1.8,
+            last_update_source="unit_test",
+        )
+
+        topk = planner.plan_top_k(task, k=3, runtime_state=runtime_state)
+
+        assert topk.default_recommendation == baseline.default_recommendation
+        assert "Default recommendation stays" in topk.explanation
+        for candidate in topk.candidates:
+            assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.62)
+            assert candidate.metadata["shadow_action"] == "continue"
+            assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(
+                "score_breakdown.overall+runtime_state.continue"
+            )
+            assert candidate.explanation and "Runtime correction combines static overall score" in candidate.explanation
+
+    def test_patch_top_k_emits_suffix_replan_shadow_action_from_runtime_state(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        topk = planner.patch_top_k(
+            _patch_request_for_topk(),
+            k=3,
+            runtime_state={
+                "schema_version": 1,
+                "p_success": 0.34,
+                "p_structural_failure": 0.82,
+                "recovery_margin": -0.15,
+                "expected_remaining_cost": 3.6,
+            },
+        )
+
+        assert topk.default_recommendation == topk.candidates[0].candidate_id
+        first = topk.candidates[0]
+        assert first.metadata["shadow_action"] == "suffix_replan"
+        assert "structural failure pressure is high" in first.metadata["shadow_action_reason"]
+        assert first.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(
+            "score_breakdown.overall+runtime_state.suffix_replan"
+        )
+        assert first.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_structural_failure"] == pytest.approx(0.82)
+
+    def test_replan_top_k_can_emit_stop_shadow_action_while_preserving_default(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        original = Plan(
+            task_id="task_topk_runtime_shadow_replan",
+            steps=[
+                PlanStep(id="S1", tool="seqgen_local", inputs={"goal": "demo"}, metadata={}),
+                PlanStep(id="S2", tool="esmfold", inputs={"sequence": "S1.sequence"}, metadata={}),
+            ],
+            constraints={"goal_type": "de_novo_design"},
+            metadata={},
+        )
+        request = ReplanRequest(
+            task_id=original.task_id,
+            original_plan=original,
+            failed_steps=["S2"],
+            safety_events=[],
+            reason="replan_after_failure",
+        )
+        baseline = planner.replan_top_k(request, k=3)
+
+        topk = planner.replan_top_k(
+            request,
+            k=3,
+            runtime_state={
+                "schema_version": 1,
+                "p_success": 0.12,
+                "p_structural_failure": 0.63,
+                "recovery_margin": -0.25,
+                "expected_remaining_cost": 4.8,
+            },
+        )
+
+        assert topk.default_recommendation == baseline.default_recommendation
+        assert "Default recommendation stays" in topk.explanation
+        assert all(candidate.metadata["shadow_action"] == "stop" for candidate in topk.candidates)
+        assert all(
+            candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(
+                "score_breakdown.overall+runtime_state.stop"
+            )
+            for candidate in topk.candidates
+        )
 
     def test_patch_top_k_candidates_sorted_by_layer_then_overall(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
