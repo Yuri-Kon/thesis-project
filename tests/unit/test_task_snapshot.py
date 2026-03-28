@@ -9,6 +9,7 @@ from src.models.contracts import (
     ProteinDesignTask,
     RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
     RUNTIME_STATE_ARTIFACT_KEY,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     RuntimeState,
     TaskSnapshot,
     now_iso,
@@ -247,6 +248,13 @@ def test_build_task_snapshot_persists_runtime_state_with_stable_keys():
     assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
         "high_cost_steps_completed": 1
     }
+    assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY] == {
+        "schema_version": 1,
+        "p_success": 0.72,
+        "p_structural_failure": 0.18,
+        "recovery_margin": 0.41,
+        "expected_remaining_cost": 12.5,
+    }
 
 
 @pytest.mark.unit
@@ -281,3 +289,4 @@ def test_build_task_snapshot_waiting_bootstraps_runtime_state_when_missing():
     assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
         "completed_steps": 0
     }
+    assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)

@@ -6,8 +6,10 @@ from uuid import uuid4
 from src.models.contracts import (
     RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
     RUNTIME_STATE_ARTIFACT_KEY,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     RuntimeState,
     TaskSnapshot,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
 from src.models.db import ExternalStatus, to_external_status
@@ -61,6 +63,7 @@ def build_task_snapshot(
         require_runtime_state=require_runtime_state,
     )
     _inject_runtime_state_artifacts(runtime_state, artifacts_payload)
+    _inject_pending_action_audit_artifacts(context, artifacts_payload)
     if context.pending_action is not None:
         artifacts_payload.setdefault(
             "pending_action", context.pending_action.model_dump()
@@ -105,11 +108,31 @@ def _inject_runtime_state_artifacts(
         RUNTIME_STATE_ARTIFACT_KEY,
         runtime_state.to_snapshot_payload(),
     )
+    artifacts_payload.setdefault(
+        RUNTIME_STATE_SUMMARY_METADATA_KEY,
+        runtime_state.to_summary_payload(),
+    )
 
     if runtime_state.observation_summary:
         artifacts_payload.setdefault(
             RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
             dict(runtime_state.observation_summary),
+        )
+
+
+def _inject_pending_action_audit_artifacts(
+    context: WorkflowContext,
+    artifacts_payload: dict[str, Any],
+) -> None:
+    pending_action = context.pending_action
+    if pending_action is None:
+        return
+    metadata = pending_action.metadata if isinstance(pending_action.metadata, dict) else {}
+    waiting_summary = metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    if isinstance(waiting_summary, dict):
+        artifacts_payload.setdefault(
+            WAITING_RUNTIME_SUMMARY_METADATA_KEY,
+            dict(waiting_summary),
         )
 
 
@@ -140,3 +163,46 @@ def _extract_total_step_count(context: WorkflowContext) -> int | None:
     if plan is None:
         return None
     return len(plan.steps)
+
+
+def ensure_context_runtime_state(
+    context: WorkflowContext,
+    *,
+    require_runtime_state: bool = False,
+    external_state: ExternalStatus | None = None,
+) -> RuntimeState | None:
+    resolved_external_state = external_state or to_external_status(context.status)
+    return _resolve_runtime_state_for_snapshot(
+        context,
+        external_state=resolved_external_state,
+        require_runtime_state=require_runtime_state,
+    )
+
+
+def build_context_runtime_state_summary(
+    context: WorkflowContext,
+    *,
+    require_runtime_state: bool = False,
+    external_state: ExternalStatus | None = None,
+) -> dict[str, Any] | None:
+    runtime_state = ensure_context_runtime_state(
+        context,
+        require_runtime_state=require_runtime_state,
+        external_state=external_state,
+    )
+    if runtime_state is None:
+        return None
+    return runtime_state.to_summary_payload()
+
+
+def extract_pending_action_waiting_summary(
+    context: WorkflowContext,
+) -> dict[str, Any] | None:
+    pending_action = context.pending_action
+    if pending_action is None:
+        return None
+    metadata = pending_action.metadata if isinstance(pending_action.metadata, dict) else {}
+    summary = metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    if not isinstance(summary, dict):
+        return None
+    return dict(summary)

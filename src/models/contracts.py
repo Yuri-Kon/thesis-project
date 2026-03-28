@@ -22,6 +22,7 @@ DEFAULT_RECOMMENDATION_REASON_METADATA_KEY = "default_recommendation_reason"
 ACTION_SCORE_METADATA_KEY = "action_score"
 SHADOW_SCORE_METADATA_KEY = "shadow_score"
 WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
+DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
 
 
 def _validate_runtime_state_schema_version(value: int) -> int:
