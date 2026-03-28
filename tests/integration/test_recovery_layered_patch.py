@@ -289,6 +289,7 @@ def test_layered_patch_promotes_from_parameter_to_tool_level(monkeypatch):
     assert recovery["from_tool"] == "failing_tool"
     assert recovery["to_tool"] == "esmfold"
     assert recovery["capability_id"] == "structure_prediction"
+    assert replace_events[-1]["action_name"] == "patch"
     assert replace_events[-1]["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
@@ -362,6 +363,7 @@ def test_layered_patch_promotes_remote_to_local_tool_level(monkeypatch):
     recovery = replace_events[-1]["data"]["recovery"]
     assert recovery["from_tool"] == "failing_tool"
     assert recovery["to_tool"] == "esmfold"
+    assert replace_events[-1]["action_name"] == "patch"
     assert replace_events[-1]["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
@@ -422,6 +424,7 @@ def test_layered_patch_failure_escalates_to_replan_with_trace(monkeypatch):
     escalated = [e for e in events if e.get("event_type") == "RECOVERY_ESCALATED"]
     assert escalated
     assert escalated[-1]["data"]["reason"] == "patch_failed"
+    assert escalated[-1]["action_name"] == "replan"
     assert escalated[-1]["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
@@ -494,4 +497,5 @@ def test_high_risk_patch_escalates_to_replan(monkeypatch):
     escalated = [e for e in events if e.get("event_type") == "RECOVERY_ESCALATED"]
     assert escalated
     assert escalated[-1]["data"]["reason"] == "patch_high_risk"
+    assert escalated[-1]["action_name"] == "replan"
     assert escalated[-1]["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)

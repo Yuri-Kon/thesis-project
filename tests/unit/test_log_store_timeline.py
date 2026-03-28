@@ -80,6 +80,89 @@ def test_read_timeline_events_extracts_recovery_observability_fields(tmp_path: P
 
 
 @pytest.mark.unit
+def test_read_timeline_events_extracts_action_runtime_audit_fields(tmp_path: Path) -> None:
+    task_id = "timeline_action_runtime_001"
+    log_file = tmp_path / f"{task_id}.jsonl"
+    events = [
+        {
+            "event_type": "WAITING_ENTER",
+            "task_id": task_id,
+            "pending_action_id": "pa_001",
+            "ts": "2026-03-16T00:59:59+00:00",
+            "new_status": "WAITING_PLAN_CONFIRM",
+            "data": {
+                "action_type": "plan_confirm",
+                "waiting_runtime_summary": {
+                    "action_score": {"value": 0.82, "source": "planner.rank"},
+                    "shadow_score": {"value": 0.79, "source": "planner.shadow"},
+                    "default_recommendation_reason": {
+                        "code": "plan_ranked_first",
+                        "message": "selected by deterministic rank",
+                    },
+                    "runtime_state_summary": {"p_success": 0.61},
+                },
+                "runtime_state_summary": {"p_success": 0.61},
+            },
+        },
+        {
+            "event": "RECOVERY_ESCALATED",
+            "task_id": task_id,
+            "step_id": "S3",
+            "timestamp": "2026-03-16T01:00:00+00:00",
+            "to_status": "WAITING_REPLAN_CONFIRM",
+            "data": {
+                "recovery": {
+                    "reason": "patch_high_risk",
+                    "action_score": {"value": 0.31, "source": "candidate.overall"},
+                    "shadow_score": {"value": 0.24, "source": "candidate.shadow"},
+                    "default_recommendation_reason": {
+                        "code": "patch_high_risk",
+                        "message": "blocked by high risk gate",
+                    },
+                    "runtime_state_summary": {"p_success": 0.22},
+                }
+            },
+        },
+        {
+            "event": "TASK_STATUS_CHANGED",
+            "task_id": task_id,
+            "timestamp": "2026-03-16T01:00:01+00:00",
+            "from_status": "RUNNING",
+            "to_status": "WAITING_REPLAN_CONFIRM",
+            "data": {"runtime_state_summary": {"p_success": 0.22}},
+        },
+    ]
+
+    with log_file.open("w", encoding="utf-8") as handle:
+        for item in events:
+            handle.write(json.dumps(item, ensure_ascii=True) + "\n")
+
+    timeline = read_timeline_events(task_id, log_dir=tmp_path)
+
+    assert len(timeline) == 3
+
+    waiting = timeline[0]
+    assert waiting["action_name"] == "plan"
+    assert waiting["action_score"]["value"] == pytest.approx(0.82)
+    assert waiting["shadow_score"]["value"] == pytest.approx(0.79)
+    assert waiting["runtime_state_summary"]["p_success"] == pytest.approx(0.61)
+    assert waiting["waiting_runtime_summary"]["default_recommendation_reason"]["code"] == "plan_ranked_first"
+    assert waiting["evidence_source"]["code"] == "plan_ranked_first"
+
+    escalated = timeline[1]
+    assert escalated["action_name"] == "replan"
+    assert escalated["action_score"]["value"] == pytest.approx(0.31)
+    assert escalated["shadow_score"]["value"] == pytest.approx(0.24)
+    assert escalated["runtime_state_summary"]["p_success"] == pytest.approx(0.22)
+    assert escalated["evidence_source"]["code"] == "patch_high_risk"
+    assert escalated["recovery_reason"] == "patch_high_risk"
+
+    transition = timeline[2]
+    assert transition["action_name"] == "replan"
+    assert transition["runtime_state_summary"]["p_success"] == pytest.approx(0.22)
+
+
+@pytest.mark.unit
 def test_read_timeline_events_keeps_legacy_entries_compatible(tmp_path: Path) -> None:
     task_id = "timeline_legacy_001"
     log_file = tmp_path / f"{task_id}.jsonl"

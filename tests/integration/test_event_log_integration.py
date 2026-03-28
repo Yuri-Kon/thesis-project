@@ -149,6 +149,10 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
     assert waiting_summary["selected_candidate_id"] == "candidate_waiting"
     assert waiting_summary["default_recommendation"] == "candidate_waiting"
     assert waiting_summary[ACTION_SCORE_METADATA_KEY]["value"] == pytest.approx(0.77)
+    assert event["data"]["action_name"] == "plan"
+    assert event["data"]["action_score"]["value"] == pytest.approx(0.77)
+    assert event["data"]["shadow_score"]["value"] == pytest.approx(0.77)
+    assert event["data"]["evidence_source"]["code"] == "plan_ranked_first"
     assert event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["default_recommendation_reason"]["code"] == "plan_ranked_first"
     assert event["actor_type"] == "system"
@@ -206,6 +210,20 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
                 payload=candidate_plan,
                 summary="test plan",
                 score_breakdown={},
+                metadata={
+                    ACTION_SCORE_METADATA_KEY: {
+                        "value": 0.66,
+                        "source": "candidate.overall",
+                    },
+                    SHADOW_SCORE_METADATA_KEY: {
+                        "value": 0.61,
+                        "source": "candidate.shadow",
+                    },
+                    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY: {
+                        "code": "human_selected_default",
+                        "message": "default candidate selected",
+                    },
+                },
             )
         ],
         default_suggestion="candidate_1",
@@ -253,6 +271,10 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
     assert decision_event["prev_status"] == ExternalStatus.WAITING_PLAN_CONFIRM.value
     assert decision_event["new_status"] == ExternalStatus.PLANNED.value
     assert decision_event["data"]["choice"] == DecisionChoice.ACCEPT.value
+    assert decision_event["data"]["action_name"] == "plan"
+    assert decision_event["data"]["action_score"]["value"] == pytest.approx(0.66)
+    assert decision_event["data"]["shadow_score"]["value"] == pytest.approx(0.61)
+    assert decision_event["data"]["evidence_source"]["code"] == "human_selected_default"
     assert decision_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert decision_event["actor_type"] == "human"
 
@@ -271,6 +293,10 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
         exit_event["data"]["waiting_state"] == InternalStatus.WAITING_PLAN_CONFIRM.value
     )
     assert exit_event["data"]["action_status"] == PendingActionStatus.DECIDED.value
+    assert exit_event["data"]["action_name"] == "plan"
+    assert exit_event["data"]["action_score"]["value"] == pytest.approx(0.66)
+    assert exit_event["data"]["shadow_score"]["value"] == pytest.approx(0.61)
+    assert exit_event["data"]["evidence_source"]["code"] == "human_selected_default"
     assert exit_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
