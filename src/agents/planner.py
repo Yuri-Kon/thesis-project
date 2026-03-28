@@ -25,6 +25,8 @@ from src.models.contracts import (
     PlanStep,
     ProteinDesignTask,
     ReplanRequest,
+    RuntimeState,
+    RuntimeStateSummary,
     ScoreSummary,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     StepResult,
@@ -82,6 +84,14 @@ class CandidateGateDecision:
     selected_candidate_id: str | None
     confidence: float
     overall: float
+
+
+@dataclass(frozen=True)
+class _RuntimeShadowDecision:
+    shadow_score: dict[str, Any]
+    shadow_action: str
+    shadow_reason: str
+    explanation_fragment: str
 
 
 @dataclass(frozen=True)
@@ -220,10 +230,21 @@ class PlannerAgent:
         enriched_task = enrich_task_from_goal(task)
         return self._plan_from_route(enriched_task, use_external=use_external)
 
-    def plan_top_k(self, task: ProteinDesignTask, *, k: int = 3) -> TopKResult:
+    def plan_top_k(
+        self,
+        task: ProteinDesignTask,
+        *,
+        k: int = 3,
+        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+    ) -> TopKResult:
         """生成 Plan Top-K 候选（默认 K=3）。"""
         base_plan = self.plan(task)
-        return self._build_plan_top_k(task, base_plan, k=_normalize_top_k(k))
+        return self._build_plan_top_k(
+            task,
+            base_plan,
+            k=_normalize_top_k(k),
+            runtime_state=runtime_state,
+        )
 
     def _build_plan_top_k(
         self,
@@ -231,6 +252,7 @@ class PlannerAgent:
         base_plan: Plan,
         *,
         k: int,
+        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
     ) -> TopKResult:
         """基于 base_plan 组装 plan top-k 结果。"""
         payloads = _build_plan_candidate_payloads(
@@ -245,9 +267,16 @@ class PlannerAgent:
             candidate_kind="plan",
             top_k=k,
             task_constraints=task.constraints,
+            runtime_state=runtime_state,
         )
 
-    def patch_top_k(self, request: PatchRequest, *, k: int = 3) -> TopKResult:
+    def patch_top_k(
+        self,
+        request: PatchRequest,
+        *,
+        k: int = 3,
+        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+    ) -> TopKResult:
         """生成 Patch Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_task_match(request)
         payloads: list[_CandidatePayload] = []
@@ -270,9 +299,16 @@ class PlannerAgent:
             candidate_kind="patch",
             top_k=_normalize_top_k(k),
             task_constraints=request.original_plan.constraints,
+            runtime_state=runtime_state,
         )
 
-    def replan_top_k(self, request: ReplanRequest, *, k: int = 3) -> TopKResult:
+    def replan_top_k(
+        self,
+        request: ReplanRequest,
+        *,
+        k: int = 3,
+        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+    ) -> TopKResult:
         """生成 Replan Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_replan_task_match(request)
         payloads: list[_CandidatePayload] = []
@@ -295,6 +331,7 @@ class PlannerAgent:
             candidate_kind="replan",
             top_k=_normalize_top_k(k),
             task_constraints=request.original_plan.constraints,
+            runtime_state=runtime_state,
         )
 
     def evaluate_top_k_gate(
@@ -316,14 +353,28 @@ class PlannerAgent:
         payload: Plan | PlanPatch,
         *,
         task_constraints: dict[str, Any] | None = None,
+        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
     ) -> dict[str, float]:
         """对单个候选 payload 打分（用于调试/测试）。"""
         score_weights = _resolve_score_weights(task_constraints or {})
-        return _score_payload(
+        score_breakdown = _score_payload(
             payload,
             self._tool_registry,
             score_weights=score_weights,
         )
+        if runtime_state is None:
+            return score_breakdown
+        runtime_summary = _normalize_runtime_state_summary_input(runtime_state)
+        shadow = _build_runtime_shadow_decision(
+            candidate_kind=_infer_candidate_kind(payload),
+            payload=payload,
+            score_breakdown=score_breakdown,
+            runtime_state_summary=runtime_summary,
+        )
+        return {
+            **score_breakdown,
+            "shadow_overall": float(shadow.shadow_score["value"]),
+        }
 
     def _default_plan(self, task: ProteinDesignTask) -> Plan:
         """向后兼容的默认单步计划
@@ -510,6 +561,7 @@ class PlannerAgent:
                 task,
                 base_plan,
                 k=_normalize_top_k(top_k_value),
+                runtime_state=context.runtime_state,
             )
             executable_rate = self._estimate_executable_rate(top_k, task)
             previous_rate = _safe_optional_float(runtime_state.get("last_executable_rate"))
@@ -549,6 +601,7 @@ class PlannerAgent:
                         task,
                         base_plan,
                         k=_normalize_top_k(top_k_value),
+                        runtime_state=context.runtime_state,
                     )
                     executable_rate = self._estimate_executable_rate(top_k, task)
 
@@ -1755,6 +1808,7 @@ def _build_top_k_result(
     candidate_kind: str,
     top_k: int,
     task_constraints: dict[str, Any] | None = None,
+    runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
 ) -> TopKResult:
     if not payloads:
         raise ValueError(f"No payload candidates generated for {candidate_kind}")
@@ -1774,6 +1828,7 @@ def _build_top_k_result(
         unique_payloads.append(payload)
 
     score_weights = _resolve_score_weights(task_constraints or {})
+    runtime_state_summary = _normalize_runtime_state_summary_input(runtime_state)
     ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
     for payload in unique_payloads:
         score_breakdown = _score_payload(
@@ -1804,8 +1859,11 @@ def _build_top_k_result(
             "generation_note": payload.note,
             "s5_contract": _build_s5_scoring_contract(score_weights),
             ACTION_SCORE_METADATA_KEY: _build_action_score_summary(score_breakdown),
-            SHADOW_SCORE_METADATA_KEY: _build_shadow_score_summary(score_breakdown),
         }
+        explanation = (
+            f"{candidate_kind} candidate with primary tool "
+            f"{tool_id} in capability bucket {capability_id}."
+        )
         payload_metadata = payload.payload.metadata if isinstance(payload.payload.metadata, dict) else {}
         planner_route = payload_metadata.get("planner_route")
         if isinstance(planner_route, dict):
@@ -1823,16 +1881,27 @@ def _build_top_k_result(
             if s1_metadata:
                 metadata.update(s1_metadata)
                 metadata["sequence_confidence"] = score_breakdown.get("confidence")
+        if runtime_state_summary is None:
+            metadata[SHADOW_SCORE_METADATA_KEY] = _build_shadow_score_summary(score_breakdown)
+        else:
+            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = dict(runtime_state_summary)
+            shadow = _build_runtime_shadow_decision(
+                candidate_kind=candidate_kind,
+                payload=payload.payload,
+                score_breakdown=score_breakdown,
+                runtime_state_summary=runtime_state_summary,
+            )
+            metadata[SHADOW_SCORE_METADATA_KEY] = shadow.shadow_score
+            metadata["shadow_action"] = shadow.shadow_action
+            metadata["shadow_action_reason"] = shadow.shadow_reason
+            explanation = f"{explanation} {shadow.explanation_fragment}"
         candidate = PendingActionCandidate(
             candidate_id=candidate_id,
             structured_payload=payload.payload,
             score_breakdown=score_breakdown,
             risk_level=risk_level,
             cost_estimate=cost_estimate,
-            explanation=(
-                f"{candidate_kind} candidate with primary tool "
-                f"{tool_id} in capability bucket {capability_id}."
-            ),
+            explanation=explanation,
             summary=_build_candidate_summary(payload.payload),
             tool_id=tool_id,
             capability_id=capability_id,
@@ -1882,6 +1951,19 @@ def _build_top_k_result(
         "Ranking uses overall score desc + stable tie-break; "
         "selection uses capability-bucket round-robin."
     )
+    if candidates and runtime_state_summary is not None:
+        shadow_default = max(
+            candidates,
+            key=lambda candidate: float(
+                candidate.metadata.get(SHADOW_SCORE_METADATA_KEY, {}).get("value", 0.0)
+            ),
+        )
+        shadow_action = str(shadow_default.metadata.get("shadow_action") or "continue")
+        explanation = (
+            f"{explanation} Runtime-state shadow evaluation is attached to candidate metadata; "
+            f"shadow best={shadow_default.candidate_id} action={shadow_action}. "
+            f"Default recommendation stays {default_recommendation} to preserve existing semantics."
+        )
     if len(candidates) < top_k:
         explanation = (
             f"{explanation} Degraded to available candidates because "
@@ -1908,6 +1990,156 @@ def _build_shadow_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
         source="score_breakdown.overall_passthrough",
     )
     return summary.model_dump()
+
+
+def _normalize_runtime_state_summary_input(
+    runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if runtime_state is None:
+        return None
+    if isinstance(runtime_state, RuntimeState):
+        return runtime_state.to_summary_payload()
+    if isinstance(runtime_state, RuntimeStateSummary):
+        return runtime_state.model_dump()
+    if isinstance(runtime_state, dict):
+        return RuntimeStateSummary.model_validate(runtime_state).model_dump()
+    raise ValueError("runtime_state must be RuntimeState, RuntimeStateSummary, or mapping")
+
+
+def _build_runtime_shadow_decision(
+    *,
+    candidate_kind: str,
+    payload: Plan | PlanPatch,
+    score_breakdown: dict[str, float],
+    runtime_state_summary: dict[str, Any],
+) -> _RuntimeShadowDecision:
+    p_success = _safe_float(runtime_state_summary.get("p_success"), default=0.5)
+    p_structural_failure = _safe_float(
+        runtime_state_summary.get("p_structural_failure"),
+        default=0.5,
+    )
+    recovery_margin = _safe_runtime_margin(runtime_state_summary.get("recovery_margin"))
+    expected_remaining_cost = _safe_non_negative_float(
+        runtime_state_summary.get("expected_remaining_cost"),
+        default=0.0,
+    )
+    cost_pressure = min(expected_remaining_cost / 5.0, 1.0)
+    margin_signal = max(-1.0, min(recovery_margin, 1.0))
+    overall = _safe_float(score_breakdown.get("overall"), default=0.0)
+    confidence = _safe_float(score_breakdown.get("confidence"), default=overall)
+    risk = _safe_float(score_breakdown.get("risk"), default=overall)
+    cost = _safe_float(score_breakdown.get("cost"), default=overall)
+    fallback_depth = _safe_float(score_breakdown.get("fallback_depth"), default=0.5)
+    action, reason = _resolve_shadow_action(
+        candidate_kind=candidate_kind,
+        payload=payload,
+        p_success=p_success,
+        p_structural_failure=p_structural_failure,
+        recovery_margin=recovery_margin,
+        cost_pressure=cost_pressure,
+    )
+    delta = (
+        0.18 * (p_success - 0.5) * confidence
+        - 0.16 * p_structural_failure * (1.0 - risk)
+        + 0.10 * margin_signal * fallback_depth
+        - 0.14 * cost_pressure * (1.0 - cost)
+    )
+    if action == "patch_local":
+        delta += 0.04 * fallback_depth
+    elif action == "suffix_replan":
+        delta += 0.02 * score_breakdown.get("feasibility", 0.5)
+        delta -= 0.03 * cost_pressure
+    elif action == "stop":
+        delta -= 0.12 + 0.06 * cost_pressure
+    adjusted = max(0.0, min(1.0, overall + delta))
+    summary = ScoreSummary(
+        value=round(adjusted, 6),
+        source=f"score_breakdown.overall+runtime_state.{action}.v1",
+    )
+    explanation_fragment = (
+        "Runtime correction combines static overall score with "
+        f"p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
+        f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}; "
+        f"shadow_action={action} because {reason}."
+    )
+    return _RuntimeShadowDecision(
+        shadow_score=summary.model_dump(),
+        shadow_action=action,
+        shadow_reason=reason,
+        explanation_fragment=explanation_fragment,
+    )
+
+
+def _resolve_shadow_action(
+    *,
+    candidate_kind: str,
+    payload: Plan | PlanPatch,
+    p_success: float,
+    p_structural_failure: float,
+    recovery_margin: float,
+    cost_pressure: float,
+) -> tuple[str, str]:
+    if p_success <= 0.25 and cost_pressure >= 0.7:
+        return (
+            "stop",
+            "success probability is low while remaining cost pressure is high",
+        )
+    if candidate_kind == "patch":
+        if p_structural_failure >= 0.55 and recovery_margin <= 0.1:
+            return (
+                "suffix_replan",
+                "structural failure pressure is high and local recovery margin is low",
+            )
+        return (
+            "patch_local",
+            "failure still looks local and recovery margin remains acceptable",
+        )
+    if candidate_kind == "replan":
+        replan_mode = ""
+        if isinstance(payload, Plan):
+            metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+            raw_mode = metadata.get("replan_mode")
+            if isinstance(raw_mode, str):
+                replan_mode = raw_mode
+        if replan_mode == "suffix_replan":
+            return (
+                "suffix_replan",
+                "runtime pressure favors preserving the validated prefix and replacing the suffix",
+            )
+        return (
+            "continue",
+            "runtime state does not justify escalating beyond the current suffix plan",
+        )
+    return (
+        "continue",
+        "runtime state is only attached for shadow comparison and does not change planning semantics",
+    )
+
+
+def _infer_candidate_kind(payload: Plan | PlanPatch) -> str:
+    if isinstance(payload, PlanPatch):
+        return "patch"
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    if isinstance(metadata.get("replan_mode"), str):
+        return "replan"
+    return "plan"
+
+
+def _safe_non_negative_float(value: Any, *, default: float) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed < 0:
+        return 0.0
+    return parsed
+
+
+def _safe_runtime_margin(value: Any) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _build_default_recommendation_reason(
