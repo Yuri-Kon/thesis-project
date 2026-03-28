@@ -539,7 +539,11 @@ def _emit_replacement_decision_event(
             "state": context.status.value,
             "external_status": to_external_status(context.status).value,
             "data": {
+                "action_name": "patch",
+                "action_score": recovery.get("action_score"),
                 "decision": decision,
+                "shadow_score": recovery.get("shadow_score"),
+                "evidence_source": recovery.get("default_recommendation_reason"),
                 "recovery": recovery,
                 "runtime_state_summary": build_context_runtime_state_summary(
                     context,
@@ -568,8 +572,12 @@ def _emit_recovery_escalation_event(
             "state": context.status.value,
             "external_status": to_external_status(context.status).value,
             "data": {
+                "action_name": "replan",
+                "action_score": recovery.get("action_score"),
                 "reason": reason,
                 "detail": detail,
+                "shadow_score": recovery.get("shadow_score"),
+                "evidence_source": recovery.get("default_recommendation_reason"),
                 "recovery": recovery,
                 "runtime_state_summary": build_context_runtime_state_summary(
                     context,
