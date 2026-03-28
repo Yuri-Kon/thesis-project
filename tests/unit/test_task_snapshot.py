@@ -247,3 +247,37 @@ def test_build_task_snapshot_persists_runtime_state_with_stable_keys():
     assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
         "high_cost_steps_completed": 1
     }
+
+
+@pytest.mark.unit
+def test_build_task_snapshot_waiting_bootstraps_runtime_state_when_missing():
+    task = ProteinDesignTask(
+        task_id="task_waiting_runtime_state_001",
+        goal="persist waiting runtime state",
+        constraints={},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=None,
+        runtime_state=None,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+    )
+
+    snapshot = build_task_snapshot(
+        context,
+        state_override=ExternalStatus.WAITING_PLAN_CONFIRM,
+        require_runtime_state=True,
+    )
+
+    assert context.runtime_state is not None
+    assert snapshot.artifacts[RUNTIME_STATE_ARTIFACT_KEY] == {
+        "schema_version": 1,
+        "p_success": 0.5,
+        "p_structural_failure": 0.25,
+        "recovery_margin": 0.6,
+        "expected_remaining_cost": 1.0,
+        "last_update_source": "runtime_bootstrap",
+    }
+    assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
+        "completed_steps": 0
+    }

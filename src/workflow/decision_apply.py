@@ -512,6 +512,7 @@ def _write_snapshot(
     snapshot = build_task_snapshot(
         context,
         pending_action_id=pending_id,
+        require_runtime_state=True,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
 
