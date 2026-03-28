@@ -32,6 +32,20 @@ _LEGACY_EVENT_TYPE_MAP = {
     "STEP_FAILED": "STEP_FAILED",
 }
 
+_PENDING_ACTION_NAME_MAP = {
+    "plan_confirm": "plan",
+    "patch_confirm": "patch",
+    "replan_confirm": "replan",
+}
+
+_WAITING_STATUS_ACTION_NAME_MAP = {
+    "WAITING_PLAN_CONFIRM": "plan",
+    "WAITING_PATCH_CONFIRM": "patch",
+    "WAITING_REPLAN_CONFIRM": "replan",
+    "WAITING_PATCH": "patch",
+    "WAITING_REPLAN": "replan",
+}
+
 
 def append_event(
     task_id: str,
@@ -188,6 +202,12 @@ def _normalize_timeline_event(
         "failure_code": observability["failure_code"],
         "candidate_id": observability["candidate_id"],
         "decision_source": observability["decision_source"],
+        "action_name": observability["action_name"],
+        "action_score": observability["action_score"],
+        "shadow_score": observability["shadow_score"],
+        "runtime_state_summary": observability["runtime_state_summary"],
+        "waiting_runtime_summary": observability["waiting_runtime_summary"],
+        "evidence_source": observability["evidence_source"],
         "recovery_layer": observability["recovery_layer"],
         "recovery_reason": observability["recovery_reason"],
         "status": _string_field(payload, "status"),
@@ -305,6 +325,33 @@ def _extract_observability_fields(
 ) -> dict[str, Any]:
     recovery = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
     patch = data.get("patch") if isinstance(data.get("patch"), dict) else {}
+    waiting_runtime_summary = (
+        data.get("waiting_runtime_summary")
+        if isinstance(data.get("waiting_runtime_summary"), dict)
+        else {}
+    )
+    runtime_state_summary = _first_mapping(
+        data.get("runtime_state_summary"),
+        waiting_runtime_summary.get("runtime_state_summary"),
+        recovery.get("runtime_state_summary"),
+    )
+    action_score = _first_mapping(
+        data.get("action_score"),
+        waiting_runtime_summary.get("action_score"),
+        recovery.get("action_score"),
+    )
+    shadow_score = _first_mapping(
+        data.get("shadow_score"),
+        waiting_runtime_summary.get("shadow_score"),
+        recovery.get("shadow_score"),
+    )
+    evidence_source = _first_mapping(
+        data.get("evidence_source"),
+        data.get("default_recommendation_reason"),
+        waiting_runtime_summary.get("default_recommendation_reason"),
+        recovery.get("evidence_source"),
+        recovery.get("default_recommendation_reason"),
+    )
 
     tool_id = (
         _string_field(payload, "tool_id")
@@ -391,6 +438,7 @@ def _extract_observability_fields(
         or _string_field(recovery, "upgrade_reason")
         or _string_field(data, "reason")
     )
+    action_name = _extract_action_name(payload=payload, data=data, recovery=recovery)
 
     return {
         "tool_id": tool_id,
@@ -403,6 +451,56 @@ def _extract_observability_fields(
         "failure_code": failure_code,
         "candidate_id": candidate_id,
         "decision_source": decision_source,
+        "action_name": action_name,
+        "action_score": action_score,
+        "shadow_score": shadow_score,
+        "runtime_state_summary": runtime_state_summary,
+        "waiting_runtime_summary": waiting_runtime_summary or None,
+        "evidence_source": evidence_source,
         "recovery_layer": recovery_layer,
         "recovery_reason": recovery_reason,
     }
+
+
+def _extract_action_name(
+    *,
+    payload: dict[str, Any],
+    data: dict[str, Any],
+    recovery: dict[str, Any],
+) -> str | None:
+    action_name = _string_field(payload, "action_name") or _string_field(data, "action_name")
+    if action_name:
+        return action_name
+
+    s6 = data.get("s6")
+    if isinstance(s6, dict):
+        action_name = _string_field(s6, "action")
+        if action_name:
+            return action_name
+
+    action_type = _string_field(payload, "action_type") or _string_field(data, "action_type")
+    if action_type:
+        return _PENDING_ACTION_NAME_MAP.get(action_type, action_type)
+
+    event_type = _canonical_event_type(payload)
+    if event_type in {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}:
+        return "patch"
+    if event_type == "RECOVERY_ESCALATED":
+        return "replan"
+
+    for status_key in ("to_status", "new_status", "from_status", "prev_status"):
+        status_value = _string_field(payload, status_key)
+        if status_value and status_value in _WAITING_STATUS_ACTION_NAME_MAP:
+            return _WAITING_STATUS_ACTION_NAME_MAP[status_value]
+
+    recovery_action = _string_field(recovery, "action_name")
+    if recovery_action:
+        return recovery_action
+    return None
+
+
+def _first_mapping(*values: Any) -> dict[str, Any] | None:
+    for value in values:
+        if isinstance(value, dict):
+            return dict(value)
+    return None

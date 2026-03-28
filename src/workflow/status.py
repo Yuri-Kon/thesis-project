@@ -12,6 +12,7 @@ from src.models.db import (
 )
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
+from src.workflow.snapshots import build_context_runtime_state_summary
 
 # 状态变更的轻量日志回调。
 StatusLogger = Callable[[dict], None]
@@ -154,14 +155,21 @@ def _apply_status_update(
             record.updated_at = now_iso()
 
     log_handler = logger or _default_status_logger
+    event: dict[str, object] = {
+        "event": "TASK_STATUS_CHANGED",
+        "task_id": context.task.task_id,
+        "from_status": from_status.value,
+        "to_status": to_status.value,
+        "state": context.status.value,
+        "external_status": to_external_status(context.status).value,
+        "reason": reason,
+    }
+    runtime_state_summary = build_context_runtime_state_summary(
+        context,
+        external_state=to_external_status(to_status),
+    )
+    if runtime_state_summary is not None:
+        event["data"] = {"runtime_state_summary": runtime_state_summary}
     log_handler(
-        {
-            "event": "TASK_STATUS_CHANGED",
-            "task_id": context.task.task_id,
-            "from_status": from_status.value,
-            "to_status": to_status.value,
-            "state": context.status.value,
-            "external_status": to_external_status(context.status).value,
-            "reason": reason,
-        }
+        event
     )

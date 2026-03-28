@@ -44,6 +44,12 @@ _EXPECTED_EXTERNAL = {
     PendingActionType.REPLAN_CONFIRM: ExternalStatus.WAITING_REPLAN_CONFIRM,
 }
 
+_ACTION_NAME_MAP = {
+    PendingActionType.PLAN_CONFIRM: "plan",
+    PendingActionType.PATCH_CONFIRM: "patch",
+    PendingActionType.REPLAN_CONFIRM: "replan",
+}
+
 
 class DecisionApplyError(ValueError):
     """Base error for decision application."""
@@ -586,6 +592,7 @@ def _emit_decision_applied_event(
         data={
             "selected_candidate_id": decision.selected_candidate_id,
             "action_type": action.action_type.value,
+            "action_name": _ACTION_NAME_MAP[action.action_type],
             "decided_by": decision.decided_by,
             "decision_source": "human",
             "comment": decision.comment,
@@ -606,6 +613,9 @@ def _emit_decision_applied_event(
                 else candidate_meta.get("adapter_mode")
             ),
             "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "action_score": candidate_meta.get("action_score"),
+            "shadow_score": candidate_meta.get("shadow_score"),
+            "evidence_source": candidate_meta.get("default_recommendation_reason"),
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,
@@ -631,6 +641,17 @@ def _emit_waiting_exit_event(
         waiting_state: The waiting state description.
     """
     current_status = to_external_status(context.status)
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        selected_candidate.metadata
+        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        else {}
+    )
     exit_event = make_waiting_exit(
         task_id=context.task.task_id,
         prev_status=prev_status,
@@ -641,10 +662,14 @@ def _emit_waiting_exit_event(
         pending_action_id=action.pending_action_id,
         data={
             "action_type": action.action_type.value,
+            "action_name": _ACTION_NAME_MAP[action.action_type],
             "action_status": action.status.value,
             "decided_by": decision.decided_by,
             "decision_source": "human",
             "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "action_score": candidate_meta.get("action_score"),
+            "shadow_score": candidate_meta.get("shadow_score"),
+            "evidence_source": candidate_meta.get("default_recommendation_reason"),
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,

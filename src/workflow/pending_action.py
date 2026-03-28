@@ -40,6 +40,12 @@ _WAITING_ACTION_MAP = {
     InternalStatus.WAITING_REPLAN: PendingActionType.REPLAN_CONFIRM,
 }
 
+_ACTION_NAME_MAP = {
+    PendingActionType.PLAN_CONFIRM: "plan",
+    PendingActionType.PATCH_CONFIRM: "patch",
+    PendingActionType.REPLAN_CONFIRM: "replan",
+}
+
 
 def build_pending_action(
     task_id: str,
@@ -178,6 +184,7 @@ def enter_waiting_state(
         internal_status=to_status,
         data={
             "action_type": pending_action.action_type.value,
+            "action_name": _ACTION_NAME_MAP[pending_action.action_type],
             "reason": reason or "entering_waiting_state",
             "candidate_count": len(pending_action.candidates),
             "explanation": pending_action.explanation,
@@ -201,6 +208,21 @@ def enter_waiting_state(
             "waiting_runtime_summary": (
                 pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
                 if isinstance(pending_action.metadata, dict)
+                else None
+            ),
+            "action_score": (
+                selected_meta.get(ACTION_SCORE_METADATA_KEY)
+                if isinstance(selected_meta.get(ACTION_SCORE_METADATA_KEY), dict)
+                else None
+            ),
+            "shadow_score": (
+                selected_meta.get(SHADOW_SCORE_METADATA_KEY)
+                if isinstance(selected_meta.get(SHADOW_SCORE_METADATA_KEY), dict)
+                else None
+            ),
+            "evidence_source": (
+                selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
+                if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
                 else None
             ),
             "runtime_state_summary": runtime_state_summary,
