@@ -19,7 +19,9 @@ from src.models.contracts import (
     PendingAction,
     Plan,
     ProteinDesignTask,
+    RuntimeFailureContext,
     RuntimeState,
+    RuntimeStateUpdateInput,
     SafetyResult,
     StepResult,
 )
@@ -95,12 +97,9 @@ class WorkflowContext(BaseModel):
             如果 step_id 已存在，会覆盖之前的结果
         """
         self.step_results[result.step_id] = result
-        self.runtime_state = update_runtime_state(
-            previous_state=self.runtime_state,
+        self.apply_runtime_state_update(
             step_result=result,
             failure_context=extract_failure_context(result),
-            completed_steps=len(self.step_results),
-            total_steps=self._get_total_step_count(),
         )
     
     def add_safety_event(self, event: SafetyResult) -> None:
@@ -110,12 +109,36 @@ class WorkflowContext(BaseModel):
             event: 安全检查结果事件
         """
         self.safety_events.append(event)
+        self.apply_runtime_state_update(safety_result=event)
+
+    def apply_runtime_state_update(
+        self,
+        *,
+        step_result: StepResult | None = None,
+        safety_result: SafetyResult | None = None,
+        failure_context: RuntimeFailureContext | None = None,
+    ) -> RuntimeState:
+        """通过稳定更新接口刷新 runtime_state。
+
+        PlanRunner / PatchRunner / StepRunner 应通过 WorkflowContext helpers
+        间接接入 belief-state 更新器，而不是散落地直接修改 runtime_state。
+        """
+        completed_steps = len(self.step_results)
+        total_steps = self._get_total_step_count()
+        if total_steps is not None and total_steps < completed_steps:
+            total_steps = completed_steps
+        update_input = RuntimeStateUpdateInput(
+            step_result=step_result,
+            safety_result=safety_result,
+            failure_context=failure_context,
+            completed_steps=completed_steps,
+            total_steps=total_steps,
+        )
         self.runtime_state = update_runtime_state(
             previous_state=self.runtime_state,
-            safety_result=event,
-            completed_steps=len(self.step_results),
-            total_steps=self._get_total_step_count(),
+            update_input=update_input,
         )
+        return self.runtime_state
 
     def get_step_output(self, step_id: str, key: str) -> Any:
         """便捷访问，读取某一步的输出字段
