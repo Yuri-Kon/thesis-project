@@ -27,6 +27,7 @@ from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.snapshots import (
     SnapshotWriter,
+    build_context_runtime_state_summary,
     build_task_snapshot,
     default_snapshot_writer,
 )
@@ -162,6 +163,11 @@ def enter_waiting_state(
             WAITING_RUNTIME_SUMMARY_METADATA_KEY,
             waiting_runtime_summary,
         )
+    runtime_state_summary = build_context_runtime_state_summary(
+        context,
+        require_runtime_state=True,
+        external_state=new_status,
+    )
     waiting_enter_event = make_waiting_enter(
         task_id=context.task.task_id,
         pending_action_id=pending_action.pending_action_id,
@@ -197,6 +203,7 @@ def enter_waiting_state(
                 if isinstance(pending_action.metadata, dict)
                 else None
             ),
+            "runtime_state_summary": runtime_state_summary,
         },
     )
     write_event_log(waiting_enter_event)

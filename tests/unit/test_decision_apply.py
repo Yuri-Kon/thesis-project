@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.models.contracts import (
+    DECISION_SUMMARY_ARTIFACT_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
@@ -12,6 +13,7 @@ from src.models.contracts import (
     PlanPatchOp,
     PlanStep,
     RUNTIME_STATE_ARTIFACT_KEY,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     now_iso,
 )
 from src.models.db import InternalStatus, TaskRecord, to_external_status
@@ -112,6 +114,8 @@ def test_plan_confirm_accept_transitions_to_planned(sample_task, sample_plan):
     assert snapshots[0].artifacts[RUNTIME_STATE_ARTIFACT_KEY]["last_update_source"] == (
         "runtime_bootstrap"
     )
+    assert snapshots[0].artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)
+    assert snapshots[0].artifacts[DECISION_SUMMARY_ARTIFACT_KEY]["choice"] == DecisionChoice.ACCEPT.value
 
 
 @pytest.mark.unit

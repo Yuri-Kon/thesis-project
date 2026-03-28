@@ -20,6 +20,7 @@ from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
 from src.workflow.recovery import resolve_s6_recovery_action
+from src.workflow.snapshots import build_context_runtime_state_summary
 from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
@@ -481,6 +482,15 @@ def _extract_recovery_metadata(
         "io_type": selected_candidate.io_type if selected_candidate else None,
         "adapter_mode": selected_candidate.adapter_mode if selected_candidate else None,
     }
+    for key in (
+        "runtime_state_summary",
+        "action_score",
+        "shadow_score",
+        "default_recommendation_reason",
+    ):
+        value = candidate_meta.get(key)
+        if value is not None:
+            payload[key] = value
     if isinstance(metadata.get("strategy"), str):
         payload["strategy"] = metadata.get("strategy")
     return payload
@@ -531,6 +541,10 @@ def _emit_replacement_decision_event(
             "data": {
                 "decision": decision,
                 "recovery": recovery,
+                "runtime_state_summary": build_context_runtime_state_summary(
+                    context,
+                    require_runtime_state=True,
+                ),
             },
         },
     )
@@ -557,6 +571,10 @@ def _emit_recovery_escalation_event(
                 "reason": reason,
                 "detail": detail,
                 "recovery": recovery,
+                "runtime_state_summary": build_context_runtime_state_summary(
+                    context,
+                    require_runtime_state=True,
+                ),
             },
         },
     )

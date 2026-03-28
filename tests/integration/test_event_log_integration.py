@@ -149,6 +149,7 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
     assert waiting_summary["selected_candidate_id"] == "candidate_waiting"
     assert waiting_summary["default_recommendation"] == "candidate_waiting"
     assert waiting_summary[ACTION_SCORE_METADATA_KEY]["value"] == pytest.approx(0.77)
+    assert event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["default_recommendation_reason"]["code"] == "plan_ranked_first"
     assert event["actor_type"] == "system"
 
@@ -252,6 +253,7 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
     assert decision_event["prev_status"] == ExternalStatus.WAITING_PLAN_CONFIRM.value
     assert decision_event["new_status"] == ExternalStatus.PLANNED.value
     assert decision_event["data"]["choice"] == DecisionChoice.ACCEPT.value
+    assert decision_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert decision_event["actor_type"] == "human"
 
     # Find WAITING_EXIT event
@@ -269,6 +271,7 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
         exit_event["data"]["waiting_state"] == InternalStatus.WAITING_PLAN_CONFIRM.value
     )
     assert exit_event["data"]["action_status"] == PendingActionStatus.DECIDED.value
+    assert exit_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
 def test_fsm_reconstruction_from_logs(cleanup_logs):

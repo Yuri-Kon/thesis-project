@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 from src.infra.event_log_factory import make_waiting_exit, make_decision_applied
 from src.models.contracts import (
+    DECISION_SUMMARY_ARTIFACT_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
@@ -28,8 +29,10 @@ from src.workflow.patch import apply_patch
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.workflow.snapshots import (
     SnapshotWriter,
+    build_context_runtime_state_summary,
     build_task_snapshot,
     default_snapshot_writer,
+    extract_pending_action_waiting_summary,
 )
 from src.workflow.status import StatusLogger, transition_task_status
 
@@ -134,7 +137,7 @@ def apply_plan_confirm_decision(
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -231,7 +234,7 @@ def apply_patch_confirm_decision(
         )
 
         logger(_decision_event("DECISION_APPLIED", context, action, decision))
-        _write_snapshot(context, replan_action, snapshot_writer)
+        _write_snapshot(context, replan_action, snapshot_writer, decision=decision)
         return DecisionApplyResult(
             status=to_external_status(context.status),
             internal_status=context.status,
@@ -269,7 +272,7 @@ def apply_patch_confirm_decision(
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -353,7 +356,7 @@ def apply_replan_confirm_decision(
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -497,6 +500,8 @@ def _write_snapshot(
     context: WorkflowContext,
     action: PendingAction,
     snapshot_writer: SnapshotWriter | None,
+    *,
+    decision: Decision | None = None,
 ) -> None:
     pending_id = None
     if (
@@ -512,6 +517,7 @@ def _write_snapshot(
     snapshot = build_task_snapshot(
         context,
         pending_action_id=pending_id,
+        artifacts=_build_decision_artifacts(context, action, decision),
         require_runtime_state=True,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
@@ -599,6 +605,11 @@ def _emit_decision_applied_event(
                 if selected_candidate
                 else candidate_meta.get("adapter_mode")
             ),
+            "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "runtime_state_summary": build_context_runtime_state_summary(
+                context,
+                require_runtime_state=True,
+            ),
         },
     )
     write_event_log(decision_event)
@@ -633,6 +644,36 @@ def _emit_waiting_exit_event(
             "action_status": action.status.value,
             "decided_by": decision.decided_by,
             "decision_source": "human",
+            "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "runtime_state_summary": build_context_runtime_state_summary(
+                context,
+                require_runtime_state=True,
+            ),
         },
     )
     write_event_log(exit_event)
+
+
+def _build_decision_artifacts(
+    context: WorkflowContext,
+    action: PendingAction,
+    decision: Decision | None,
+) -> dict[str, object] | None:
+    if decision is None:
+        return None
+    summary = {
+        "decision_id": decision.decision_id,
+        "pending_action_id": action.pending_action_id,
+        "choice": decision.choice.value,
+        "selected_candidate_id": decision.selected_candidate_id,
+        "action_type": action.action_type.value,
+        "action_status": action.status.value,
+        "decided_by": decision.decided_by,
+        "decision_source": "human",
+        "runtime_state_summary": build_context_runtime_state_summary(
+            context,
+            require_runtime_state=True,
+        ),
+        "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+    }
+    return {DECISION_SUMMARY_ARTIFACT_KEY: summary}
