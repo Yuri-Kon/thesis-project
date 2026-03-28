@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
-from src.models.contracts import RuntimeState, SafetyResult, StepResult
+from src.models.contracts import (
+    RuntimeFailureContext,
+    RuntimeState,
+    RuntimeStateUpdateInput,
+    SafetyResult,
+    StepResult,
+)
 
 __all__ = ["extract_failure_context", "update_runtime_state"]
 
@@ -16,9 +22,10 @@ _STRUCTURAL_STAGE_IDS = {"S2", "S3", "S4"}
 def update_runtime_state(
     *,
     previous_state: RuntimeState | None,
+    update_input: RuntimeStateUpdateInput | None = None,
     step_result: StepResult | None = None,
     safety_result: SafetyResult | None = None,
-    failure_context: Mapping[str, Any] | None = None,
+    failure_context: RuntimeFailureContext | Mapping[str, Any] | None = None,
     completed_steps: int | None = None,
     total_steps: int | None = None,
 ) -> RuntimeState:
@@ -28,7 +35,24 @@ def update_runtime_state(
     - 直接序列化；
     - 跨快照回放；
     - 被测试稳定复现。
+    
+    调用方优先传入 ``RuntimeStateUpdateInput``，以固定更新器输入边界。
+    保留原有关键字参数仅用于兼容既有调用路径。
     """
+
+    update = _coerce_update_input(
+        update_input=update_input,
+        step_result=step_result,
+        safety_result=safety_result,
+        failure_context=failure_context,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+    step_result = update.step_result
+    safety_result = update.safety_result
+    failure_context = update.failure_context
+    completed_steps = update.completed_steps
+    total_steps = update.total_steps
 
     state = previous_state or RuntimeState(
         p_success=_BASELINE_P_SUCCESS,
@@ -120,9 +144,10 @@ def update_runtime_state(
             recovery_margin -= 0.16
             cost_penalty += 0.75
 
-    if failure_context:
-        recovery_action = _normalize_recovery_action(failure_context)
-        failure_code = _as_non_empty_text(failure_context.get("failure_code"))
+    if failure_context is not None:
+        failure_payload = failure_context.to_replay_payload()
+        recovery_action = _normalize_recovery_action(failure_payload)
+        failure_code = _as_non_empty_text(failure_payload.get("failure_code"))
         if failure_code:
             observation_summary["last_failure_code"] = failure_code
         if recovery_action:
@@ -141,7 +166,7 @@ def update_runtime_state(
             p_success -= 0.15
             recovery_margin = 0.0
 
-        if _as_bool(failure_context.get("retry_exhausted")):
+        if failure_context.retry_exhausted:
             p_success -= 0.03
             recovery_margin -= 0.04
             cost_penalty += 0.25
@@ -167,7 +192,7 @@ def update_runtime_state(
     )
 
 
-def extract_failure_context(step_result: StepResult) -> dict[str, Any]:
+def extract_failure_context(step_result: StepResult) -> RuntimeFailureContext:
     """从 StepResult 提取适合回放与复用的失败上下文。"""
 
     patch_meta = step_result.metrics.get("patch")
@@ -207,7 +232,39 @@ def extract_failure_context(step_result: StepResult) -> dict[str, Any]:
     if s6_action:
         failure_context["recovery_action"] = s6_action
 
-    return _drop_none_values(failure_context)
+    return RuntimeFailureContext.model_validate(
+        _drop_none_values(failure_context)
+    )
+
+
+def _coerce_update_input(
+    *,
+    update_input: RuntimeStateUpdateInput | None,
+    step_result: StepResult | None,
+    safety_result: SafetyResult | None,
+    failure_context: RuntimeFailureContext | Mapping[str, Any] | None,
+    completed_steps: int | None,
+    total_steps: int | None,
+) -> RuntimeStateUpdateInput:
+    if update_input is not None:
+        return update_input
+    return RuntimeStateUpdateInput(
+        step_result=step_result,
+        safety_result=safety_result,
+        failure_context=_coerce_failure_context(failure_context),
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+
+
+def _coerce_failure_context(
+    failure_context: RuntimeFailureContext | Mapping[str, Any] | None,
+) -> RuntimeFailureContext | None:
+    if failure_context is None:
+        return None
+    if isinstance(failure_context, RuntimeFailureContext):
+        return failure_context
+    return RuntimeFailureContext.model_validate(dict(failure_context))
 
 
 def _initial_remaining_cost(

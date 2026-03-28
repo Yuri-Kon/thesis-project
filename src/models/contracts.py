@@ -141,6 +141,131 @@ class StepResult(BaseModel):
     timestamp: str
 
 
+class RuntimeFailureContext(BaseModel):
+    """运行时状态更新器消费的稳定失败上下文。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    failure_type: str | None = None
+    failure_code: str | None = None
+    retry_exhausted: bool = False
+    recovery_action: str | None = None
+    patch: Dict[str, Any] | None = None
+    recovery: Dict[str, Any] | None = None
+
+    @field_validator("failure_type", "failure_code", "recovery_action")
+    @classmethod
+    def _validate_optional_text(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return None
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("patch", "recovery")
+    @classmethod
+    def _validate_optional_mapping(
+        cls,
+        value: Dict[str, Any] | None,
+        info,
+    ) -> Dict[str, Any] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError(f"{info.field_name} must be a mapping")
+        try:
+            json.dumps(value, ensure_ascii=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{info.field_name} must be JSON-serializable"
+            ) from exc
+        return value
+
+    def to_replay_payload(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
+class RuntimeStateUpdateInput(BaseModel):
+    """belief-state 更新器的稳定输入接口。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step_result: StepResult | None = None
+    safety_result: SafetyResult | None = None
+    failure_context: RuntimeFailureContext | None = None
+    completed_steps: int | None = None
+    total_steps: int | None = None
+
+    @field_validator("completed_steps", "total_steps")
+    @classmethod
+    def _validate_optional_progress_value(
+        cls,
+        value: int | None,
+        info,
+    ) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise ValueError(f"{info.field_name} must be an integer")
+        normalized = int(value)
+        if normalized < 0:
+            raise ValueError(f"{info.field_name} must be >= 0")
+        return normalized
+
+    @model_validator(mode="after")
+    def _validate_bounds_and_observation(self) -> "RuntimeStateUpdateInput":
+        if (
+            self.completed_steps is not None
+            and self.total_steps is not None
+            and self.completed_steps > self.total_steps
+        ):
+            raise ValueError("completed_steps must be <= total_steps")
+        if (
+            self.step_result is None
+            and self.safety_result is None
+            and self.failure_context is None
+            and self.completed_steps is None
+            and self.total_steps is None
+        ):
+            raise ValueError(
+                "at least one observation or progress counter must be provided"
+            )
+        return self
+
+    @classmethod
+    def from_step_result(
+        cls,
+        *,
+        step_result: StepResult,
+        failure_context: RuntimeFailureContext | None = None,
+        completed_steps: int | None = None,
+        total_steps: int | None = None,
+    ) -> "RuntimeStateUpdateInput":
+        return cls(
+            step_result=step_result,
+            failure_context=failure_context,
+            completed_steps=completed_steps,
+            total_steps=total_steps,
+        )
+
+    @classmethod
+    def from_safety_result(
+        cls,
+        *,
+        safety_result: SafetyResult,
+        failure_context: RuntimeFailureContext | None = None,
+        completed_steps: int | None = None,
+        total_steps: int | None = None,
+    ) -> "RuntimeStateUpdateInput":
+        return cls(
+            safety_result=safety_result,
+            failure_context=failure_context,
+            completed_steps=completed_steps,
+            total_steps=total_steps,
+        )
+
+    def to_replay_payload(self) -> Dict[str, Any]:
+        return self.model_dump(mode="json", exclude_none=True)
+
+
 class RuntimeState(BaseModel):
     """稳定的运行时状态 schema。
 
