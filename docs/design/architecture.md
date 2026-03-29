@@ -345,7 +345,7 @@ ExecutorAgent就会启动一个小对话：
 |`PLANNED`|Plan 已经确认(自动或人工)，可进入执行阶段|
 |`RUNNING`|ExecutorAgent 正在按照 Plan 执行步骤|
 |`WAITING_PATCH_CONFIRM`|执行中发现局部失败，系统已经生成 Patch 候选，等待人工确认是否应用 <!-- SID:fsm.states.waiting_patch_confirm -->|
-|`WAITING_REPLAN_CONFIRM`|执行中发现整体风险或目标转移，系统已生成 Replan 候选，等待人工确认是否应用 <!-- SID:fsm.states.waiting_replan_confirm -->|
+|`WAITING_REPLAN_CONFIRM`|执行中发现整体风险或目标转移，系统已生成 Replan 候选（可包含 `terminal_stop` 候选），等待人工确认是否应用 <!-- SID:fsm.states.waiting_replan_confirm -->|
 |`SUMMARIZING`|执行完成: SummarizerAgent 正在生成结果汇总与报告|
 |`DONE`|任务成功完成，所有结果已经生成|
 |`FAILED`|任务失败，且无法自动或人工修复|
@@ -369,7 +369,7 @@ ExecutorAgent就会启动一个小对话：
 
 - `WAITING_PLAN_CONFIRM` → `PendingAction{ action_type="plan_confirm", candidates=[Plan...], ...}`
 - `WAITING_PATCH_CONFIRM` → `PendingAction{ action_type="patch_confirm", candidate_patch=PlanPatch, ...}`
-- `WAITING_REPLAN_CONFIRM` → `PendingAction{ action_type="replan_confirm", candidates=[Replan...], ...}`
+- `WAITING_REPLAN_CONFIRM` → `PendingAction{ action_type="replan_confirm", candidates=[Replan / terminal_stop ...], ...}`
 
 此时:
 
@@ -377,7 +377,7 @@ ExecutorAgent就会启动一个小对话：
 - API层可以通过 `GET /pend-actions` 或 `Get /tasks/{id}` 暴露当前待决策信息
 - 外部UI或CLI将候选方案展示给科研人员
 - 人类提交 `Decision` 后: <!-- SID:arch.contracts.decision BEGIN -->
-  - 系统能够根据 `Decision` 内容更新 Plan/PlanPatch/Replan
+  - 系统能够根据 `Decision` 内容更新 Plan/PlanPatch/Replan，或接受 `terminal_stop` 进入 `FAILED`
   - 记录事件日志
   - 触发一次状态转移
 <!-- SID:arch.contracts.decision END -->

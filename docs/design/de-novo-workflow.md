@@ -87,6 +87,15 @@ depends_on: [arch, agent, algo, tools]
 
 高代价步骤不是新的工作流阶段，而是对现有六阶段中的若干步骤进行**运行时重点治理**。其目标是在进入昂贵步骤前积累足够证据，在昂贵步骤失败或信号恶化时尽快转入 `patch/replan/stop`。
 
+这里的关键判断量不应只看一步失败码，而应显式结合：
+
+- `evidence_sufficiency`
+- `expected_remaining_cost`
+- `recovery_margin`
+- `p_structural_failure`
+
+这些量的形式化定义见 `runtime-adaptation-formalization.md`。
+
 在当前 de novo 设计流程中，通常应视为高代价或高暴露的步骤包括：
 
 - `结构映射`：如 ESMFold / OpenFold3 一类结构预测调用；

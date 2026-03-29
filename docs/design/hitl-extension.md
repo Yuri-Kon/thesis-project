@@ -46,6 +46,12 @@ depends_on: [arch, agent, impl, algo]
 
 这些状态表示：系统已生成候选方案并暂停推进，等待外部 Decision 恢复执行。
 
+其中 `WAITING_REPLAN_CONFIRM` 的候选集合可以包含：
+
+- `suffix_replan`
+- `full_replan`
+- `terminal_stop`
+
 ### 2.2 PendingAction / Decision 作为一等对象（跨层统一）
 
 所有人工交互通过结构化对象实现，详见：
