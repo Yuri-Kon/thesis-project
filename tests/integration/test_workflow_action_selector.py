@@ -413,6 +413,46 @@ def test_workflow_action_selector_maps_stop_to_controlled_waiting_path():
     assert failed["action_name"] == "stop"
     assert context.status == InternalStatus.WAITING_REPLAN
     assert record.status == ExternalStatus.WAITING_REPLAN_CONFIRM
+    assert context.pending_action is not None
+    assert context.pending_action.default_recommendation is not None
+    assert context.pending_action.candidates[0].metadata["terminal_policy"] == "stop"
+    assert context.pending_action.candidates[0].metadata["terminal_reason"] == "economic_stop"
+
+
+@pytest.mark.integration
+def test_workflow_action_selector_maps_stop_to_waiting_even_without_explicit_confirm():
+    task_id = "int_workflow_action_stop_always_waiting"
+    _cleanup_task_log(task_id)
+    runtime_state = RuntimeState(
+        p_success=0.4,
+        p_structural_failure=0.3,
+        recovery_margin=0.4,
+        expected_remaining_cost=1.5,
+        last_update_source="test",
+        observation_summary={},
+    )
+    plan, context, record = _build_runtime_objects(
+        task_id=task_id,
+        constraints={},
+        runtime_state=runtime_state,
+    )
+    runner = PlanRunner(
+        step_runner=_FailOnceStepRunner(
+            stage_id="S1",
+            failure_code="S1_RETRY_EXHAUSTED",
+        ),
+        planner_agent=_ShadowStopPlanner(),
+        safety_agent=_AllowSafetyAgent(),
+    )
+
+    with pytest.raises(PlanRunError) as exc_info:
+        runner.run_plan(plan, context, record=record, finalize_status=False)
+
+    assert exc_info.value.code == "ADAPTIVE_STOP_REQUESTED"
+    assert context.status == InternalStatus.WAITING_REPLAN
+    assert record.status == ExternalStatus.WAITING_REPLAN_CONFIRM
+    assert context.pending_action is not None
+    assert context.pending_action.candidates[0].metadata["terminal_policy"] == "stop"
 
 
 @pytest.mark.integration
