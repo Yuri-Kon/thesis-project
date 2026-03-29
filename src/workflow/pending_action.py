@@ -220,6 +220,12 @@ def enter_waiting_state(
                 if isinstance(selected_meta.get(SHADOW_SCORE_METADATA_KEY), dict)
                 else None
             ),
+            "terminal_policy": selected_meta.get("terminal_policy"),
+            "terminal_reason": selected_meta.get("terminal_reason"),
+            "replan_mode": selected_meta.get("replan_mode"),
+            "preserve_prefix_until_step_index": selected_meta.get(
+                "preserve_prefix_until_step_index"
+            ),
             "evidence_source": (
                 selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
                 if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
@@ -323,6 +329,10 @@ def _build_waiting_runtime_summary(
         DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
         ACTION_SCORE_METADATA_KEY,
         SHADOW_SCORE_METADATA_KEY,
+        "terminal_policy",
+        "terminal_reason",
+        "replan_mode",
+        "preserve_prefix_until_step_index",
     ):
         value = candidate_metadata.get(key)
         if value is not None:

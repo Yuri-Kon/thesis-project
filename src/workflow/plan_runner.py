@@ -30,7 +30,12 @@ from src.workflow.pending_action import build_pending_action, enter_waiting_stat
 from src.agents.safety import SafetyAgent
 from src.workflow.status import transition_task_status
 from src.workflow.snapshots import build_context_runtime_state_summary
-from src.workflow.recovery import WorkflowActionSelectorInput, select_workflow_action
+from src.workflow.recovery import (
+    WorkflowActionSelectorInput,
+    build_terminal_stop_candidate,
+    resolve_workflow_action_route,
+    select_workflow_action,
+)
 from src.workflow.errors import (
     FailureType,
     PlanRunError,
@@ -287,6 +292,9 @@ class PlanRunner:
 
                 if failed_result is not None:
                     workflow_action = self._extract_workflow_action(failed_result)
+                    action_route = None
+                    if workflow_action:
+                        action_route = resolve_workflow_action_route(workflow_action)
                     failure_reason = "step_failed"
                     patch_meta = failed_result.metrics.get("patch")
                     recovery_meta = failed_result.metrics.get("recovery")
@@ -306,10 +314,10 @@ class PlanRunner:
                         failure_reason = "safety_block"
                         request_failure_type = FailureType.SAFETY_BLOCK
                         request_code = "SAFETY_POST_BLOCK"
-                    elif workflow_action == "suffix_replan":
+                    elif action_route and action_route.action == "suffix_replan":
                         failure_reason = "suffix_replan_requested"
                         request_code = "SUFFIX_REPLAN_REQUESTED"
-                    elif workflow_action == "stop":
+                    elif action_route and action_route.action == "stop":
                         self._request_stop(
                             context,
                             record,
@@ -320,6 +328,7 @@ class PlanRunner:
                             ),
                             step_id=failed_result.step_id,
                             explanation=self._build_stop_explanation(failed_result),
+                            failed_result=failed_result,
                         )
                     explanation = self._build_replan_explanation(
                         failure_reason,
@@ -527,11 +536,12 @@ class PlanRunner:
     def _build_stop_explanation(self, failed_result: StepResult) -> str:
         payload = {
             "action_name": "stop",
+            "terminal_policy": "stop",
             "failure": self._summarize_failure_result(failed_result),
-            "options": ["continue", "cancel"],
+            "options": ["accept_terminal_stop", "continue", "cancel"],
         }
         return (
-            "adaptive stop requested; "
+            "adaptive terminal_stop requested; "
             f"context={json.dumps(payload, ensure_ascii=True)}"
         )
 
@@ -686,35 +696,66 @@ class PlanRunner:
         message: str,
         step_id: str | None = None,
         explanation: str | None = None,
+        failed_result: StepResult | None = None,
     ) -> None:
-        if context.task.constraints.get("require_replan_confirm"):
-            pending_action = build_pending_action(
-                task_id=context.task.task_id,
-                action_type=PendingActionType.REPLAN_CONFIRM,
-                candidates=[],
-                default_suggestion=None,
-                explanation=explanation or "adaptive stop requested",
-            )
-            enter_waiting_state(
-                context,
-                record,
-                pending_action,
-                InternalStatus.WAITING_REPLAN,
-                reason="stop_requested",
-            )
-            transition_task_status(
-                context,
-                record,
-                InternalStatus.WAITING_REPLAN,
-                reason="stop_requested",
-            )
+        if context.plan is None:
             raise PlanRunError(
                 failure_type=failure_type,
                 message=message,
                 step_id=step_id,
                 code="ADAPTIVE_STOP_REQUESTED",
             )
-        self._mark_failed(context, record, reason="adaptive_stop")
+        failure_code = None
+        failure_reason = message
+        if failed_result is not None:
+            failure_summary = self._summarize_failure_result(failed_result)
+            raw_code = failure_summary.get("failure_code")
+            if isinstance(raw_code, str) and raw_code:
+                failure_code = raw_code
+            raw_reason = failure_summary.get("failure_reason")
+            if isinstance(raw_reason, str) and raw_reason:
+                failure_reason = raw_reason
+        runtime_state_summary = build_context_runtime_state_summary(
+            context,
+            require_runtime_state=True,
+        )
+        terminal_stop_candidate = build_terminal_stop_candidate(
+            plan=context.plan,
+            step_id=step_id,
+            failure_type=failure_type,
+            failure_code=failure_code,
+            failure_reason=failure_reason,
+            runtime_state_summary=runtime_state_summary,
+            explanation=explanation,
+        )
+        pending_action = build_pending_action(
+            task_id=context.task.task_id,
+            action_type=PendingActionType.REPLAN_CONFIRM,
+            candidates=[terminal_stop_candidate],
+            default_suggestion=terminal_stop_candidate.candidate_id,
+            default_recommendation=terminal_stop_candidate.candidate_id,
+            explanation=explanation or "adaptive terminal_stop requested",
+            metadata={
+                "workflow_action": "stop",
+                "workflow_action_mapped_flow": "stop",
+                "workflow_action_reason": failure_reason,
+                "workflow_action_target": "failed",
+                "terminal_policy": "stop",
+            },
+        )
+        enter_waiting_state(
+            context,
+            record,
+            pending_action,
+            InternalStatus.WAITING_REPLAN,
+            reason="terminal_stop_requested",
+        )
+        transition_task_status(
+            context,
+            record,
+            InternalStatus.WAITING_REPLAN,
+            reason="terminal_stop_requested",
+        )
         raise PlanRunError(
             failure_type=failure_type,
             message=message,
