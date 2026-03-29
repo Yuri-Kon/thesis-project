@@ -1,5 +1,15 @@
 # 毕设中期实验计划（W11-W12 对齐版）
 
+> 说明：
+> 本文档保留为 W11-W12 阶段的历史实验计划。
+> 当前用于统一论文叙事与分组命名的映射文档为：
+> `docs/experiment/algorithm-group-paper-mapping.md`
+>
+> 后续引用时应区分：
+> - `A0-A6`：实现增量组
+> - `E0-E2`：外部方法对照组
+> - `static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state`：论文主结果组
+
 ## 1. 文档目的与时间范围
 
 - 目的：在不改动系统契约（FSM/HITL/Agent 边界）的前提下，形成可落地、可复现、可审计的实验方案，用于：

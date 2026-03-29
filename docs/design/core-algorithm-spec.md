@@ -1,15 +1,19 @@
 ---
 doc_key: algo
-version: 1.0
+version: 2.0
 status: stable
-depends_on: [arch, agent]
+depends_on: [arch, agent, workflow, tools, impl]
 ---
 
 # core-algorithm-spec
 
-> 版本：v0.3（与 Step1/Step2 对齐）
-> 目的：给出**可直接据此编码**的核心算法与输出契约（Plan / Patch / Replan 候选、排序、选择与固化）。
-> 说明：本文档属于"算法与决策逻辑规范"，不包含具体 API/FSM/存储实现细节（见 system-implementation-design.md）。
+> 版本：v1.0
+> 角色：本项目核心算法的单一真源（SSOT）
+> 依据：`../thesis-research-notes/notes/new-algorithm*`
+> 配套文档：
+> - `runtime-adaptation-formalization.md`
+> - `active-tool-metadata-profile.md`
+> - `../experiment/algorithm-group-paper-mapping.md`
 
 ---
 
@@ -18,54 +22,129 @@ depends_on: [arch, agent]
 
 ### 1.1 本文档覆盖的内容
 
-- PlannerAgent 的核心算法流程与输出对象：
-  - 初始 Plan 生成（Planning）
-  - Patch 生成（Patching）
-  - Replan 生成（Replanning）
-- 候选（Candidate）生成、排序、裁剪（Top-K）与解释信息生成
-- 与 Human-in-the-loop 的集成点：
-  - 何时输出候选并生成 PendingAction
-  - 如何应用 Decision 固化最终方案
-- 必须遵守的稳定性与一致性约束（可用于测试验收）
+本文档定义本项目的核心算法：
+
+**面向高代价蛋白质设计工作流的自适应工具链规划算法**
+
+该算法研究的不是“从多个工具里选一个最匹配工具”，而是：
+
+- 在高代价、长链路、可失败、可恢复的科研工作流中生成若干条可执行候选工具链；
+- 对这些候选链进行静态多目标排序；
+- 在执行中结合运行时观测维护 Lite belief-state；
+- 依据运行时状态决定 `continue / patch_local / suffix_replan / stop`；
+- 在不破坏 FSM、HITL 与 Agent 边界的前提下，降低无效高代价调用并提高最终成功率。
+
+本文档覆盖：
+
+- 问题建模
+- 候选与输出契约
+- 静态评分
+- Lite belief-state 的角色
+- 运行时重排序
+- 动作选择
+- `stop` 的算法语义
+- HITL 与 Decision 应用逻辑
 
 ### 1.2 本文档不覆盖的内容
 
-- FSM 状态机与挂起/恢复（见 architecture.md / system-implementation-design.md）
-- PendingAction / Decision / Snapshot / EventLog 的数据结构字段（见 system-implementation-design.md）
-- 工具执行、重试策略、异步调度与后端（ExecutionBackend）（见 system-implementation-design.md）
+- API 端点字段与请求响应体
+- EventLog / TaskSnapshot 的详细数据模型
+- 具体执行后端与异步调度实现
+- 训练细节、数据抽取脚本与模型部署细节
+
+这些内容分别以：
+
+- `architecture.md`
+- `system-implementation-design.md`
+- `de-novo-workflow.md`
+- `train-llm.md`
+
+为准。
+
+### 1.3 本文档的边界约束
+
+本算法必须满足以下不可突破约束：
+
+- 不绕过 FSM 合法迁移；
+- 不改变 Planner / Executor / Safety / Summarizer 职责边界；
+- 不跳过 `retry -> patch -> replan` 恢复顺序；
+- 不把 HITL 变成隐式、不可追溯的自动决策；
+- 不把运行时状态写回为新的控制器或新的 Agent。
 
 ---
 
 ## 2. 术语与对象定义
 <!-- SID:algo.definitions.overview -->
 
-### 2.1 主要对象
+### 2.1 核心对象
 
-- Task：一次蛋白设计任务，包含用户 query、结构化 constraints、以及系统选项 options
-- Tool：可调用的外部能力（ProteinMPNN / ESMFold / RDKit / …），由 ToolKG 提供能力描述
-- Plan：可执行计划，由若干 PlanStep 组成（带依赖关系、输入输出约束、参数）
-- PlanStep：单步工具调用（tool_id + inputs + params + expected_outputs + validation）
-- Patch：对既有 Plan 的局部修补（PlanPatch），通常针对某一步或某一小段步骤的替换/参数调整
-- Replan：对整体策略的重规划，可能表现为“替换 Plan 后缀”或“重新生成新的 Plan”
+- `Task`
+  - 一次蛋白设计任务，包含目标、约束、预算和政策配置
+- `Plan`
+  - 初始可执行计划
+- `PlanPatch`
+  - 对既有计划做的局部修补
+- `Replan`
+  - 对未执行后缀或整体策略的替换
+- `Candidate`
+  - 供自动选择或 HITL 选择的结构化候选对象
+- `RuntimeState`
+  - 对运行时隐状态的 Lite belief-state 表示
+- `Observation`
+  - 由 `StepResult`、`SafetyResult`、恢复历史和预算使用情况形成的运行时观测
 
-### 2.2 关键概念：Candidate（候选）
+### 2.2 Candidate（候选）统一模式
 <!-- SID:planner.contracts.candidate_schema BEGIN -->
 
-为了支持 Human-in-the-loop，本规范要求 Planner 在关键节点输出候选集合（Top-K）：
+为了支持 Human-in-the-loop，本算法要求 Planner 在关键节点输出候选集合（Top-K）：
 
-- PlanCandidate：初始 Plan 候选 <!-- SID:planner.contracts.plan_candidate -->
-- PatchCandidate：PlanPatch 候选 <!-- SID:planner.contracts.patch_candidate -->
-- ReplanCandidate：Replan（Plan 后缀或整体 Plan）候选 <!-- SID:planner.contracts.replan_candidate -->
+- `PlanCandidate` <!-- SID:planner.contracts.plan_candidate -->
+- `PatchCandidate` <!-- SID:planner.contracts.patch_candidate -->
+- `ReplanCandidate` <!-- SID:planner.contracts.replan_candidate -->
 
-Candidate 必须包含：
-- candidate_id（稳定可引用）
-- summary（可读摘要）
-- structured_payload（对应 Plan/PlanPatch/Replan 的结构化内容或可解析引用）
-- score_breakdown（排序依据）
-- risk_level（低/中/高）
-- cost_estimate（低/中/高 或数值区间）
-- explanation（用于人类审查的理由，允许由 LLM 生成但必须可追溯）
+每个 Candidate 必须至少包含：
+
+- `candidate_id`
+- `summary`
+- `structured_payload`
+- `score_breakdown`
+- `risk_level`
+- `cost_estimate`
+- `explanation`
+
+推荐追加以下运行时解释字段：
+
+- `runtime_adjustment`
+- `runtime_adjustment_breakdown`
+- `suggested_action`
+- `action_utility`
+- `runtime_state_summary`
+
+说明：
+
+- `runtime_adjustment*` 只作用于运行时重排序，不改变 Candidate 的静态可执行性；
+- `runtime_state_summary` 是当次候选生成时使用的状态摘要，不是新的状态所有者。
 <!-- SID:planner.contracts.candidate_schema END -->
+
+### 2.3 `stop` 的候选语义
+
+第一版不强制新增 FSM 状态。
+
+为了兼容现有架构，`stop` 作为一种**终止型重规划语义**存在：
+
+- 运输通道：沿用 `replan_confirm`
+- 候选类型：`ReplanCandidate`
+- 关键字段：
+  - `replan_mode = "terminal_stop"`
+  - `preserve_prefix_until_step_index`
+  - `terminal_reason`
+
+含义：
+
+- 当前剩余后缀被判定为“不值得继续投入”
+- 已验证前缀仍然作为审计资产保留
+- 若人接受该候选，则任务进入 `FAILED`
+- `CANCELLED` 仅用于用户主动取消，不由算法自动触发
 
 ---
 
@@ -74,502 +153,511 @@ Candidate 必须包含：
 
 ### 3.1 Planner 输入
 
-Planner 接收的输入至少包括：
+Planner 至少接收：
 
-- query：自然语言任务描述
-- constraints：结构化约束（可能为空）
-  - 目标长度、motif、结构/功能约束、禁止项、预算、工具白名单/黑名单等
-- context（可选）：执行上下文（用于 patch/replan）
-  - current_plan（已固化 Plan）
-  - current_step_index（已完成步骤）
-  - step_results（已执行结果摘要）
-  - safety_events（风险事件摘要）
-  - failure_context（失败原因/重试信息）
+- `query`
+- `constraints`
+- `toolkg_snapshot`
+- `context`
+  - `current_plan`
+  - `current_step_index`
+  - `step_results`
+  - `safety_events`
+  - `failure_context`
+  - `runtime_state`
+- `policy`
+  - `require_plan_confirm`
+  - `require_patch_confirm`
+  - `require_replan_confirm`
+  - `allow_auto_stop`
+  - 成本/风险阈值
 
-### 3.2 Planner 输出（统一抽象）
+### 3.2 Planner 输出
 
-Planner 的输出分两层：
+Planner 输出分为两类：
 
-- 自动执行路径（默认）：
-  - 直接输出“选中的方案”（Plan / PlanPatch / Replan）并进入后续执行
-- HITL 路径：
-  - 输出候选集合（Top-K candidates）
-  - 由系统包装为 PendingAction，等待人类 Decision
-  - Decision 生效后固化为最终方案
+1. 自动路径
+   - `SelectedOutput`
+   - 包含选中的 `Plan / PlanPatch / Replan`
+2. HITL 路径
+   - `CandidateSetOutput`
+   - 包含 `Top-K candidates + default_suggestion + explanation`
 
-因此，Planner 必须支持两类输出形态：
+### 3.3 必须满足的可执行性约束
 
-A) SelectedOutput（自动路径）
-- selected_id
-- selected_payload（Plan / PlanPatch / Replan）
-- explanation
+任一候选的 `structured_payload` 必须满足：
 
-B) CandidateSetOutput（HITL 路径）
-- candidates（Top-K）
-- default_suggestion（candidate_id）
-- explanation（对候选集的总体解释）
+- 工具可用
+- I/O 闭包
+- 参数合法
+- schema 合法
+- 资源与安全约束不冲突
 
-### 3.3 约束检查与可执行性保证
-
-任一 Plan/PlanPatch/Replan 的 structured_payload 必须满足：
-
-- 工具可用性：所引用 tool_id 必须存在于 ToolKG 或系统注册表
-- 输入输出闭包：每个 PlanStep 的输入必须来源于：
-  - Task 输入（用户提供的初始输入）
-  - 上游步骤输出（通过 artifact 引用）
-- 参数合法性：params 必须可被对应 ToolAdapter/Backend 接受（类型、范围、必填项）
-- 失败容忍：若某工具不稳定，需在 step.validation 中写明可接受的退化策略（例如允许 fallback）
+不满足者直接淘汰，不进入排序。
 
 ---
 
-## 3.4 高代价工作流中的自适应规划问题
+## 4. 核心问题建模
 <!-- SID:algo.adaptive.problem_formulation -->
 
-本课题中的“新算法”不是把 ToolKG 检索替换为另一种检索器，而是把 Planner 提升为**面向高代价、长链路、可失败、可恢复工作流**的动态工具链规划器。
+本课题中的核心算法定义为：
 
-其问题形式化如下：
+**在高代价、长链路、可失败、可恢复的蛋白质设计工作流中，动态生成、评估、裁剪并修正工具链，使系统以更低成本获得更高任务成功率。**
 
-- 输入：设计目标 `g`、结构化约束 `c`、工具能力图 `K`、当前执行上下文 `x_t`、运行时观测 `o_t`。
-- 输出：当前候选工具链集合 `Pi_t`、默认建议链 `pi*`，或在失败/偏离时输出 `patch` / `suffix_replan` / `stop` 建议。
-- 约束：不得绕过既有 `retry -> patch -> replan` 恢复契约，不新增 FSM 状态，不改变 Planner/Executor/Safety/Summarizer 的职责边界。
+形式化输入：
 
-因此，本算法研究的核心不是“从几个工具中选一个”，而是：
+- 设计目标 `g`
+- 约束集合 `c`
+- 工具能力图 `K`
+- 当前执行上下文 `x_t`
+- 当前运行时观测 `o_t`
 
-- 如何把少量高代价工具组织成可执行、多阶段、可恢复的候选链路；
-- 如何在中间观测到来后，决定继续、局部修补、保前缀重规划或止损；
-- 如何在控制高代价调用次数的同时维持最终任务成功率。
+形式化输出：
 
-### 3.4.1 优化目标与效用分解
+- 当前候选工具链集合 `Pi_t`
+- 默认推荐链 `pi*`
+- 或局部修补 `patch`
+- 或后缀重规划 `suffix_replan`
+- 或终止建议 `stop`
+
+本问题不是 ToolKG 检索替代问题，而是：
+
+- `constraint-aware`
+- `budget-aware`
+- `risk-aware`
+- `recovery-aware`
+
+的工作流级动态规划问题。
+
+### 4.1 为什么必须使用运行时状态
+
+高代价科研工作流具有三个现实特征：
+
+1. 关键风险并不完全可观测
+   - 例如一次结构预测失败究竟是偶发噪声，还是当前后缀整体不可行
+2. 错误代价高度非线性
+   - 一次错误的高代价调用常常意味着后续多步浪费
+3. 恢复价值依赖已完成前缀
+   - 是否值得 patch 或 replan，不能只看当前失败步本身
+
+因此需要一个 Lite belief-state 来承载“对隐状态的可解释估计”，而不是依赖单条规则或单次阈值。
+
+---
+
+## 5. 优化目标与六类 Schema
 <!-- SID:algo.adaptive.optimization_objective -->
 
-算法的优化目标是获得更优的“成功率-成本-恢复复杂度”权衡，而不是单独最大化某一条静态链的先验分数。
+### 5.1 总体优化目标
 
-第一版建议采用可解释的多目标效用分解：
+算法不是单独最大化某一条静态链的先验分，而是追求：
+
+- 更高最终任务成功率
+- 更少无效高代价调用
+- 更低恢复复杂度
+- 更合理的人机分工
+
+定义候选效用：
 
 `Utility(pi, x_t) = alpha * Feasibility + beta * GoalFit - gamma * Cost - delta * Risk - eta * RecoveryComplexity - zeta * HumanInterventionCost`
 
 其中：
 
-- `Feasibility` 是硬约束，不可执行候选必须直接淘汰；
-- `GoalFit` 表示与当前设计目标及已获得证据的一致程度；
-- `Cost` 覆盖计算成本、时间成本与剩余高代价步骤暴露；
-- `Risk` 表示结构失败、低质量结果或安全阻断的风险；
-- `RecoveryComplexity` 表示失败后可保留前缀、可 patch 性与恢复代价；
-- `HumanInterventionCost` 用于抑制不必要的人工介入，但不得覆盖强制 HITL 规则。
+- `Feasibility` 是硬约束；
+- `GoalFit`、`Cost`、`Risk`、`RecoveryComplexity`、`HumanInterventionCost` 是联合决策变量；
+- 任一静态 infeasible 候选必须直接淘汰。
 
-该效用仅用于候选排序与动作选择，不改变 [ref:SID:planner.algorithm.hitl_gate] 中已有的风险/成本门控语义。
+### 5.2 六类 Schema
 
-### 3.4.2 运行时状态估计（Lite belief-state）
-<!-- SID:planner.algorithm.runtime_state_estimation -->
+为使该算法可解释、可复现，必须固定以下六类 schema：
 
-为避免把算法退化为固定阈值门控，Planner/Workflow 需要维护一个**轻量运行时状态估计模块**。该模块是内部估计器，而不是新的控制器或新的 Agent。
+1. `Cost Schema`
+2. `Risk Schema`
+3. `Recovery Schema`
+4. `State Schema`
+5. `Observation Schema`
+6. `Action-Utility Schema`
 
-第一版建议维护以下状态量：
+它们的正式公式与字段说明见：
 
-- `p_success`：当前链路继续执行后最终成功的估计概率；
-- `p_structural_failure`：当前链路发生结构性失败或低质量结构结果的估计概率；
-- `recovery_margin`：在不丢失有效前缀的前提下继续恢复的余量；
-- `expected_remaining_cost`：从当前时刻继续执行到结束的剩余成本估计。
+- [runtime-adaptation-formalization.md](./runtime-adaptation-formalization.md)
+- [active-tool-metadata-profile.md](./active-tool-metadata-profile.md)
 
-状态更新的主要观测来源限定为：
-
-- `StepResult.metrics / outputs / error_details`；
-- `SafetyResult` 中的 `risk_flags` 与 `action`；
-- 当前任务的 patch/replan 历史、已消耗预算、已完成高代价步骤；
-- 必要的人类确认记录，但第一版不把 HITL 价值作为强主状态。
-
-该估计器不要求 full POMDP，也不要求学习式策略更新；第一版以可解释、可审计的规则更新或分层加权更新为主。
-
-### 3.4.3 运行时重排序与预算感知裁剪
-<!-- SID:planner.algorithm.runtime_reranking -->
-
-静态评分回答“这条候选链先验上是否值得尝试”，运行时重排序回答“在当前已经走到这里时，这条链是否仍值得继续”。
-
-因此运行时重排序必须遵循以下组合原则：
-
-- 复用 [ref:SID:planner.algorithm.candidate_scoring] 定义的静态 `score_breakdown` 作为先验分；
-- 使用运行时状态估计生成 `runtime_adjustment`，对候选链进行重新排序或裁剪；
-- 推荐组合形式为 `final_score = static_score + runtime_adjustment`，而不是重写静态评分器；
-- 不得跳过可执行性校验、风险/成本解释与 Candidate schema。
-
-预算感知裁剪应至少支持以下行为：
-
-- 在预算紧张或高代价步骤临近时减少候选展开深度；
-- 在证据不足时优先执行廉价验证/质量门禁，再决定是否进入高代价步骤；
-- 在 `expected_remaining_cost` 持续走高且 `p_success` 走低时提前收缩候选或进入恢复路径。
-
-### 3.4.4 动作选择与恢复感知控制
-<!-- SID:planner.algorithm.runtime_action_selection -->
-
-运行时动作选择必须服务于既有恢复闭环，而不是替代恢复闭环。第一版动作空间限定为：
-
-- `continue`：继续当前计划或当前后缀；
-- `patch_local`：进入局部修补路径，优先保持上下文与成功前缀；
-- `suffix_replan`：保留已验证前缀，替换未完成后缀；
-- `stop`：在成功概率过低且剩余成本/恢复代价过高时止损。
-
-仅作为后续扩展而非第一版核心的动作包括：
-
-- `expand_candidates`
-- `shrink_candidates`
-- `request_hitl`
-- `full_replan`
-
-动作选择的基本偏好应保持可解释：
-
-- `p_success` 尚可且问题局部化时，优先 `patch_local`；
-- `p_structural_failure` 高、`recovery_margin` 低时，优先 `suffix_replan`；
-- `expected_remaining_cost` 高且 `p_success` 低时，允许 `stop`；
-- 任意动作都不得绕过 [ref:SID:fsm.transitions.overview] 与 [ref:SID:arch.contracts.task_snapshot] 规定的状态与快照约束。
-
-## 4. 核心算法总览
-
-Planner 的核心算法由三个模式构成：
-
-1) Initial Planning：从零生成 Plan（无执行上下文或上下文不足）
-2) Patch Planning：针对局部失败生成 PlanPatch（上下文明确，目标是最小代价修复）
-3) Replanning：针对整体风险/偏移生成 Replan（目标是改变策略或替换后缀）
-
-三者共享以下通用流程：
-
-- Tool Retrieval：从 ToolKG 检索候选工具集合（能力匹配、输入输出适配）
-- Candidate Generation：生成若干结构化候选（Plan/PlanPatch/Replan）
-- Candidate Scoring：对候选进行多目标打分
-- Candidate Selection：自动选最优，或输出 Top-K 供 HITL 决策
-- Explainability：输出可解释的摘要与理由（用于审查与审计）
+本文档只保留其在算法层的使用语义。
 
 ---
 
-## 5. Tool Retrieval（工具检索与约束过滤）
+## 6. 核心算法流程
+
+### 6.1 总体流程
+
+算法由两个互相衔接的层组成：
+
+1. 静态规划层
+   - Tool retrieval
+   - Candidate generation
+   - Static scoring
+   - HITL gate
+2. 运行时自适应层
+   - Observation extraction
+   - Runtime state update
+   - Runtime reranking
+   - Action selection
+
+### 6.2 静态规划层
+
+静态规划层负责回答：
+
+- 哪些候选链路是可执行的
+- 哪些候选链路在任务先验上更值得尝试
+
+### 6.3 运行时自适应层
+
+运行时层负责回答：
+
+- 这条链在当前已经走到这里时是否仍值得继续
+- 当前问题更像局部故障还是结构性偏离
+- 是否应该继续、patch、保前缀 replan 或止损
+
+---
+
+## 7. Tool Retrieval
 <!-- SID:planner.algorithm.tool_retrieval -->
 
-### 5.1 检索目标
+### 7.1 检索目标
 
-给定 query + constraints，检索工具集合 ToolSet，使其满足：
+给定任务目标与约束，检索满足以下条件的工具集合：
 
-- 能覆盖任务目标所需的关键能力（设计、评估、过滤、可视化等）
-- 工具输入输出能形成闭合链路（可组成可执行计划）
-- 满足 constraints 中的工具治理策略：
-  - allowed_tools / blocked_tools
-  - 风险等级阈值（高风险工具需要人工确认）
-  - 成本上限（例如 GPU-heavy 工具）
+- 能覆盖目标所需的关键能力
+- 工具输入输出可以闭合为可执行链路
+- 符合工具治理策略
+  - `allowed_tools`
+  - `blocked_tools`
+  - `safety_level`
+  - 成本上限
 
-### 5.2 过滤与排序规则
+### 7.2 排序信号
 
-对工具进行过滤（硬约束）：
-- 不在白名单（如指定 allowed_tools）则剔除
-- 在黑名单则剔除
-- 输入输出不满足最基本适配则剔除
+工具检索排序推荐使用：
 
-对工具进行排序（软约束），推荐排序信号：
-- capability_match_score：能力匹配度
-- io_compatibility_score：输入输出适配度
-- historical_reliability：历史成功率/稳定性（若有）
-- estimated_cost：预估时间/资源消耗
-- risk_level：风险等级
+- `capability_match_score`
+- `io_compatibility_score`
+- `reliability_prior`
+- `step_cost`
+- `step_risk`
 
-输出：
-- ToolSet（用于 Candidate Generation 的工具池）
+这些信号由 `active-tool-metadata-profile.md` 中定义的元数据提供先验。
 
 ---
 
-## 6. Candidate Generation（候选生成）
+## 8. Candidate Generation
 
-### 6.1 初始 Plan 候选生成（PlanCandidate）
+### 8.1 PlanCandidate
 
-目标：生成至少 1 个可执行 Plan；在需要 HITL 时生成 Top-K（建议 K=3）。
+PlanCandidate 用于初始规划。
 
-生成策略（允许组合）：
-- Template-based：使用预定义工具链模板（例如 “MPNN → Fold → Score → Filter”）
-- Graph Search：在工具依赖图上进行路径搜索，保证输入输出闭包
-- LLM-guided Assembly：由模型提出步骤序列，随后用规则校验并修正
+候选生成策略允许组合：
 
-每个候选 PlanCandidate 必须包含：
-- candidate_id：稳定 ID（建议基于内容哈希 + 序号）
-- summary：包含步骤数、工具链、关键参数
-- structured_payload：完整 Plan（可序列化）
-- score_breakdown：见 7.2
-- risk_level / cost_estimate：见 7.3
-- explanation：包含“为何选这些工具”“为何这样排序步骤”的理由
+- Template-based
+- Graph-search-based
+- LLM-guided assembly + deterministic validation
 
-### 6.2 Patch 候选生成（PatchCandidate）
+### 8.2 PatchCandidate
 
-输入：current_plan + failure_context（失败步骤、错误类型、重试次数、关键日志摘要）
+Patch 的目标是：
 
-Patch 的目标是“最小代价恢复执行”，优先级：
-1) 参数级修补（调参、重跑、改变采样策略）
-2) 工具级替换（同能力低成本工具替代）
-3) 结构级调整（增加验证/过滤步骤，避免连锁失败）
+**最小代价恢复执行**
 
-PatchCandidate 的 structured_payload 为 PlanPatch，必须明确：
-- patch_target：针对哪一步（step_id）或步骤区间
-- patch_type：param_update / tool_swap / step_insert / step_remove / step_replace
-- patch_ops：具体操作（参数差异、替换工具、插入步骤内容）
-- post_patch_validation：应用后应检查的条件
+优先级必须保持：
 
-### 6.3 Replan 候选生成（ReplanCandidate）
+1. 参数级修补
+2. 工具级替换
+3. 结构级调整
 
-触发原因一般为：
-- SafetyAgent 给出 block 或高置信 warn
-- 执行结果偏离目标（指标不达标、结构不稳定）
-- Patch 多次失败或被拒绝
+PatchCandidate 必须显式说明：
 
-Replan 的目标是“改变策略”，常见形式：
-- suffix_replan：保留已成功的前缀步骤，替换后缀步骤（推荐默认）
-- full_replan：重新生成完整 Plan（在前缀也不可信时）
+- `patch_target`
+- `patch_type`
+- `patch_ops`
+- `post_patch_validation`
+- `patch_locality`
 
-ReplanCandidate 必须明确：
-- replan_mode：suffix_replan / full_replan
-- preserve_prefix_until_step_index（若为 suffix_replan）
-- structured_payload：新的 Plan 或新的后缀定义
-- risk_level / cost_estimate / explanation
+### 8.3 ReplanCandidate
+
+Replan 的目标是：
+
+**在保留有效前缀的前提下替换不值得继续的后缀**
+
+第一版支持三种模式：
+
+- `suffix_replan`
+- `full_replan`
+- `terminal_stop`
+
+优先级：
+
+- 默认优先 `suffix_replan`
+- 只有当前缀不可保留时才允许 `full_replan`
+- 只有在继续与恢复都不划算时才允许 `terminal_stop`
 
 ---
 
-## 7. Candidate Scoring（候选打分、风险与成本估计）
+## 9. Candidate Scoring（静态）
 <!-- SID:planner.algorithm.candidate_scoring -->
 
-### 7.1 多目标打分总体原则
+### 9.1 静态评分原则
 
-Candidate 的排序为多目标优化（非严格单一目标），推荐使用线性加权或分层排序：
+静态评分回答：
 
-- feasibility_score（可执行性）：硬约束是否满足，若不满足直接淘汰
-- objective_score（目标达成）：与设计目标的贴合程度
-- risk_penalty（风险惩罚）：高风险扣分
-- cost_penalty（成本惩罚）：高成本扣分
-- recovery_penalty（恢复代价惩罚）：预计需要更多 patch/replan 的候选扣分
-- stability_bonus（稳定性加成）：工具稳定、历史成功率高则加分
+**在还没消费运行时观测之前，哪条链先验上更值得尝试？**
 
-### 7.2 score_breakdown 必须包含的字段
+推荐评分项：
 
-每个 Candidate 至少输出：
+- `feasibility_score`
+- `objective_score`
+- `risk_penalty`
+- `cost_penalty`
+- `recovery_penalty`
+- `stability_bonus`
 
-- feasibility: 0/1（或 0~1），不可执行则=0并淘汰
-- objective: 0~1
-- risk: 0~1（越高越危险）
-- cost: 0~1（越高越昂贵）
-- recovery_complexity: 0~1（可选，越高表示后续修复复杂度越大）
-- overall: 0~1（最终排序用）
+### 9.2 `score_breakdown`
 
-同时输出可读解释：
-- 为什么 objective 高/低
-- 风险来自哪里（工具/参数/伦理/不确定性）
-- 成本估计来自哪里（GPU、时长、外部服务）
+每个候选必须至少输出：
 
-### 7.3 风险等级与成本等级映射（必须可复现）
+- `feasibility`
+- `objective`
+- `risk`
+- `cost`
+- `recovery_complexity`
+- `overall`
 
-risk_level 映射规则（示例，可按你系统策略调整，但必须固定）：
+### 9.3 风险和成本等级映射
 
-- risk < 0.33 → low
-- 0.33 ≤ risk < 0.66 → medium
-- risk ≥ 0.66 → high
+推荐固定映射：
 
-cost_estimate 映射规则：
-- cost < 0.33 → low
-- 0.33 ≤ cost < 0.66 → medium
-- cost ≥ 0.66 → high
+- `value < 0.33 -> low`
+- `0.33 <= value < 0.66 -> medium`
+- `value >= 0.66 -> high`
 
-这些阈值必须在实现中作为常量或配置项存在，确保审计一致性。
+这些阈值必须在实现中作为常量或配置项固定。
 
 ---
 
-## 8. Candidate Selection（自动选择 vs HITL 输出）
+## 10. Lite Belief-State
+<!-- SID:planner.algorithm.runtime_state_estimation -->
+
+### 10.1 状态变量
+
+第一版 Lite belief-state 采用 5 维核心状态：
+
+- `p_success`
+- `p_structural_failure`
+- `recovery_margin`
+- `expected_remaining_cost`
+- `evidence_sufficiency`
+
+说明：
+
+- `intervention_value` 不进入持久化主状态，而作为派生量；
+- 这样既能表达“现在该不该继续”，又能维持状态边界稳定。
+
+### 10.2 初始化来源
+
+状态初始化来自：
+
+- 默认推荐候选的静态评分
+- 候选的恢复复杂度
+- 当前后缀的工具成本/风险元数据
+- 高代价前证据层覆盖情况
+
+### 10.3 更新来源
+
+状态更新只允许来自：
+
+- `StepResult.metrics / outputs / error_details`
+- `SafetyResult.risk_flags / action`
+- patch/replan 历史
+- 预算消耗与剩余后缀
+- HITL 决策记录
+
+正式更新公式见 [runtime-adaptation-formalization.md](./runtime-adaptation-formalization.md)。
+
+---
+
+## 11. Runtime Reranking
+<!-- SID:planner.algorithm.runtime_reranking -->
+
+### 11.1 目标
+
+运行时重排序回答：
+
+**在当前已经走到这里时，这条候选是否仍值得继续？**
+
+### 11.2 公式
+
+运行时重排序遵循：
+
+`final_score = clip(static_score + runtime_adjustment, 0, 1)`
+
+其中：
+
+- `static_score` 是静态评分器输出；
+- `runtime_adjustment` 是运行时状态与候选形状共同作用的有界修正项；
+- `runtime_adjustment` 只作用于已通过可执行性校验的候选。
+
+### 11.3 设计约束
+
+运行时重排序必须满足：
+
+- 不改变 `feasibility = 0` 候选的淘汰结果
+- 不用 runtime 项覆盖静态 I/O / schema / safety 违规
+- 总修正范围有限，防止 runtime 项吞掉静态排序
+
+正式公式见 [runtime-adaptation-formalization.md](./runtime-adaptation-formalization.md)。
+
+---
+
+## 12. 动作选择
+<!-- SID:planner.algorithm.runtime_action_selection -->
+
+### 12.1 动作空间
+
+第一版动作空间限定为：
+
+- `continue`
+- `patch_local`
+- `suffix_replan`
+- `stop`
+
+### 12.2 选择逻辑
+
+动作选择应服务于恢复闭环，而不是替代恢复闭环。
+
+基本偏好：
+
+- `p_success` 尚可、故障局部化时，优先 `patch_local`
+- `p_structural_failure` 高、`recovery_margin` 低时，优先 `suffix_replan`
+- `p_success` 低、预算压力高、人工帮助价值低时，允许 `stop`
+
+### 12.3 硬优先级
+
+以下规则优先于效用比较：
+
+1. `Safety block`
+   - 禁止 `continue`
+2. schema / I-O / tool availability 违规
+   - 当前候选直接淘汰
+3. `retry_exhausted` 且局部可修
+   - `patch_local` 先于 `suffix_replan`
+4. `prefix_preservability >= 0.40`
+   - `suffix_replan` 先于 `full_replan`
+
+### 12.4 `stop` 的选择门槛
+
+只有满足以下条件时才允许自动 stop：
+
+- `allow_auto_stop = true`
+- `U_stop >= 0.72`
+- `p_success <= 0.20`
+- `budget_pressure >= 0.85`
+- `recovery_margin <= 0.20`
+- `intervention_value <= 0.25`
+
+否则：
+
+- 若 `stop` 有效但不满足自动终止条件，应作为 `replan_confirm` 候选之一进入 HITL；
+- 其形式为 `ReplanCandidate(replan_mode="terminal_stop")`。
+
+---
+
+## 13. HITL Gate
 <!-- SID:planner.algorithm.hitl_gate -->
 
-### 8.1 决策门控（何时进入 HITL）
+### 13.1 触发条件
 
-Planner 在完成候选生成与排序后，需要通过“门控规则”决定：
+完成候选生成与排序后，只要满足以下任一条件，就进入 HITL：
 
-- 自动路径：输出 SelectedOutput
-- HITL 路径：输出 CandidateSetOutput（Top-K + 默认建议）
+1. 系统配置要求确认
+2. `risk >= risk_threshold`
+3. `cost >= cost_threshold`
+4. `SafetyAgent.action = block`
+5. 推荐动作为 `stop`，但不满足自动 stop 条件
 
-门控规则必须至少支持以下触发条件（任意满足即进入 HITL）：
+### 13.2 输出要求
 
-1) 系统配置：require_plan_confirm / require_patch_confirm / require_replan_confirm
-2) 风险阈值：best_candidate.risk_level == high 或 risk ≥ risk_threshold
-3) 成本阈值：best_candidate.cost_estimate == high 或 cost ≥ cost_threshold
-4) Safety 强约束：SafetyAgent 返回 block（此时必须 HITL 或直接失败/取消，策略由 system-implementation-design.md 定义）
-
-### 8.2 Top-K 输出规范
-
-- 默认 K=3（可配置）
-- 候选必须按 overall 从高到低排序
-- 必须提供 default_suggestion（默认建议的 candidate_id）
-- 必须提供 explanation（对整个候选集的解释摘要）
+- 默认 `K = 3`
+- 候选按 `final_score` 排序
+- 必须给出 `default_suggestion`
+- 必须给出对候选集总体差异的解释
 
 ---
 
-## 9. Decision 应用与方案固化（HITL 路径）
+## 14. Decision 应用与固化
 <!-- SID:planner.algorithm.decision_application -->
 
-Planner 不直接等待 Decision，但必须定义“Decision 应用后如何固化”的纯函数逻辑（可测试）。
+### 14.1 `plan_confirm`
 
-### 9.1 plan_confirm 的 Decision 应用
+- `accept`：固化所选 Plan
+- `replan`：重新进入 planning
+- `cancel`：进入 `CANCELLED`
 
-输入：
-- candidates（PlanCandidate 集合）
-- decision.choice
-- decision.selected_candidate_id（当 choice=accept 时必须存在）
+### 14.2 `patch_confirm`
 
-规则：
-- accept：选择 candidate_id 对应的 Plan，固化为 current_plan（写版本号）
-- replan：回到 Planning（由系统触发新的 planning 回合）
-- cancel：任务终止（由系统处理）
+- `accept`：应用 Patch，回到 `RUNNING`
+- `replan`：进入 `replan_confirm`
+- `cancel`：进入 `CANCELLED`
 
-输出：
-- selected_plan（当 accept）
-- 或 replan_requested 标记（当 replan）
+### 14.3 `replan_confirm`
 
-### 9.2 patch_confirm 的 Decision 应用
+- `accept`
+  - `suffix_replan`：保留前缀并替换后缀
+  - `full_replan`：生成新整体 Plan
+  - `terminal_stop`：进入 `FAILED`
+- `continue`：继续原计划
+- `cancel`：进入 `CANCELLED`
 
-输入：
-- current_plan
-- patch_candidates（PatchCandidate 集合）
-- decision
+### 14.4 `terminal_stop` 的记录要求
 
-规则：
-- accept：应用 PlanPatch，生成新 plan_version，并输出 updated_plan
-- replan：升级为 Replan 流程（由系统进入 replan_confirm 或直接 planning，取决于实现策略）
-- cancel：任务终止
+若接受 `terminal_stop`：
 
-注意：
-- Patch 应用必须是可回滚的纯操作（在内存/临时副本上应用，验证通过后再固化）
-- Patch 应用后必须更新“后续步骤的输入引用”（artifact mapping）保持闭包
-
-### 9.3 replan_confirm 的 Decision 应用
-
-输入：
-- replan_candidates
-- decision
-
-规则：
-- accept：采用选中的 ReplanCandidate：
-  - 若 mode=suffix_replan：保留 prefix，替换后缀，输出新 plan_version
-  - 若 mode=full_replan：输出全新 Plan
-- continue：继续原计划执行（不修改 Plan）
-- cancel：任务终止
+- 必须写快照
+- 必须写终止原因
+- 必须将原因编码为结构化 `terminal_reason`
+- 不得把系统止损误记为用户取消
 
 ---
 
-## 10. Patch/Replan 的可复现性与稳定性约束（验收标准）
+## 15. 算法验收约束
 
-以下规则必须可用单元测试验证：
+以下约束必须可测试：
 
-1) Candidate 可执行性：任何被输出为候选（Top-K）都必须通过结构校验（输入输出闭包、参数合法）
-2) Candidate ID 稳定性：同一输入上下文下重复生成候选，candidate_id 的生成策略必须可复现（允许顺序不同但需可解释）
-3) Decision 幂等性：同一 Decision 重复应用不得产生不同结果（若已应用应被上层拒绝，或结果一致）
-4) Patch 最小性：PatchCandidate 的 patch_ops 应优先局部修改，避免无必要的全局替换（作为排序加成项）
-5) Replan 保前缀（若 suffix_replan）：必须保证 preserve_prefix 的步骤不被隐式修改
-6) 风险与成本阈值：门控阈值必须固定可追溯（来自配置或常量），并写入解释信息
-
----
-
-## 11. 参考伪代码
-
-### 11.1 初始 Planning（生成 PlanCandidate 集合并选择）
-
-```python
-    function plan(task):
-        tools = retrieve_tools(task.query, task.constraints)
-        candidates = generate_plan_candidates(task, tools)    # list[PlanCandidate]
-        candidates = filter_infeasible(candidates)
-        candidates = score_and_sort(candidates)
-
-        if should_enter_hitl(task.options, candidates[0]):
-            return CandidateSetOutput(
-                candidates=top_k(candidates, K),
-                default_suggestion=candidates[0].candidate_id,
-                explanation=explain_candidates(candidates)
-            )
-        else:
-            return SelectedOutput(
-                selected_id=candidates[0].candidate_id,
-                selected_payload=candidates[0].structured_payload,
-                explanation=candidates[0].explanation
-      )
-```
-
-### 11.2 Patch（生成 PatchCandidate 集合并选择/输出）
-
-```python
-    function patch(current_plan, failure_context, task_options):
-        patch_candidates = generate_patch_candidates(current_plan, failure_context)
-        patch_candidates = filter_infeasible(patch_candidates)
-        patch_candidates = score_and_sort(patch_candidates)
-
-        if should_enter_hitl(task_options, patch_candidates[0]):
-            return CandidateSetOutput(top_k, default_suggestion, explanation)
-        else:
-            return SelectedOutput(selected_patch)
-
-### 11.3 Replan（suffix_replan 优先）
-
-    function replan(current_plan, context, task_options):
-        replan_candidates = generate_replan_candidates(current_plan, context)
-        replan_candidates = filter_infeasible(replan_candidates)
-        replan_candidates = score_and_sort(replan_candidates)
-
-        if should_enter_hitl(task_options, replan_candidates[0]):
-            return CandidateSetOutput(top_k, default_suggestion, explanation)
-        else:
-            return SelectedOutput(selected_replan)
-```
----
-
-## 12. 与 Step1/Step2 的一致性声明（必须）
-
-- 本文档输出的 CandidateSetOutput 将由系统包装为 PendingAction：
-  - plan_confirm → WAITING_PLAN_CONFIRM
-  - patch_confirm → WAITING_PATCH_CONFIRM（实现层 WAITING_PATCH / PATCHING）
-  - replan_confirm → WAITING_REPLAN_CONFIRM（实现层 WAITING_REPLAN / REPLANNING）
-- PlannerAgent 行为边界遵循 agent-design.md：
-  - Planner 负责生成候选与建议，不负责等待与选择
-- Decision 的合法性、冲突处理、事件日志与快照写入约束遵循 system-implementation-design.md：
-  - DECISION_SUBMITTED / DECISION_APPLIED
-  - PENDING_ACTION_CREATED
-  - 必须写 TaskSnapshot 的关键节点
+1. 候选可执行性
+2. Candidate ID 稳定性
+3. Decision 幂等性
+4. Patch 最小性
+5. `suffix_replan` 的前缀保持
+6. `stop` 语义的可追溯性
+7. runtime adjustment 的常量、阈值、优先级冲突处理可复现
 
 ---
 
-## 13. 变更点（相对 v0.2 的核心新增）
+## 16. 与论文叙事的关系
 
-- 新增 Candidate（Top-K）输出规范与门控规则
-- 新增 Decision 应用与固化规则（可测试的纯逻辑）
-- 将 Patch/Replan 的“内部执行态”与“对外等待确认态”做清晰分离
-- 强化风险/成本估计与解释输出，支撑人工审查与审计
+本算法在论文中的主命题建议表述为：
+
+**在相近或更好的成功率下，Lite belief-state 驱动的动态工具链规划，能够更少地进入无效高代价调用，并更合理地分配 `patch / suffix_replan / stop`。**
+
+实验分组与论文叙事的正式映射见：
+
+- [../experiment/algorithm-group-paper-mapping.md](../experiment/algorithm-group-paper-mapping.md)
 
 ---
 
-## 14. 与 algorithm-and-llm 研究结论的对齐补充（实施优先级）
+## 17. 一致性声明
 
-本节用于对齐 `docs/algorithm-and-llm/` 的核心结论，并给出落地优先级。
+本规范与现有系统的一致性如下：
 
-### 14.1 论文结论到系统模块映射
-
-- Toolformer / ReAct：落实到 Candidate 生成与可解释输出（`summary/explanation/score_breakdown`）。
-- Reflexion：落实到 `retry -> patch -> replan` 的失败修复闭环与 Patch 最小性约束。
-- Multi-Agent Survey：落实到 Planner/Executor/Safety/Summarizer 的角色边界与协作协议。
-- OSWorld：落实到执行导向评估，优先关注可执行成功率、恢复成功率与时延，而非仅文本质量。
-
-### 14.2 工作包优先级（建议）
-
-- P0：CandidateSet 能力落地（Top-K、稳定打分、风险/成本门控）。
-- P1：Patch/Replan 分层策略（参数级、工具级、结构级）。
-- P2：统一评估基准（离线/在线口径、对比基线、统计报表）。
-- P3：审计闭环固化（`PendingAction -> Decision -> EventLog -> Snapshot` 对账）。
-
-### 14.3 算法层统一验收指标（建议）
-
-- Workflow schema 合法率
-- 候选可执行率
-- 首轮执行成功率
-- 平均 patch 次数 / replan 次数
-- 人工介入率与恢复成功率
-- 端到端时延
-- 决策可追溯完整率（决策链可回放）
-
-### 14.4 边界重申
-
-- 不允许绕过 FSM 的隐式状态跳转。
-- 不允许 Planner 在 `WAITING_*` 阶段替代人工做最终决策。
-- 不将“语言流畅”当作“可执行工作流质量”的替代指标。
+- 不要求把 Planner 变成 controller
+- 不新增必须的新 FSM 状态
+- 不改变 `retry -> patch -> replan`
+- 允许 `stop` 作为终止型重规划语义接入现有 `replan_confirm`
+- Lite belief-state 是内部状态估计模块，而不是新的 Agent

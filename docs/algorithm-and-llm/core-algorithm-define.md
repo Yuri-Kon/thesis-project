@@ -2,6 +2,16 @@
 
 <!-- SID:algollm.core.algorithm_define -->
 
+> 说明：
+> 本文档保留为“面向论文写作与方法阐释的概念性摘要”。
+> 当前项目的算法单一真源（SSOT）已经迁移至：
+> `docs/design/core-algorithm-spec.md`
+>
+> 配套细化文档：
+> - `docs/design/runtime-adaptation-formalization.md`
+> - `docs/design/active-tool-metadata-profile.md`
+> - `docs/experiment/algorithm-group-paper-mapping.md`
+
 ## 1. 核心命题
 
 本项目的核心命题是：

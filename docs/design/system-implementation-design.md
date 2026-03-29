@@ -387,6 +387,7 @@ class RuntimeState(BaseModel):
     p_structural_failure: float
     recovery_margin: float
     expected_remaining_cost: float
+    evidence_sufficiency: float
     last_update_source: str
     observation_summary: Dict[str, Any] = Field(default_factory=dict)
 
@@ -414,6 +415,7 @@ snapshot.artifacts["runtime_state"] = {
     "p_structural_failure": context.runtime_state.p_structural_failure,
     "recovery_margin": context.runtime_state.recovery_margin,
     "expected_remaining_cost": context.runtime_state.expected_remaining_cost,
+    "evidence_sufficiency": context.runtime_state.evidence_sufficiency,
     "last_update_source": context.runtime_state.last_update_source,
 }
 ```
@@ -729,7 +731,7 @@ CANCELLED
   - `WAITING_PLAN_CONFIRM` + `replan` → `PLANNING`
   - `WAITING_PATCH_CONFIRM` + `accept` → `RUNNING`（内部进入 PATCHING 后回到 RUNNING）
   - `WAITING_PATCH_CONFIRM` + `replan` → `WAITING_REPLAN_CONFIRM`（或直接 `PLANNING`，由实现策略决定，但必须一致）
-  - `WAITING_REPLAN_CONFIRM` + `accept` → `PLANNING`
+  - `WAITING_REPLAN_CONFIRM` + `accept` → `PLANNING`；若接受的候选为 `terminal_stop`，则进入 `FAILED`
   - `WAITING_REPLAN_CONFIRM` + `continue` → `RUNNING`
   - 任意 `WAITING_*` + `cancel` → `CANCELLED`
 

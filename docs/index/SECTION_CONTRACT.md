@@ -55,6 +55,7 @@ SID:hitl.decision.approval_flow
 | `workflow` | de novo 工作流分层与模块化设计 | de-novo-workflow.md |
 | `api` | REST API 与接口契约 | system-implementation-design.md |
 | `kg` | ProteinToolKG 知识图谱 | system-implementation-design.md |
+| `experiment` | 实验分组、评估口径与论文映射 | docs/experiment/*.md |
 
 **扩展性**：
 
