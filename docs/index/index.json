@@ -1,8 +1,8 @@
 {
-  "version": "1.0",
-  "generated_at": "2026-03-24",
+  "version": "1.3",
+  "generated_at": "2026-03-29",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 117,
+  "total_specs": 152,
   "documents": [
     {
       "doc_key": "arch",
@@ -27,10 +27,26 @@
       "title": "核心算法规范",
       "path": "docs/design/core-algorithm-spec.md",
       "status": "stable",
-      "version": "1.0",
+      "version": "2.0",
       "depends_on": [
         "arch",
-        "agent"
+        "agent",
+        "workflow",
+        "tools",
+        "impl"
+      ]
+    },
+    {
+      "doc_key": "algo_runtime",
+      "title": "运行时自适应形式化",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "algo",
+        "workflow",
+        "tools",
+        "impl"
       ]
     },
     {
@@ -115,6 +131,19 @@
       "status": "stable",
       "version": "1.0",
       "depends_on": [
+        "impl",
+        "algo"
+      ]
+    },
+    {
+      "doc_key": "tools_metadata",
+      "title": "活跃工具元数据画像",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "tools",
+        "algo_runtime",
         "impl"
       ]
     },
@@ -152,327 +181,213 @@
         "algo",
         "impl_llm_provider"
       ]
+    },
+    {
+      "doc_key": "experiment_mapping",
+      "title": "实验分组与论文叙事映射",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "algo",
+        "de_novo_workflow"
+      ]
     }
   ],
   "specs": [
     {
-      "sid": "arch.overview.layers",
-      "title": "分层架构",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
+      "sid": "algollm.core.algorithm_define",
+      "title": "核心算法定义",
+      "doc_key": "algocore",
+      "path": "docs/algorithm-and-llm/core-algorithm-define.md",
       "locator": {
         "type": "comment",
-        "line": 11,
-        "marker": "<!-- SID:arch.overview.layers -->"
+        "line": 3,
+        "marker": "<!-- SID:algollm.core.algorithm_define -->"
       },
       "level": "Section",
       "tags": [
-        "arch",
-        "overview",
-        "layers"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.components.overview",
-      "title": "组件视图",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 33,
-        "marker": "<!-- SID:arch.components.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "arch",
-        "components"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.execution.nextflow_boundary",
-      "title": "执行后端边界(Nextflow)",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 62,
-        "marker": "<!-- SID:arch.execution.nextflow_boundary -->"
-      },
-      "level": "Block",
-      "tags": [
-        "arch",
-        "execution",
-        "nextflow",
-        "boundary"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.flow.end_to_end",
-      "title": "运行视图与时序图",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 97,
-        "marker": "<!-- SID:arch.flow.end_to_end -->"
-      },
-      "level": "Section",
-      "tags": [
-        "arch",
-        "flow",
-        "runtime"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.dataflow.overview",
-      "title": "数据流概览",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 411,
-        "marker": "<!-- SID:arch.dataflow.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "arch",
-        "dataflow"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.kg.overview",
-      "title": "ProteinToolKG 在架构中的位置",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 444,
-        "marker": "<!-- SID:arch.kg.overview -->"
-      },
-      "level": "Block",
-      "tags": [
-        "arch",
-        "kg",
-        "knowledge_graph"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.contracts.pending_action",
-      "title": "PendingAction 契约定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 366,
-        "line_end": 384,
-        "marker_begin": "<!-- SID:arch.contracts.pending_action BEGIN -->",
-        "marker_end": "<!-- SID:arch.contracts.pending_action END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "arch",
-        "contracts",
-        "hitl",
-        "pending_action"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.contracts.decision",
-      "title": "Decision 契约定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 379,
-        "line_end": 383,
-        "marker_begin": "<!-- SID:arch.contracts.decision BEGIN -->",
-        "marker_end": "<!-- SID:arch.contracts.decision END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "arch",
-        "contracts",
-        "hitl",
-        "decision"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.contracts.task_snapshot",
-      "title": "TaskSnapshot 契约定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 387,
-        "line_end": 408,
-        "marker_begin": "<!-- SID:arch.contracts.task_snapshot BEGIN -->",
-        "marker_end": "<!-- SID:arch.contracts.task_snapshot END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "arch",
-        "contracts",
-        "hitl",
-        "snapshot"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "arch.contracts.plan",
-      "title": "Plan 契约定义（架构层视角）",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 425,
-        "marker": "<!-- SID:arch.contracts.plan -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "arch",
-        "contracts",
+        "algo",
+        "algorithm_llm",
+        "core",
         "planning"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.lifecycle.overview",
-      "title": "任务生命周期与状态机",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 331,
-        "marker": "<!-- SID:fsm.lifecycle.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "fsm",
-        "lifecycle",
-        "state_machine"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.states.definitions",
-      "title": "FSM 状态完整定义表",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "comment",
-        "line": 336,
-        "marker": "<!-- SID:fsm.states.definitions -->"
-      },
-      "level": "Block",
-      "tags": [
-        "fsm",
-        "states",
-        "definitions"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.states.waiting_plan_confirm",
-      "title": "WAITING_PLAN_CONFIRM 状态定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "inline",
-        "line": 344,
-        "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "fsm",
-        "states",
-        "hitl",
-        "planning"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.states.waiting_patch_confirm",
-      "title": "WAITING_PATCH_CONFIRM 状态定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "inline",
-        "line": 347,
-        "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "fsm",
-        "states",
-        "hitl",
-        "execution"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.states.waiting_replan_confirm",
-      "title": "WAITING_REPLAN_CONFIRM 状态定义",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "inline",
-        "line": 348,
-        "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "fsm",
-        "states",
-        "hitl",
-        "planning"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "fsm.transitions.overview",
-      "title": "状态转换规则总览",
-      "doc_key": "arch",
-      "path": "docs/design/architecture.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 357,
-        "line_end": 363,
-        "marker_begin": "<!-- SID:fsm.transitions.overview BEGIN -->",
-        "marker_end": "<!-- SID:fsm.transitions.overview END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "fsm",
-        "transitions",
-        "state_machine"
       ],
       "depends_on": [
-        "fsm.states.definitions"
+        "algo.scope.overview"
       ],
       "stability": "stable"
+    },
+    {
+      "sid": "algollm.llm.training_plan",
+      "title": "Planner 大模型能力要求与专用训练方案",
+      "doc_key": "llmtrain",
+      "path": "docs/algorithm-and-llm/train-llm.md",
+      "locator": {
+        "type": "comment",
+        "line": 3,
+        "marker": "<!-- SID:algollm.llm.training_plan -->"
+      },
+      "level": "Section",
+      "tags": [
+        "algo",
+        "algorithm_llm",
+        "llm",
+        "training",
+        "planner"
+      ],
+      "depends_on": [
+        "planner.algorithm.candidate_scoring",
+        "impl.llm_provider.guide"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.metadata.active_profile",
+      "title": "活跃工具元数据画像",
+      "level": "Section",
+      "tags": [
+        "tools",
+        "metadata",
+        "profile"
+      ],
+      "depends_on": [
+        "tools.executor.overview"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:tools.metadata.active_profile -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.scope",
+      "title": "工具元数据范围与用途",
+      "level": "Section",
+      "tags": [
+        "tools",
+        "metadata",
+        "scope"
+      ],
+      "depends_on": [
+        "tools.metadata.active_profile"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 5,
+        "marker": "<!-- SID:tools.metadata.scope -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.schema",
+      "title": "工具元数据字段规范",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "metadata",
+        "schema"
+      ],
+      "depends_on": [
+        "tools.metadata.scope"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 18,
+        "marker": "<!-- SID:tools.metadata.schema -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.assignment_principles",
+      "title": "元数据赋值原则",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "metadata",
+        "assignment"
+      ],
+      "depends_on": [
+        "tools.metadata.schema"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 40,
+        "marker": "<!-- SID:tools.metadata.assignment_principles -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.active_table",
+      "title": "活跃工具元数据表",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "metadata",
+        "table",
+        "active_tools"
+      ],
+      "depends_on": [
+        "tools.metadata.assignment_principles"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 65,
+        "marker": "<!-- SID:tools.metadata.active_table -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.derived_metrics",
+      "title": "派生指标计算",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "metadata",
+        "derived_metrics"
+      ],
+      "depends_on": [
+        "tools.metadata.active_table"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 79,
+        "marker": "<!-- SID:tools.metadata.derived_metrics -->"
+      }
+    },
+    {
+      "sid": "tools.metadata.usage_rules",
+      "title": "工具元数据使用规则",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "metadata",
+        "usage_rules"
+      ],
+      "depends_on": [
+        "tools.metadata.derived_metrics"
+      ],
+      "doc_key": "tools_metadata",
+      "stability": "stable",
+      "path": "docs/design/active-tool-metadata-profile.md",
+      "locator": {
+        "type": "comment",
+        "line": 103,
+        "marker": "<!-- SID:tools.metadata.usage_rules -->"
+      }
     },
     {
       "sid": "agent.overview.introduction",
@@ -628,6 +543,25 @@
       "stability": "stable"
     },
     {
+      "sid": "planner.interface.overview",
+      "title": "PlannerAgent 接口总览",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 149,
+        "marker": "<!-- SID:planner.interface.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "planner",
+        "interface",
+        "agent"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
       "sid": "agent.hitl.overview",
       "title": "HITL 机制在 Agent 层的概述",
       "doc_key": "agent",
@@ -647,49 +581,6 @@
         "arch.contracts.pending_action",
         "arch.contracts.decision"
       ],
-      "stability": "stable"
-    },
-    {
-      "sid": "agent.hitl.universal_constraints",
-      "title": "Agent 层 HITL 统一约束",
-      "doc_key": "agent",
-      "path": "docs/design/agent-design.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 434,
-        "line_end": 452,
-        "marker_begin": "<!-- SID:agent.hitl.universal_constraints BEGIN -->",
-        "marker_end": "<!-- SID:agent.hitl.universal_constraints END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "agent",
-        "hitl",
-        "constraints"
-      ],
-      "depends_on": [
-        "arch.contracts.pending_action",
-        "fsm.states.definitions"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "planner.interface.overview",
-      "title": "PlannerAgent 接口总览",
-      "doc_key": "agent",
-      "path": "docs/design/agent-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 149,
-        "marker": "<!-- SID:planner.interface.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "planner",
-        "interface",
-        "agent"
-      ],
-      "depends_on": [],
       "stability": "stable"
     },
     {
@@ -738,11 +629,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 290,
-        "line_end": 297,
-        "marker_begin": "<!-- SID:planner.responsibilities.must BEGIN -->",
-        "marker_end": "<!-- SID:planner.responsibilities.must END -->"
+        "type": "comment",
+        "line": 290,
+        "marker": "<!-- SID:planner.responsibilities.must BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -759,11 +648,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 299,
-        "line_end": 304,
-        "marker_begin": "<!-- SID:planner.responsibilities.must_not BEGIN -->",
-        "marker_end": "<!-- SID:planner.responsibilities.must_not END -->"
+        "type": "comment",
+        "line": 299,
+        "marker": "<!-- SID:planner.responsibilities.must_not BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -821,11 +708,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 342,
-        "line_end": 349,
-        "marker_begin": "<!-- SID:executor.responsibilities.must BEGIN -->",
-        "marker_end": "<!-- SID:executor.responsibilities.must END -->"
+        "type": "comment",
+        "line": 342,
+        "marker": "<!-- SID:executor.responsibilities.must BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -842,11 +727,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 351,
-        "line_end": 356,
-        "marker_begin": "<!-- SID:executor.responsibilities.must_not BEGIN -->",
-        "marker_end": "<!-- SID:executor.responsibilities.must_not END -->"
+        "type": "comment",
+        "line": 351,
+        "marker": "<!-- SID:executor.responsibilities.must_not BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -903,11 +786,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 394,
-        "line_end": 400,
-        "marker_begin": "<!-- SID:safety.responsibilities.must BEGIN -->",
-        "marker_end": "<!-- SID:safety.responsibilities.must END -->"
+        "type": "comment",
+        "line": 394,
+        "marker": "<!-- SID:safety.responsibilities.must BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -924,11 +805,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 402,
-        "line_end": 408,
-        "marker_begin": "<!-- SID:safety.responsibilities.must_not BEGIN -->",
-        "marker_end": "<!-- SID:safety.responsibilities.must_not END -->"
+        "type": "comment",
+        "line": 402,
+        "marker": "<!-- SID:safety.responsibilities.must_not BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -964,11 +843,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 417,
-        "line_end": 422,
-        "marker_begin": "<!-- SID:summarizer.responsibilities.must BEGIN -->",
-        "marker_end": "<!-- SID:summarizer.responsibilities.must END -->"
+        "type": "comment",
+        "line": 417,
+        "marker": "<!-- SID:summarizer.responsibilities.must BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -985,11 +862,9 @@
       "doc_key": "agent",
       "path": "docs/design/agent-design.md",
       "locator": {
-        "type": "begin_end",
-        "line_start": 424,
-        "line_end": 429,
-        "marker_begin": "<!-- SID:summarizer.responsibilities.must_not BEGIN -->",
-        "marker_end": "<!-- SID:summarizer.responsibilities.must_not END -->"
+        "type": "comment",
+        "line": 424,
+        "marker": "<!-- SID:summarizer.responsibilities.must_not BEGIN -->"
       },
       "level": "Spec-Item",
       "tags": [
@@ -1001,13 +876,346 @@
       "stability": "stable"
     },
     {
+      "sid": "agent.hitl.universal_constraints",
+      "title": "Agent 层 HITL 统一约束",
+      "doc_key": "agent",
+      "path": "docs/design/agent-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 434,
+        "marker": "<!-- SID:agent.hitl.universal_constraints BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "agent",
+        "hitl",
+        "constraints"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "fsm.states.definitions"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.overview.layers",
+      "title": "分层架构",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 11,
+        "marker": "<!-- SID:arch.overview.layers -->"
+      },
+      "level": "Section",
+      "tags": [
+        "arch",
+        "overview",
+        "layers"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.components.overview",
+      "title": "组件视图",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 33,
+        "marker": "<!-- SID:arch.components.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "arch",
+        "components"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.execution.nextflow_boundary",
+      "title": "执行后端边界(Nextflow)",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 62,
+        "marker": "<!-- SID:arch.execution.nextflow_boundary -->"
+      },
+      "level": "Block",
+      "tags": [
+        "arch",
+        "execution",
+        "nextflow",
+        "boundary"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.flow.end_to_end",
+      "title": "运行视图与时序图",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 97,
+        "marker": "<!-- SID:arch.flow.end_to_end -->"
+      },
+      "level": "Section",
+      "tags": [
+        "arch",
+        "flow",
+        "runtime"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.lifecycle.overview",
+      "title": "任务生命周期与状态机",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 331,
+        "marker": "<!-- SID:fsm.lifecycle.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "fsm",
+        "lifecycle",
+        "state_machine"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.definitions",
+      "title": "FSM 状态完整定义表",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 336,
+        "marker": "<!-- SID:fsm.states.definitions -->"
+      },
+      "level": "Block",
+      "tags": [
+        "fsm",
+        "states",
+        "definitions"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_plan_confirm",
+      "title": "WAITING_PLAN_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 344,
+        "marker": "<!-- SID:fsm.states.waiting_plan_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "planning"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_patch_confirm",
+      "title": "WAITING_PATCH_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 347,
+        "marker": "<!-- SID:fsm.states.waiting_patch_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "execution"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.states.waiting_replan_confirm",
+      "title": "WAITING_REPLAN_CONFIRM 状态定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 348,
+        "marker": "<!-- SID:fsm.states.waiting_replan_confirm -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "fsm",
+        "states",
+        "hitl",
+        "planning"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "fsm.transitions.overview",
+      "title": "状态转换规则总览",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 357,
+        "marker": "<!-- SID:fsm.transitions.overview BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "fsm",
+        "transitions",
+        "state_machine"
+      ],
+      "depends_on": [
+        "fsm.states.definitions"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.pending_action",
+      "title": "PendingAction 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 366,
+        "marker": "<!-- SID:arch.contracts.pending_action BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "pending_action"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.decision",
+      "title": "Decision 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 379,
+        "marker": "<!-- SID:arch.contracts.decision BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "decision"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.task_snapshot",
+      "title": "TaskSnapshot 契约定义",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 387,
+        "marker": "<!-- SID:arch.contracts.task_snapshot BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "arch",
+        "contracts",
+        "hitl",
+        "snapshot"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.dataflow.overview",
+      "title": "数据流概览",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 411,
+        "marker": "<!-- SID:arch.dataflow.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "arch",
+        "dataflow"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.contracts.plan",
+      "title": "Plan 契约定义（架构层视角）",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 425,
+        "marker": "<!-- SID:arch.contracts.plan -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "arch",
+        "contracts",
+        "planning"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "arch.kg.overview",
+      "title": "ProteinToolKG 在架构中的位置",
+      "doc_key": "arch",
+      "path": "docs/design/architecture.md",
+      "locator": {
+        "type": "comment",
+        "line": 444,
+        "marker": "<!-- SID:arch.kg.overview -->"
+      },
+      "level": "Block",
+      "tags": [
+        "arch",
+        "kg",
+        "knowledge_graph"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
       "sid": "algo.scope.overview",
       "title": "算法规范范围说明",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 17,
+        "line": 21,
         "marker": "<!-- SID:algo.scope.overview -->"
       },
       "level": "Section",
@@ -1025,7 +1233,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 40,
+        "line": 77,
         "marker": "<!-- SID:algo.definitions.overview -->"
       },
       "level": "Section",
@@ -1037,38 +1245,16 @@
       "stability": "stable"
     },
     {
-      "sid": "planner.contracts.io_overview",
-      "title": "Planner 输入输出契约",
-      "doc_key": "algo",
-      "path": "docs/design/core-algorithm-spec.md",
-      "locator": {
-        "type": "comment",
-        "line": 73,
-        "marker": "<!-- SID:planner.contracts.io_overview -->"
-      },
-      "level": "Block",
-      "tags": [
-        "planner",
-        "contracts",
-        "io"
-      ],
-      "depends_on": [
-        "agent.contracts.protein_design_task",
-        "agent.contracts.plan"
-      ],
-      "stability": "stable"
-    },
-    {
       "sid": "planner.contracts.candidate_schema",
       "title": "Candidate 对象模式总览",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 52,
-        "marker": "<!-- SID:planner.contracts.candidate_schema -->"
+        "line": 97,
+        "marker": "<!-- SID:planner.contracts.candidate_schema BEGIN -->"
       },
-      "level": "Block",
+      "level": "Spec-Item",
       "tags": [
         "planner",
         "contracts",
@@ -1084,7 +1270,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 56,
+        "line": 101,
         "marker": "<!-- SID:planner.contracts.plan_candidate -->"
       },
       "level": "Spec-Item",
@@ -1104,7 +1290,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 57,
+        "line": 102,
         "marker": "<!-- SID:planner.contracts.patch_candidate -->"
       },
       "level": "Spec-Item",
@@ -1124,7 +1310,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 58,
+        "line": 103,
         "marker": "<!-- SID:planner.contracts.replan_candidate -->"
       },
       "level": "Spec-Item",
@@ -1138,13 +1324,35 @@
       "stability": "stable"
     },
     {
+      "sid": "planner.contracts.io_overview",
+      "title": "Planner 输入输出契约",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 152,
+        "marker": "<!-- SID:planner.contracts.io_overview -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "contracts",
+        "io"
+      ],
+      "depends_on": [
+        "agent.contracts.protein_design_task",
+        "agent.contracts.plan"
+      ],
+      "stability": "stable"
+    },
+    {
       "sid": "algo.adaptive.problem_formulation",
       "title": "高代价工作流中的自适应规划问题",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 126,
+        "line": 201,
         "marker": "<!-- SID:algo.adaptive.problem_formulation -->"
       },
       "level": "Section",
@@ -1166,7 +1374,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 143,
+        "line": 248,
         "marker": "<!-- SID:algo.adaptive.optimization_objective -->"
       },
       "level": "Block",
@@ -1182,13 +1390,53 @@
       "stability": "stable"
     },
     {
+      "sid": "planner.algorithm.tool_retrieval",
+      "title": "工具检索算法",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 324,
+        "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "tool_retrieval"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "planner.algorithm.candidate_scoring",
+      "title": "候选方案评分规则",
+      "doc_key": "algo",
+      "path": "docs/design/core-algorithm-spec.md",
+      "locator": {
+        "type": "comment",
+        "line": 405,
+        "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
+      },
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "scoring"
+      ],
+      "depends_on": [
+        "planner.contracts.candidate_schema"
+      ],
+      "stability": "stable"
+    },
+    {
       "sid": "planner.algorithm.runtime_state_estimation",
       "title": "运行时状态估计（Lite belief-state）",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 163,
+        "line": 446,
         "marker": "<!-- SID:planner.algorithm.runtime_state_estimation -->"
       },
       "level": "Block",
@@ -1211,7 +1459,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 184,
+        "line": 487,
         "marker": "<!-- SID:planner.algorithm.runtime_reranking -->"
       },
       "level": "Block",
@@ -1233,7 +1481,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 202,
+        "line": 520,
         "marker": "<!-- SID:planner.algorithm.runtime_action_selection -->"
       },
       "level": "Block",
@@ -1250,53 +1498,13 @@
       "stability": "stable"
     },
     {
-      "sid": "planner.algorithm.tool_retrieval",
-      "title": "工具检索算法",
-      "doc_key": "algo",
-      "path": "docs/design/core-algorithm-spec.md",
-      "locator": {
-        "type": "comment",
-        "line": 244,
-        "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
-      },
-      "level": "Block",
-      "tags": [
-        "planner",
-        "algorithm",
-        "tool_retrieval"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "planner.algorithm.candidate_scoring",
-      "title": "候选方案评分规则",
-      "doc_key": "algo",
-      "path": "docs/design/core-algorithm-spec.md",
-      "locator": {
-        "type": "comment",
-        "line": 330,
-        "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
-      },
-      "level": "Block",
-      "tags": [
-        "planner",
-        "algorithm",
-        "scoring"
-      ],
-      "depends_on": [
-        "planner.contracts.candidate_schema"
-      ],
-      "stability": "stable"
-    },
-    {
       "sid": "planner.algorithm.hitl_gate",
       "title": "HITL 门控决策规则",
       "doc_key": "algo",
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 377,
+        "line": 573,
         "marker": "<!-- SID:planner.algorithm.hitl_gate -->"
       },
       "level": "Block",
@@ -1317,7 +1525,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 403,
+        "line": 595,
         "marker": "<!-- SID:planner.algorithm.decision_application -->"
       },
       "level": "Block",
@@ -1329,635 +1537,6 @@
       ],
       "depends_on": [
         "arch.contracts.decision"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.overview.introduction",
-      "title": "实现层总览",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 13,
-        "marker": "<!-- SID:impl.overview.introduction -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "overview"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.techstack.overview",
-      "title": "技术栈选型",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 37,
-        "marker": "<!-- SID:impl.techstack.overview -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "techstack"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.planner.tool_resolution",
-      "title": "Planner 工具解析与 KG-only 约束",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 1025,
-        "marker": "<!-- SID:impl.planner.tool_resolution -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "planner",
-        "tool_resolution",
-        "kg"
-      ],
-      "depends_on": [
-        "arch.kg.overview"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.nextflow.control_flow_constraints",
-      "title": "Nextflow 接入边界与控制流约束",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 890,
-        "marker": "<!-- SID:impl.nextflow.control_flow_constraints -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "nextflow",
-        "control_flow",
-        "constraints"
-      ],
-      "depends_on": [
-        "arch.execution.nextflow_boundary"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.runtime_state.persistence",
-      "title": "RuntimeState / BeliefState 与持久化边界",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 378,
-        "marker": "<!-- SID:impl.runtime_state.persistence -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "runtime_state",
-        "persistence"
-      ],
-      "depends_on": [
-        "arch.contracts.task_snapshot",
-        "planner.algorithm.runtime_state_estimation"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "api.rest.overview",
-      "title": "REST API 总览",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 516,
-        "marker": "<!-- SID:api.rest.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "api",
-        "rest"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "api.rest.create_task",
-      "title": "POST /tasks 端点",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 519,
-        "marker": "<!-- SID:api.rest.create_task -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "api",
-        "rest",
-        "task"
-      ],
-      "depends_on": [
-        "agent.contracts.protein_design_task"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "api.rest.get_pending_actions",
-      "title": "GET /pending-actions 端点",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 656,
-        "marker": "<!-- SID:api.rest.get_pending_actions -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "api",
-        "rest",
-        "hitl",
-        "pending_actions"
-      ],
-      "depends_on": [
-        "arch.contracts.pending_action"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "api.rest.submit_decision",
-      "title": "POST /pending-actions/{id}/decision 端点",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 685,
-        "marker": "<!-- SID:api.rest.submit_decision -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "api",
-        "rest",
-        "hitl",
-        "decision"
-      ],
-      "depends_on": [
-        "arch.contracts.decision"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "api.rest.get_report",
-      "title": "GET /tasks/{task_id}/report 端点",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 737,
-        "marker": "<!-- SID:api.rest.get_report -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "api",
-        "rest",
-        "report"
-      ],
-      "depends_on": [
-        "agent.contracts.design_result"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "obs.observability.overview",
-      "title": "日志与可观测设计",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 1640,
-        "marker": "<!-- SID:obs.observability.overview -->"
-      },
-      "level": "Block",
-      "tags": [
-        "obs",
-        "observability",
-        "overview"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "obs.eventlog.schema",
-      "title": "EventLog 单条日志记录结构",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 1645,
-        "marker": "<!-- SID:obs.eventlog.schema -->"
-      },
-      "level": "Block",
-      "tags": [
-        "obs",
-        "eventlog",
-        "observability"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "obs.eventlog.mandatory_events",
-      "title": "事件日志写入约束（必须遵守）",
-      "doc_key": "impl",
-      "path": "docs/design/system-implementation-design.md",
-      "locator": {
-        "type": "comment",
-        "line": 1708,
-        "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "obs",
-        "eventlog",
-        "observability",
-        "hitl"
-      ],
-      "depends_on": [
-        "fsm.states.definitions"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.executor.overview",
-      "title": "Executor 可选择的工具",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "comment",
-        "line": 22,
-        "marker": "<!-- SID:tools.executor.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "tools",
-        "executor"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.protgpt2.spec",
-      "title": "ProtGPT2 (PLM) 工具规约",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "comment",
-        "line": 33,
-        "marker": "<!-- SID:tools.protgpt2.spec -->"
-      },
-      "level": "Block",
-      "tags": [
-        "tools",
-        "protgpt2",
-        "sequence_generation",
-        "plm"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.esmfold.spec",
-      "title": "ESMFold 工具规约",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "comment",
-        "line": 79,
-        "marker": "<!-- SID:tools.esmfold.spec -->"
-      },
-      "level": "Block",
-      "tags": [
-        "tools",
-        "esmfold",
-        "structure_prediction"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.alphafold.spec",
-      "title": "AlphaFold/OpenFold 工具规约",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "comment",
-        "line": 157,
-        "marker": "<!-- SID:tools.alphafold.spec -->"
-      },
-      "level": "Block",
-      "tags": [
-        "tools",
-        "alphafold",
-        "structure_prediction"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.adapter.constraints",
-      "title": "ToolAdapter 设计原则与约束",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "begin_end",
-        "line_start": 457,
-        "line_end": 480,
-        "marker_begin": "<!-- SID:tools.adapter.constraints BEGIN -->",
-        "marker_end": "<!-- SID:tools.adapter.constraints END -->"
-      },
-      "level": "Spec-Item",
-      "tags": [
-        "tools",
-        "adapter",
-        "constraints"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.index.codebase_overview",
-      "title": "实现代码索引与结构化总览",
-      "doc_key": "impl_index",
-      "path": "docs/impl/implementation_index.md",
-      "locator": {
-        "type": "comment",
-        "line": 2,
-        "marker": "<!-- SID:impl.index.codebase_overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "index",
-        "codebase",
-        "overview"
-      ],
-      "depends_on": [
-        "impl.overview.introduction",
-        "impl.techstack.overview"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.llm_provider.guide",
-      "title": "LLM Provider 集成指南",
-      "doc_key": "impl_llm_provider",
-      "path": "docs/impl/llm_provider_guide.md",
-      "locator": {
-        "type": "comment",
-        "line": 2,
-        "marker": "<!-- SID:impl.llm_provider.guide -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "llm_provider",
-        "guide",
-        "overview"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.llm_provider.external_providers",
-      "title": "OpenAICompatibleProvider",
-      "doc_key": "impl_llm_provider",
-      "path": "docs/impl/llm_provider_guide.md",
-      "locator": {
-        "type": "comment",
-        "line": 55,
-        "marker": "<!-- SID:impl.llm_provider.external_providers -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "llm_provider",
-        "external",
-        "openai_compatible"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.snapshot_recovery.overview",
-      "title": "Snapshot Recovery for Remote Jobs",
-      "doc_key": "impl_snapshot_recovery",
-      "path": "docs/impl/snapshot-recovery.md",
-      "locator": {
-        "type": "comment",
-        "line": 2,
-        "marker": "<!-- SID:impl.snapshot_recovery.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "snapshot_recovery",
-        "overview"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.snapshot_recovery.snapshot_schema",
-      "title": "快照结构",
-      "doc_key": "impl_snapshot_recovery",
-      "path": "docs/impl/snapshot-recovery.md",
-      "locator": {
-        "type": "comment",
-        "line": 38,
-        "marker": "<!-- SID:impl.snapshot_recovery.snapshot_schema -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "snapshot_recovery",
-        "snapshot",
-        "schema"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.snapshot_recovery.recovery_flow",
-      "title": "恢复流程",
-      "doc_key": "impl_snapshot_recovery",
-      "path": "docs/impl/snapshot-recovery.md",
-      "locator": {
-        "type": "comment",
-        "line": 309,
-        "marker": "<!-- SID:impl.snapshot_recovery.recovery_flow -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "snapshot_recovery",
-        "recovery",
-        "flow"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.overview",
-      "title": "Remote Model Invocation Service",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 2,
-        "marker": "<!-- SID:impl.remote_model_invocation.overview -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "overview"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.components",
-      "title": "核心组件",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 13,
-        "marker": "<!-- SID:impl.remote_model_invocation.components -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "components"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.rest_api",
-      "title": "REST API 规范",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 169,
-        "marker": "<!-- SID:impl.remote_model_invocation.rest_api -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "rest_api"
-      ],
-      "depends_on": [],
-      "stability": "stable"
-    },
-    {
-      "sid": "tools.nim_esmfold.spec",
-      "title": "NIM ESMFold 工具规约",
-      "doc_key": "tools",
-      "path": "docs/design/tools-catalog.md",
-      "locator": {
-        "type": "comment",
-        "line": 116,
-        "marker": "<!-- SID:tools.nim_esmfold.spec -->"
-      },
-      "level": "Block",
-      "tags": [
-        "tools",
-        "nim_esmfold",
-        "structure_prediction",
-        "nvidia_nim"
-      ],
-      "depends_on": [
-        "tools.esmfold.spec"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.nim_failure_codes",
-      "title": "NVIDIA NIM 失败码定义",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 241,
-        "marker": "<!-- SID:impl.remote_model_invocation.nim_failure_codes -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "nvidia_nim",
-        "failure_codes"
-      ],
-      "depends_on": [
-        "impl.remote_model_invocation.overview"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.nvidia_nim",
-      "title": "NVIDIA NIM 集成",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 330,
-        "marker": "<!-- SID:impl.remote_model_invocation.nvidia_nim -->"
-      },
-      "level": "Section",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "nvidia_nim"
-      ],
-      "depends_on": [
-        "impl.remote_model_invocation.overview"
-      ],
-      "stability": "stable"
-    },
-    {
-      "sid": "impl.remote_model_invocation.provider_config",
-      "title": "Provider 配置系统",
-      "doc_key": "impl_remote_model_invocation",
-      "path": "docs/impl/remote_model_invocation.md",
-      "locator": {
-        "type": "comment",
-        "line": 364,
-        "marker": "<!-- SID:impl.remote_model_invocation.provider_config -->"
-      },
-      "level": "Block",
-      "tags": [
-        "impl",
-        "remote_model_invocation",
-        "provider_config",
-        "nvidia_nim"
-      ],
-      "depends_on": [
-        "impl.remote_model_invocation.nvidia_nim"
       ],
       "stability": "stable"
     },
@@ -2162,7 +1741,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 118,
+        "line": 127,
         "marker": "<!-- SID:workflow.modules.interface -->"
       },
       "level": "Section",
@@ -2181,7 +1760,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 136,
+        "line": 145,
         "marker": "<!-- SID:workflow.loops.and_crosscut -->"
       },
       "level": "Section",
@@ -2200,7 +1779,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 170,
+        "line": 179,
         "marker": "<!-- SID:workflow.integration.responsibilities -->"
       },
       "level": "Section",
@@ -2219,7 +1798,7 @@
       "path": "docs/design/de-novo-workflow.md",
       "locator": {
         "type": "comment",
-        "line": 178,
+        "line": 187,
         "marker": "<!-- SID:workflow.examples.template -->"
       },
       "level": "Section",
@@ -2232,49 +1811,1057 @@
       "stability": "stable"
     },
     {
-      "sid": "algollm.core.algorithm_define",
-      "title": "核心算法定义",
-      "doc_key": "algocore",
-      "path": "docs/algorithm-and-llm/core-algorithm-define.md",
-      "locator": {
-        "type": "comment",
-        "line": 3,
-        "marker": "<!-- SID:algollm.core.algorithm_define -->"
-      },
+      "sid": "algo.runtime.formalization",
+      "title": "运行时自适应形式化",
       "level": "Section",
       "tags": [
         "algo",
-        "algorithm_llm",
-        "core",
-        "planning"
+        "runtime",
+        "formalization"
       ],
       "depends_on": [
         "algo.scope.overview"
       ],
-      "stability": "stable"
-    },
-    {
-      "sid": "algollm.llm.training_plan",
-      "title": "Planner 大模型能力要求与专用训练方案",
-      "doc_key": "llmtrain",
-      "path": "docs/algorithm-and-llm/train-llm.md",
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 3,
-        "marker": "<!-- SID:algollm.llm.training_plan -->"
-      },
+        "line": 2,
+        "marker": "<!-- SID:algo.runtime.formalization -->"
+      }
+    },
+    {
+      "sid": "algo.runtime.scope",
+      "title": "文档目的与适用范围",
       "level": "Section",
       "tags": [
         "algo",
-        "algorithm_llm",
-        "llm",
-        "training",
-        "planner"
+        "runtime",
+        "scope"
+      ],
+      "depends_on": [
+        "algo.runtime.formalization"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 5,
+        "marker": "<!-- SID:algo.runtime.scope -->"
+      }
+    },
+    {
+      "sid": "algo.runtime.design_basis",
+      "title": "建模立场与设计依据",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "runtime",
+        "design_basis"
+      ],
+      "depends_on": [
+        "algo.runtime.scope"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 18,
+        "marker": "<!-- SID:algo.runtime.design_basis -->"
+      }
+    },
+    {
+      "sid": "planner.runtime.belief_state_schema",
+      "title": "Lite belief-state 模式",
+      "level": "Block",
+      "tags": [
+        "planner",
+        "runtime",
+        "belief_state",
+        "schema"
+      ],
+      "depends_on": [
+        "algo.runtime.design_basis"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 67,
+        "marker": "<!-- SID:planner.runtime.belief_state_schema -->"
+      }
+    },
+    {
+      "sid": "algo.schemas.overview",
+      "title": "六类 Schema 总览",
+      "level": "Section",
+      "tags": [
+        "algo",
+        "runtime",
+        "schemas"
+      ],
+      "depends_on": [
+        "planner.runtime.belief_state_schema"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 147,
+        "marker": "<!-- SID:algo.schemas.overview -->"
+      }
+    },
+    {
+      "sid": "algo.schema.cost",
+      "title": "Cost Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "cost"
+      ],
+      "depends_on": [
+        "algo.schemas.overview",
+        "tools.metadata.schema"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 152,
+        "marker": "<!-- SID:algo.schema.cost -->"
+      }
+    },
+    {
+      "sid": "algo.schema.risk",
+      "title": "Risk Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "risk"
+      ],
+      "depends_on": [
+        "algo.schemas.overview",
+        "tools.metadata.schema"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 212,
+        "marker": "<!-- SID:algo.schema.risk -->"
+      }
+    },
+    {
+      "sid": "algo.schema.recovery",
+      "title": "Recovery Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "recovery"
+      ],
+      "depends_on": [
+        "algo.schemas.overview"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 238,
+        "marker": "<!-- SID:algo.schema.recovery -->"
+      }
+    },
+    {
+      "sid": "algo.schema.state",
+      "title": "State Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "state",
+        "belief_state"
+      ],
+      "depends_on": [
+        "planner.runtime.belief_state_schema"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 265,
+        "marker": "<!-- SID:algo.schema.state -->"
+      }
+    },
+    {
+      "sid": "algo.schema.observation",
+      "title": "Observation Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "observation"
+      ],
+      "depends_on": [
+        "agent.contracts.step_result",
+        "agent.contracts.safety_result"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 288,
+        "marker": "<!-- SID:algo.schema.observation -->"
+      }
+    },
+    {
+      "sid": "algo.schema.action_utility",
+      "title": "Action-Utility Schema",
+      "level": "Block",
+      "tags": [
+        "algo",
+        "schema",
+        "action_utility"
+      ],
+      "depends_on": [
+        "algo.schema.cost",
+        "algo.schema.risk",
+        "algo.schema.recovery",
+        "algo.schema.state"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 353,
+        "marker": "<!-- SID:algo.schema.action_utility -->"
+      }
+    },
+    {
+      "sid": "planner.algorithm.runtime_update_rules",
+      "title": "运行时状态更新规则",
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "runtime",
+        "update_rules"
+      ],
+      "depends_on": [
+        "planner.runtime.belief_state_schema",
+        "algo.schema.observation"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 394,
+        "marker": "<!-- SID:planner.algorithm.runtime_update_rules -->"
+      }
+    },
+    {
+      "sid": "planner.algorithm.runtime_adjustment_formula",
+      "title": "runtime_adjustment 公式",
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "runtime_adjustment",
+        "scoring"
       ],
       "depends_on": [
         "planner.algorithm.candidate_scoring",
-        "impl.llm_provider.guide"
+        "planner.algorithm.runtime_update_rules"
       ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 450,
+        "marker": "<!-- SID:planner.algorithm.runtime_adjustment_formula -->"
+      }
+    },
+    {
+      "sid": "planner.algorithm.action_priority_resolution",
+      "title": "动作优先级与冲突消解",
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "priority",
+        "action_selection"
+      ],
+      "depends_on": [
+        "algo.schema.action_utility",
+        "planner.algorithm.runtime_adjustment_formula"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 513,
+        "marker": "<!-- SID:planner.algorithm.action_priority_resolution -->"
+      }
+    },
+    {
+      "sid": "planner.algorithm.stop_semantics",
+      "title": "stop 语义与终止条件",
+      "level": "Block",
+      "tags": [
+        "planner",
+        "algorithm",
+        "stop",
+        "hitl"
+      ],
+      "depends_on": [
+        "planner.algorithm.action_priority_resolution",
+        "fsm.states.waiting_replan_confirm"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 544,
+        "marker": "<!-- SID:planner.algorithm.stop_semantics -->"
+      }
+    },
+    {
+      "sid": "impl.runtime.integration_guidelines",
+      "title": "运行时集成与持久化指南",
+      "level": "Block",
+      "tags": [
+        "impl",
+        "runtime",
+        "integration",
+        "persistence"
+      ],
+      "depends_on": [
+        "impl.runtime_state.persistence",
+        "planner.algorithm.runtime_update_rules"
+      ],
+      "doc_key": "algo_runtime",
+      "stability": "stable",
+      "path": "docs/design/runtime-adaptation-formalization.md",
+      "locator": {
+        "type": "comment",
+        "line": 599,
+        "marker": "<!-- SID:impl.runtime.integration_guidelines -->"
+      }
+    },
+    {
+      "sid": "impl.overview.introduction",
+      "title": "实现层总览",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 13,
+        "marker": "<!-- SID:impl.overview.introduction -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "overview"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.techstack.overview",
+      "title": "技术栈选型",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 37,
+        "marker": "<!-- SID:impl.techstack.overview -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "techstack"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.runtime_state.persistence",
+      "title": "RuntimeState / BeliefState 与持久化边界",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 378,
+        "marker": "<!-- SID:impl.runtime_state.persistence -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "runtime_state",
+        "persistence"
+      ],
+      "depends_on": [
+        "arch.contracts.task_snapshot",
+        "planner.algorithm.runtime_state_estimation"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.overview",
+      "title": "REST API 总览",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 518,
+        "marker": "<!-- SID:api.rest.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "api",
+        "rest"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.create_task",
+      "title": "POST /tasks 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 521,
+        "marker": "<!-- SID:api.rest.create_task -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "api",
+        "rest",
+        "task"
+      ],
+      "depends_on": [
+        "agent.contracts.protein_design_task"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.get_pending_actions",
+      "title": "GET /pending-actions 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 658,
+        "marker": "<!-- SID:api.rest.get_pending_actions -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "api",
+        "rest",
+        "hitl",
+        "pending_actions"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.submit_decision",
+      "title": "POST /pending-actions/{id}/decision 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 687,
+        "marker": "<!-- SID:api.rest.submit_decision -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "api",
+        "rest",
+        "hitl",
+        "decision"
+      ],
+      "depends_on": [
+        "arch.contracts.decision"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "api.rest.get_report",
+      "title": "GET /tasks/{task_id}/report 端点",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 739,
+        "marker": "<!-- SID:api.rest.get_report -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "api",
+        "rest",
+        "report"
+      ],
+      "depends_on": [
+        "agent.contracts.design_result"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.nextflow.control_flow_constraints",
+      "title": "Nextflow 接入边界与控制流约束",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 892,
+        "marker": "<!-- SID:impl.nextflow.control_flow_constraints -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "nextflow",
+        "control_flow",
+        "constraints"
+      ],
+      "depends_on": [
+        "arch.execution.nextflow_boundary"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner.tool_resolution",
+      "title": "Planner 工具解析与 KG-only 约束",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1027,
+        "marker": "<!-- SID:impl.planner.tool_resolution -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner",
+        "tool_resolution",
+        "kg"
+      ],
+      "depends_on": [
+        "arch.kg.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.planner.training_and_serving",
+      "title": "Planner 训练与服务化落点",
+      "level": "Block",
+      "tags": [
+        "impl",
+        "planner",
+        "training",
+        "serving"
+      ],
+      "depends_on": [
+        "algollm.llm.training_plan"
+      ],
+      "doc_key": "impl",
+      "stability": "stable",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1046,
+        "marker": "<!-- SID:impl.planner.training_and_serving -->"
+      }
+    },
+    {
+      "sid": "obs.observability.overview",
+      "title": "日志与可观测设计",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1642,
+        "marker": "<!-- SID:obs.observability.overview -->"
+      },
+      "level": "Block",
+      "tags": [
+        "obs",
+        "observability",
+        "overview"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "obs.eventlog.schema",
+      "title": "EventLog 单条日志记录结构",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1647,
+        "marker": "<!-- SID:obs.eventlog.schema -->"
+      },
+      "level": "Block",
+      "tags": [
+        "obs",
+        "eventlog",
+        "observability"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "obs.eventlog.mandatory_events",
+      "title": "事件日志写入约束（必须遵守）",
+      "doc_key": "impl",
+      "path": "docs/design/system-implementation-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 1710,
+        "marker": "<!-- SID:obs.eventlog.mandatory_events -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "obs",
+        "eventlog",
+        "observability",
+        "hitl"
+      ],
+      "depends_on": [
+        "fsm.states.definitions"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.executor.overview",
+      "title": "Executor 可选择的工具",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 27,
+        "marker": "<!-- SID:tools.executor.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "tools",
+        "executor"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.protgpt2.spec",
+      "title": "ProtGPT2 (PLM) 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 49,
+        "marker": "<!-- SID:tools.protgpt2.spec -->"
+      },
+      "level": "Block",
+      "tags": [
+        "tools",
+        "protgpt2",
+        "sequence_generation",
+        "plm"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.esmfold.spec",
+      "title": "ESMFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 95,
+        "marker": "<!-- SID:tools.esmfold.spec -->"
+      },
+      "level": "Block",
+      "tags": [
+        "tools",
+        "esmfold",
+        "structure_prediction"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.nim_esmfold.spec",
+      "title": "NIM ESMFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 132,
+        "marker": "<!-- SID:tools.nim_esmfold.spec -->"
+      },
+      "level": "Block",
+      "tags": [
+        "tools",
+        "nim_esmfold",
+        "structure_prediction",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "tools.esmfold.spec"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.alphafold.spec",
+      "title": "AlphaFold/OpenFold 工具规约",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 173,
+        "marker": "<!-- SID:tools.alphafold.spec -->"
+      },
+      "level": "Block",
+      "tags": [
+        "tools",
+        "alphafold",
+        "structure_prediction"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "tools.integration.priority",
+      "title": "工具集成优先级",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "integration",
+        "priority"
+      ],
+      "depends_on": [
+        "tools.executor.overview"
+      ],
+      "doc_key": "tools",
+      "stability": "stable",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 340,
+        "marker": "<!-- SID:tools.integration.priority -->"
+      }
+    },
+    {
+      "sid": "tools.kg_extension.draft",
+      "title": "KG 扩展草案",
+      "level": "Block",
+      "tags": [
+        "tools",
+        "kg",
+        "extension",
+        "draft"
+      ],
+      "depends_on": [
+        "arch.kg.overview"
+      ],
+      "doc_key": "tools",
+      "stability": "stable",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 367,
+        "marker": "<!-- SID:tools.kg_extension.draft -->"
+      }
+    },
+    {
+      "sid": "tools.adapter.constraints",
+      "title": "ToolAdapter 设计原则与约束",
+      "doc_key": "tools",
+      "path": "docs/design/tools-catalog.md",
+      "locator": {
+        "type": "comment",
+        "line": 475,
+        "marker": "<!-- SID:tools.adapter.constraints BEGIN -->"
+      },
+      "level": "Spec-Item",
+      "tags": [
+        "tools",
+        "adapter",
+        "constraints"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "experiment.group_mapping.overview",
+      "title": "实验分组映射总览",
+      "level": "Section",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "overview"
+      ],
+      "depends_on": [
+        "algo.scope.overview"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:experiment.group_mapping.overview -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.scope",
+      "title": "实验命名统一范围",
+      "level": "Section",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "scope"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.overview"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 5,
+        "marker": "<!-- SID:experiment.group_mapping.scope -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.narrative_layers",
+      "title": "三层实验叙事结构",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "narrative_layers"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.scope"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 20,
+        "marker": "<!-- SID:experiment.group_mapping.narrative_layers -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.a_to_paper",
+      "title": "历史组到论文组映射",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "mapping"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.narrative_layers"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 44,
+        "marker": "<!-- SID:experiment.group_mapping.a_to_paper -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.paper_mainline",
+      "title": "论文主线比较组",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "paper_mainline"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.a_to_paper"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 57,
+        "marker": "<!-- SID:experiment.group_mapping.paper_mainline -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.metric_responsibility",
+      "title": "组别与指标责任矩阵",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "metrics"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.paper_mainline"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 81,
+        "marker": "<!-- SID:experiment.group_mapping.metric_responsibility -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.table_layout",
+      "title": "论文表格布局建议",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "table_layout"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.metric_responsibility"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 92,
+        "marker": "<!-- SID:experiment.group_mapping.table_layout -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.naming",
+      "title": "正文命名规范",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "naming"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.table_layout"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 121,
+        "marker": "<!-- SID:experiment.group_mapping.naming -->"
+      }
+    },
+    {
+      "sid": "experiment.group_mapping.claim_template",
+      "title": "论文主命题模板",
+      "level": "Block",
+      "tags": [
+        "experiment",
+        "group_mapping",
+        "claim_template"
+      ],
+      "depends_on": [
+        "experiment.group_mapping.paper_mainline"
+      ],
+      "doc_key": "experiment_mapping",
+      "stability": "stable",
+      "path": "docs/experiment/algorithm-group-paper-mapping.md",
+      "locator": {
+        "type": "comment",
+        "line": 140,
+        "marker": "<!-- SID:experiment.group_mapping.claim_template -->"
+      }
+    },
+    {
+      "sid": "impl.index.codebase_overview",
+      "title": "实现代码索引与结构化总览",
+      "doc_key": "impl_index",
+      "path": "docs/impl/implementation_index.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.index.codebase_overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "index",
+        "codebase",
+        "overview"
+      ],
+      "depends_on": [
+        "impl.overview.introduction",
+        "impl.techstack.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.llm_provider.guide",
+      "title": "LLM Provider 集成指南",
+      "doc_key": "impl_llm_provider",
+      "path": "docs/impl/llm_provider_guide.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.llm_provider.guide -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "llm_provider",
+        "guide",
+        "overview"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.llm_provider.external_providers",
+      "title": "OpenAICompatibleProvider",
+      "doc_key": "impl_llm_provider",
+      "path": "docs/impl/llm_provider_guide.md",
+      "locator": {
+        "type": "comment",
+        "line": 55,
+        "marker": "<!-- SID:impl.llm_provider.external_providers -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "llm_provider",
+        "external",
+        "openai_compatible"
+      ],
+      "depends_on": [],
       "stability": "stable"
     },
     {
@@ -2543,6 +3130,187 @@
         "impl.planner_llm.structured_output_contract",
         "impl.planner_llm.config_contract"
       ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.overview",
+      "title": "Remote Model Invocation Service",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.remote_model_invocation.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "overview"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.components",
+      "title": "核心组件",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 13,
+        "marker": "<!-- SID:impl.remote_model_invocation.components -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "components"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.rest_api",
+      "title": "REST API 规范",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 169,
+        "marker": "<!-- SID:impl.remote_model_invocation.rest_api -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "rest_api"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.nim_failure_codes",
+      "title": "NVIDIA NIM 失败码定义",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 241,
+        "marker": "<!-- SID:impl.remote_model_invocation.nim_failure_codes -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "nvidia_nim",
+        "failure_codes"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.nvidia_nim",
+      "title": "NVIDIA NIM 集成",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 330,
+        "marker": "<!-- SID:impl.remote_model_invocation.nvidia_nim -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.remote_model_invocation.provider_config",
+      "title": "Provider 配置系统",
+      "doc_key": "impl_remote_model_invocation",
+      "path": "docs/impl/remote_model_invocation.md",
+      "locator": {
+        "type": "comment",
+        "line": 364,
+        "marker": "<!-- SID:impl.remote_model_invocation.provider_config -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "remote_model_invocation",
+        "provider_config",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.nvidia_nim"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.overview",
+      "title": "Snapshot Recovery for Remote Jobs",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 2,
+        "marker": "<!-- SID:impl.snapshot_recovery.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "overview"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.snapshot_schema",
+      "title": "快照结构",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 38,
+        "marker": "<!-- SID:impl.snapshot_recovery.snapshot_schema -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "snapshot",
+        "schema"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "impl.snapshot_recovery.recovery_flow",
+      "title": "恢复流程",
+      "doc_key": "impl_snapshot_recovery",
+      "path": "docs/impl/snapshot-recovery.md",
+      "locator": {
+        "type": "comment",
+        "line": 309,
+        "marker": "<!-- SID:impl.snapshot_recovery.recovery_flow -->"
+      },
+      "level": "Block",
+      "tags": [
+        "impl",
+        "snapshot_recovery",
+        "recovery",
+        "flow"
+      ],
+      "depends_on": [],
       "stability": "stable"
     }
   ]
