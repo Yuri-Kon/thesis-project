@@ -17,9 +17,14 @@ from src.models.validation import validate_candidate_set_output
 from src.models.db import TaskRecord, InternalStatus, to_external_status
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
+from src.workflow.belief_state import extract_failure_context, update_runtime_state
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
-from src.workflow.recovery import resolve_s6_recovery_action
+from src.workflow.recovery import (
+    WorkflowActionSelectorInput,
+    resolve_s6_recovery_action,
+    select_workflow_action,
+)
 from src.workflow.snapshots import build_context_runtime_state_summary
 from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
@@ -77,8 +82,18 @@ class PatchRunner:
         """执行指定 step；必要时进行一次 patch 并重新执行该 step"""
         step = plan.steps[step_index]
         result = self._step_runner.run_step(step, context)
+        runtime_state_preview = self._build_runtime_state_preview(
+            plan=plan,
+            context=context,
+            result=result,
+        )
 
-        if not self._should_patch(result):
+        action = self._select_failed_step_action(
+            result,
+            context=context,
+            runtime_state_preview=runtime_state_preview,
+        )
+        if action is None:
             return PatchRunOutcome(
                 plan=plan,
                 step_results=[result],
@@ -110,6 +125,7 @@ class PatchRunner:
                 patch_top_k = self._planner.patch_top_k(
                     patch_request,
                     k=_resolve_top_k(context.task.constraints.get("patch_top_k"), default=3),
+                    runtime_state=runtime_state_preview,
                 )
                 selected_candidate = next(
                     (
@@ -121,6 +137,22 @@ class PatchRunner:
                 )
                 if selected_candidate is None:
                     raise ValueError("patch_top_k returned no candidates")
+                candidate_action = self._select_candidate_action(
+                    context=context,
+                    result=result,
+                    runtime_state_preview=runtime_state_preview,
+                    phase="patch",
+                    suggested_action=selected_candidate.metadata.get("shadow_action"),
+                    suggested_reason=selected_candidate.metadata.get(
+                        "shadow_action_reason"
+                    ),
+                )
+                if candidate_action.action != "patch_local":
+                    return PatchRunOutcome(
+                        plan=plan,
+                        step_results=[result],
+                        next_step_index=step_index + 1,
+                    )
                 payload = selected_candidate.structured_payload
                 if not isinstance(payload, PlanPatch):
                     raise ValueError("patch_top_k default candidate is not PlanPatch")
@@ -200,6 +232,15 @@ class PatchRunner:
                 default_suggestion=patch_top_k.default_recommendation,
                 default_recommendation=patch_top_k.default_recommendation,
                 explanation=f"{patch_top_k.explanation} gate={gate.reason}",
+                metadata={
+                    "workflow_action": result.metrics.get("workflow_action"),
+                    "workflow_action_reason": result.metrics.get(
+                        "workflow_action_reason"
+                    ),
+                    "workflow_action_evidence": result.metrics.get(
+                        "workflow_action_evidence"
+                    ),
+                },
             )
             validate_candidate_set_output(
                 pending_action,
@@ -378,6 +419,94 @@ class PatchRunner:
         result.metrics.setdefault("s6_recovery_action", action)
         return action == "patch"
 
+    def _build_runtime_state_preview(
+        self,
+        *,
+        plan: Plan,
+        context: WorkflowContext,
+        result: StepResult,
+    ):
+        completed_steps = len(context.step_results)
+        if result.step_id not in context.step_results:
+            completed_steps += 1
+        return update_runtime_state(
+            previous_state=context.runtime_state,
+            step_result=result,
+            failure_context=extract_failure_context(result),
+            completed_steps=completed_steps,
+            total_steps=len(plan.steps),
+        )
+
+    def _select_failed_step_action(
+        self,
+        result: StepResult,
+        *,
+        context: WorkflowContext,
+        runtime_state_preview,
+    ):
+        if result.status != "failed":
+            return None
+
+        stage_id = _extract_stage_id(result)
+        failure_code = _extract_failure_code(result)
+        retry_exhausted = bool(result.metrics.get("retry_exhausted"))
+        s6_action = resolve_s6_recovery_action(
+            stage_id=stage_id,
+            failure_code=failure_code,
+            failure_type=result.failure_type,
+            retry_exhausted=retry_exhausted,
+            safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
+        )
+        result.metrics.setdefault("s6_trigger_stage_id", stage_id)
+        result.metrics.setdefault("s6_trigger_failure_code", failure_code)
+        result.metrics.setdefault("s6_recovery_action", s6_action)
+
+        decision = select_workflow_action(
+            WorkflowActionSelectorInput(
+                phase="patch",
+                stage_id=stage_id,
+                failure_code=failure_code,
+                failure_type=result.failure_type,
+                retry_exhausted=retry_exhausted,
+                safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
+                runtime_state_summary=runtime_state_preview.to_summary_payload(),
+            )
+        )
+        _attach_workflow_action_meta(result, decision)
+        if decision.action != "patch_local":
+            metrics = dict(result.metrics)
+            metrics.setdefault("retry_exhausted", True)
+            result.metrics = metrics
+        if decision.action != "patch_local":
+            return None
+        return decision
+
+    def _select_candidate_action(
+        self,
+        *,
+        context: WorkflowContext,
+        result: StepResult,
+        runtime_state_preview,
+        phase: str,
+        suggested_action: Any,
+        suggested_reason: Any,
+    ):
+        decision = select_workflow_action(
+            WorkflowActionSelectorInput(
+                phase=phase,
+                stage_id=_extract_stage_id(result),
+                failure_code=_extract_failure_code(result),
+                failure_type=result.failure_type,
+                retry_exhausted=bool(result.metrics.get("retry_exhausted")),
+                safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
+                runtime_state_summary=runtime_state_preview.to_summary_payload(),
+                suggested_action=suggested_action if isinstance(suggested_action, str) else None,
+                suggested_reason=suggested_reason if isinstance(suggested_reason, str) else None,
+            )
+        )
+        _attach_workflow_action_meta(result, decision)
+        return decision
+
     def _attach_patch_meta(
         self,
         patched_result: StepResult,
@@ -514,6 +643,18 @@ def _attach_recovery_upgrade_meta(
         normalized_code = f"PATCH_{normalized_code}"
     error_details["failure_code"] = normalized_code
     result.error_details = error_details
+
+
+def _attach_workflow_action_meta(
+    result: StepResult,
+    decision,
+) -> None:
+    metrics = dict(result.metrics)
+    metrics["workflow_action"] = decision.action
+    metrics["workflow_action_mapped_flow"] = decision.mapped_flow
+    metrics["workflow_action_reason"] = decision.reason
+    metrics["workflow_action_evidence"] = dict(decision.evidence_source)
+    result.metrics = metrics
 
 
 def _emit_replacement_decision_event(

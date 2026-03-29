@@ -47,6 +47,9 @@ __all__ = [
     "persist_structure_refinement_audit",
     "S6_TRIGGER_MATRIX_VERSION",
     "get_s6_trigger_matrix",
+    "WorkflowActionSelectorInput",
+    "WorkflowActionSelectorResult",
+    "select_workflow_action",
     "resolve_s6_recovery_action",
 ]
 
@@ -74,6 +77,19 @@ _S6_STAGE_TRIGGER_MATRIX: dict[str, dict[str, Any]] = {
     },
 }
 
+_WORKFLOW_ACTION_TO_FLOW = {
+    "continue": "continue",
+    "patch_local": "patch",
+    "suffix_replan": "replan",
+    "stop": "stop",
+}
+
+_PHASE_ALLOWED_ACTIONS: dict[str, frozenset[str]] = {
+    "execution": frozenset({"continue", "patch_local", "suffix_replan", "stop"}),
+    "patch": frozenset({"patch_local", "suffix_replan", "stop"}),
+    "replan": frozenset({"continue", "suffix_replan", "stop"}),
+}
+
 
 def get_s6_trigger_matrix() -> dict[str, Any]:
     """返回 S6 阶段感知触发矩阵（用于审计与文档）。"""
@@ -81,6 +97,144 @@ def get_s6_trigger_matrix() -> dict[str, Any]:
         "version": S6_TRIGGER_MATRIX_VERSION,
         "stages": json.loads(json.dumps(_S6_STAGE_TRIGGER_MATRIX, ensure_ascii=True)),
     }
+
+
+@dataclass(frozen=True)
+class WorkflowActionSelectorInput:
+    """统一动作选择器输入契约。"""
+
+    phase: str = "execution"
+    stage_id: str | None = None
+    failure_code: str | None = None
+    failure_type: FailureType | str | None = None
+    retry_exhausted: bool = False
+    safety_blocked: bool = False
+    runtime_state_summary: dict[str, Any] | None = None
+    suggested_action: str | None = None
+    suggested_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class WorkflowActionSelectorResult:
+    """动作选择器输出契约。"""
+
+    action: str
+    mapped_flow: str
+    reason: str
+    evidence_source: dict[str, Any]
+
+
+def select_workflow_action(
+    selector_input: WorkflowActionSelectorInput,
+) -> WorkflowActionSelectorResult:
+    """根据失败上下文与 runtime_state 选择既有 Workflow 的下一步动作。"""
+
+    phase = _normalize_selector_phase(selector_input.phase)
+    allowed_actions = _PHASE_ALLOWED_ACTIONS[phase]
+    suggested_action = _normalize_workflow_action(selector_input.suggested_action)
+    if suggested_action not in allowed_actions:
+        suggested_action = None
+
+    runtime_summary = _normalize_runtime_state_summary(
+        selector_input.runtime_state_summary
+    )
+    p_success = _safe_float(runtime_summary.get("p_success"), default=0.5)
+    p_structural_failure = _safe_float(
+        runtime_summary.get("p_structural_failure"),
+        default=0.25,
+    )
+    recovery_margin = _safe_float(
+        runtime_summary.get("recovery_margin"),
+        default=0.6,
+    )
+    expected_remaining_cost = _safe_float(
+        runtime_summary.get("expected_remaining_cost"),
+        default=1.0,
+    )
+    cost_pressure = min(max(expected_remaining_cost, 0.0) / 5.0, 1.0)
+
+    normalized_failure_type = _normalize_failure_type(selector_input.failure_type)
+    normalized_failure_code = _normalize_text(selector_input.failure_code)
+    normalized_stage_id = _normalize_text(selector_input.stage_id)
+    has_failure_signal = (
+        normalized_failure_type is not None
+        or normalized_failure_code is not None
+        or bool(selector_input.retry_exhausted)
+        or bool(selector_input.safety_blocked)
+    )
+    s6_default_action = resolve_s6_recovery_action(
+        stage_id=normalized_stage_id,
+        failure_code=normalized_failure_code,
+        failure_type=normalized_failure_type,
+        retry_exhausted=bool(selector_input.retry_exhausted),
+        safety_blocked=bool(selector_input.safety_blocked),
+    )
+
+    if suggested_action is not None:
+        action = suggested_action
+        reason = selector_input.suggested_reason or (
+            f"candidate/runtime suggestion selected {suggested_action}"
+        )
+        basis = "suggested_action"
+    elif not has_failure_signal:
+        action = "continue"
+        reason = "no failure or safety signal is present in the current execution step"
+        basis = "default_continue"
+    elif p_success <= 0.25 and cost_pressure >= 0.7 and "stop" in allowed_actions:
+        action = "stop"
+        reason = "success probability is low while remaining cost pressure is high"
+        basis = "runtime_state"
+    elif (
+        phase != "replan"
+        and "patch_local" in allowed_actions
+        and s6_default_action == "patch"
+        and not (
+            p_structural_failure >= 0.55
+            and recovery_margin <= 0.1
+        )
+    ):
+        action = "patch_local"
+        reason = "failure still looks local and existing recovery order prefers patch"
+        basis = "s6_trigger_matrix"
+    elif (
+        "suffix_replan" in allowed_actions
+        and (
+            s6_default_action == "replan"
+            or (
+                p_structural_failure >= 0.55
+                and recovery_margin <= 0.1
+            )
+        )
+    ):
+        action = "suffix_replan"
+        reason = (
+            "structural failure pressure is high or trigger matrix already prefers replan"
+        )
+        basis = "runtime_state+s6_trigger_matrix"
+    else:
+        action = "continue"
+        reason = "current context does not justify escalating beyond the existing path"
+        basis = "default_continue"
+
+    return WorkflowActionSelectorResult(
+        action=action,
+        mapped_flow=_WORKFLOW_ACTION_TO_FLOW[action],
+        reason=reason,
+        evidence_source={
+            "phase": phase,
+            "basis": basis,
+            "stage_id": normalized_stage_id,
+            "failure_code": normalized_failure_code,
+            "failure_type": (
+                normalized_failure_type.value
+                if isinstance(normalized_failure_type, FailureType)
+                else None
+            ),
+            "retry_exhausted": bool(selector_input.retry_exhausted),
+            "s6_default_action": s6_default_action,
+            "runtime_state_summary": runtime_summary or None,
+        },
+    )
 
 
 def resolve_s6_recovery_action(
@@ -119,6 +273,44 @@ def resolve_s6_recovery_action(
     if retry_exhausted:
         return "patch"
     return "replan"
+
+
+def _normalize_selector_phase(value: str | None) -> str:
+    normalized = _normalize_text(value) or "execution"
+    if normalized not in _PHASE_ALLOWED_ACTIONS:
+        return "execution"
+    return normalized
+
+
+def _normalize_workflow_action(value: str | None) -> str | None:
+    normalized = _normalize_text(value)
+    if normalized in _WORKFLOW_ACTION_TO_FLOW:
+        return normalized
+    return None
+
+
+def _normalize_runtime_state_summary(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    return dict(payload)
+
+
+def _normalize_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _safe_float(value: object, *, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
