@@ -1,8 +1,8 @@
 {
-  "version": "1.3",
+  "version": "1.4",
   "generated_at": "2026-03-29",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 152,
+  "total_specs": 173,
   "documents": [
     {
       "doc_key": "arch",
@@ -158,6 +158,18 @@
         "agent",
         "impl",
         "algo"
+      ]
+    },
+    {
+      "doc_key": "interface_surfaces",
+      "title": "交互入口设计：Web 主界面与 CLI 辅助入口",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "arch",
+        "hitl",
+        "impl"
       ]
     },
     {
@@ -3311,6 +3323,456 @@
         "flow"
       ],
       "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.overview.entry_surfaces",
+      "title": "交互入口总览",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 9,
+        "marker": "<!-- SID:interface.overview.entry_surfaces -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "overview",
+        "entry_surfaces"
+      ],
+      "depends_on": [],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.scope.positioning",
+      "title": "范围与定位",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 12,
+        "marker": "<!-- SID:interface.scope.positioning -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "scope",
+        "positioning"
+      ],
+      "depends_on": [
+        "interface.overview.entry_surfaces"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.goals.design_targets",
+      "title": "设计目标与非目标",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 25,
+        "marker": "<!-- SID:interface.goals.design_targets -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "goals",
+        "design"
+      ],
+      "depends_on": [
+        "interface.scope.positioning"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.architecture.dual_surface",
+      "title": "双入口架构",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 43,
+        "marker": "<!-- SID:interface.architecture.dual_surface -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "architecture",
+        "dual_surface"
+      ],
+      "depends_on": [
+        "interface.goals.design_targets"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web.primary_workspace",
+      "title": "Web 端：主操纵空间",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 52,
+        "marker": "<!-- SID:interface.web.primary_workspace -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "primary_workspace"
+      ],
+      "depends_on": [
+        "interface.architecture.dual_surface"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.headless_entry",
+      "title": "CLI：控制台与无头环境入口",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 65,
+        "marker": "<!-- SID:interface.cli.headless_entry -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "cli",
+        "headless"
+      ],
+      "depends_on": [
+        "interface.architecture.dual_surface"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cross_surface.relationship",
+      "title": "Web 与 CLI 的协同关系",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 77,
+        "marker": "<!-- SID:interface.cross_surface.relationship -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "cli",
+        "collaboration"
+      ],
+      "depends_on": [
+        "interface.web.primary_workspace",
+        "interface.cli.headless_entry"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.scenarios.applicability",
+      "title": "适用场景",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 89,
+        "marker": "<!-- SID:interface.scenarios.applicability -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "scenarios",
+        "applicability"
+      ],
+      "depends_on": [
+        "interface.cross_surface.relationship"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.scenarios.web_first",
+      "title": "Web 优先场景",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 92,
+        "marker": "<!-- SID:interface.scenarios.web_first -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "scenarios",
+        "web"
+      ],
+      "depends_on": [
+        "interface.scenarios.applicability"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.scenarios.cli_first",
+      "title": "CLI 优先场景",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 103,
+        "marker": "<!-- SID:interface.scenarios.cli_first -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "scenarios",
+        "cli"
+      ],
+      "depends_on": [
+        "interface.scenarios.applicability"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.scenarios.hybrid",
+      "title": "协同切换场景",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 114,
+        "marker": "<!-- SID:interface.scenarios.hybrid -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "scenarios",
+        "hybrid"
+      ],
+      "depends_on": [
+        "interface.scenarios.applicability"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.capability_scope",
+      "title": "CLI 功能边界与命令面",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 124,
+        "marker": "<!-- SID:interface.cli.capability_scope -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "capabilities"
+      ],
+      "depends_on": [
+        "interface.cli.headless_entry"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.headless_guarantee",
+      "title": "CLI 无头环境最小闭环保证",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 129,
+        "marker": "<!-- SID:interface.cli.headless_guarantee -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "cli",
+        "requirements",
+        "headless"
+      ],
+      "depends_on": [
+        "interface.cli.capability_scope"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.web_handoff",
+      "title": "CLI 向 Web 的显式跳转约束",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 142,
+        "marker": "<!-- SID:interface.cli.web_handoff -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "cli",
+        "web",
+        "handoff"
+      ],
+      "depends_on": [
+        "interface.cli.capability_scope"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.command_tree",
+      "title": "CLI 建议命令树",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 150,
+        "marker": "<!-- SID:interface.cli.command_tree -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "cli",
+        "commands"
+      ],
+      "depends_on": [
+        "interface.cli.capability_scope"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web.capability_scope",
+      "title": "Web 功能边界",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 178,
+        "marker": "<!-- SID:interface.web.capability_scope -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "capabilities"
+      ],
+      "depends_on": [
+        "interface.web.primary_workspace"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web.information_architecture",
+      "title": "Web 页面信息架构",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 192,
+        "marker": "<!-- SID:interface.web.information_architecture -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "information_architecture"
+      ],
+      "depends_on": [
+        "interface.web.capability_scope"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.constraints.contract_alignment",
+      "title": "与现有系统契约的对齐要求",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 205,
+        "marker": "<!-- SID:interface.constraints.contract_alignment -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "constraints",
+        "contract_alignment"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "api.rest.submit_decision",
+        "obs.eventlog.mandatory_events"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli.backend_compatibility",
+      "title": "CLI 后端形态兼容性",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 218,
+        "marker": "<!-- SID:interface.cli.backend_compatibility -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "cli",
+        "requirements",
+        "compatibility"
+      ],
+      "depends_on": [
+        "interface.constraints.contract_alignment",
+        "api.rest.create_task"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.integration.api_boundary",
+      "title": "API 集成边界",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 227,
+        "marker": "<!-- SID:interface.integration.api_boundary -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "api",
+        "integration"
+      ],
+      "depends_on": [
+        "api.rest.create_task",
+        "api.rest.get_pending_actions",
+        "api.rest.submit_decision"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.rollout.milestones",
+      "title": "演进路线",
+      "doc_key": "interface_surfaces",
+      "path": "docs/design/interaction-entry-surfaces.md",
+      "locator": {
+        "type": "comment",
+        "line": 241,
+        "marker": "<!-- SID:interface.rollout.milestones -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "rollout",
+        "milestones"
+      ],
+      "depends_on": [
+        "interface.cli.command_tree",
+        "interface.web.information_architecture"
+      ],
       "stability": "stable"
     }
   ]

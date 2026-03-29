@@ -53,6 +53,7 @@ SID:hitl.decision.approval_flow
 | `summarizer` | Summarizer Agent 与报告生成 | agent-design.md, system-implementation-design.md |
 | `arch` | 总体架构与分层设计 | architecture.md |
 | `workflow` | de novo 工作流分层与模块化设计 | de-novo-workflow.md |
+| `interface` | 交互入口、CLI/Web 协同与信息架构 | interaction-entry-surfaces.md |
 | `api` | REST API 与接口契约 | system-implementation-design.md |
 | `kg` | ProteinToolKG 知识图谱 | system-implementation-design.md |
 | `experiment` | 实验分组、评估口径与论文映射 | docs/experiment/*.md |

@@ -19,6 +19,7 @@
 | `summarizer` | agent-design.md | SummarizerAgent 接口与职责边界 |
 | `tools` | tools-catalog.md（目录与适配约束）<br>active-tool-metadata-profile.md（活跃工具元数据） | tools-catalog.md 负责工具目录与 ToolAdapter 约束；active-tool-metadata-profile.md 负责当前活跃工具的成本/风险/恢复先验 |
 | `workflow` | de-novo-workflow.md | de novo 工作流分层、模块化与循环控制 |
+| `interface` | interaction-entry-surfaces.md | Web 主操纵空间、CLI 辅助入口、无头环境兼容与双入口协同 |
 | `api` | system-implementation-design.md | REST API 端点定义与契约 |
 | `obs` | system-implementation-design.md | 可观测性（EventLog）、日志模式与约束 |
 | `storage` | system-implementation-design.md | 数据存储与持久化 |
@@ -144,6 +145,32 @@
 | `SID:workflow.loops.and_crosscut` | 可循环步骤与贯穿步骤 | Section |
 | `SID:workflow.integration.responsibilities` | 分工映射（Planner/Executor/Safety） | Section |
 | `SID:workflow.examples.template` | 示例流程模板（非线性） | Section |
+
+### `interface` Domain（SSOT: interaction-entry-surfaces.md）
+
+| SID | 说明 | 粒度 |
+|-----|------|------|
+| `SID:interface.overview.entry_surfaces` | 交互入口总览 | Section |
+| `SID:interface.scope.positioning` | 范围与定位 | Section |
+| `SID:interface.goals.design_targets` | 设计目标与非目标 | Section |
+| `SID:interface.architecture.dual_surface` | 双入口架构 | Section |
+| `SID:interface.web.primary_workspace` | Web 端：主操纵空间 | Block |
+| `SID:interface.cli.headless_entry` | CLI：控制台与无头环境入口 | Block |
+| `SID:interface.cross_surface.relationship` | Web 与 CLI 的协同关系 | Block |
+| `SID:interface.scenarios.applicability` | 适用场景 | Section |
+| `SID:interface.scenarios.web_first` | Web 优先场景 | Block |
+| `SID:interface.scenarios.cli_first` | CLI 优先场景 | Block |
+| `SID:interface.scenarios.hybrid` | 协同切换场景 | Block |
+| `SID:interface.cli.capability_scope` | CLI 功能边界与命令面 | Section |
+| `SID:interface.cli.headless_guarantee` | CLI 无头环境最小闭环保证 | Block |
+| `SID:interface.cli.web_handoff` | CLI 向 Web 的显式跳转约束 | Block |
+| `SID:interface.cli.command_tree` | CLI 建议命令树 | Block |
+| `SID:interface.web.capability_scope` | Web 功能边界 | Section |
+| `SID:interface.web.information_architecture` | Web 页面信息架构 | Block |
+| `SID:interface.constraints.contract_alignment` | 与现有系统契约的对齐要求 | Section |
+| `SID:interface.cli.backend_compatibility` | CLI 后端形态兼容性 | Block |
+| `SID:interface.integration.api_boundary` | API 集成边界 | Block |
+| `SID:interface.rollout.milestones` | 演进路线 | Section |
 
 ### `algo` Domain（SSOT: core-algorithm-spec.md / runtime-adaptation-formalization.md）
 
@@ -293,6 +320,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.4 | 2026-03-29 | 新增 interface 域及 interaction-entry-surfaces.md，定义 Web/CLI 双入口定位、最小 CLI 闭环与双入口协同边界 |
 | 1.3 | 2026-03-29 | 纳入 runtime-adaptation-formalization、active-tool-metadata-profile 与 algorithm-group-paper-mapping；新增 experiment 域并对齐 planning/execution/observability 的 SSOT 入口 |
 | 1.2 | 2026-03-24 | 新增自适应规划相关 SID，补充 workflow/impl/algo 映射，并对齐 docslice 检索入口 |
 | 1.1 | 2026-01-11 | 首版 SSOT 映射，覆盖架构、FSM、Agent、工具、实现与 HITL 概念 |

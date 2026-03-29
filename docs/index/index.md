@@ -11,10 +11,10 @@
 
 ## 索引总览
 
-**版本**: 1.3
+**版本**: 1.4
 **生成日期**: 2026-03-29
-**总规范数**: 152
-**文档数**: 17
+**总规范数**: 173
+**文档数**: 18
 
 ---
 
@@ -36,6 +36,7 @@
 | `tools` | Tools Catalog | [docs/design/tools-catalog.md](../design/tools-catalog.md) | stable | impl, algo |
 | `tools_metadata` | 活跃工具元数据画像 | [docs/design/active-tool-metadata-profile.md](../design/active-tool-metadata-profile.md) | stable | tools, algo_runtime, impl |
 | `hitl` | Human-in-the-loop 扩展设计 | [docs/design/hitl-extension.md](../design/hitl-extension.md) | stable | arch, agent, impl, algo |
+| `interface_surfaces` | 交互入口设计：Web 主界面与 CLI 辅助入口 | [docs/design/interaction-entry-surfaces.md](../design/interaction-entry-surfaces.md) | stable | arch, hitl, impl |
 | `algocore` | 核心算法定义 | [docs/algorithm-and-llm/core-algorithm-define.md](../algorithm-and-llm/core-algorithm-define.md) | stable | algo, de_novo_workflow |
 | `llmtrain` | Planner 大模型能力要求与专用训练方案 | [docs/algorithm-and-llm/train-llm.md](../algorithm-and-llm/train-llm.md) | stable | algo, impl_llm_provider |
 | `experiment_mapping` | 实验分组与论文叙事映射 | [docs/experiment/algorithm-group-paper-mapping.md](../experiment/algorithm-group-paper-mapping.md) | stable | algo, de_novo_workflow |
@@ -238,7 +239,37 @@
 
 ---
 
-### 12. `impl` Domain（实现层）
+### 12. `interface` Domain（交互入口）
+
+**SSOT 文档**: interaction-entry-surfaces.md
+
+| SID | 标题 | 级别 | 标签 |
+|-----|------|------|------|
+| `interface.overview.entry_surfaces` | 交互入口总览 | Section | interface, overview, entry_surfaces |
+| `interface.scope.positioning` | 范围与定位 | Section | interface, scope, positioning |
+| `interface.goals.design_targets` | 设计目标与非目标 | Section | interface, goals, design |
+| `interface.architecture.dual_surface` | 双入口架构 | Section | interface, architecture, dual_surface |
+| `interface.web.primary_workspace` | Web 端：主操纵空间 | Block | interface, web, primary_workspace |
+| `interface.cli.headless_entry` | CLI：控制台与无头环境入口 | Block | interface, cli, headless |
+| `interface.cross_surface.relationship` | Web 与 CLI 的协同关系 | Block | interface, web, cli, collaboration |
+| `interface.scenarios.applicability` | 适用场景 | Section | interface, scenarios, applicability |
+| `interface.scenarios.web_first` | Web 优先场景 | Block | interface, scenarios, web |
+| `interface.scenarios.cli_first` | CLI 优先场景 | Block | interface, scenarios, cli |
+| `interface.scenarios.hybrid` | 协同切换场景 | Block | interface, scenarios, hybrid |
+| `interface.cli.capability_scope` | CLI 功能边界与命令面 | Section | interface, cli, capabilities |
+| `interface.cli.headless_guarantee` | CLI 无头环境最小闭环保证 | Block | interface, cli, requirements, headless |
+| `interface.cli.web_handoff` | CLI 向 Web 的显式跳转约束 | Block | interface, cli, web, handoff |
+| `interface.cli.command_tree` | CLI 建议命令树 | Block | interface, cli, commands |
+| `interface.web.capability_scope` | Web 功能边界 | Section | interface, web, capabilities |
+| `interface.web.information_architecture` | Web 页面信息架构 | Block | interface, web, information_architecture |
+| `interface.constraints.contract_alignment` | 与现有系统契约的对齐要求 | Section | interface, constraints, contract_alignment |
+| `interface.cli.backend_compatibility` | CLI 后端形态兼容性 | Block | interface, cli, requirements, compatibility |
+| `interface.integration.api_boundary` | API 集成边界 | Block | interface, api, integration |
+| `interface.rollout.milestones` | 演进路线 | Section | interface, rollout, milestones |
+
+---
+
+### 13. `impl` Domain（实现层）
 
 **SSOT 文档**: system-implementation-design.md
 
@@ -278,7 +309,7 @@
 
 ---
 
-### 13. `tools` Domain（工具集成）
+### 14. `tools` Domain（工具集成）
 
 **SSOT 文档**: tools-catalog.md / active-tool-metadata-profile.md
 
@@ -302,7 +333,7 @@
 
 ---
 
-### 14. `experiment` Domain（实验叙事映射）
+### 15. `experiment` Domain（实验叙事映射）
 
 **SSOT 文档**: algorithm-group-paper-mapping.md
 
@@ -338,10 +369,11 @@
 | tools-catalog.md | 1 | 6 | 1 | 8 |
 | active-tool-metadata-profile.md | 2 | 5 | 0 | 7 |
 | hitl-extension.md | 0 | 0 | 0 | 0 |
+| interaction-entry-surfaces.md | 9 | 12 | 0 | 21 |
 | core-algorithm-define.md | 1 | 0 | 0 | 1 |
 | train-llm.md | 1 | 0 | 0 | 1 |
 | algorithm-group-paper-mapping.md | 2 | 7 | 0 | 9 |
-| **总计** | **42** | **83** | **27** | **152** |
+| **总计** | **51** | **95** | **27** | **173** |
 
 **注**: `hitl-extension.md` 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 
@@ -351,9 +383,9 @@
 
 | 粒度 | 数量 | 占比 |
 |------|------|------|
-| Section | 42 | 28% |
-| Block | 83 | 55% |
-| Spec-Item | 27 | 18% |
+| Section | 51 | 29% |
+| Block | 95 | 55% |
+| Spec-Item | 27 | 16% |
 
 ---
 
@@ -372,6 +404,7 @@
 - **remote_model_invocation**: 远程模型调用
 - **algorithm_llm**: Core Algorithm and LLM Training
 - **experiment**: Experiment Narrative Mapping
+- **interaction**: Web/CLI Interaction Surfaces
 
 ---
 
@@ -412,6 +445,7 @@ jq ".specs[] | select(.tags | contains(["experiment"]))" index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.4 | 2026-03-29 | 新增 interaction-entry-surfaces.md，纳入 interface 域与 interaction topic，并再生索引统计（总计 173） |
 | 1.3 | 2026-03-29 | 纳入运行时形式化、活跃工具元数据和实验映射文档；再生全部 locator；扩展 planning/execution/observability 并新增 experiment topic（总计 152） |
 | 1.2 | 2026-03-24 | 纳入自适应规划新 SID，修复 docslice locator 漂移，更新 planning/execution/observability 索引统计（总计 117） |
 | 1.1 | 2026-02-01 | 新增 ProtGPT2 工具规约，更新 tools 索引与统计（总计 83） |

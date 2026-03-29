@@ -1,5 +1,5 @@
 {
-  "version": "1.3",
+  "version": "1.4",
   "generated_at": "2026-03-29",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
@@ -1171,11 +1171,109 @@
       "critical_specs": 3,
       "high_specs": 4,
       "medium_specs": 1
+    },
+    "interaction": {
+      "title": "Interaction Surfaces",
+      "description": "Web 主界面与 CLI 辅助入口的定位、场景、命令面与契约对齐约束",
+      "use_case": "设计 CLI、前端交互层或无头环境操作流时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "interface.overview.entry_surfaces",
+          "title": "交互入口总览",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "critical",
+          "rationale": "定义 Web/CLI 双入口的总体定位"
+        },
+        {
+          "sid": "interface.cli.headless_guarantee",
+          "title": "CLI 无头环境最小闭环保证",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "critical",
+          "rationale": "确保无图形界面下仍可完成最小闭环"
+        },
+        {
+          "sid": "interface.cli.web_handoff",
+          "title": "CLI 向 Web 的显式跳转约束",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "high",
+          "rationale": "定义纯 CLI 与 Web 主界面的衔接方式"
+        },
+        {
+          "sid": "interface.cli.command_tree",
+          "title": "CLI 建议命令树",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "high",
+          "rationale": "给出 CLI MVP 的正式命令面"
+        },
+        {
+          "sid": "interface.web.information_architecture",
+          "title": "Web 页面信息架构",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "high",
+          "rationale": "定义 Web 主操纵空间的页面结构"
+        },
+        {
+          "sid": "interface.constraints.contract_alignment",
+          "title": "与现有系统契约的对齐要求",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "critical",
+          "rationale": "防止交互层绕过 FSM、PendingAction 与 Decision 契约"
+        },
+        {
+          "sid": "interface.cli.backend_compatibility",
+          "title": "CLI 后端形态兼容性",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "high",
+          "rationale": "确保 CLI 同时兼容同步提交和异步轮询模式"
+        },
+        {
+          "sid": "arch.contracts.pending_action",
+          "title": "PendingAction 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "等待人工确认时的核心待办对象"
+        },
+        {
+          "sid": "api.rest.create_task",
+          "title": "POST /tasks 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "定义任务提交入口与返回语义"
+        },
+        {
+          "sid": "api.rest.submit_decision",
+          "title": "POST /pending-actions/{id}/decision 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "定义人工确认提交的唯一正式接口"
+        },
+        {
+          "sid": "obs.eventlog.mandatory_events",
+          "title": "事件日志写入约束（必须遵守）",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "交互入口必须尊重 WAITING/DECISION 的持久化顺序"
+        }
+      ],
+      "total_specs": 11,
+      "critical_specs": 5,
+      "high_specs": 6
     }
   },
   "summary": {
-    "total_topics": 11,
-    "total_unique_specs": 110,
+    "total_topics": 12,
+    "total_unique_specs": 118,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {
