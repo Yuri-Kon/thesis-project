@@ -30,6 +30,7 @@ from src.workflow.pending_action import build_pending_action, enter_waiting_stat
 from src.agents.safety import SafetyAgent
 from src.workflow.status import transition_task_status
 from src.workflow.snapshots import build_context_runtime_state_summary
+from src.workflow.recovery import WorkflowActionSelectorInput, select_workflow_action
 from src.workflow.errors import (
     FailureType,
     PlanRunError,
@@ -264,6 +265,7 @@ class PlanRunner:
                             pending_patch,
                         )
                     self._add_step_result(context, step_result)
+                    self._ensure_step_workflow_action(context, step_result)
                     self._emit_step_event(context, step_result)
                     # 读取失败分类与可重试标记，供日志/上层使用（不改变控制流）
                     step_result.metrics.setdefault(
@@ -284,6 +286,7 @@ class PlanRunner:
                         failed_result = step_result
 
                 if failed_result is not None:
+                    workflow_action = self._extract_workflow_action(failed_result)
                     failure_reason = "step_failed"
                     patch_meta = failed_result.metrics.get("patch")
                     recovery_meta = failed_result.metrics.get("recovery")
@@ -303,6 +306,21 @@ class PlanRunner:
                         failure_reason = "safety_block"
                         request_failure_type = FailureType.SAFETY_BLOCK
                         request_code = "SAFETY_POST_BLOCK"
+                    elif workflow_action == "suffix_replan":
+                        failure_reason = "suffix_replan_requested"
+                        request_code = "SUFFIX_REPLAN_REQUESTED"
+                    elif workflow_action == "stop":
+                        self._request_stop(
+                            context,
+                            record,
+                            failure_type=request_failure_type,
+                            message=(
+                                f"Adaptive selector requested stop after "
+                                f"step {failed_result.step_id} failed"
+                            ),
+                            step_id=failed_result.step_id,
+                            explanation=self._build_stop_explanation(failed_result),
+                        )
                     explanation = self._build_replan_explanation(
                         failure_reason,
                         failed_result,
@@ -478,6 +496,7 @@ class PlanRunner:
         failure_context = self._summarize_failure_result(failed_result)
         options = self._build_replan_options(failure_context.get("failure_code"))
         payload = {
+            "action_name": self._extract_workflow_action(failed_result),
             "reason": reason,
             "failure": failure_context,
             "options": options,
@@ -504,6 +523,17 @@ class PlanRunner:
         if isinstance(failure_code, str) and failure_code.startswith("S3_"):
             options.append("suffix_replan")
         return options
+
+    def _build_stop_explanation(self, failed_result: StepResult) -> str:
+        payload = {
+            "action_name": "stop",
+            "failure": self._summarize_failure_result(failed_result),
+            "options": ["continue", "cancel"],
+        }
+        return (
+            "adaptive stop requested; "
+            f"context={json.dumps(payload, ensure_ascii=True)}"
+        )
 
     def _summarize_failure_result(self, result: StepResult) -> dict:
         failure_code = None
@@ -537,6 +567,55 @@ class PlanRunner:
             except ValueError:
                 pass
         return FailureType.NON_RETRYABLE
+
+    def _extract_workflow_action(self, result: StepResult) -> str | None:
+        action = result.metrics.get("workflow_action")
+        if isinstance(action, str) and action:
+            return action
+        return None
+
+    def _ensure_step_workflow_action(
+        self,
+        context: WorkflowContext,
+        step_result: StepResult,
+    ) -> None:
+        if self._extract_workflow_action(step_result):
+            return
+        runtime_state_summary = build_context_runtime_state_summary(
+            context,
+            require_runtime_state=True,
+        )
+        decision = select_workflow_action(
+            WorkflowActionSelectorInput(
+                phase="execution",
+                stage_id=(
+                    step_result.outputs.get("stage_id")
+                    if isinstance(step_result.outputs, dict)
+                    else None
+                ),
+                failure_code=(
+                    step_result.error_details.get("failure_code")
+                    if isinstance(step_result.error_details, dict)
+                    else None
+                ),
+                failure_type=step_result.failure_type,
+                retry_exhausted=bool(step_result.metrics.get("retry_exhausted")),
+                safety_blocked=step_result.failure_type == FailureType.SAFETY_BLOCK,
+                runtime_state_summary=runtime_state_summary,
+            )
+        )
+        metrics = dict(step_result.metrics)
+        metrics["workflow_action"] = decision.action
+        metrics["workflow_action_mapped_flow"] = decision.mapped_flow
+        metrics["workflow_action_reason"] = decision.reason
+        metrics["workflow_action_evidence"] = dict(decision.evidence_source)
+        if (
+            step_result.status == "failed"
+            and decision.action != "continue"
+            and "retry_exhausted" not in metrics
+        ):
+            metrics["retry_exhausted"] = True
+        step_result.metrics = metrics
 
     def _should_skip_step(self, step, context: WorkflowContext) -> bool:
         """判断是否可跳过已成功且与当前计划一致的步骤"""
@@ -598,6 +677,51 @@ class PlanRunner:
             code=code,
         )
 
+    def _request_stop(
+        self,
+        context: WorkflowContext,
+        record: TaskRecord | None,
+        *,
+        failure_type: FailureType,
+        message: str,
+        step_id: str | None = None,
+        explanation: str | None = None,
+    ) -> None:
+        if context.task.constraints.get("require_replan_confirm"):
+            pending_action = build_pending_action(
+                task_id=context.task.task_id,
+                action_type=PendingActionType.REPLAN_CONFIRM,
+                candidates=[],
+                default_suggestion=None,
+                explanation=explanation or "adaptive stop requested",
+            )
+            enter_waiting_state(
+                context,
+                record,
+                pending_action,
+                InternalStatus.WAITING_REPLAN,
+                reason="stop_requested",
+            )
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.WAITING_REPLAN,
+                reason="stop_requested",
+            )
+            raise PlanRunError(
+                failure_type=failure_type,
+                message=message,
+                step_id=step_id,
+                code="ADAPTIVE_STOP_REQUESTED",
+            )
+        self._mark_failed(context, record, reason="adaptive_stop")
+        raise PlanRunError(
+            failure_type=failure_type,
+            message=message,
+            step_id=step_id,
+            code="ADAPTIVE_STOP_REQUESTED",
+        )
+
     def _perform_replan(
         self,
         plan: Plan,
@@ -625,6 +749,7 @@ class PlanRunner:
                 replan_top_k = self._planner.replan_top_k(
                     request,
                     k=_resolve_top_k(context.task.constraints.get("replan_top_k"), default=3),
+                    runtime_state=context.runtime_state,
                 )
                 gate = self._planner.evaluate_top_k_gate(
                     candidate_kind="replan",
@@ -655,14 +780,16 @@ class PlanRunner:
                     )
                     return plan
 
-                selected = next(
-                    (
-                        candidate
-                        for candidate in replan_top_k.candidates
-                        if candidate.candidate_id == replan_top_k.default_recommendation
+                ordered_candidates = _select_replan_candidates(
+                    replan_top_k.candidates,
+                    default_recommendation=replan_top_k.default_recommendation,
+                    preferred_action=(
+                        "suffix_replan"
+                        if error.code == "SUFFIX_REPLAN_REQUESTED"
+                        else None
                     ),
-                    replan_top_k.candidates[0] if replan_top_k.candidates else None,
                 )
+                selected = ordered_candidates[0] if ordered_candidates else None
                 if selected is None:
                     raise ValueError("replan_top_k returned empty candidates")
                 payload = selected.structured_payload
@@ -785,7 +912,12 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
     """SafetyAgent blocks must wait for HITL replan confirmation."""
     return (
         error.failure_type == FailureType.SAFETY_BLOCK
-        or error.code in {"SAFETY_TASK_INPUT_BLOCK", "SAFETY_FINAL_BLOCK", "SAFETY_POST_BLOCK"}
+        or error.code in {
+            "SAFETY_TASK_INPUT_BLOCK",
+            "SAFETY_FINAL_BLOCK",
+            "SAFETY_POST_BLOCK",
+            "ADAPTIVE_STOP_REQUESTED",
+        }
     )
 
 
@@ -829,9 +961,20 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "upgrade_reason": recovery_meta.get("upgrade_reason"),
         }
 
+    workflow_action = step_result.metrics.get("workflow_action")
+    if isinstance(workflow_action, str) and workflow_action:
+        data["action_name"] = workflow_action
+        data["workflow_action_reason"] = step_result.metrics.get(
+            "workflow_action_reason"
+        )
+        data["evidence_source"] = step_result.metrics.get(
+            "workflow_action_evidence"
+        )
+
     s6_action = step_result.metrics.get("s6_recovery_action")
     if isinstance(s6_action, str) and s6_action:
-        data["action_name"] = s6_action
+        if "action_name" not in data:
+            data["action_name"] = s6_action
         data["s6"] = {
             "action": s6_action,
             "trigger_stage_id": step_result.metrics.get("s6_trigger_stage_id"),
@@ -871,3 +1014,37 @@ def _resolve_top_k(value: object, *, default: int) -> int:
     if parsed <= 0:
         return 1
     return parsed
+
+
+def _select_replan_candidates(
+    candidates: list[Any],
+    *,
+    default_recommendation: str | None,
+    preferred_action: str | None,
+) -> list[Any]:
+    preferred: list[tuple[int, str, Any]] = []
+    fallback: list[tuple[int, str, Any]] = []
+    for candidate in candidates:
+        metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+        shadow_action = metadata.get("shadow_action")
+        payload = candidate.structured_payload
+        replan_mode = None
+        if isinstance(payload, Plan):
+            payload_meta = payload.metadata if isinstance(payload.metadata, dict) else {}
+            raw_mode = payload_meta.get("replan_mode")
+            if isinstance(raw_mode, str):
+                replan_mode = raw_mode
+        rank = (
+            0
+            if default_recommendation is not None
+            and candidate.candidate_id == default_recommendation
+            else 1
+        )
+        row = (rank, candidate.candidate_id, candidate)
+        if preferred_action == "suffix_replan" and (
+            shadow_action == "suffix_replan" or replan_mode == "suffix_replan"
+        ):
+            preferred.append(row)
+        else:
+            fallback.append(row)
+    return [item[2] for item in sorted(preferred) + sorted(fallback)]
