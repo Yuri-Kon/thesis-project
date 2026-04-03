@@ -15,6 +15,7 @@ from src.agents.task_goal_parser import enrich_task_from_goal
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+    FINAL_SCORE_METADATA_KEY,
     PatchRequest,
     PendingActionType,
     PendingActionCandidate,
@@ -24,10 +25,17 @@ from src.models.contracts import (
     PlanPatchOpType,
     PlanStep,
     ProteinDesignTask,
+    RERANK_REASON_METADATA_KEY,
+    RecommendationReason,
+    RerankReason,
     ReplanRequest,
     RuntimeState,
+    RuntimeAdjustmentFactor,
+    RuntimeAdjustmentSummary,
     RuntimeStateSummary,
     ScoreSummary,
+    STATIC_SCORE_METADATA_KEY,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     StepResult,
     SHADOW_SCORE_METADATA_KEY,
@@ -89,6 +97,9 @@ class CandidateGateDecision:
 @dataclass(frozen=True)
 class _RuntimeShadowDecision:
     shadow_score: dict[str, Any]
+    final_score: dict[str, Any]
+    runtime_adjustment: dict[str, Any]
+    rerank_reason: dict[str, Any]
     shadow_action: str
     shadow_reason: str
     explanation_fragment: str
@@ -373,6 +384,9 @@ class PlannerAgent:
         )
         return {
             **score_breakdown,
+            "static_score": float(score_breakdown.get("overall", 0.0)),
+            "runtime_adjustment": float(shadow.runtime_adjustment["value"]),
+            "final_score": float(shadow.final_score["value"]),
             "shadow_overall": float(shadow.shadow_score["value"]),
         }
 
@@ -672,6 +686,7 @@ class PlannerAgent:
             validate_candidate_set_output(
                 pending_action,
                 require_s5_fields=True,
+                require_shadow_rerank_fields=True,
             )
             enter_waiting_state(
                 context,
@@ -1858,6 +1873,7 @@ def _build_top_k_result(
             "adapter_mode": adapter_mode,
             "generation_note": payload.note,
             "s5_contract": _build_s5_scoring_contract(score_weights),
+            STATIC_SCORE_METADATA_KEY: _build_static_score_summary(score_breakdown),
             ACTION_SCORE_METADATA_KEY: _build_action_score_summary(score_breakdown),
         }
         explanation = (
@@ -1882,7 +1898,7 @@ def _build_top_k_result(
                 metadata.update(s1_metadata)
                 metadata["sequence_confidence"] = score_breakdown.get("confidence")
         if runtime_state_summary is None:
-            metadata[SHADOW_SCORE_METADATA_KEY] = _build_shadow_score_summary(score_breakdown)
+            shadow = _build_shadow_passthrough_decision(score_breakdown)
         else:
             metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = dict(runtime_state_summary)
             shadow = _build_runtime_shadow_decision(
@@ -1891,10 +1907,13 @@ def _build_top_k_result(
                 score_breakdown=score_breakdown,
                 runtime_state_summary=runtime_state_summary,
             )
-            metadata[SHADOW_SCORE_METADATA_KEY] = shadow.shadow_score
             metadata["shadow_action"] = shadow.shadow_action
             metadata["shadow_action_reason"] = shadow.shadow_reason
             explanation = f"{explanation} {shadow.explanation_fragment}"
+        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = shadow.runtime_adjustment
+        metadata[FINAL_SCORE_METADATA_KEY] = shadow.final_score
+        metadata[RERANK_REASON_METADATA_KEY] = shadow.rerank_reason
+        metadata[SHADOW_SCORE_METADATA_KEY] = shadow.shadow_score
         candidate = PendingActionCandidate(
             candidate_id=candidate_id,
             structured_payload=payload.payload,
@@ -1938,11 +1957,21 @@ def _build_top_k_result(
     selected_rows = sorted(selected_rows, key=lambda row: row[1])
     candidates = [row[0] for row in selected_rows]
     default_recommendation = candidates[0].candidate_id if candidates else None
+    shadow_default = None
+    if candidates and runtime_state_summary is not None:
+        shadow_default = max(
+            candidates,
+            key=lambda candidate: float(
+                candidate.metadata.get(SHADOW_SCORE_METADATA_KEY, {}).get("value", 0.0)
+            ),
+        )
     if candidates:
         candidates[0].metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
             _build_default_recommendation_reason(
                 candidate_kind=candidate_kind,
                 candidate_id=candidates[0].candidate_id,
+                default_candidate=candidates[0],
+                shadow_candidate=shadow_default,
             )
         )
     explanation = (
@@ -1951,13 +1980,7 @@ def _build_top_k_result(
         "Ranking uses overall score desc + stable tie-break; "
         "selection uses capability-bucket round-robin."
     )
-    if candidates and runtime_state_summary is not None:
-        shadow_default = max(
-            candidates,
-            key=lambda candidate: float(
-                candidate.metadata.get(SHADOW_SCORE_METADATA_KEY, {}).get("value", 0.0)
-            ),
-        )
+    if candidates and runtime_state_summary is not None and shadow_default is not None:
         shadow_action = str(shadow_default.metadata.get("shadow_action") or "continue")
         explanation = (
             f"{explanation} Runtime-state shadow evaluation is attached to candidate metadata; "
@@ -1984,6 +2007,14 @@ def _build_action_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     return summary.model_dump()
 
 
+def _build_static_score_summary(score_breakdown: dict[str, float]) -> dict[str, Any]:
+    summary = ScoreSummary(
+        value=float(score_breakdown.get("overall", 0.0)),
+        source="score_breakdown.overall.static.v1",
+    )
+    return summary.model_dump()
+
+
 def _build_shadow_score_summary(score_breakdown: dict[str, float]) -> dict[str, Any]:
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
@@ -2004,6 +2035,46 @@ def _normalize_runtime_state_summary_input(
     if isinstance(runtime_state, dict):
         return RuntimeStateSummary.model_validate(runtime_state).model_dump()
     raise ValueError("runtime_state must be RuntimeState, RuntimeStateSummary, or mapping")
+
+
+def _build_shadow_passthrough_decision(
+    score_breakdown: dict[str, float],
+) -> _RuntimeShadowDecision:
+    static_value = round(float(score_breakdown.get("overall", 0.0)), 6)
+    final_score = ScoreSummary(
+        value=static_value,
+        source="static_score+runtime_adjustment.shadow_passthrough.v1",
+    )
+    runtime_adjustment = RuntimeAdjustmentSummary(
+        value=0.0,
+        source="planner.runtime_adjustment.shadow_passthrough.v1",
+        formula_version="v1",
+        shadow_only=True,
+    )
+    rerank_reason = RerankReason(
+        code="shadow_passthrough",
+        message=(
+            "No runtime_state was provided, so final_score mirrors static_score "
+            "and remains shadow-only."
+        ),
+        shadow_only=True,
+        runtime_state_fields=[],
+        candidate_metric_fields=["score_breakdown.overall"],
+        tool_metadata_fields=[],
+        factors=[],
+    )
+    return _RuntimeShadowDecision(
+        shadow_score=_build_shadow_score_summary(score_breakdown),
+        final_score=final_score.model_dump(),
+        runtime_adjustment=runtime_adjustment.model_dump(),
+        rerank_reason=rerank_reason.model_dump(),
+        shadow_action="continue",
+        shadow_reason="runtime_state is not available",
+        explanation_fragment=(
+            "Shadow rerank is in passthrough mode; "
+            f"static_score={static_value:.2f}, runtime_adjustment=0.00, final_score={static_value:.2f}."
+        ),
+    )
 
 
 def _build_runtime_shadow_decision(
@@ -2030,6 +2101,7 @@ def _build_runtime_shadow_decision(
     risk = _safe_float(score_breakdown.get("risk"), default=overall)
     cost = _safe_float(score_breakdown.get("cost"), default=overall)
     fallback_depth = _safe_float(score_breakdown.get("fallback_depth"), default=0.5)
+    feasibility = _safe_float(score_breakdown.get("feasibility"), default=0.5)
     action, reason = _resolve_shadow_action(
         candidate_kind=candidate_kind,
         payload=payload,
@@ -2038,35 +2110,158 @@ def _build_runtime_shadow_decision(
         recovery_margin=recovery_margin,
         cost_pressure=cost_pressure,
     )
-    delta = (
-        0.18 * (p_success - 0.5) * confidence
-        - 0.16 * p_structural_failure * (1.0 - risk)
-        + 0.10 * margin_signal * fallback_depth
-        - 0.14 * cost_pressure * (1.0 - cost)
-    )
+    evidence_effect = 0.18 * (p_success - 0.5) * confidence
+    risk_effect = -0.16 * p_structural_failure * (1.0 - risk)
+    recovery_effect = 0.10 * margin_signal * fallback_depth
+    cost_effect = -0.14 * cost_pressure * (1.0 - cost)
+    delta = evidence_effect + risk_effect + recovery_effect + cost_effect
+    factors = [
+        _build_runtime_adjustment_factor(
+            category="evidence",
+            signal="p_success*confidence",
+            source="runtime_state.p_success+score_breakdown.confidence",
+            contribution=evidence_effect,
+            message="Current evidence and candidate confidence adjust the shadow score.",
+        ),
+        _build_runtime_adjustment_factor(
+            category="risk",
+            signal="p_structural_failure",
+            source="runtime_state.p_structural_failure+score_breakdown.risk",
+            contribution=risk_effect,
+            message="Structural failure pressure reduces the shadow score.",
+        ),
+        _build_runtime_adjustment_factor(
+            category="recovery",
+            signal="recovery_margin*fallback_depth",
+            source="runtime_state.recovery_margin+score_breakdown.fallback_depth",
+            contribution=recovery_effect,
+            message="Recovery headroom and fallback depth shape the shadow rerank bonus.",
+        ),
+        _build_runtime_adjustment_factor(
+            category="cost",
+            signal="expected_remaining_cost",
+            source="runtime_state.expected_remaining_cost+score_breakdown.cost",
+            contribution=cost_effect,
+            message="Remaining cost pressure penalizes expensive suffixes.",
+        ),
+    ]
     if action == "patch_local":
-        delta += 0.04 * fallback_depth
+        patch_bonus = 0.04 * fallback_depth
+        delta += patch_bonus
+        factors.append(
+            _build_runtime_adjustment_factor(
+                category="recovery",
+                signal="fallback_depth",
+                source="score_breakdown.fallback_depth",
+                contribution=patch_bonus,
+                message="Local patchability keeps more recovery options available.",
+            )
+        )
     elif action == "suffix_replan":
-        delta += 0.02 * score_breakdown.get("feasibility", 0.5)
-        delta -= 0.03 * cost_pressure
+        replan_recovery_bonus = 0.02 * feasibility
+        replan_cost_penalty = -0.03 * cost_pressure
+        delta += replan_recovery_bonus + replan_cost_penalty
+        factors.append(
+            _build_runtime_adjustment_factor(
+                category="recovery",
+                signal="feasibility",
+                source="score_breakdown.feasibility",
+                contribution=replan_recovery_bonus,
+                message="Feasible suffix replacement preserves validated prefix value.",
+            )
+        )
+        factors.append(
+            _build_runtime_adjustment_factor(
+                category="cost",
+                signal="cost_pressure",
+                source="runtime_state.expected_remaining_cost",
+                contribution=replan_cost_penalty,
+                message="Suffix replan still carries residual budget pressure.",
+            )
+        )
     elif action == "stop":
-        delta -= 0.12 + 0.06 * cost_pressure
+        stop_penalty = -(0.12 + 0.06 * cost_pressure)
+        delta += stop_penalty
+        factors.append(
+            _build_runtime_adjustment_factor(
+                category="policy",
+                signal="stop_guard",
+                source="runtime_state.p_success+runtime_state.expected_remaining_cost",
+                contribution=stop_penalty,
+                message="Stop guard applies when success is low and cost pressure is already high.",
+            )
+        )
     adjusted = max(0.0, min(1.0, overall + delta))
-    summary = ScoreSummary(
+    final_score = ScoreSummary(
+        value=round(adjusted, 6),
+        source=f"static_score+runtime_adjustment.{action}.v1",
+    )
+    shadow_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"score_breakdown.overall+runtime_state.{action}.v1",
     )
+    runtime_adjustment = RuntimeAdjustmentSummary(
+        value=round(delta, 6),
+        source=f"planner.runtime_adjustment.{action}.v1",
+        formula_version="v1",
+        shadow_only=True,
+    )
+    rerank_reason = RerankReason(
+        code=f"shadow_{action}",
+        message=(
+            "Shadow rerank keeps default recommendation on static_score, while "
+            "final_score exposes the audited runtime-adjusted ordering."
+        ),
+        shadow_only=True,
+        runtime_state_fields=[
+            "runtime_state.p_success",
+            "runtime_state.p_structural_failure",
+            "runtime_state.recovery_margin",
+            "runtime_state.expected_remaining_cost",
+        ],
+        candidate_metric_fields=[
+            "score_breakdown.overall",
+            "score_breakdown.confidence",
+            "score_breakdown.risk",
+            "score_breakdown.cost",
+            "score_breakdown.fallback_depth",
+            "score_breakdown.feasibility",
+        ],
+        tool_metadata_fields=[],
+        factors=factors,
+    )
     explanation_fragment = (
-        "Runtime correction combines static overall score with "
-        f"p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
+        "Shadow rerank records static_score, runtime_adjustment, and final_score separately; "
+        f"static_score={overall:.2f}, runtime_adjustment={delta:.2f}, final_score={adjusted:.2f}; "
+        f"signals use p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
         f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}; "
         f"shadow_action={action} because {reason}."
     )
     return _RuntimeShadowDecision(
-        shadow_score=summary.model_dump(),
+        shadow_score=shadow_score.model_dump(),
+        final_score=final_score.model_dump(),
+        runtime_adjustment=runtime_adjustment.model_dump(),
+        rerank_reason=rerank_reason.model_dump(),
         shadow_action=action,
         shadow_reason=reason,
         explanation_fragment=explanation_fragment,
+    )
+
+
+def _build_runtime_adjustment_factor(
+    *,
+    category: Literal["cost", "risk", "recovery", "evidence", "policy"],
+    signal: str,
+    source: str,
+    contribution: float,
+    message: str,
+) -> RuntimeAdjustmentFactor:
+    return RuntimeAdjustmentFactor(
+        category=category,
+        signal=signal,
+        source=source,
+        contribution=round(contribution, 6),
+        message=message,
     )
 
 
@@ -2146,14 +2341,48 @@ def _build_default_recommendation_reason(
     *,
     candidate_kind: str,
     candidate_id: str,
-) -> dict[str, str]:
-    return {
-        "code": f"{candidate_kind}_ranked_first",
-        "message": (
-            f"{candidate_kind} candidate {candidate_id} is the current default "
-            "recommendation after deterministic ranking."
-        ),
-    }
+    default_candidate: PendingActionCandidate,
+    shadow_candidate: PendingActionCandidate | None = None,
+) -> dict[str, Any]:
+    message = (
+        f"{candidate_kind} candidate {candidate_id} is the current default "
+        "recommendation after deterministic static ranking."
+    )
+    shadow_candidate_id = None
+    shadow_score_gap = None
+    if shadow_candidate is not None:
+        shadow_candidate_id = shadow_candidate.candidate_id
+        shadow_score_gap = round(
+            _extract_score_value(shadow_candidate, FINAL_SCORE_METADATA_KEY)
+            - _extract_score_value(default_candidate, FINAL_SCORE_METADATA_KEY),
+            6,
+        )
+        if shadow_candidate_id != candidate_id:
+            message = (
+                f"{message} Shadow rerank currently favors {shadow_candidate_id} "
+                f"by {shadow_score_gap:+.6f}, but default selection remains static_score-based."
+            )
+        else:
+            message = (
+                f"{message} Shadow rerank currently agrees with the static default."
+            )
+    reason = RecommendationReason(
+        code=f"{candidate_kind}_ranked_first",
+        message=message,
+        selection_basis="static_score",
+        shadow_candidate_id=shadow_candidate_id,
+        shadow_score_gap=shadow_score_gap,
+        shadow_only=True,
+    )
+    return reason.model_dump()
+
+
+def _extract_score_value(candidate: PendingActionCandidate, metadata_key: str) -> float:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    score = metadata.get(metadata_key)
+    if not isinstance(score, dict):
+        return 0.0
+    return _safe_float(score.get("value"), default=0.0)
 
 
 def _build_pending_action_runtime_metadata(
