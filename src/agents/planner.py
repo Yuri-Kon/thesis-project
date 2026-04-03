@@ -1844,7 +1844,8 @@ def _build_top_k_result(
 
     score_weights = _resolve_score_weights(task_constraints or {})
     runtime_state_summary = _normalize_runtime_state_summary_input(runtime_state)
-    ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
+    static_ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
+    effective_ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
     for payload in unique_payloads:
         score_breakdown = _score_payload(
             payload.payload,
@@ -1930,48 +1931,70 @@ def _build_top_k_result(
         )
         priority_rank = _priority_rank(primary_tool.priority if primary_tool else None)
         patch_layer_rank = _patch_layer_rank(payload.payload)
+        static_score_value = _extract_score_value(candidate, STATIC_SCORE_METADATA_KEY)
+        final_score_value = _extract_score_value(candidate, FINAL_SCORE_METADATA_KEY)
         if candidate_kind == "patch":
-            sort_key = (
+            static_sort_key = (
                 patch_layer_rank,
-                -score_breakdown["overall"],
+                -static_score_value,
+                priority_rank,
+                capability_id,
+                tool_id,
+                candidate_id,
+            )
+            effective_sort_key = (
+                patch_layer_rank,
+                -final_score_value,
                 priority_rank,
                 capability_id,
                 tool_id,
                 candidate_id,
             )
         else:
-            sort_key = (
-                -score_breakdown["overall"],
+            static_sort_key = (
+                -static_score_value,
                 priority_rank,
                 capability_id,
                 tool_id,
                 candidate_id,
             )
-        ranked_rows.append((candidate, sort_key, capability_id))
+            effective_sort_key = (
+                -final_score_value,
+                priority_rank,
+                capability_id,
+                tool_id,
+                candidate_id,
+            )
+        static_ranked_rows.append((candidate, static_sort_key, capability_id))
+        effective_ranked_rows.append((candidate, effective_sort_key, capability_id))
 
-    ranked_rows.sort(key=lambda row: row[1])
-    selected_rows = _select_diverse_top_k(
-        ranked_rows=ranked_rows,
+    static_ranked_rows.sort(key=lambda row: row[1])
+    static_selected_rows = _select_diverse_top_k(
+        ranked_rows=static_ranked_rows,
         top_k=top_k,
     )
-    selected_rows = sorted(selected_rows, key=lambda row: row[1])
-    candidates = [row[0] for row in selected_rows]
-    default_recommendation = candidates[0].candidate_id if candidates else None
-    shadow_default = None
-    if candidates and runtime_state_summary is not None:
-        shadow_default = max(
-            candidates,
-            key=lambda candidate: float(
-                candidate.metadata.get(SHADOW_SCORE_METADATA_KEY, {}).get("value", 0.0)
-            ),
+    static_selected_rows = sorted(static_selected_rows, key=lambda row: row[1])
+    selected_rows = static_selected_rows
+    if runtime_state_summary is not None:
+        effective_ranked_rows.sort(key=lambda row: row[1])
+        selected_rows = _select_diverse_top_k(
+            ranked_rows=effective_ranked_rows,
+            top_k=top_k,
         )
+        selected_rows = sorted(selected_rows, key=lambda row: row[1])
+    candidates = [row[0] for row in selected_rows]
+    static_candidates = [row[0] for row in static_selected_rows]
+    default_candidate = candidates[0] if candidates else None
+    static_default_candidate = static_candidates[0] if static_candidates else None
+    default_recommendation = default_candidate.candidate_id if default_candidate else None
     if candidates:
-        candidates[0].metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
+        default_candidate.metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
             _build_default_recommendation_reason(
                 candidate_kind=candidate_kind,
-                candidate_id=candidates[0].candidate_id,
-                default_candidate=candidates[0],
-                shadow_candidate=shadow_default,
+                candidate_id=default_candidate.candidate_id,
+                default_candidate=default_candidate,
+                static_candidate=static_default_candidate,
+                rerank_applied=runtime_state_summary is not None,
             )
         )
     explanation = (
@@ -1980,13 +2003,29 @@ def _build_top_k_result(
         "Ranking uses overall score desc + stable tie-break; "
         "selection uses capability-bucket round-robin."
     )
-    if candidates and runtime_state_summary is not None and shadow_default is not None:
-        shadow_action = str(shadow_default.metadata.get("shadow_action") or "continue")
+    if candidates and runtime_state_summary is not None and default_candidate is not None:
+        shadow_action = str(default_candidate.metadata.get("shadow_action") or "continue")
+        rerank_summary = _summarize_rerank_reason(default_candidate)
         explanation = (
-            f"{explanation} Runtime-state shadow evaluation is attached to candidate metadata; "
-            f"shadow best={shadow_default.candidate_id} action={shadow_action}. "
-            f"Default recommendation stays {default_recommendation} to preserve existing semantics."
+            f"{candidate_kind} Top-K generated with deterministic sort "
+            f"(requested={top_k}, returned={len(candidates)}). "
+            "Ranking uses final_score desc + stable tie-break; "
+            "selection uses capability-bucket round-robin."
         )
+        if (
+            static_default_candidate is not None
+            and static_default_candidate.candidate_id != default_candidate.candidate_id
+        ):
+            explanation = (
+                f"{explanation} Runtime rerank updated default recommendation "
+                f"from {static_default_candidate.candidate_id} to {default_candidate.candidate_id}. "
+                f"{rerank_summary} action={shadow_action}."
+            )
+        else:
+            explanation = (
+                f"{explanation} Runtime rerank kept default recommendation "
+                f"at {default_candidate.candidate_id}. {rerank_summary} action={shadow_action}."
+            )
     if len(candidates) < top_k:
         explanation = (
             f"{explanation} Degraded to available candidates because "
@@ -2204,15 +2243,15 @@ def _build_runtime_shadow_decision(
         value=round(delta, 6),
         source=f"planner.runtime_adjustment.{action}.v1",
         formula_version="v1",
-        shadow_only=True,
+        shadow_only=False,
     )
     rerank_reason = RerankReason(
         code=f"shadow_{action}",
         message=(
-            "Shadow rerank keeps default recommendation on static_score, while "
-            "final_score exposes the audited runtime-adjusted ordering."
+            "Runtime rerank uses final_score as the audited ordering signal for "
+            "candidate ranking and default recommendation."
         ),
-        shadow_only=True,
+        shadow_only=False,
         runtime_state_fields=[
             "runtime_state.p_success",
             "runtime_state.p_structural_failure",
@@ -2231,7 +2270,7 @@ def _build_runtime_shadow_decision(
         factors=factors,
     )
     explanation_fragment = (
-        "Shadow rerank records static_score, runtime_adjustment, and final_score separately; "
+        "Runtime rerank records static_score, runtime_adjustment, and final_score separately; "
         f"static_score={overall:.2f}, runtime_adjustment={delta:.2f}, final_score={adjusted:.2f}; "
         f"signals use p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
         f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}; "
@@ -2342,37 +2381,48 @@ def _build_default_recommendation_reason(
     candidate_kind: str,
     candidate_id: str,
     default_candidate: PendingActionCandidate,
-    shadow_candidate: PendingActionCandidate | None = None,
+    static_candidate: PendingActionCandidate | None = None,
+    rerank_applied: bool,
 ) -> dict[str, Any]:
     message = (
         f"{candidate_kind} candidate {candidate_id} is the current default "
         "recommendation after deterministic static ranking."
     )
-    shadow_candidate_id = None
-    shadow_score_gap = None
-    if shadow_candidate is not None:
-        shadow_candidate_id = shadow_candidate.candidate_id
-        shadow_score_gap = round(
-            _extract_score_value(shadow_candidate, FINAL_SCORE_METADATA_KEY)
-            - _extract_score_value(default_candidate, FINAL_SCORE_METADATA_KEY),
-            6,
+    selection_basis: Literal["static_score", "final_score"] = "static_score"
+    rerank_shadow_only = True
+    static_candidate_id = None
+    static_score_gap = None
+    if rerank_applied:
+        selection_basis = "final_score"
+        rerank_shadow_only = False
+        static_candidate_id = (
+            static_candidate.candidate_id if static_candidate is not None else None
         )
-        if shadow_candidate_id != candidate_id:
-            message = (
-                f"{message} Shadow rerank currently favors {shadow_candidate_id} "
-                f"by {shadow_score_gap:+.6f}, but default selection remains static_score-based."
+        if static_candidate is not None:
+            static_score_gap = round(
+                _extract_score_value(default_candidate, FINAL_SCORE_METADATA_KEY)
+                - _extract_score_value(static_candidate, FINAL_SCORE_METADATA_KEY),
+                6,
             )
-        else:
-            message = (
-                f"{message} Shadow rerank currently agrees with the static default."
-            )
+            if static_candidate_id != candidate_id:
+                message = (
+                    f"{candidate_kind} candidate {candidate_id} becomes the current "
+                    "default recommendation after runtime reranking by final_score. "
+                    f"Static default was {static_candidate_id}, final_score gap={static_score_gap:+.6f}."
+                )
+            else:
+                message = (
+                    f"{candidate_kind} candidate {candidate_id} remains the default "
+                    "recommendation after runtime reranking by final_score."
+                )
     reason = RecommendationReason(
         code=f"{candidate_kind}_ranked_first",
         message=message,
-        selection_basis="static_score",
-        shadow_candidate_id=shadow_candidate_id,
-        shadow_score_gap=shadow_score_gap,
-        shadow_only=True,
+        selection_basis=selection_basis,
+        rerank_applied=rerank_applied,
+        static_candidate_id=static_candidate_id,
+        static_score_gap=static_score_gap,
+        shadow_only=rerank_shadow_only,
     )
     return reason.model_dump()
 
@@ -2383,6 +2433,38 @@ def _extract_score_value(candidate: PendingActionCandidate, metadata_key: str) -
     if not isinstance(score, dict):
         return 0.0
     return _safe_float(score.get("value"), default=0.0)
+
+
+def _summarize_rerank_reason(candidate: PendingActionCandidate) -> str:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    rerank_reason = metadata.get(RERANK_REASON_METADATA_KEY)
+    if not isinstance(rerank_reason, dict):
+        return "Runtime rerank reasons are attached in candidate metadata."
+
+    factors = rerank_reason.get("factors")
+    if not isinstance(factors, list):
+        return str(rerank_reason.get("message") or "Runtime rerank reasons are attached in candidate metadata.")
+
+    category_labels = {
+        "cost": "remaining cost pressure",
+        "risk": "structural risk pressure",
+        "recovery": "recovery margin",
+        "evidence": "evidence confidence",
+        "policy": "stop guard",
+    }
+    categories: list[str] = []
+    for factor in factors:
+        if not isinstance(factor, dict):
+            continue
+        contribution = _safe_float(factor.get("contribution"), default=0.0)
+        if abs(contribution) <= 1e-9:
+            continue
+        label = category_labels.get(str(factor.get("category") or ""), "")
+        if label and label not in categories:
+            categories.append(label)
+    if not categories:
+        return str(rerank_reason.get("message") or "Runtime rerank reasons are attached in candidate metadata.")
+    return "Runtime rerank reasons include " + ", ".join(categories) + "."
 
 
 def _build_pending_action_runtime_metadata(
@@ -2406,6 +2488,10 @@ def _build_pending_action_runtime_metadata(
     for key in (
         RUNTIME_STATE_SUMMARY_METADATA_KEY,
         DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+        STATIC_SCORE_METADATA_KEY,
+        RUNTIME_ADJUSTMENT_METADATA_KEY,
+        FINAL_SCORE_METADATA_KEY,
+        RERANK_REASON_METADATA_KEY,
         ACTION_SCORE_METADATA_KEY,
         SHADOW_SCORE_METADATA_KEY,
     ):

@@ -611,7 +611,11 @@ class TestPlannerAgent:
         waiting_summary = context.pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]
         assert waiting_summary["selected_candidate_id"] == context.pending_action.default_recommendation
         assert waiting_summary["default_recommendation_reason"]["code"] == "plan_ranked_first"
-        assert waiting_summary["default_recommendation_reason"]["selection_basis"] == "static_score"
+        assert waiting_summary["default_recommendation_reason"]["selection_basis"] == "final_score"
+        assert waiting_summary["default_recommendation_reason"]["rerank_applied"] is True
+        assert waiting_summary["final_score"]["value"] == pytest.approx(
+            waiting_summary["shadow_score"]["value"]
+        )
         assert waiting_summary["action_score"]["source"] == "score_breakdown.overall"
         assert waiting_summary["runtime_state_summary"]["p_success"] == pytest.approx(0.58)
         assert waiting_summary["shadow_score"]["source"].startswith(
@@ -693,7 +697,7 @@ class TestPlannerAgent:
         assert objective_weighted["objective"] > objective_weighted["risk"]
         assert objective_weighted["overall"] > risk_weighted["overall"]
 
-    def test_plan_top_k_accepts_runtime_state_shadow_without_changing_default(self, monkeypatch):
+    def test_plan_top_k_runtime_rerank_updates_default_recommendation(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())
         task = ProteinDesignTask(
@@ -703,6 +707,89 @@ class TestPlannerAgent:
             metadata={},
         )
         baseline = planner.plan_top_k(task, k=3)
+        baseline_default = baseline.default_recommendation
+
+        def _mock_runtime_shadow_decision(*, payload, score_breakdown, candidate_kind, runtime_state_summary):
+            tool_id = payload.steps[0].tool if isinstance(payload, Plan) and payload.steps else "unknown"
+            final_scores = {
+                "seqgen_local": 0.52,
+                "protgpt2": 0.94,
+                "protein_mpnn": 0.61,
+                "esmfold": 0.57,
+                "nim_esmfold": 0.56,
+                "openfold": 0.49,
+                "biopython_qc": 0.58,
+                "objective_ranker": 0.55,
+            }
+            final_value = final_scores.get(tool_id, 0.5)
+            static_value = score_breakdown["overall"]
+            delta = round(final_value - static_value, 6)
+            return planner_module._RuntimeShadowDecision(
+                shadow_score={
+                    "value": final_value,
+                    "source": f"score_breakdown.overall+runtime_state.mock_{tool_id}.v1",
+                },
+                final_score={
+                    "value": final_value,
+                    "source": f"static_score+runtime_adjustment.mock_{tool_id}.v1",
+                },
+                runtime_adjustment={
+                    "value": delta,
+                    "source": f"planner.runtime_adjustment.mock_{tool_id}.v1",
+                    "formula_version": "v1",
+                    "shadow_only": False,
+                },
+                rerank_reason={
+                    "code": f"rerank_{tool_id}",
+                    "message": "Runtime rerank promotes lower-cost and lower-risk continuation.",
+                    "shadow_only": False,
+                    "runtime_state_fields": [
+                        "runtime_state.p_success",
+                        "runtime_state.expected_remaining_cost",
+                    ],
+                    "candidate_metric_fields": [
+                        "score_breakdown.overall",
+                        "score_breakdown.cost",
+                        "score_breakdown.risk",
+                    ],
+                    "tool_metadata_fields": [],
+                    "factors": [
+                        {
+                            "category": "cost",
+                            "signal": "expected_remaining_cost",
+                            "source": "runtime_state.expected_remaining_cost+score_breakdown.cost",
+                            "contribution": round(min(0.0, delta), 6),
+                            "message": "remaining cost pressure",
+                        },
+                        {
+                            "category": "risk",
+                            "signal": "p_structural_failure",
+                            "source": "runtime_state.p_structural_failure+score_breakdown.risk",
+                            "contribution": round(max(0.0, delta), 6),
+                            "message": "risk adjustment",
+                        },
+                        {
+                            "category": "recovery",
+                            "signal": "recovery_margin",
+                            "source": "runtime_state.recovery_margin+score_breakdown.fallback_depth",
+                            "contribution": 0.02,
+                            "message": "recovery margin",
+                        },
+                    ],
+                },
+                shadow_action="continue",
+                shadow_reason="runtime rerank favors the lower-exposure candidate",
+                explanation_fragment=(
+                    f"Runtime rerank records static_score={static_value:.2f}, "
+                    f"runtime_adjustment={delta:.2f}, final_score={final_value:.2f}."
+                ),
+            )
+
+        monkeypatch.setattr(
+            planner_module,
+            "_build_runtime_shadow_decision",
+            _mock_runtime_shadow_decision,
+        )
         runtime_state = RuntimeState(
             p_success=0.62,
             p_structural_failure=0.18,
@@ -713,8 +800,10 @@ class TestPlannerAgent:
 
         topk = planner.plan_top_k(task, k=3, runtime_state=runtime_state)
 
-        assert topk.default_recommendation == baseline.default_recommendation
-        assert "Default recommendation stays" in topk.explanation
+        assert topk.default_recommendation != baseline_default
+        assert topk.default_recommendation == topk.candidates[0].candidate_id
+        assert topk.candidates[0].tool_id == "protgpt2"
+        assert "Runtime rerank updated default recommendation" in topk.explanation
         for candidate in topk.candidates:
             assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.62)
             assert candidate.metadata["shadow_action"] == "continue"
@@ -724,16 +813,17 @@ class TestPlannerAgent:
             assert candidate.metadata[FINAL_SCORE_METADATA_KEY]["value"] == pytest.approx(
                 candidate.metadata[SHADOW_SCORE_METADATA_KEY]["value"]
             )
-            assert candidate.metadata[RERANK_REASON_METADATA_KEY]["shadow_only"] is True
+            assert candidate.metadata[RERANK_REASON_METADATA_KEY]["shadow_only"] is False
             categories = {
                 factor["category"]
                 for factor in candidate.metadata[RERANK_REASON_METADATA_KEY]["factors"]
             }
-            assert {"cost", "risk", "recovery", "evidence"}.issubset(categories)
-            assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(
-                "score_breakdown.overall+runtime_state.continue"
-            )
-            assert candidate.explanation and "Shadow rerank records static_score" in candidate.explanation
+            assert {"cost", "risk", "recovery"}.issubset(categories)
+            assert candidate.explanation and "Runtime rerank records static_score" in candidate.explanation
+        default_reason = topk.candidates[0].metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]
+        assert default_reason["selection_basis"] == "final_score"
+        assert default_reason["rerank_applied"] is True
+        assert default_reason["static_candidate_id"] == baseline_default
 
     def test_patch_top_k_emits_suffix_replan_shadow_action_from_runtime_state(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
@@ -760,7 +850,7 @@ class TestPlannerAgent:
         )
         assert first.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_structural_failure"] == pytest.approx(0.82)
 
-    def test_replan_top_k_can_emit_stop_shadow_action_while_preserving_default(self, monkeypatch):
+    def test_replan_top_k_can_emit_stop_shadow_action_with_runtime_rerank(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())
         original = Plan(
@@ -793,8 +883,8 @@ class TestPlannerAgent:
             },
         )
 
-        assert topk.default_recommendation == baseline.default_recommendation
-        assert "Default recommendation stays" in topk.explanation
+        assert "Runtime rerank" in topk.explanation
+        assert topk.candidates[0].metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["selection_basis"] == "final_score"
         assert all(candidate.metadata["shadow_action"] == "stop" for candidate in topk.candidates)
         assert all(
             candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(

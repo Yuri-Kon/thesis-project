@@ -399,6 +399,9 @@ class RecommendationReason(BaseModel):
     code: str
     message: str
     selection_basis: Literal["static_score", "final_score"] = "static_score"
+    rerank_applied: bool = False
+    static_candidate_id: str | None = None
+    static_score_gap: float | None = None
     shadow_candidate_id: str | None = None
     shadow_score_gap: float | None = None
     shadow_only: bool = True
@@ -408,19 +411,19 @@ class RecommendationReason(BaseModel):
     def _validate_text(cls, value: str, info) -> str:
         return _validate_non_empty_text(value, field_name=info.field_name)
 
-    @field_validator("shadow_candidate_id")
+    @field_validator("static_candidate_id", "shadow_candidate_id")
     @classmethod
     def _validate_optional_candidate_id(cls, value: str | None) -> str | None:
         if value is None:
             return value
-        return _validate_non_empty_text(value, field_name="shadow_candidate_id")
+        return _validate_non_empty_text(value, field_name="candidate_id")
 
-    @field_validator("shadow_score_gap")
+    @field_validator("static_score_gap", "shadow_score_gap")
     @classmethod
     def _validate_optional_gap(cls, value: float | None) -> float | None:
         if value is None:
             return value
-        return _validate_finite_float_value(value, field_name="shadow_score_gap")
+        return _validate_finite_float_value(value, field_name="score_gap")
 
 
 class ScoreSummary(BaseModel):
@@ -539,6 +542,10 @@ class WaitingRuntimeSummary(BaseModel):
     waiting_reason: str | None = None
     runtime_state_summary: RuntimeStateSummary | None = None
     default_recommendation_reason: RecommendationReason | None = None
+    static_score: ScoreSummary | None = None
+    runtime_adjustment: RuntimeAdjustmentSummary | None = None
+    final_score: ScoreSummary | None = None
+    rerank_reason: RerankReason | None = None
     action_score: ScoreSummary | None = None
     shadow_score: ScoreSummary | None = None
 
