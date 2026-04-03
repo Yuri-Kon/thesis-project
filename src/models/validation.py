@@ -299,13 +299,13 @@ def _validate_candidate_shadow_rerank_fields(
                 f"{candidate_id}.metadata.{SHADOW_SCORE_METADATA_KEY}.value must match final_score.value"
             )
 
-    if runtime_adjustment.get("shadow_only") is not True:
+    if not isinstance(runtime_adjustment.get("shadow_only"), bool):
         raise CandidateSetValidationError(
-            f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY}.shadow_only must be true"
+            f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY}.shadow_only must be a boolean"
         )
-    if rerank_reason.get("shadow_only") is not True:
+    if not isinstance(rerank_reason.get("shadow_only"), bool):
         raise CandidateSetValidationError(
-            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY}.shadow_only must be true"
+            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY}.shadow_only must be a boolean"
         )
     if not rerank_reason.get("message"):
         raise CandidateSetValidationError(

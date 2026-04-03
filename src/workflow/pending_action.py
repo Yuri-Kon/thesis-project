@@ -12,12 +12,16 @@ from src.infra.event_log_factory import make_waiting_enter
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+    FINAL_SCORE_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
     PendingActionType,
+    RERANK_REASON_METADATA_KEY,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
@@ -327,6 +331,10 @@ def _build_waiting_runtime_summary(
     for key in (
         RUNTIME_STATE_SUMMARY_METADATA_KEY,
         DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+        STATIC_SCORE_METADATA_KEY,
+        RUNTIME_ADJUSTMENT_METADATA_KEY,
+        FINAL_SCORE_METADATA_KEY,
+        RERANK_REASON_METADATA_KEY,
         ACTION_SCORE_METADATA_KEY,
         SHADOW_SCORE_METADATA_KEY,
         "terminal_policy",
