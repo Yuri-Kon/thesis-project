@@ -4,14 +4,18 @@ from pydantic import ValidationError
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+    FINAL_SCORE_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
     PendingActionType,
     ProteinDesignTask,
     Plan,
     PlanStep,
+    RERANK_REASON_METADATA_KEY,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     RuntimeState,
     StepResult,
@@ -473,16 +477,51 @@ class TestCandidateSetContracts:
                     "value": 0.81,
                     "source": "score_breakdown.overall",
                 },
-                SHADOW_SCORE_METADATA_KEY: {
+                STATIC_SCORE_METADATA_KEY: {
                     "value": 0.81,
-                    "source": "score_breakdown.overall_passthrough",
+                    "source": "score_breakdown.overall.static.v1",
+                },
+                RUNTIME_ADJUSTMENT_METADATA_KEY: {
+                    "value": -0.03,
+                    "source": "planner.runtime_adjustment.continue.v1",
+                    "formula_version": "v1",
+                    "shadow_only": True,
+                },
+                FINAL_SCORE_METADATA_KEY: {
+                    "value": 0.78,
+                    "source": "static_score+runtime_adjustment.continue.v1",
+                },
+                RERANK_REASON_METADATA_KEY: {
+                    "code": "shadow_continue",
+                    "message": "shadow explanation",
+                    "shadow_only": True,
+                    "runtime_state_fields": ["runtime_state.p_success"],
+                    "candidate_metric_fields": ["score_breakdown.overall"],
+                    "tool_metadata_fields": [],
+                    "factors": [
+                        {
+                            "category": "risk",
+                            "signal": "p_structural_failure",
+                            "source": "runtime_state.p_structural_failure+score_breakdown.risk",
+                            "contribution": -0.03,
+                            "message": "risk penalty",
+                        }
+                    ],
+                },
+                SHADOW_SCORE_METADATA_KEY: {
+                    "value": 0.78,
+                    "source": "score_breakdown.overall+runtime_state.continue.v1",
                 },
             },
         )
 
         assert candidate.metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["code"] == "plan_ranked_first"
         assert candidate.metadata[ACTION_SCORE_METADATA_KEY]["value"] == pytest.approx(0.81)
-        assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall_passthrough"
+        assert candidate.metadata[STATIC_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall.static.v1"
+        assert candidate.metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]["value"] == pytest.approx(-0.03)
+        assert candidate.metadata[FINAL_SCORE_METADATA_KEY]["value"] == pytest.approx(0.78)
+        assert candidate.metadata[RERANK_REASON_METADATA_KEY]["factors"][0]["category"] == "risk"
+        assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall+runtime_state.continue.v1"
 
     def test_pending_action_waiting_runtime_summary_is_normalized(
         self, sample_task: ProteinDesignTask, sample_plan: Plan

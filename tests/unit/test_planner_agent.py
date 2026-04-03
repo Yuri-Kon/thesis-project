@@ -9,16 +9,20 @@ from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
+    FINAL_SCORE_METADATA_KEY,
     PatchRequest,
     PendingActionType,
     Plan,
     PlanPatch,
     PlanStep,
     ProteinDesignTask,
+    RERANK_REASON_METADATA_KEY,
     ReplanRequest,
     RuntimeState,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     StepResult,
     now_iso,
@@ -551,7 +555,16 @@ class TestPlannerAgent:
         assert len(capability_buckets) >= 2
         default_metadata = first.candidates[0].metadata
         assert default_metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["code"] == "plan_ranked_first"
+        assert default_metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY]["selection_basis"] == "static_score"
         assert default_metadata[ACTION_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall"
+        assert default_metadata[STATIC_SCORE_METADATA_KEY]["value"] == pytest.approx(
+            first.candidates[0].score_breakdown["overall"]
+        )
+        assert default_metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]["value"] == pytest.approx(0.0)
+        assert default_metadata[FINAL_SCORE_METADATA_KEY]["value"] == pytest.approx(
+            first.candidates[0].score_breakdown["overall"]
+        )
+        assert default_metadata[RERANK_REASON_METADATA_KEY]["code"] == "shadow_passthrough"
         assert default_metadata[SHADOW_SCORE_METADATA_KEY]["source"] == "score_breakdown.overall_passthrough"
 
     def test_plan_with_status_waiting_metadata_keeps_runtime_summary_fields(self, monkeypatch):
@@ -598,6 +611,7 @@ class TestPlannerAgent:
         waiting_summary = context.pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]
         assert waiting_summary["selected_candidate_id"] == context.pending_action.default_recommendation
         assert waiting_summary["default_recommendation_reason"]["code"] == "plan_ranked_first"
+        assert waiting_summary["default_recommendation_reason"]["selection_basis"] == "static_score"
         assert waiting_summary["action_score"]["source"] == "score_breakdown.overall"
         assert waiting_summary["runtime_state_summary"]["p_success"] == pytest.approx(0.58)
         assert waiting_summary["shadow_score"]["source"].startswith(
@@ -704,10 +718,22 @@ class TestPlannerAgent:
         for candidate in topk.candidates:
             assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.62)
             assert candidate.metadata["shadow_action"] == "continue"
+            assert candidate.metadata[STATIC_SCORE_METADATA_KEY]["value"] == pytest.approx(
+                candidate.score_breakdown["overall"]
+            )
+            assert candidate.metadata[FINAL_SCORE_METADATA_KEY]["value"] == pytest.approx(
+                candidate.metadata[SHADOW_SCORE_METADATA_KEY]["value"]
+            )
+            assert candidate.metadata[RERANK_REASON_METADATA_KEY]["shadow_only"] is True
+            categories = {
+                factor["category"]
+                for factor in candidate.metadata[RERANK_REASON_METADATA_KEY]["factors"]
+            }
+            assert {"cost", "risk", "recovery", "evidence"}.issubset(categories)
             assert candidate.metadata[SHADOW_SCORE_METADATA_KEY]["source"].startswith(
                 "score_breakdown.overall+runtime_state.continue"
             )
-            assert candidate.explanation and "Runtime correction combines static overall score" in candidate.explanation
+            assert candidate.explanation and "Shadow rerank records static_score" in candidate.explanation
 
     def test_patch_top_k_emits_suffix_replan_shadow_action_from_runtime_state(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())

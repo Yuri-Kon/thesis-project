@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from typing import Any, Callable, Optional
 
-from src.models.contracts import (Decision, DecisionChoice, PendingAction,
-                                  PendingActionCandidate, PendingActionType,
-                                  Plan, PlanStep, ProteinDesignTask)
+from src.models.contracts import (ACTION_SCORE_METADATA_KEY, Decision,
+                                  DecisionChoice, FINAL_SCORE_METADATA_KEY,
+                                  PendingAction, PendingActionCandidate,
+                                  PendingActionType, Plan, PlanStep,
+                                  ProteinDesignTask,
+                                  RERANK_REASON_METADATA_KEY,
+                                  RUNTIME_ADJUSTMENT_METADATA_KEY,
+                                  SHADOW_SCORE_METADATA_KEY,
+                                  STATIC_SCORE_METADATA_KEY)
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.adapters.registry import get_adapter
 
@@ -38,6 +45,14 @@ class CandidateSetValidationError(ValueError):
 
 REQUIRED_SCORE_BREAKDOWN_FIELDS = frozenset(
     {"feasibility", "objective", "risk", "cost", "overall"}
+)
+REQUIRED_SHADOW_RERANK_METADATA_FIELDS = frozenset(
+    {
+        STATIC_SCORE_METADATA_KEY,
+        RUNTIME_ADJUSTMENT_METADATA_KEY,
+        FINAL_SCORE_METADATA_KEY,
+        RERANK_REASON_METADATA_KEY,
+    }
 )
 REQUIRED_S5_INPUT_FIELDS = frozenset({"candidates", "metrics"})
 REQUIRED_S5_OUTPUT_FIELDS = frozenset(
@@ -105,6 +120,7 @@ def validate_candidate_set_output(
     require_v1_fields: bool = True,
     require_default_recommendation: bool = True,
     require_s5_fields: bool = False,
+    require_shadow_rerank_fields: bool = False,
 ) -> None:
     """校验 CandidateSetOutput 契约（用于 Planner/HITL 输出）。
 
@@ -133,6 +149,8 @@ def validate_candidate_set_output(
             _validate_candidate_v1_fields(candidate, candidate_id)
         if require_s5_fields:
             _validate_candidate_s5_fields(candidate, candidate_id)
+        if require_shadow_rerank_fields:
+            _validate_candidate_shadow_rerank_fields(candidate, candidate_id)
 
     default_id = (
         pending_action.default_recommendation or pending_action.default_suggestion
@@ -196,6 +214,119 @@ def _validate_candidate_tool_fields(
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata missing tool keys: {missing}"
         )
+
+
+def _validate_candidate_shadow_rerank_fields(
+    candidate: PendingActionCandidate, candidate_id: str
+) -> None:
+    metadata = candidate.metadata or {}
+    missing = [
+        key for key in REQUIRED_SHADOW_RERANK_METADATA_FIELDS if key not in metadata
+    ]
+    if missing:
+        missing_keys = ", ".join(sorted(missing))
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata missing shadow rerank keys: {missing_keys}"
+        )
+
+    static_score = metadata[STATIC_SCORE_METADATA_KEY]
+    final_score = metadata[FINAL_SCORE_METADATA_KEY]
+    runtime_adjustment = metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]
+    rerank_reason = metadata[RERANK_REASON_METADATA_KEY]
+
+    if not isinstance(static_score, dict) or not isinstance(final_score, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata static/final score must be mappings"
+        )
+    if not isinstance(runtime_adjustment, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping"
+        )
+    if not isinstance(rerank_reason, dict):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY} must be a mapping"
+        )
+
+    static_value = _coerce_float(
+        static_score.get("value"),
+        field_name=f"{candidate_id}.metadata.{STATIC_SCORE_METADATA_KEY}.value",
+    )
+    final_value = _coerce_float(
+        final_score.get("value"),
+        field_name=f"{candidate_id}.metadata.{FINAL_SCORE_METADATA_KEY}.value",
+    )
+    adjustment_value = _coerce_float(
+        runtime_adjustment.get("value"),
+        field_name=f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY}.value",
+    )
+    overall = _coerce_float(
+        candidate.score_breakdown.get("overall"),
+        field_name=f"{candidate_id}.score_breakdown.overall",
+    )
+    if not math.isclose(static_value, overall, rel_tol=1e-6, abs_tol=1e-6):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{STATIC_SCORE_METADATA_KEY}.value must match score_breakdown.overall"
+        )
+    if not math.isclose(
+        final_value,
+        max(0.0, min(1.0, static_value + adjustment_value)),
+        rel_tol=1e-6,
+        abs_tol=1e-6,
+    ):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{FINAL_SCORE_METADATA_KEY}.value must equal clip(static_score + runtime_adjustment, 0, 1)"
+        )
+
+    action_score = metadata.get(ACTION_SCORE_METADATA_KEY)
+    if isinstance(action_score, dict):
+        action_value = _coerce_float(
+            action_score.get("value"),
+            field_name=f"{candidate_id}.metadata.{ACTION_SCORE_METADATA_KEY}.value",
+        )
+        if not math.isclose(action_value, static_value, rel_tol=1e-6, abs_tol=1e-6):
+            raise CandidateSetValidationError(
+                f"{candidate_id}.metadata.{ACTION_SCORE_METADATA_KEY}.value must match static_score.value"
+            )
+
+    shadow_score = metadata.get(SHADOW_SCORE_METADATA_KEY)
+    if isinstance(shadow_score, dict):
+        shadow_value = _coerce_float(
+            shadow_score.get("value"),
+            field_name=f"{candidate_id}.metadata.{SHADOW_SCORE_METADATA_KEY}.value",
+        )
+        if not math.isclose(shadow_value, final_value, rel_tol=1e-6, abs_tol=1e-6):
+            raise CandidateSetValidationError(
+                f"{candidate_id}.metadata.{SHADOW_SCORE_METADATA_KEY}.value must match final_score.value"
+            )
+
+    if runtime_adjustment.get("shadow_only") is not True:
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY}.shadow_only must be true"
+        )
+    if rerank_reason.get("shadow_only") is not True:
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY}.shadow_only must be true"
+        )
+    if not rerank_reason.get("message"):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY}.message is required"
+        )
+    if abs(adjustment_value) > 1e-9 and not rerank_reason.get("runtime_state_fields"):
+        raise CandidateSetValidationError(
+            f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY}.runtime_state_fields is required when runtime_adjustment is non-zero"
+        )
+
+
+def _coerce_float(value: Any, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise CandidateSetValidationError(f"{field_name} must be numeric")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise CandidateSetValidationError(f"{field_name} must be numeric") from exc
+    if not math.isfinite(parsed):
+        raise CandidateSetValidationError(f"{field_name} must be finite")
+    return parsed
 
 
 def _validate_candidate_s5_fields(

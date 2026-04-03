@@ -246,6 +246,7 @@ class PatchRunner:
                 pending_action,
                 require_v1_fields=candidate_set_v1_ready,
                 require_s5_fields=candidate_set_v1_ready,
+                require_shadow_rerank_fields=candidate_set_v1_ready,
             )
             enter_waiting_state(
                 context,

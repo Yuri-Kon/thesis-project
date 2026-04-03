@@ -21,6 +21,10 @@ RUNTIME_STATE_SUMMARY_METADATA_KEY = "runtime_state_summary"
 DEFAULT_RECOMMENDATION_REASON_METADATA_KEY = "default_recommendation_reason"
 ACTION_SCORE_METADATA_KEY = "action_score"
 SHADOW_SCORE_METADATA_KEY = "shadow_score"
+STATIC_SCORE_METADATA_KEY = "static_score"
+FINAL_SCORE_METADATA_KEY = "final_score"
+RUNTIME_ADJUSTMENT_METADATA_KEY = "runtime_adjustment"
+RERANK_REASON_METADATA_KEY = "rerank_reason"
 WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
 DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
 
@@ -394,11 +398,29 @@ class RecommendationReason(BaseModel):
 
     code: str
     message: str
+    selection_basis: Literal["static_score", "final_score"] = "static_score"
+    shadow_candidate_id: str | None = None
+    shadow_score_gap: float | None = None
+    shadow_only: bool = True
 
     @field_validator("code", "message")
     @classmethod
     def _validate_text(cls, value: str, info) -> str:
         return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("shadow_candidate_id")
+    @classmethod
+    def _validate_optional_candidate_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_non_empty_text(value, field_name="shadow_candidate_id")
+
+    @field_validator("shadow_score_gap")
+    @classmethod
+    def _validate_optional_gap(cls, value: float | None) -> float | None:
+        if value is None:
+            return value
+        return _validate_finite_float_value(value, field_name="shadow_score_gap")
 
 
 class ScoreSummary(BaseModel):
@@ -421,6 +443,90 @@ class ScoreSummary(BaseModel):
     @classmethod
     def _validate_source(cls, value: str) -> str:
         return _validate_non_empty_text(value, field_name="source")
+
+
+class RuntimeAdjustmentFactor(BaseModel):
+    """runtime_adjustment 的可审计单因子。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: Literal["cost", "risk", "recovery", "evidence", "policy"]
+    signal: str
+    source: str
+    contribution: float
+    message: str
+
+    @field_validator("signal", "source", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("contribution")
+    @classmethod
+    def _validate_contribution(cls, value: float) -> float:
+        return _validate_finite_float_value(value, field_name="contribution")
+
+
+class RuntimeAdjustmentSummary(BaseModel):
+    """运行时修正摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float
+    source: str
+    formula_version: str = "v1"
+    shadow_only: bool = True
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(value, field_name="value")
+        if not -1.0 <= normalized <= 1.0:
+            raise ValueError("value must be between -1 and 1")
+        return normalized
+
+    @field_validator("source", "formula_version")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+
+class RerankReason(BaseModel):
+    """shadow rerank 的最小可审计说明。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    shadow_only: bool = True
+    runtime_state_fields: List[str] = Field(default_factory=list)
+    candidate_metric_fields: List[str] = Field(default_factory=list)
+    tool_metadata_fields: List[str] = Field(default_factory=list)
+    factors: List[RuntimeAdjustmentFactor] = Field(default_factory=list)
+
+    @field_validator("code", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator(
+        "runtime_state_fields",
+        "candidate_metric_fields",
+        "tool_metadata_fields",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_string_list(cls, value: Any, info) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError(f"{info.field_name} must be a list")
+        normalized: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(f"{info.field_name} items must be strings")
+            normalized.append(_validate_non_empty_text(item, field_name=info.field_name))
+        return normalized
 
 
 class WaitingRuntimeSummary(BaseModel):
@@ -578,7 +684,9 @@ class PendingActionCandidate(BaseModel):
         metadata: 额外元数据。
             - `runtime_state_summary` 可承载候选展示所需的轻量状态摘要。
             - `default_recommendation_reason` 可承载默认建议理由。
-            - `action_score` / `shadow_score` 用于承载动作分摘要。
+            - `action_score` / `shadow_score` 用于承载兼容动作分摘要。
+            - `static_score` / `runtime_adjustment` / `final_score` / `rerank_reason`
+              用于承载 shadow rerank 接口。
     """
 
     candidate_id: str
@@ -774,6 +882,24 @@ def _normalize_recommendation_reason(reason_payload: Any) -> Dict[str, Any]:
     )
 
 
+def _normalize_runtime_adjustment_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, RuntimeAdjustmentSummary):
+        return summary_payload.model_dump()
+    if isinstance(summary_payload, dict):
+        return RuntimeAdjustmentSummary.model_validate(summary_payload).model_dump()
+    raise ValueError(
+        f"metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping"
+    )
+
+
+def _normalize_rerank_reason(reason_payload: Any) -> Dict[str, Any]:
+    if isinstance(reason_payload, RerankReason):
+        return reason_payload.model_dump()
+    if isinstance(reason_payload, dict):
+        return RerankReason.model_validate(reason_payload).model_dump()
+    raise ValueError(f"metadata.{RERANK_REASON_METADATA_KEY} must be a mapping")
+
+
 def _normalize_score_summary(score_payload: Any, *, field_name: str) -> Dict[str, Any]:
     if isinstance(score_payload, ScoreSummary):
         return score_payload.model_dump()
@@ -808,6 +934,32 @@ def _normalize_candidate_runtime_contracts(
         metadata[SHADOW_SCORE_METADATA_KEY] = _normalize_score_summary(
             shadow_score_payload,
             field_name=SHADOW_SCORE_METADATA_KEY,
+        )
+
+    static_score_payload = metadata.get(STATIC_SCORE_METADATA_KEY)
+    if static_score_payload is not None:
+        metadata[STATIC_SCORE_METADATA_KEY] = _normalize_score_summary(
+            static_score_payload,
+            field_name=STATIC_SCORE_METADATA_KEY,
+        )
+
+    final_score_payload = metadata.get(FINAL_SCORE_METADATA_KEY)
+    if final_score_payload is not None:
+        metadata[FINAL_SCORE_METADATA_KEY] = _normalize_score_summary(
+            final_score_payload,
+            field_name=FINAL_SCORE_METADATA_KEY,
+        )
+
+    runtime_adjustment_payload = metadata.get(RUNTIME_ADJUSTMENT_METADATA_KEY)
+    if runtime_adjustment_payload is not None:
+        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = _normalize_runtime_adjustment_summary(
+            runtime_adjustment_payload
+        )
+
+    rerank_reason_payload = metadata.get(RERANK_REASON_METADATA_KEY)
+    if rerank_reason_payload is not None:
+        metadata[RERANK_REASON_METADATA_KEY] = _normalize_rerank_reason(
+            rerank_reason_payload
         )
 
 
