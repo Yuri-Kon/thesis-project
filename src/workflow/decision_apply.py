@@ -27,6 +27,10 @@ from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.patch import apply_patch
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
+from src.workflow.recovery import (
+    extract_candidate_recovery_metadata,
+    is_terminal_stop_candidate,
+)
 from src.workflow.snapshots import (
     SnapshotWriter,
     build_context_runtime_state_summary,
@@ -313,15 +317,28 @@ def apply_replan_confirm_decision(
     selected_plan: Optional[Plan] = None
     if decision.choice == DecisionChoice.ACCEPT:
         candidate = _select_candidate(action, decision)
-        selected_plan = _ensure_plan_payload(candidate)
-        _apply_plan_to_context(context, record, selected_plan)
-        transition_task_status(
-            context,
-            record,
-            InternalStatus.PLANNING,
-            reason="decision_accept_replan",
-            logger=status_logger,
-        )
+        if is_terminal_stop_candidate(candidate):
+            candidate_meta = extract_candidate_recovery_metadata(candidate)
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.FAILED,
+                reason=str(
+                    candidate_meta.get("terminal_reason")
+                    or "decision_accept_terminal_stop"
+                ),
+                logger=status_logger,
+            )
+        else:
+            selected_plan = _ensure_plan_payload(candidate)
+            _apply_plan_to_context(context, record, selected_plan)
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.PLANNING,
+                reason="decision_accept_replan",
+                logger=status_logger,
+            )
         action.status = PendingActionStatus.DECIDED
     elif decision.choice == DecisionChoice.CONTINUE:
         transition_task_status(
@@ -576,8 +593,8 @@ def _emit_decision_applied_event(
             decision.selected_candidate_id,
         )
     candidate_meta = (
-        selected_candidate.metadata
-        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
         else {}
     )
     decision_event = make_decision_applied(
@@ -616,6 +633,8 @@ def _emit_decision_applied_event(
             "action_score": candidate_meta.get("action_score"),
             "shadow_score": candidate_meta.get("shadow_score"),
             "evidence_source": candidate_meta.get("default_recommendation_reason"),
+            "terminal_policy": candidate_meta.get("terminal_policy"),
+            "terminal_reason": candidate_meta.get("terminal_reason"),
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,
@@ -648,8 +667,8 @@ def _emit_waiting_exit_event(
             decision.selected_candidate_id,
         )
     candidate_meta = (
-        selected_candidate.metadata
-        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
         else {}
     )
     exit_event = make_waiting_exit(
@@ -670,6 +689,8 @@ def _emit_waiting_exit_event(
             "action_score": candidate_meta.get("action_score"),
             "shadow_score": candidate_meta.get("shadow_score"),
             "evidence_source": candidate_meta.get("default_recommendation_reason"),
+            "terminal_policy": candidate_meta.get("terminal_policy"),
+            "terminal_reason": candidate_meta.get("terminal_reason"),
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,
@@ -686,6 +707,17 @@ def _build_decision_artifacts(
 ) -> dict[str, object] | None:
     if decision is None:
         return None
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
+        else {}
+    )
     summary = {
         "decision_id": decision.decision_id,
         "pending_action_id": action.pending_action_id,
@@ -695,6 +727,8 @@ def _build_decision_artifacts(
         "action_status": action.status.value,
         "decided_by": decision.decided_by,
         "decision_source": "human",
+        "terminal_policy": candidate_meta.get("terminal_policy"),
+        "terminal_reason": candidate_meta.get("terminal_reason"),
         "runtime_state_summary": build_context_runtime_state_summary(
             context,
             require_runtime_state=True,

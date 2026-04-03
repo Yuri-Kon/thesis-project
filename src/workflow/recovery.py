@@ -18,6 +18,7 @@ from typing import Any, Dict, Iterable, Optional, Sequence
 
 from src.models.contracts import (
     PendingAction,
+    PendingActionCandidate,
     Plan,
     PlanStep,
     ProteinDesignTask,
@@ -49,8 +50,14 @@ __all__ = [
     "get_s6_trigger_matrix",
     "WorkflowActionSelectorInput",
     "WorkflowActionSelectorResult",
+    "WorkflowActionRoute",
     "select_workflow_action",
     "resolve_s6_recovery_action",
+    "resolve_workflow_action_route",
+    "build_terminal_stop_candidate",
+    "extract_candidate_recovery_metadata",
+    "is_terminal_stop_candidate",
+    "resolve_terminal_stop_reason",
 ]
 
 S6_TRIGGER_MATRIX_VERSION = "2026-03-16.v1"
@@ -77,17 +84,52 @@ _S6_STAGE_TRIGGER_MATRIX: dict[str, dict[str, Any]] = {
     },
 }
 
-_WORKFLOW_ACTION_TO_FLOW = {
-    "continue": "continue",
-    "patch_local": "patch",
-    "suffix_replan": "replan",
-    "stop": "stop",
+_TERMINAL_STOP_REASON_BY_FAILURE_TYPE = {
+    FailureType.SAFETY_BLOCK: "unsafe_to_continue",
+    FailureType.TOOL_ERROR: "recovery_exhausted",
+    FailureType.NON_RETRYABLE: "evidence_exhausted",
+    FailureType.RETRYABLE: "economic_stop",
 }
 
 _PHASE_ALLOWED_ACTIONS: dict[str, frozenset[str]] = {
     "execution": frozenset({"continue", "patch_local", "suffix_replan", "stop"}),
     "patch": frozenset({"patch_local", "suffix_replan", "stop"}),
     "replan": frozenset({"continue", "suffix_replan", "stop"}),
+}
+
+
+@dataclass(frozen=True)
+class WorkflowActionRoute:
+    """统一动作到既有 recovery 闭环的映射。"""
+
+    action: str
+    mapped_flow: str
+    waiting_status: InternalStatus | None = None
+    terminal_policy: str | None = None
+    terminal_status: InternalStatus | None = None
+
+
+_WORKFLOW_ACTION_ROUTES: dict[str, WorkflowActionRoute] = {
+    "continue": WorkflowActionRoute(
+        action="continue",
+        mapped_flow="continue",
+    ),
+    "patch_local": WorkflowActionRoute(
+        action="patch_local",
+        mapped_flow="patch",
+    ),
+    "suffix_replan": WorkflowActionRoute(
+        action="suffix_replan",
+        mapped_flow="replan",
+        waiting_status=InternalStatus.WAITING_REPLAN,
+    ),
+    "stop": WorkflowActionRoute(
+        action="stop",
+        mapped_flow="stop",
+        waiting_status=InternalStatus.WAITING_REPLAN,
+        terminal_policy="stop",
+        terminal_status=InternalStatus.FAILED,
+    ),
 }
 
 
@@ -124,6 +166,15 @@ class WorkflowActionSelectorResult:
     evidence_source: dict[str, Any]
 
 
+def resolve_workflow_action_route(action: str) -> WorkflowActionRoute:
+    """返回统一动作的 recovery 映射信息。"""
+
+    normalized = _normalize_workflow_action(action)
+    if normalized is None:
+        raise ValueError(f"Unsupported workflow action: {action}")
+    return _WORKFLOW_ACTION_ROUTES[normalized]
+
+
 def select_workflow_action(
     selector_input: WorkflowActionSelectorInput,
 ) -> WorkflowActionSelectorResult:
@@ -152,6 +203,25 @@ def select_workflow_action(
         default=1.0,
     )
     cost_pressure = min(max(expected_remaining_cost, 0.0) / 5.0, 1.0)
+    budget_pressure = _safe_float(
+        runtime_summary.get("budget_pressure"),
+        default=cost_pressure,
+    )
+    intervention_value = _safe_float(
+        runtime_summary.get("intervention_value"),
+        default=1.0,
+    )
+    prefix_preservability = _safe_optional_float(
+        runtime_summary.get("prefix_preservability")
+    )
+    local_patchability = _safe_optional_float(
+        runtime_summary.get("local_patchability")
+    )
+    u_stop = _safe_float(runtime_summary.get("u_stop"), default=0.0)
+    allow_auto_stop = _safe_bool(
+        runtime_summary.get("allow_auto_stop"),
+        default=False,
+    )
 
     normalized_failure_type = _normalize_failure_type(selector_input.failure_type)
     normalized_failure_code = _normalize_text(selector_input.failure_code)
@@ -170,7 +240,26 @@ def select_workflow_action(
         safety_blocked=bool(selector_input.safety_blocked),
     )
 
-    if suggested_action is not None:
+    if (
+        selector_input.safety_blocked
+        and "suffix_replan" in allowed_actions
+        and not _should_choose_stop(
+            allowed_actions=allowed_actions,
+            allow_auto_stop=allow_auto_stop,
+            u_stop=u_stop,
+            p_success=p_success,
+            budget_pressure=budget_pressure,
+            recovery_margin=recovery_margin,
+            intervention_value=intervention_value,
+        )
+    ):
+        action = "suffix_replan"
+        reason = "safety block disables continue and escalates to suffix replan"
+        basis = "hard_priority"
+    elif suggested_action is not None and not _is_hard_blocked_suggestion(
+        suggested_action=suggested_action,
+        safety_blocked=bool(selector_input.safety_blocked),
+    ):
         action = suggested_action
         reason = selector_input.suggested_reason or (
             f"candidate/runtime suggestion selected {suggested_action}"
@@ -180,14 +269,31 @@ def select_workflow_action(
         action = "continue"
         reason = "no failure or safety signal is present in the current execution step"
         basis = "default_continue"
-    elif p_success <= 0.25 and cost_pressure >= 0.7 and "stop" in allowed_actions:
+    elif _should_choose_stop(
+        allowed_actions=allowed_actions,
+        allow_auto_stop=allow_auto_stop,
+        u_stop=u_stop,
+        p_success=p_success,
+        budget_pressure=budget_pressure,
+        recovery_margin=recovery_margin,
+        intervention_value=intervention_value,
+    ):
         action = "stop"
-        reason = "success probability is low while remaining cost pressure is high"
-        basis = "runtime_state"
+        reason = (
+            "runtime stop threshold met; route through terminal_stop replan candidate"
+        )
+        basis = "action_priority"
     elif (
         phase != "replan"
         and "patch_local" in allowed_actions
         and s6_default_action == "patch"
+        and (
+            local_patchability is None
+            or (
+                local_patchability >= 0.55
+                and recovery_margin >= 0.30
+            )
+        )
         and not (
             p_structural_failure >= 0.55
             and recovery_margin <= 0.1
@@ -195,7 +301,7 @@ def select_workflow_action(
     ):
         action = "patch_local"
         reason = "failure still looks local and existing recovery order prefers patch"
-        basis = "s6_trigger_matrix"
+        basis = "action_priority"
     elif (
         "suffix_replan" in allowed_actions
         and (
@@ -210,15 +316,16 @@ def select_workflow_action(
         reason = (
             "structural failure pressure is high or trigger matrix already prefers replan"
         )
-        basis = "runtime_state+s6_trigger_matrix"
+        basis = "action_priority"
     else:
         action = "continue"
         reason = "current context does not justify escalating beyond the existing path"
         basis = "default_continue"
 
+    route = resolve_workflow_action_route(action)
     return WorkflowActionSelectorResult(
         action=action,
-        mapped_flow=_WORKFLOW_ACTION_TO_FLOW[action],
+        mapped_flow=route.mapped_flow,
         reason=reason,
         evidence_source={
             "phase": phase,
@@ -232,9 +339,116 @@ def select_workflow_action(
             ),
             "retry_exhausted": bool(selector_input.retry_exhausted),
             "s6_default_action": s6_default_action,
+            "budget_pressure": budget_pressure,
+            "intervention_value": intervention_value,
+            "prefix_preservability": prefix_preservability,
+            "local_patchability": local_patchability,
+            "allow_auto_stop": allow_auto_stop,
+            "u_stop": u_stop,
             "runtime_state_summary": runtime_summary or None,
         },
     )
+
+
+def build_terminal_stop_candidate(
+    *,
+    plan: Plan,
+    step_id: str | None,
+    failure_type: FailureType | str | None,
+    failure_code: str | None,
+    failure_reason: str,
+    runtime_state_summary: dict[str, Any] | None = None,
+    explanation: str | None = None,
+) -> PendingActionCandidate:
+    """构造复用 replan_confirm 闭环的 terminal_stop 候选。"""
+
+    stop_reason = resolve_terminal_stop_reason(
+        failure_type=failure_type,
+        failure_code=failure_code,
+    )
+    preserve_prefix_until_step_index = _resolve_preserve_prefix_until_step_index(
+        plan,
+        step_id,
+    )
+    payload = plan.model_copy(deep=True)
+    payload.metadata = {
+        **(payload.metadata if isinstance(payload.metadata, dict) else {}),
+        "replan_mode": "suffix_replan",
+        "terminal_policy": "stop",
+        "terminal_reason": stop_reason,
+        "preserve_prefix_until_step_index": preserve_prefix_until_step_index,
+    }
+    metadata: dict[str, Any] = {
+        "shadow_action": "stop",
+        "shadow_action_reason": explanation or failure_reason,
+        "replan_mode": "suffix_replan",
+        "terminal_policy": "stop",
+        "terminal_reason": stop_reason,
+        "preserve_prefix_until_step_index": preserve_prefix_until_step_index,
+    }
+    if runtime_state_summary:
+        metadata["runtime_state_summary"] = dict(runtime_state_summary)
+    candidate_suffix = (step_id or "task").strip().lower()
+    return PendingActionCandidate(
+        candidate_id=f"terminal_stop_{candidate_suffix}",
+        payload=payload,
+        structured_payload=payload,
+        summary="terminal stop candidate",
+        explanation=explanation or failure_reason,
+        metadata=metadata,
+    )
+
+
+def extract_candidate_recovery_metadata(
+    candidate: PendingActionCandidate | None,
+) -> dict[str, Any]:
+    """合并候选和 payload 上的恢复语义元数据。"""
+
+    if candidate is None:
+        return {}
+    metadata = (
+        dict(candidate.metadata)
+        if isinstance(candidate.metadata, dict)
+        else {}
+    )
+    payload = candidate.structured_payload or candidate.payload
+    if isinstance(payload, Plan):
+        payload_metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+        for key in (
+            "replan_mode",
+            "terminal_policy",
+            "terminal_reason",
+            "preserve_prefix_until_step_index",
+        ):
+            value = payload_metadata.get(key)
+            if value is not None and key not in metadata:
+                metadata[key] = value
+    return metadata
+
+
+def is_terminal_stop_candidate(candidate: PendingActionCandidate | None) -> bool:
+    metadata = extract_candidate_recovery_metadata(candidate)
+    terminal_policy = _normalize_text(metadata.get("terminal_policy"))
+    replan_mode = _normalize_text(metadata.get("replan_mode"))
+    return terminal_policy == "stop" or replan_mode == "terminal_stop"
+
+
+def resolve_terminal_stop_reason(
+    *,
+    failure_type: FailureType | str | None,
+    failure_code: str | None,
+) -> str:
+    """将 stop 候选映射到定稿约定的终止原因。"""
+
+    normalized_type = _normalize_failure_type(failure_type)
+    normalized_code = _normalize_text(failure_code) or ""
+    if normalized_type == FailureType.SAFETY_BLOCK or normalized_code.startswith("SAFETY_"):
+        return "unsafe_to_continue"
+    if normalized_code.startswith(("SCHEMA_", "IO_", "TOOL_")):
+        return "recovery_exhausted"
+    if normalized_type in _TERMINAL_STOP_REASON_BY_FAILURE_TYPE:
+        return _TERMINAL_STOP_REASON_BY_FAILURE_TYPE[normalized_type]
+    return "economic_stop"
 
 
 def resolve_s6_recovery_action(
@@ -284,7 +498,7 @@ def _normalize_selector_phase(value: str | None) -> str:
 
 def _normalize_workflow_action(value: str | None) -> str | None:
     normalized = _normalize_text(value)
-    if normalized in _WORKFLOW_ACTION_TO_FLOW:
+    if normalized in _WORKFLOW_ACTION_ROUTES:
         return normalized
     return None
 
@@ -313,6 +527,27 @@ def _safe_float(value: object, *, default: float) -> float:
         return default
 
 
+def _safe_optional_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_bool(value: object, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
 def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
     if isinstance(value, FailureType):
         return value
@@ -321,6 +556,48 @@ def _normalize_failure_type(value: FailureType | str | None) -> FailureType | No
             return FailureType(value)
         except ValueError:
             return None
+    return None
+
+
+def _is_hard_blocked_suggestion(
+    *,
+    suggested_action: str,
+    safety_blocked: bool,
+) -> bool:
+    return safety_blocked and suggested_action == "continue"
+
+
+def _should_choose_stop(
+    *,
+    allowed_actions: frozenset[str],
+    allow_auto_stop: bool,
+    u_stop: float,
+    p_success: float,
+    budget_pressure: float,
+    recovery_margin: float,
+    intervention_value: float,
+) -> bool:
+    if "stop" not in allowed_actions:
+        return False
+    if allow_auto_stop and u_stop >= 0.72:
+        return True
+    return (
+        p_success <= 0.20
+        and budget_pressure >= 0.85
+        and recovery_margin <= 0.20
+        and intervention_value <= 0.35
+    )
+
+
+def _resolve_preserve_prefix_until_step_index(
+    plan: Plan,
+    step_id: str | None,
+) -> int | None:
+    if not step_id:
+        return None
+    for index, step in enumerate(plan.steps):
+        if step.id == step_id:
+            return index - 1 if index > 0 else None
     return None
 
 
