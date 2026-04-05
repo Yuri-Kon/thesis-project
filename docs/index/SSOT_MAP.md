@@ -19,7 +19,7 @@
 | `summarizer` | agent-design.md | SummarizerAgent 接口与职责边界 |
 | `tools` | tools-catalog.md（目录与适配约束）<br>active-tool-metadata-profile.md（活跃工具元数据） | tools-catalog.md 负责工具目录与 ToolAdapter 约束；active-tool-metadata-profile.md 负责当前活跃工具的成本/风险/恢复先验 |
 | `workflow` | de-novo-workflow.md | de novo 工作流分层、模块化与循环控制 |
-| `interface` | interaction-entry-surfaces.md | Web 主操纵空间、CLI 辅助入口、无头环境兼容与双入口协同 |
+| `interface` | interaction-entry-surfaces.md（总纲）<br>web-operator-workspace.md（Web 落地）<br>cli-operator-workflow.md（CLI 落地） | 交互入口总纲、Web 主工作台落地、CLI 无头工作流与 Web 协同 |
 | `api` | system-implementation-design.md | REST API 端点定义与契约 |
 | `obs` | system-implementation-design.md | 可观测性（EventLog）、日志模式与约束 |
 | `storage` | system-implementation-design.md | 数据存储与持久化 |
@@ -146,7 +146,7 @@
 | `SID:workflow.integration.responsibilities` | 分工映射（Planner/Executor/Safety） | Section |
 | `SID:workflow.examples.template` | 示例流程模板（非线性） | Section |
 
-### `interface` Domain（SSOT: interaction-entry-surfaces.md）
+### `interface` Domain（SSOT: interaction-entry-surfaces.md / web-operator-workspace.md / cli-operator-workflow.md）
 
 | SID | 说明 | 粒度 |
 |-----|------|------|
@@ -171,6 +171,36 @@
 | `SID:interface.cli.backend_compatibility` | CLI 后端形态兼容性 | Block |
 | `SID:interface.integration.api_boundary` | API 集成边界 | Block |
 | `SID:interface.rollout.milestones` | 演进路线 | Section |
+| `SID:interface.web_workspace.overview` | Web 主工作台总览 | Section |
+| `SID:interface.web_workspace.framework_choice` | Web 框架选择与边界 | Section |
+| `SID:interface.web_workspace.design_principles` | Web 设计原则 | Section |
+| `SID:interface.web_workspace.primary_layout` | Web 顶层布局 | Section |
+| `SID:interface.web_workspace.page_topology` | Web 页面拓扑 | Block |
+| `SID:interface.web_workspace.dashboard` | Dashboard 要求 | Block |
+| `SID:interface.web_workspace.task_detail` | Task Detail 要求 | Block |
+| `SID:interface.web_workspace.pending_review` | Pending Review 工作区 | Block |
+| `SID:interface.web_workspace.model_invocation_panel` | 模型调用工作台 | Block |
+| `SID:interface.web_workspace.structure_visualization` | 结构可视化工作区 | Block |
+| `SID:interface.web_workspace.structure_metric_linking` | 结构与指标联动 | Block |
+| `SID:interface.web_workspace.report_explorer` | 报告与产物浏览 | Block |
+| `SID:interface.web_workspace.interaction_patterns` | Web 交互模式 | Section |
+| `SID:interface.web_workspace.state_sync` | Web 状态同步约束 | Block |
+| `SID:interface.web_workspace.visualization_fallback` | 可视化降级与网络约束 | Block |
+| `SID:interface.web_workspace.milestones` | Web MVP 与演进 | Section |
+| `SID:interface.cli_workflow.overview` | CLI 工作流总览 | Section |
+| `SID:interface.cli_workflow.role_boundary` | CLI 定位与职责边界 | Section |
+| `SID:interface.cli_workflow.experience_modes` | CLI 体验模式 | Section |
+| `SID:interface.cli_workflow.command_groups` | CLI 命令分组 | Section |
+| `SID:interface.cli_workflow.submit_flow` | CLI 提交流程 | Section |
+| `SID:interface.cli_workflow.watch_flow` | CLI 轮询与值守流程 | Section |
+| `SID:interface.cli_workflow.pending_review` | CLI 待确认审查流程 | Section |
+| `SID:interface.cli_workflow.noninteractive_mode` | CLI 非交互模式 | Section |
+| `SID:interface.cli_workflow.output_profiles` | CLI 输出契约 | Section |
+| `SID:interface.cli_workflow.web_handoff` | CLI 与 Web 的协同跳转 | Section |
+| `SID:interface.cli_workflow.error_mapping` | CLI 错误呈现与恢复提示 | Section |
+| `SID:interface.cli_workflow.headless_recovery` | CLI 无头恢复与审计 | Section |
+| `SID:interface.cli_workflow.progressive_enhancement` | CLI 渐进增强边界 | Section |
+| `SID:interface.cli_workflow.milestones` | CLI 演进顺序 | Section |
 
 ### `algo` Domain（SSOT: core-algorithm-spec.md / runtime-adaptation-formalization.md）
 
@@ -320,6 +350,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.5 | 2026-04-05 | 将 interface 域扩展为总纲 + Web 落地 + CLI 落地三份文档；新增 Web 主工作台、结构可视化、模型调用工作台与 CLI 无头工作流相关 SID |
 | 1.4 | 2026-03-29 | 新增 interface 域及 interaction-entry-surfaces.md，定义 Web/CLI 双入口定位、最小 CLI 闭环与双入口协同边界 |
 | 1.3 | 2026-03-29 | 纳入 runtime-adaptation-formalization、active-tool-metadata-profile 与 algorithm-group-paper-mapping；新增 experiment 域并对齐 planning/execution/observability 的 SSOT 入口 |
 | 1.2 | 2026-03-24 | 新增自适应规划相关 SID，补充 workflow/impl/algo 映射，并对齐 docslice 检索入口 |

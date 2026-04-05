@@ -1,6 +1,6 @@
 {
-  "version": "1.4",
-  "generated_at": "2026-03-29",
+  "version": "1.5",
+  "generated_at": "2026-04-05",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -1269,11 +1269,329 @@
       "total_specs": 11,
       "critical_specs": 5,
       "high_specs": 6
+    },
+    "web_workspace": {
+      "title": "Web Operator Workspace",
+      "description": "Web 主工作台的页面架构、全信息展示、模型调用工作区、结构可视化与交互约束",
+      "use_case": "设计或实现 Web 主工作台、蛋白质结构可视化与 Pending Review 交互时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "interface.web_workspace.overview",
+          "title": "Web 主工作台总览",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "定义 Web 子文档的整体范围与定位"
+        },
+        {
+          "sid": "interface.web_workspace.framework_choice",
+          "title": "Web 框架选择与边界",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "确认 Web 端仍以 FastAPI 同仓托管为正式形态"
+        },
+        {
+          "sid": "interface.web_workspace.design_principles",
+          "title": "Web 设计原则",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "定义全信息展示、强交互与结构可视化的一致原则"
+        },
+        {
+          "sid": "interface.web_workspace.primary_layout",
+          "title": "Web 顶层布局",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "定义主工作台的三栏式空间组织"
+        },
+        {
+          "sid": "interface.web_workspace.page_topology",
+          "title": "Web 页面拓扑",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "定义 Dashboard、Task、Pending、Timeline、Report 之间的关系"
+        },
+        {
+          "sid": "interface.web_workspace.task_detail",
+          "title": "Task Detail 要求",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "规定单任务真相页必须展示的上下文"
+        },
+        {
+          "sid": "interface.web_workspace.pending_review",
+          "title": "Pending Review 工作区",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "规定 WAITING 阶段的主交互工作区"
+        },
+        {
+          "sid": "interface.web_workspace.model_invocation_panel",
+          "title": "模型调用工作台",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "借鉴 NIM 风格展示模型调用输入、状态、输出与失败语义"
+        },
+        {
+          "sid": "interface.web_workspace.structure_visualization",
+          "title": "结构可视化工作区",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "规定 NGL 驱动的 3D 结构查看是主工作台一等能力"
+        },
+        {
+          "sid": "interface.web_workspace.structure_metric_linking",
+          "title": "结构与指标联动",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "规定结构和图表的联动方向"
+        },
+        {
+          "sid": "interface.web_workspace.report_explorer",
+          "title": "报告与产物浏览",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "定义报告与工件如何纳入统一工作台"
+        },
+        {
+          "sid": "interface.web_workspace.interaction_patterns",
+          "title": "Web 交互模式",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "定义筛选、跳转、对比与刷新等交互基线"
+        },
+        {
+          "sid": "interface.web_workspace.state_sync",
+          "title": "Web 状态同步约束",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "防止浏览器本地状态偏离服务端契约"
+        },
+        {
+          "sid": "interface.web_workspace.visualization_fallback",
+          "title": "可视化降级与网络约束",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "high",
+          "rationale": "保证结构查看器失败时仍可继续阅读和确认"
+        },
+        {
+          "sid": "interface.web_workspace.milestones",
+          "title": "Web MVP 与演进",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "medium",
+          "rationale": "给出 Web 子文档的建议落地顺序"
+        },
+        {
+          "sid": "interface.constraints.contract_alignment",
+          "title": "与现有系统契约的对齐要求",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "critical",
+          "rationale": "保证 Web 子文档不会重定义 FSM 或 HITL 契约"
+        },
+        {
+          "sid": "arch.contracts.pending_action",
+          "title": "PendingAction 契约定义",
+          "doc_key": "arch",
+          "path": "docs/design/architecture.md",
+          "priority": "critical",
+          "rationale": "Pending Review 工作区围绕该对象展开"
+        },
+        {
+          "sid": "api.rest.submit_decision",
+          "title": "POST /pending-actions/{id}/decision 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "critical",
+          "rationale": "Web 决策提交必须通过该 API 完成"
+        },
+        {
+          "sid": "impl.remote_model_invocation.nim_failure_codes",
+          "title": "NVIDIA NIM 失败码定义",
+          "doc_key": "impl_remote_model_invocation",
+          "path": "docs/impl/remote_model_invocation.md",
+          "priority": "high",
+          "rationale": "模型调用工作台需要展示失败类型与恢复动作"
+        }
+      ],
+      "total_specs": 19,
+      "critical_specs": 8,
+      "high_specs": 10,
+      "medium_specs": 1
+    },
+    "cli_workflow": {
+      "title": "CLI Workflow",
+      "description": "CLI 的无头闭环、命令面、输出契约、错误呈现与与 Web 的协同跳转",
+      "use_case": "设计或实现 CLI、终端值守流与脚本化接口时需要注入的最小规范集合",
+      "specs": [
+        {
+          "sid": "interface.cli_workflow.overview",
+          "title": "CLI 工作流总览",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "critical",
+          "rationale": "定义 CLI 子文档的总体范围与目标"
+        },
+        {
+          "sid": "interface.cli_workflow.role_boundary",
+          "title": "CLI 定位与职责边界",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "critical",
+          "rationale": "明确 CLI 是无头入口与 Web 伴侣，而非前端替代品"
+        },
+        {
+          "sid": "interface.cli_workflow.experience_modes",
+          "title": "CLI 体验模式",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "定义 headless、companion、automation 三种使用方式"
+        },
+        {
+          "sid": "interface.cli_workflow.command_groups",
+          "title": "CLI 命令分组",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "规定正式命令面的组织方式"
+        },
+        {
+          "sid": "interface.cli_workflow.submit_flow",
+          "title": "CLI 提交流程",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "critical",
+          "rationale": "保证同步/异步两类后端语义都能稳定接入"
+        },
+        {
+          "sid": "interface.cli_workflow.watch_flow",
+          "title": "CLI 轮询与值守流程",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "critical",
+          "rationale": "watch 是终端值守的核心能力"
+        },
+        {
+          "sid": "interface.cli_workflow.pending_review",
+          "title": "CLI 待确认审查流程",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "critical",
+          "rationale": "规定纯终端下如何完成 WAITING 阶段确认"
+        },
+        {
+          "sid": "interface.cli_workflow.noninteractive_mode",
+          "title": "CLI 非交互模式",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "保证 CLI 可用于脚本和自动化"
+        },
+        {
+          "sid": "interface.cli_workflow.output_profiles",
+          "title": "CLI 输出契约",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "规定 human/json 两类输出剖面"
+        },
+        {
+          "sid": "interface.cli_workflow.web_handoff",
+          "title": "CLI 与 Web 的协同跳转",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "定义 WAITING 阶段从 CLI 切到 Web 的正式方式"
+        },
+        {
+          "sid": "interface.cli_workflow.error_mapping",
+          "title": "CLI 错误呈现与恢复提示",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "把底层失败码转成可操作提示"
+        },
+        {
+          "sid": "interface.cli_workflow.headless_recovery",
+          "title": "CLI 无头恢复与审计",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "high",
+          "rationale": "支持 SSH、tmux 和断线后的继续工作"
+        },
+        {
+          "sid": "interface.cli_workflow.progressive_enhancement",
+          "title": "CLI 渐进增强边界",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "medium",
+          "rationale": "约束 TUI 等增强能力不能破坏纯文本闭环"
+        },
+        {
+          "sid": "interface.cli_workflow.milestones",
+          "title": "CLI 演进顺序",
+          "doc_key": "interface_cli_workflow",
+          "path": "docs/design/cli-operator-workflow.md",
+          "priority": "medium",
+          "rationale": "给出 CLI 子文档的建议落地顺序"
+        },
+        {
+          "sid": "interface.cli.headless_guarantee",
+          "title": "CLI 无头环境最小闭环保证",
+          "doc_key": "interface_surfaces",
+          "path": "docs/design/interaction-entry-surfaces.md",
+          "priority": "critical",
+          "rationale": "CLI 子文档继承该基础约束"
+        },
+        {
+          "sid": "api.rest.create_task",
+          "title": "POST /tasks 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "submit 的正式 API 边界"
+        },
+        {
+          "sid": "api.rest.submit_decision",
+          "title": "POST /pending-actions/{id}/decision 端点",
+          "doc_key": "impl",
+          "path": "docs/design/system-implementation-design.md",
+          "priority": "high",
+          "rationale": "decision apply 的正式 API 边界"
+        },
+        {
+          "sid": "impl.remote_model_invocation.nim_failure_codes",
+          "title": "NVIDIA NIM 失败码定义",
+          "doc_key": "impl_remote_model_invocation",
+          "path": "docs/impl/remote_model_invocation.md",
+          "priority": "high",
+          "rationale": "CLI 错误提示需要借助该失败码语义"
+        }
+      ],
+      "total_specs": 18,
+      "critical_specs": 6,
+      "high_specs": 10,
+      "medium_specs": 2
     }
   },
   "summary": {
-    "total_topics": 12,
-    "total_unique_specs": 118,
+    "total_topics": 14,
+    "total_unique_specs": 148,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

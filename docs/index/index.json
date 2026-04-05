@@ -1,8 +1,8 @@
 {
-  "version": "1.4",
-  "generated_at": "2026-03-29",
+  "version": "1.5",
+  "generated_at": "2026-04-05",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 173,
+  "total_specs": 203,
   "documents": [
     {
       "doc_key": "arch",
@@ -203,6 +203,31 @@
       "depends_on": [
         "algo",
         "de_novo_workflow"
+      ]
+    },
+    {
+      "doc_key": "interface_web_workspace",
+      "title": "Web 主工作台设计：全信息展示、结构可视化与交互确认",
+      "path": "docs/design/web-operator-workspace.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "interface_surfaces",
+        "impl",
+        "hitl",
+        "tools"
+      ]
+    },
+    {
+      "doc_key": "interface_cli_workflow",
+      "title": "CLI 交互设计：无头环境闭环、批处理与 Web 协同",
+      "path": "docs/design/cli-operator-workflow.md",
+      "status": "stable",
+      "version": "1.0",
+      "depends_on": [
+        "interface_surfaces",
+        "impl",
+        "hitl"
       ]
     }
   ],
@@ -3772,6 +3797,684 @@
       "depends_on": [
         "interface.cli.command_tree",
         "interface.web.information_architecture"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.overview",
+      "title": "Web 主工作台总览",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 9,
+        "marker": "<!-- SID:interface.web_workspace.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "workspace",
+        "overview"
+      ],
+      "depends_on": [
+        "interface.web.primary_workspace",
+        "interface.web.information_architecture"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.framework_choice",
+      "title": "Web 框架选择与边界",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 16,
+        "marker": "<!-- SID:interface.web_workspace.framework_choice -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "framework",
+        "fastapi"
+      ],
+      "depends_on": [
+        "impl.techstack.overview",
+        "interface.web_workspace.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.design_principles",
+      "title": "Web 设计原则",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 27,
+        "marker": "<!-- SID:interface.web_workspace.design_principles -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "design",
+        "principles"
+      ],
+      "depends_on": [
+        "interface.web_workspace.overview",
+        "interface.constraints.contract_alignment"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.primary_layout",
+      "title": "Web 顶层布局",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 38,
+        "marker": "<!-- SID:interface.web_workspace.primary_layout -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "layout",
+        "workspace"
+      ],
+      "depends_on": [
+        "interface.web_workspace.design_principles"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.page_topology",
+      "title": "Web 页面拓扑",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 49,
+        "marker": "<!-- SID:interface.web_workspace.page_topology -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "pages",
+        "topology"
+      ],
+      "depends_on": [
+        "interface.web_workspace.primary_layout",
+        "interface.web.information_architecture"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.dashboard",
+      "title": "Dashboard 要求",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 62,
+        "marker": "<!-- SID:interface.web_workspace.dashboard -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "dashboard"
+      ],
+      "depends_on": [
+        "interface.web_workspace.page_topology"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.task_detail",
+      "title": "Task Detail 要求",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 74,
+        "marker": "<!-- SID:interface.web_workspace.task_detail -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "task_detail"
+      ],
+      "depends_on": [
+        "interface.web_workspace.page_topology",
+        "interface.integration.api_boundary"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.pending_review",
+      "title": "Pending Review 工作区",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 87,
+        "marker": "<!-- SID:interface.web_workspace.pending_review -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "pending_review",
+        "hitl"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "api.rest.submit_decision"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.model_invocation_panel",
+      "title": "模型调用工作台",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 100,
+        "marker": "<!-- SID:interface.web_workspace.model_invocation_panel -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "model_invocation",
+        "nvidia_nim"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.overview",
+        "impl.remote_model_invocation.nim_failure_codes"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.structure_visualization",
+      "title": "结构可视化工作区",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 115,
+        "marker": "<!-- SID:interface.web_workspace.structure_visualization -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "structure_visualization",
+        "ngl"
+      ],
+      "depends_on": [
+        "interface.web_workspace.task_detail",
+        "interface.web_workspace.model_invocation_panel"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.structure_metric_linking",
+      "title": "结构与指标联动",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 128,
+        "marker": "<!-- SID:interface.web_workspace.structure_metric_linking -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "structure",
+        "metrics",
+        "linking"
+      ],
+      "depends_on": [
+        "interface.web_workspace.structure_visualization"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.report_explorer",
+      "title": "报告与产物浏览",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 139,
+        "marker": "<!-- SID:interface.web_workspace.report_explorer -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "report",
+        "artifacts"
+      ],
+      "depends_on": [
+        "interface.web_workspace.page_topology",
+        "api.rest.get_report"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.interaction_patterns",
+      "title": "Web 交互模式",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 152,
+        "marker": "<!-- SID:interface.web_workspace.interaction_patterns -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "interaction",
+        "patterns"
+      ],
+      "depends_on": [
+        "interface.web_workspace.pending_review",
+        "interface.web_workspace.report_explorer"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.state_sync",
+      "title": "Web 状态同步约束",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 166,
+        "marker": "<!-- SID:interface.web_workspace.state_sync -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "state_sync",
+        "contracts"
+      ],
+      "depends_on": [
+        "interface.constraints.contract_alignment",
+        "api.rest.submit_decision"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.visualization_fallback",
+      "title": "可视化降级与网络约束",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 177,
+        "marker": "<!-- SID:interface.web_workspace.visualization_fallback -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "visualization",
+        "fallback"
+      ],
+      "depends_on": [
+        "interface.web_workspace.structure_visualization",
+        "interface.web_workspace.report_explorer"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.milestones",
+      "title": "Web MVP 与演进",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 187,
+        "marker": "<!-- SID:interface.web_workspace.milestones -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "rollout",
+        "milestones"
+      ],
+      "depends_on": [
+        "interface.web_workspace.dashboard",
+        "interface.web_workspace.pending_review"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.overview",
+      "title": "CLI 工作流总览",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 9,
+        "marker": "<!-- SID:interface.cli_workflow.overview -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "workflow",
+        "overview"
+      ],
+      "depends_on": [
+        "interface.cli.headless_entry",
+        "interface.cli.capability_scope"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.role_boundary",
+      "title": "CLI 定位与职责边界",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 16,
+        "marker": "<!-- SID:interface.cli_workflow.role_boundary -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "role_boundary"
+      ],
+      "depends_on": [
+        "interface.cli.headless_entry"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.experience_modes",
+      "title": "CLI 体验模式",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 28,
+        "marker": "<!-- SID:interface.cli_workflow.experience_modes -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "experience_modes"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.role_boundary"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.command_groups",
+      "title": "CLI 命令分组",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 39,
+        "marker": "<!-- SID:interface.cli_workflow.command_groups -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "commands"
+      ],
+      "depends_on": [
+        "interface.cli.command_tree",
+        "interface.cli_workflow.experience_modes"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.submit_flow",
+      "title": "CLI 提交流程",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 54,
+        "marker": "<!-- SID:interface.cli_workflow.submit_flow -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "submit",
+        "workflow"
+      ],
+      "depends_on": [
+        "api.rest.create_task",
+        "interface.cli.backend_compatibility"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.watch_flow",
+      "title": "CLI 轮询与值守流程",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 66,
+        "marker": "<!-- SID:interface.cli_workflow.watch_flow -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "watch",
+        "polling"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.submit_flow",
+        "obs.eventlog.mandatory_events"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.pending_review",
+      "title": "CLI 待确认审查流程",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 79,
+        "marker": "<!-- SID:interface.cli_workflow.pending_review -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "pending_review",
+        "hitl"
+      ],
+      "depends_on": [
+        "arch.contracts.pending_action",
+        "api.rest.submit_decision"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.noninteractive_mode",
+      "title": "CLI 非交互模式",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 91,
+        "marker": "<!-- SID:interface.cli_workflow.noninteractive_mode -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "automation",
+        "noninteractive"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.command_groups"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.output_profiles",
+      "title": "CLI 输出契约",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 103,
+        "marker": "<!-- SID:interface.cli_workflow.output_profiles -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "output",
+        "json"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.noninteractive_mode"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.web_handoff",
+      "title": "CLI 与 Web 的协同跳转",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 118,
+        "marker": "<!-- SID:interface.cli_workflow.web_handoff -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "web",
+        "handoff"
+      ],
+      "depends_on": [
+        "interface.cli.web_handoff",
+        "interface.cli_workflow.watch_flow"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.error_mapping",
+      "title": "CLI 错误呈现与恢复提示",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 130,
+        "marker": "<!-- SID:interface.cli_workflow.error_mapping -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "errors",
+        "recovery"
+      ],
+      "depends_on": [
+        "impl.remote_model_invocation.nim_failure_codes",
+        "interface.cli_workflow.watch_flow"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.headless_recovery",
+      "title": "CLI 无头恢复与审计",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 142,
+        "marker": "<!-- SID:interface.cli_workflow.headless_recovery -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "recovery",
+        "audit"
+      ],
+      "depends_on": [
+        "obs.eventlog.mandatory_events",
+        "interface.cli.headless_guarantee"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.progressive_enhancement",
+      "title": "CLI 渐进增强边界",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 154,
+        "marker": "<!-- SID:interface.cli_workflow.progressive_enhancement -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "enhancement"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.output_profiles",
+        "interface.cli_workflow.role_boundary"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.cli_workflow.milestones",
+      "title": "CLI 演进顺序",
+      "doc_key": "interface_cli_workflow",
+      "path": "docs/design/cli-operator-workflow.md",
+      "locator": {
+        "type": "comment",
+        "line": 167,
+        "marker": "<!-- SID:interface.cli_workflow.milestones -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "cli",
+        "rollout",
+        "milestones"
+      ],
+      "depends_on": [
+        "interface.cli_workflow.command_groups",
+        "interface.cli_workflow.watch_flow"
       ],
       "stability": "stable"
     }

@@ -11,10 +11,10 @@
 
 ## 索引总览
 
-**版本**: 1.4
-**生成日期**: 2026-03-29
-**总规范数**: 173
-**文档数**: 18
+**版本**: 1.5
+**生成日期**: 2026-04-05
+**总规范数**: 203
+**文档数**: 20
 
 ---
 
@@ -37,6 +37,8 @@
 | `tools_metadata` | 活跃工具元数据画像 | [docs/design/active-tool-metadata-profile.md](../design/active-tool-metadata-profile.md) | stable | tools, algo_runtime, impl |
 | `hitl` | Human-in-the-loop 扩展设计 | [docs/design/hitl-extension.md](../design/hitl-extension.md) | stable | arch, agent, impl, algo |
 | `interface_surfaces` | 交互入口设计：Web 主界面与 CLI 辅助入口 | [docs/design/interaction-entry-surfaces.md](../design/interaction-entry-surfaces.md) | stable | arch, hitl, impl |
+| `interface_web_workspace` | Web 主工作台设计：全信息展示、结构可视化与交互确认 | [docs/design/web-operator-workspace.md](../design/web-operator-workspace.md) | stable | interface_surfaces, impl, hitl, tools |
+| `interface_cli_workflow` | CLI 交互设计：无头环境闭环、批处理与 Web 协同 | [docs/design/cli-operator-workflow.md](../design/cli-operator-workflow.md) | stable | interface_surfaces, impl, hitl |
 | `algocore` | 核心算法定义 | [docs/algorithm-and-llm/core-algorithm-define.md](../algorithm-and-llm/core-algorithm-define.md) | stable | algo, de_novo_workflow |
 | `llmtrain` | Planner 大模型能力要求与专用训练方案 | [docs/algorithm-and-llm/train-llm.md](../algorithm-and-llm/train-llm.md) | stable | algo, impl_llm_provider |
 | `experiment_mapping` | 实验分组与论文叙事映射 | [docs/experiment/algorithm-group-paper-mapping.md](../experiment/algorithm-group-paper-mapping.md) | stable | algo, de_novo_workflow |
@@ -266,6 +268,36 @@
 | `interface.cli.backend_compatibility` | CLI 后端形态兼容性 | Block | interface, cli, requirements, compatibility |
 | `interface.integration.api_boundary` | API 集成边界 | Block | interface, api, integration |
 | `interface.rollout.milestones` | 演进路线 | Section | interface, rollout, milestones |
+| `interface.web_workspace.overview` | Web 主工作台总览 | Section | interface, web, workspace, overview |
+| `interface.web_workspace.framework_choice` | Web 框架选择与边界 | Section | interface, web, framework, fastapi |
+| `interface.web_workspace.design_principles` | Web 设计原则 | Section | interface, web, design, principles |
+| `interface.web_workspace.primary_layout` | Web 顶层布局 | Section | interface, web, layout, workspace |
+| `interface.web_workspace.page_topology` | Web 页面拓扑 | Block | interface, web, pages, topology |
+| `interface.web_workspace.dashboard` | Dashboard 要求 | Block | interface, web, dashboard |
+| `interface.web_workspace.task_detail` | Task Detail 要求 | Block | interface, web, task_detail |
+| `interface.web_workspace.pending_review` | Pending Review 工作区 | Block | interface, web, pending_review, hitl |
+| `interface.web_workspace.model_invocation_panel` | 模型调用工作台 | Block | interface, web, model_invocation, nvidia_nim |
+| `interface.web_workspace.structure_visualization` | 结构可视化工作区 | Block | interface, web, structure_visualization, ngl |
+| `interface.web_workspace.structure_metric_linking` | 结构与指标联动 | Block | interface, web, structure, metrics, linking |
+| `interface.web_workspace.report_explorer` | 报告与产物浏览 | Block | interface, web, report, artifacts |
+| `interface.web_workspace.interaction_patterns` | Web 交互模式 | Section | interface, web, interaction, patterns |
+| `interface.web_workspace.state_sync` | Web 状态同步约束 | Block | interface, web, state_sync, contracts |
+| `interface.web_workspace.visualization_fallback` | 可视化降级与网络约束 | Block | interface, web, visualization, fallback |
+| `interface.web_workspace.milestones` | Web MVP 与演进 | Section | interface, web, rollout, milestones |
+| `interface.cli_workflow.overview` | CLI 工作流总览 | Section | interface, cli, workflow, overview |
+| `interface.cli_workflow.role_boundary` | CLI 定位与职责边界 | Section | interface, cli, role_boundary |
+| `interface.cli_workflow.experience_modes` | CLI 体验模式 | Section | interface, cli, experience_modes |
+| `interface.cli_workflow.command_groups` | CLI 命令分组 | Section | interface, cli, commands |
+| `interface.cli_workflow.submit_flow` | CLI 提交流程 | Section | interface, cli, submit, workflow |
+| `interface.cli_workflow.watch_flow` | CLI 轮询与值守流程 | Section | interface, cli, watch, polling |
+| `interface.cli_workflow.pending_review` | CLI 待确认审查流程 | Section | interface, cli, pending_review, hitl |
+| `interface.cli_workflow.noninteractive_mode` | CLI 非交互模式 | Section | interface, cli, automation, noninteractive |
+| `interface.cli_workflow.output_profiles` | CLI 输出契约 | Section | interface, cli, output, json |
+| `interface.cli_workflow.web_handoff` | CLI 与 Web 的协同跳转 | Section | interface, cli, web, handoff |
+| `interface.cli_workflow.error_mapping` | CLI 错误呈现与恢复提示 | Section | interface, cli, errors, recovery |
+| `interface.cli_workflow.headless_recovery` | CLI 无头恢复与审计 | Section | interface, cli, recovery, audit |
+| `interface.cli_workflow.progressive_enhancement` | CLI 渐进增强边界 | Section | interface, cli, enhancement |
+| `interface.cli_workflow.milestones` | CLI 演进顺序 | Section | interface, cli, rollout, milestones |
 
 ---
 
@@ -370,10 +402,12 @@
 | active-tool-metadata-profile.md | 2 | 5 | 0 | 7 |
 | hitl-extension.md | 0 | 0 | 0 | 0 |
 | interaction-entry-surfaces.md | 9 | 12 | 0 | 21 |
+| web-operator-workspace.md | 6 | 10 | 0 | 16 |
+| cli-operator-workflow.md | 14 | 0 | 0 | 14 |
 | core-algorithm-define.md | 1 | 0 | 0 | 1 |
 | train-llm.md | 1 | 0 | 0 | 1 |
 | algorithm-group-paper-mapping.md | 2 | 7 | 0 | 9 |
-| **总计** | **51** | **95** | **27** | **173** |
+| **总计** | **71** | **105** | **27** | **203** |
 
 **注**: `hitl-extension.md` 是差分索引文档，不包含独立定义的 SID，仅通过引用汇总其他文档的规范。
 
@@ -383,9 +417,9 @@
 
 | 粒度 | 数量 | 占比 |
 |------|------|------|
-| Section | 51 | 29% |
-| Block | 95 | 55% |
-| Spec-Item | 27 | 16% |
+| Section | 71 | 35% |
+| Block | 105 | 52% |
+| Spec-Item | 27 | 13% |
 
 ---
 
@@ -405,6 +439,8 @@
 - **algorithm_llm**: Core Algorithm and LLM Training
 - **experiment**: Experiment Narrative Mapping
 - **interaction**: Web/CLI Interaction Surfaces
+- **web_workspace**: Web Operator Workspace
+- **cli_workflow**: CLI Workflow
 
 ---
 
@@ -445,6 +481,7 @@ jq ".specs[] | select(.tags | contains(["experiment"]))" index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.5 | 2026-04-05 | 新增 web-operator-workspace.md 与 cli-operator-workflow.md；细化 Web 主工作台、结构可视化、模型调用工作台与 CLI 无头工作流，并新增 web_workspace / cli_workflow topics（总计 203） |
 | 1.4 | 2026-03-29 | 新增 interaction-entry-surfaces.md，纳入 interface 域与 interaction topic，并再生索引统计（总计 173） |
 | 1.3 | 2026-03-29 | 纳入运行时形式化、活跃工具元数据和实验映射文档；再生全部 locator；扩展 planning/execution/observability 并新增 experiment topic（总计 152） |
 | 1.2 | 2026-03-24 | 纳入自适应规划新 SID，修复 docslice locator 漂移，更新 planning/execution/observability 索引统计（总计 117） |
