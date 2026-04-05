@@ -16,6 +16,7 @@ from src.models.db import ExternalStatus, to_external_status
 from src.storage.snapshot_store import append_snapshot
 from src.workflow.belief_state import update_runtime_state
 from src.workflow.context import WorkflowContext
+from src.workflow.runtime_policy import runtime_policy_uses_belief_state
 
 SnapshotWriter = Callable[[TaskSnapshot], None]
 
@@ -142,6 +143,8 @@ def _resolve_runtime_state_for_snapshot(
     external_state: ExternalStatus,
     require_runtime_state: bool,
 ) -> RuntimeState | None:
+    if not runtime_policy_uses_belief_state(context.task):
+        return None
     if context.runtime_state is not None:
         return context.runtime_state
     if not (

@@ -39,6 +39,7 @@ from src.workflow.snapshots import (
     extract_pending_action_waiting_summary,
 )
 from src.workflow.status import StatusLogger, transition_task_status
+from src.workflow.runtime_policy import runtime_policy_trace
 
 EventLogger = Callable[[dict], None]
 
@@ -597,6 +598,7 @@ def _emit_decision_applied_event(
         if selected_candidate is not None
         else {}
     )
+    runtime_trace = runtime_policy_trace(context.task)
     decision_event = make_decision_applied(
         task_id=context.task.task_id,
         decision_id=decision.decision_id,
@@ -635,6 +637,8 @@ def _emit_decision_applied_event(
             "evidence_source": candidate_meta.get("default_recommendation_reason"),
             "terminal_policy": candidate_meta.get("terminal_policy"),
             "terminal_reason": candidate_meta.get("terminal_reason"),
+            "runtime_policy": runtime_trace["runtime_policy"],
+            "belief_state_enabled": runtime_trace["belief_state_enabled"],
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,
@@ -671,6 +675,7 @@ def _emit_waiting_exit_event(
         if selected_candidate is not None
         else {}
     )
+    runtime_trace = runtime_policy_trace(context.task)
     exit_event = make_waiting_exit(
         task_id=context.task.task_id,
         prev_status=prev_status,
@@ -691,6 +696,8 @@ def _emit_waiting_exit_event(
             "evidence_source": candidate_meta.get("default_recommendation_reason"),
             "terminal_policy": candidate_meta.get("terminal_policy"),
             "terminal_reason": candidate_meta.get("terminal_reason"),
+            "runtime_policy": runtime_trace["runtime_policy"],
+            "belief_state_enabled": runtime_trace["belief_state_enabled"],
             "runtime_state_summary": build_context_runtime_state_summary(
                 context,
                 require_runtime_state=True,

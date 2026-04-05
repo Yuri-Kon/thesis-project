@@ -43,6 +43,7 @@ from src.workflow.errors import (
     classify_exception,
     is_retryable_failure,
 )
+from src.workflow.runtime_policy import resolve_runtime_policy, runtime_policy_trace
 
 
 class StepRunnerLike(Protocol):
@@ -612,6 +613,7 @@ class PlanRunner:
                 retry_exhausted=bool(step_result.metrics.get("retry_exhausted")),
                 safety_blocked=step_result.failure_type == FailureType.SAFETY_BLOCK,
                 runtime_state_summary=runtime_state_summary,
+                runtime_policy=resolve_runtime_policy(context.task),
             )
         )
         metrics = dict(step_result.metrics)
@@ -938,6 +940,7 @@ class PlanRunner:
             "external_status": to_external_status(context.status).value,
         }
         event_data = _build_step_trace_data(step_result)
+        event_data.update(runtime_policy_trace(context.task))
         runtime_state_summary = build_context_runtime_state_summary(context)
         if runtime_state_summary is not None:
             event_data["runtime_state_summary"] = runtime_state_summary

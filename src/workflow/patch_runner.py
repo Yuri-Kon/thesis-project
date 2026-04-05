@@ -29,6 +29,7 @@ from src.workflow.snapshots import build_context_runtime_state_summary
 from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
+from src.workflow.runtime_policy import resolve_runtime_policy, runtime_policy_uses_belief_state
 
 
 class StepRunnerLike(Protocol):
@@ -427,6 +428,8 @@ class PatchRunner:
         context: WorkflowContext,
         result: StepResult,
     ):
+        if not runtime_policy_uses_belief_state(context.task):
+            return None
         completed_steps = len(context.step_results)
         if result.step_id not in context.step_results:
             completed_steps += 1
@@ -470,7 +473,12 @@ class PatchRunner:
                 failure_type=result.failure_type,
                 retry_exhausted=retry_exhausted,
                 safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
-                runtime_state_summary=runtime_state_preview.to_summary_payload(),
+                runtime_state_summary=(
+                    runtime_state_preview.to_summary_payload()
+                    if runtime_state_preview is not None
+                    else None
+                ),
+                runtime_policy=resolve_runtime_policy(context.task),
             )
         )
         _attach_workflow_action_meta(result, decision)
@@ -500,9 +508,14 @@ class PatchRunner:
                 failure_type=result.failure_type,
                 retry_exhausted=bool(result.metrics.get("retry_exhausted")),
                 safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
-                runtime_state_summary=runtime_state_preview.to_summary_payload(),
+                runtime_state_summary=(
+                    runtime_state_preview.to_summary_payload()
+                    if runtime_state_preview is not None
+                    else None
+                ),
                 suggested_action=suggested_action if isinstance(suggested_action, str) else None,
                 suggested_reason=suggested_reason if isinstance(suggested_reason, str) else None,
+                runtime_policy=resolve_runtime_policy(context.task),
             )
         )
         _attach_workflow_action_meta(result, decision)
