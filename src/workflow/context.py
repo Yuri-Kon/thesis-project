@@ -27,6 +27,7 @@ from src.models.contracts import (
 )
 from src.models.db import InternalStatus
 from src.workflow.belief_state import extract_failure_context, update_runtime_state
+from src.workflow.runtime_policy import runtime_policy_uses_belief_state
 
 __all__ = ["WorkflowContext"]
 
@@ -97,6 +98,8 @@ class WorkflowContext(BaseModel):
             如果 step_id 已存在，会覆盖之前的结果
         """
         self.step_results[result.step_id] = result
+        if not runtime_policy_uses_belief_state(self.task):
+            return
         self.apply_runtime_state_update(
             step_result=result,
             failure_context=extract_failure_context(result),
@@ -109,6 +112,8 @@ class WorkflowContext(BaseModel):
             event: 安全检查结果事件
         """
         self.safety_events.append(event)
+        if not runtime_policy_uses_belief_state(self.task):
+            return
         self.apply_runtime_state_update(safety_result=event)
 
     def apply_runtime_state_update(
@@ -117,12 +122,14 @@ class WorkflowContext(BaseModel):
         step_result: StepResult | None = None,
         safety_result: SafetyResult | None = None,
         failure_context: RuntimeFailureContext | None = None,
-    ) -> RuntimeState:
+    ) -> RuntimeState | None:
         """通过稳定更新接口刷新 runtime_state。
 
         PlanRunner / PatchRunner / StepRunner 应通过 WorkflowContext helpers
         间接接入 belief-state 更新器，而不是散落地直接修改 runtime_state。
         """
+        if not runtime_policy_uses_belief_state(self.task):
+            return None
         completed_steps = len(self.step_results)
         total_steps = self._get_total_step_count()
         if total_steps is not None and total_steps < completed_steps:

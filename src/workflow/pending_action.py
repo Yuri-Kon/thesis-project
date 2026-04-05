@@ -35,6 +35,7 @@ from src.workflow.snapshots import (
     build_task_snapshot,
     default_snapshot_writer,
 )
+from src.workflow.runtime_policy import runtime_policy_trace
 
 EventLogger = Callable[[dict], None]
 
@@ -178,6 +179,7 @@ def enter_waiting_state(
         require_runtime_state=True,
         external_state=new_status,
     )
+    runtime_trace = runtime_policy_trace(context.task)
     waiting_enter_event = make_waiting_enter(
         task_id=context.task.task_id,
         pending_action_id=pending_action.pending_action_id,
@@ -235,6 +237,8 @@ def enter_waiting_state(
                 if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
                 else None
             ),
+            "runtime_policy": runtime_trace["runtime_policy"],
+            "belief_state_enabled": runtime_trace["belief_state_enabled"],
             "runtime_state_summary": runtime_state_summary,
         },
     )

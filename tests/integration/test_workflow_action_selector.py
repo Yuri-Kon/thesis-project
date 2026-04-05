@@ -184,6 +184,15 @@ class _PatchOnlyPlanner:
         return request.original_plan
 
 
+class _ObservationOnlyPatchPlanner(_PatchOnlyPlanner):
+    def __init__(self) -> None:
+        self.last_runtime_state = object()
+
+    def patch_top_k(self, request, *, k=3, runtime_state=None):  # type: ignore[override]
+        self.last_runtime_state = runtime_state
+        raise RuntimeError("fallback planner.patch path only")
+
+
 class _AllowSafetyAgent:
     def check_task_input(self, task, plan):
         return SafetyResult(
@@ -333,6 +342,46 @@ def test_workflow_action_selector_maps_patch_local_to_waiting_patch():
     assert context.pending_action is not None
     assert context.pending_action.action_type == PendingActionType.PATCH_CONFIRM
     assert context.pending_action.metadata["workflow_action"] == "patch_local"
+
+
+@pytest.mark.integration
+def test_dynamic_observation_only_policy_skips_runtime_state_but_keeps_patch_flow():
+    task_id = "int_workflow_action_observation_only"
+    _cleanup_task_log(task_id)
+    planner = _ObservationOnlyPatchPlanner()
+    plan, context, record = _build_runtime_objects(
+        task_id=task_id,
+        constraints={
+            "require_patch_confirm": True,
+            "runtime_policy": "dynamic_observation_only",
+        },
+    )
+    runner = PlanRunner(
+        step_runner=_FailOnceStepRunner(
+            stage_id="S1",
+            failure_code="S1_RETRY_EXHAUSTED",
+        ),
+        planner_agent=planner,
+        safety_agent=_AllowSafetyAgent(),
+    )
+
+    runner.run_plan(plan, context, record=record, finalize_status=False)
+
+    events = read_timeline_events(task_id)
+    waiting = next(entry for entry in events if entry.get("event_type") == "WAITING_ENTER")
+    assert context.status == InternalStatus.WAITING_PATCH
+    assert context.runtime_state is None
+    assert planner.last_runtime_state is None
+    assert waiting["action_name"] == "patch"
+    assert waiting["data"]["runtime_policy"] == "dynamic_observation_only"
+    assert waiting["data"]["belief_state_enabled"] is False
+    assert waiting["runtime_state_summary"] is None
+    assert context.pending_action is not None
+    assert context.pending_action.metadata["workflow_action"] == "patch_local"
+    assert (
+        context.pending_action.metadata["workflow_action_evidence"]["runtime_policy"]
+        == "dynamic_observation_only"
+    )
 
 
 @pytest.mark.integration

@@ -36,6 +36,10 @@ from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DI
 from src.workflow.belief_state import update_runtime_state
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
+from src.workflow.runtime_policy import (
+    DYNAMIC_OBSERVATION_ONLY_POLICY,
+    resolve_runtime_policy,
+)
 
 __all__ = [
     "restore_context_from_snapshot",
@@ -154,6 +158,7 @@ class WorkflowActionSelectorInput:
     runtime_state_summary: dict[str, Any] | None = None
     suggested_action: str | None = None
     suggested_reason: str | None = None
+    runtime_policy: str | None = None
 
 
 @dataclass(frozen=True)
@@ -185,6 +190,10 @@ def select_workflow_action(
     suggested_action = _normalize_workflow_action(selector_input.suggested_action)
     if suggested_action not in allowed_actions:
         suggested_action = None
+    runtime_policy = resolve_runtime_policy(
+        {"runtime_policy": selector_input.runtime_policy}
+    )
+    observation_only = runtime_policy == DYNAMIC_OBSERVATION_ONLY_POLICY
 
     runtime_summary = _normalize_runtime_state_summary(
         selector_input.runtime_state_summary
@@ -267,8 +276,15 @@ def select_workflow_action(
         basis = "suggested_action"
     elif not has_failure_signal:
         action = "continue"
-        reason = "no failure or safety signal is present in the current execution step"
-        basis = "default_continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy saw no failure or safety signal "
+                "in the current execution step"
+            )
+            basis = "observation_only"
+        else:
+            reason = "no failure or safety signal is present in the current execution step"
+            basis = "default_continue"
     elif _should_choose_stop(
         allowed_actions=allowed_actions,
         allow_auto_stop=allow_auto_stop,
@@ -300,8 +316,15 @@ def select_workflow_action(
         )
     ):
         action = "patch_local"
-        reason = "failure still looks local and existing recovery order prefers patch"
-        basis = "action_priority"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy routes the local failure "
+                "through patch_local"
+            )
+            basis = "observation_only"
+        else:
+            reason = "failure still looks local and existing recovery order prefers patch"
+            basis = "action_priority"
     elif (
         "suffix_replan" in allowed_actions
         and (
@@ -313,14 +336,28 @@ def select_workflow_action(
         )
     ):
         action = "suffix_replan"
-        reason = (
-            "structural failure pressure is high or trigger matrix already prefers replan"
-        )
-        basis = "action_priority"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy escalates to suffix_replan "
+                "from the current failure signal"
+            )
+            basis = "observation_only"
+        else:
+            reason = (
+                "structural failure pressure is high or trigger matrix already prefers replan"
+            )
+            basis = "action_priority"
     else:
         action = "continue"
-        reason = "current context does not justify escalating beyond the existing path"
-        basis = "default_continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy keeps the current path because "
+                "the present signal does not justify escalation"
+            )
+            basis = "observation_only"
+        else:
+            reason = "current context does not justify escalating beyond the existing path"
+            basis = "default_continue"
 
     route = resolve_workflow_action_route(action)
     return WorkflowActionSelectorResult(
@@ -345,6 +382,8 @@ def select_workflow_action(
             "local_patchability": local_patchability,
             "allow_auto_stop": allow_auto_stop,
             "u_stop": u_stop,
+            "runtime_policy": runtime_policy,
+            "belief_state_enabled": not observation_only,
             "runtime_state_summary": runtime_summary or None,
         },
     )
