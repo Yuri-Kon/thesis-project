@@ -290,3 +290,29 @@ def test_build_task_snapshot_waiting_bootstraps_runtime_state_when_missing():
         "completed_steps": 0
     }
     assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)
+
+
+@pytest.mark.unit
+def test_build_task_snapshot_observation_only_policy_does_not_bootstrap_runtime_state():
+    task = ProteinDesignTask(
+        task_id="task_observation_only_snapshot_001",
+        goal="keep dynamic baseline free of belief-state artifacts",
+        constraints={"runtime_policy": "dynamic_observation_only"},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=None,
+        runtime_state=None,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+    )
+
+    snapshot = build_task_snapshot(
+        context,
+        state_override=ExternalStatus.WAITING_PLAN_CONFIRM,
+        require_runtime_state=True,
+    )
+
+    assert context.runtime_state is None
+    assert RUNTIME_STATE_ARTIFACT_KEY not in snapshot.artifacts
+    assert RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY not in snapshot.artifacts
+    assert RUNTIME_STATE_SUMMARY_METADATA_KEY not in snapshot.artifacts
