@@ -134,6 +134,14 @@ def _provider_worker(
     result_queue.put(result)
 
 
+def _resolve_process_context() -> multiprocessing.context.BaseContext:
+    """Prefer fork where available so importlib-loaded test modules remain runnable."""
+    try:
+        return multiprocessing.get_context("fork")
+    except ValueError:
+        return multiprocessing.get_context()
+
+
 def run_provider_with_timeout(
     alias: str,
     catalog_path: Path,
@@ -141,8 +149,9 @@ def run_provider_with_timeout(
     target_length: int,
     timeout_seconds: int,
 ) -> dict[str, object]:
-    result_queue: multiprocessing.Queue = multiprocessing.Queue()
-    process = multiprocessing.Process(
+    process_context = _resolve_process_context()
+    result_queue: multiprocessing.Queue = process_context.Queue()
+    process = process_context.Process(
         target=_provider_worker,
         args=(alias, str(catalog_path), goal, target_length, result_queue),
     )
