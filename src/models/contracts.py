@@ -284,6 +284,7 @@ class RuntimeState(BaseModel):
     p_structural_failure: float
     recovery_margin: float
     expected_remaining_cost: float
+    evidence_sufficiency: float = 0.5
     last_update_source: str
     observation_summary: Dict[str, Any] = Field(default_factory=dict)
 
@@ -292,7 +293,7 @@ class RuntimeState(BaseModel):
     def _validate_schema_version(cls, value: int) -> int:
         return _validate_runtime_state_schema_version(value)
 
-    @field_validator("p_success", "p_structural_failure")
+    @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
     @classmethod
     def _validate_probability(cls, value: float) -> float:
         return _validate_probability_value(value)
@@ -353,13 +354,14 @@ class RuntimeStateSummary(BaseModel):
     p_structural_failure: float
     recovery_margin: float
     expected_remaining_cost: float
+    evidence_sufficiency: float = 0.5
 
     @field_validator("schema_version")
     @classmethod
     def _validate_schema_version(cls, value: int) -> int:
         return _validate_runtime_state_schema_version(value)
 
-    @field_validator("p_success", "p_structural_failure")
+    @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
     @classmethod
     def _validate_probability(cls, value: float) -> float:
         return _validate_probability_value(value)
@@ -388,6 +390,7 @@ class RuntimeStateSummary(BaseModel):
             p_structural_failure=runtime_state.p_structural_failure,
             recovery_margin=runtime_state.recovery_margin,
             expected_remaining_cost=runtime_state.expected_remaining_cost,
+            evidence_sufficiency=runtime_state.evidence_sufficiency,
         )
 
 

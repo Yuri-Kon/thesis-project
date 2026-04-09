@@ -211,22 +211,27 @@ def select_workflow_action(
         runtime_summary.get("expected_remaining_cost"),
         default=1.0,
     )
-    cost_pressure = min(max(expected_remaining_cost, 0.0) / 5.0, 1.0)
-    budget_pressure = _safe_float(
-        runtime_summary.get("budget_pressure"),
-        default=cost_pressure,
+    evidence_sufficiency = _safe_float(
+        runtime_summary.get("evidence_sufficiency"),
+        default=0.5,
     )
-    intervention_value = _safe_float(
-        runtime_summary.get("intervention_value"),
-        default=1.0,
+    derived_runtime_features = _derive_runtime_action_features(
+        runtime_summary=runtime_summary,
+        p_success=p_success,
+        p_structural_failure=p_structural_failure,
+        recovery_margin=recovery_margin,
+        expected_remaining_cost=expected_remaining_cost,
+        evidence_sufficiency=evidence_sufficiency,
+        stage_id=selector_input.stage_id,
+        failure_type=selector_input.failure_type,
+        retry_exhausted=bool(selector_input.retry_exhausted),
+        safety_blocked=bool(selector_input.safety_blocked),
     )
-    prefix_preservability = _safe_optional_float(
-        runtime_summary.get("prefix_preservability")
-    )
-    local_patchability = _safe_optional_float(
-        runtime_summary.get("local_patchability")
-    )
-    u_stop = _safe_float(runtime_summary.get("u_stop"), default=0.0)
+    budget_pressure = derived_runtime_features["budget_pressure"]
+    intervention_value = derived_runtime_features["intervention_value"]
+    prefix_preservability = derived_runtime_features["prefix_preservability"]
+    local_patchability = derived_runtime_features["local_patchability"]
+    u_stop = derived_runtime_features["u_stop"]
     allow_auto_stop = _safe_bool(
         runtime_summary.get("allow_auto_stop"),
         default=False,
@@ -306,8 +311,15 @@ def select_workflow_action(
         and (
             local_patchability is None
             or (
-                local_patchability >= 0.55
-                and recovery_margin >= 0.30
+                (
+                    local_patchability >= 0.55
+                    and recovery_margin >= 0.30
+                )
+                or (
+                    phase == "patch"
+                    and local_patchability >= 0.65
+                    and recovery_margin >= 0.15
+                )
             )
         )
         and not (
@@ -377,6 +389,7 @@ def select_workflow_action(
             "retry_exhausted": bool(selector_input.retry_exhausted),
             "s6_default_action": s6_default_action,
             "budget_pressure": budget_pressure,
+            "evidence_sufficiency": evidence_sufficiency,
             "intervention_value": intervention_value,
             "prefix_preservability": prefix_preservability,
             "local_patchability": local_patchability,
@@ -550,6 +563,119 @@ def _normalize_runtime_state_summary(
     return dict(payload)
 
 
+def _derive_runtime_action_features(
+    *,
+    runtime_summary: dict[str, Any],
+    p_success: float,
+    p_structural_failure: float,
+    recovery_margin: float,
+    expected_remaining_cost: float,
+    evidence_sufficiency: float,
+    stage_id: str | None,
+    failure_type: FailureType | str | None,
+    retry_exhausted: bool,
+    safety_blocked: bool,
+) -> dict[str, float]:
+    budget_pressure = _safe_float(
+        runtime_summary.get("budget_pressure"),
+        default=_clip_float(expected_remaining_cost, lower=0.0, upper=1.5),
+    )
+    local_patchability = _safe_optional_float(
+        runtime_summary.get("local_patchability")
+    )
+    if local_patchability is None:
+        stage_locality_bonus = 0.0
+        normalized_stage = _normalize_text(stage_id)
+        normalized_failure_type = _normalize_failure_type(failure_type)
+        if normalized_stage == "S1":
+            stage_locality_bonus += 0.18
+        if normalized_failure_type in {
+            FailureType.RETRYABLE,
+            FailureType.TOOL_ERROR,
+            FailureType.NON_RETRYABLE,
+        } and not safety_blocked:
+            stage_locality_bonus += 0.08
+        if retry_exhausted and not safety_blocked:
+            stage_locality_bonus += 0.06
+        local_patchability = _clip_float(
+            0.45 * recovery_margin
+            + 0.35 * (1.0 - p_structural_failure)
+            + 0.20 * evidence_sufficiency,
+            lower=0.0,
+            upper=1.0,
+        )
+        local_patchability = _clip_float(
+            local_patchability + stage_locality_bonus,
+            lower=0.0,
+            upper=1.0,
+        )
+    prefix_preservability = _safe_optional_float(
+        runtime_summary.get("prefix_preservability")
+    )
+    if prefix_preservability is None:
+        prefix_preservability = _clip_float(
+            0.50 * recovery_margin
+            + 0.30 * evidence_sufficiency
+            + 0.20 * (1.0 - min(budget_pressure, 1.0)),
+            lower=0.0,
+            upper=1.0,
+        )
+    intervention_value = _safe_optional_float(
+        runtime_summary.get("intervention_value")
+    )
+    if intervention_value is None:
+        uncertainty = _clip_float(
+            1.0 - abs(p_success - (1.0 - p_structural_failure)),
+            lower=0.0,
+            upper=1.0,
+        )
+        manual_salvageability = _clip_float(
+            0.55 * local_patchability + 0.45 * prefix_preservability,
+            lower=0.0,
+            upper=1.0,
+        )
+        artifact_salience = _clip_float(
+            0.60 * evidence_sufficiency + 0.40 * recovery_margin,
+            lower=0.0,
+            upper=1.0,
+        )
+        decision_gap = _clip_float(
+            0.50 + 0.25 * recovery_margin - 0.25 * min(budget_pressure, 1.0),
+            lower=0.0,
+            upper=1.0,
+        )
+        # 中文注释：这里把派生量限制在动作选择现场计算，避免将其误固化为新的主状态。
+        intervention_value = _clip_float(
+            0.30 * uncertainty
+            + 0.25 * manual_salvageability
+            + 0.25 * artifact_salience
+            + 0.20 * decision_gap,
+            lower=0.0,
+            upper=1.0,
+        )
+    u_stop = _safe_optional_float(runtime_summary.get("u_stop"))
+    if u_stop is None:
+        safety_terminality = 1.0 if (
+            safety_blocked or _normalize_failure_type(failure_type) == FailureType.SAFETY_BLOCK
+        ) else 0.0
+        u_stop = _clip_float(
+            0.32 * (1.0 - p_success)
+            + 0.24 * min(budget_pressure, 1.0)
+            + 0.18 * (1.0 - recovery_margin)
+            + 0.16 * safety_terminality
+            + 0.10 * (1.0 - intervention_value),
+            lower=0.0,
+            upper=1.0,
+        )
+    return {
+        "budget_pressure": budget_pressure,
+        "intervention_value": intervention_value,
+        "prefix_preservability": prefix_preservability,
+        "local_patchability": local_patchability,
+        "u_stop": u_stop,
+    }
+
+
 def _normalize_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -585,6 +711,10 @@ def _safe_bool(value: object, *, default: bool) -> bool:
         if normalized in {"0", "false", "no", "off"}:
             return False
     return default
+
+
+def _clip_float(value: float, *, lower: float, upper: float) -> float:
+    return max(lower, min(upper, float(value)))
 
 
 def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
@@ -973,6 +1103,7 @@ def _has_complete_runtime_state_payload(payload: dict[str, Any]) -> bool:
         "p_structural_failure",
         "recovery_margin",
         "expected_remaining_cost",
+        "evidence_sufficiency",
         "last_update_source",
     }
     return required_keys.issubset(payload.keys())

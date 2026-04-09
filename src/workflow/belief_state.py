@@ -16,6 +16,7 @@ _BASELINE_P_SUCCESS = 0.5
 _BASELINE_P_STRUCTURAL_FAILURE = 0.25
 _BASELINE_RECOVERY_MARGIN = 0.6
 _BASELINE_EXPECTED_REMAINING_COST = 1.0
+_BASELINE_EVIDENCE_SUFFICIENCY = 0.5
 _STRUCTURAL_STAGE_IDS = {"S2", "S3", "S4"}
 
 
@@ -62,6 +63,7 @@ def update_runtime_state(
             completed_steps=completed_steps,
             total_steps=total_steps,
         ),
+        evidence_sufficiency=_BASELINE_EVIDENCE_SUFFICIENCY,
         last_update_source="runtime_bootstrap",
         observation_summary={},
     )
@@ -70,6 +72,7 @@ def update_runtime_state(
     p_structural_failure = state.p_structural_failure
     recovery_margin = _clamp_unit_interval(state.recovery_margin)
     expected_remaining_cost = state.expected_remaining_cost
+    evidence_sufficiency = _clamp_unit_interval(state.evidence_sufficiency)
     observation_summary = dict(state.observation_summary)
     last_update_source = state.last_update_source
     cost_penalty = 0.0
@@ -179,6 +182,18 @@ def update_runtime_state(
         cost_penalty=cost_penalty,
         cost_reward=cost_reward,
     )
+    evidence_signal = _estimate_evidence_signal(
+        step_result=step_result,
+        safety_result=safety_result,
+        failure_context=failure_context,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+    evidence_sufficiency = _resolve_evidence_sufficiency(
+        previous_value=evidence_sufficiency,
+        evidence_signal=evidence_signal,
+    )
+    observation_summary["evidence_signal"] = _round_metric(evidence_signal)
 
     return RuntimeState(
         p_success=_round_metric(_clamp_unit_interval(p_success)),
@@ -187,6 +202,7 @@ def update_runtime_state(
         ),
         recovery_margin=_round_metric(_clamp_unit_interval(recovery_margin)),
         expected_remaining_cost=_round_metric(max(expected_remaining_cost, 0.0)),
+        evidence_sufficiency=_round_metric(evidence_sufficiency),
         last_update_source=last_update_source,
         observation_summary=_drop_none_values(observation_summary),
     )
@@ -297,6 +313,125 @@ def _resolve_remaining_cost(
         elif step_result.status == "failed":
             base_cost += 0.5
     return max(base_cost + cost_penalty - cost_reward, 0.0)
+
+
+def _resolve_evidence_sufficiency(
+    *,
+    previous_value: float,
+    evidence_signal: float,
+) -> float:
+    # 中文注释：派生量只在运行时现场计算，持久化主状态仍只保留 evidence_sufficiency 本身。
+    return _clamp_unit_interval((0.70 * previous_value) + (0.30 * evidence_signal))
+
+
+def _estimate_evidence_signal(
+    *,
+    step_result: StepResult | None,
+    safety_result: SafetyResult | None,
+    failure_context: RuntimeFailureContext | None,
+    completed_steps: int | None,
+    total_steps: int | None,
+) -> float:
+    if (
+        step_result is None
+        and safety_result is None
+        and failure_context is None
+        and (completed_steps is None or completed_steps <= 0)
+    ):
+        return _BASELINE_EVIDENCE_SUFFICIENCY
+    cheap_validation_coverage = _estimate_cheap_validation_coverage(
+        step_result=step_result,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+    candidate_agreement = _estimate_candidate_agreement(
+        step_result=step_result,
+        safety_result=safety_result,
+        failure_context=failure_context,
+    )
+    metric_completeness = _estimate_metric_completeness(
+        step_result=step_result,
+        safety_result=safety_result,
+    )
+    return _clamp_unit_interval(
+        (0.40 * cheap_validation_coverage)
+        + (0.30 * candidate_agreement)
+        + (0.30 * metric_completeness)
+    )
+
+
+def _estimate_cheap_validation_coverage(
+    *,
+    step_result: StepResult | None,
+    completed_steps: int | None,
+    total_steps: int | None,
+) -> float:
+    coverage = 0.35
+    if (
+        completed_steps is not None
+        and total_steps is not None
+        and total_steps > 0
+    ):
+        coverage += 0.35 * min(max(completed_steps / total_steps, 0.0), 1.0)
+    if step_result is None:
+        return _clamp_unit_interval(coverage)
+    stage_id = _extract_stage_id(step_result)
+    if step_result.status == "success":
+        coverage += 0.18
+        if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
+            coverage += 0.08
+    elif step_result.status == "failed":
+        coverage -= 0.12
+    return _clamp_unit_interval(coverage)
+
+
+def _estimate_candidate_agreement(
+    *,
+    step_result: StepResult | None,
+    safety_result: SafetyResult | None,
+    failure_context: RuntimeFailureContext | None,
+) -> float:
+    agreement = 0.5
+    if step_result is not None:
+        stage_id = _extract_stage_id(step_result)
+        if step_result.status == "success":
+            agreement += 0.12
+            if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
+                agreement += 0.08
+        elif step_result.status == "failed":
+            agreement -= 0.18
+    if safety_result is not None:
+        if safety_result.action == "warn":
+            agreement -= 0.08
+        elif safety_result.action == "block":
+            agreement -= 0.18
+    if failure_context is not None:
+        recovery_action = _normalize_recovery_action(
+            failure_context.to_replay_payload()
+        )
+        if recovery_action == "patch_local":
+            agreement += 0.04
+        elif recovery_action in {"suffix_replan", "replan", "stop"}:
+            agreement -= 0.08
+    return _clamp_unit_interval(agreement)
+
+
+def _estimate_metric_completeness(
+    *,
+    step_result: StepResult | None,
+    safety_result: SafetyResult | None,
+) -> float:
+    completeness = 0.35
+    if step_result is not None:
+        if isinstance(step_result.outputs, dict) and step_result.outputs:
+            completeness += 0.25
+        if isinstance(step_result.metrics, dict) and step_result.metrics:
+            completeness += 0.20
+        if _extract_failure_code(step_result):
+            completeness += 0.10
+    if safety_result is not None and safety_result.risk_flags:
+        completeness += 0.10
+    return _clamp_unit_interval(completeness)
 
 
 def _write_progress_summary(
