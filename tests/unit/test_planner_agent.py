@@ -618,6 +618,7 @@ class TestPlannerAgent:
         )
         assert waiting_summary["action_score"]["source"] == "score_breakdown.overall"
         assert waiting_summary["runtime_state_summary"]["p_success"] == pytest.approx(0.58)
+        assert waiting_summary["runtime_state_summary"]["evidence_sufficiency"] == pytest.approx(0.5)
         assert waiting_summary["shadow_score"]["source"].startswith(
             "score_breakdown.overall+runtime_state.continue"
         )
@@ -806,6 +807,7 @@ class TestPlannerAgent:
         assert "Runtime rerank updated default recommendation" in topk.explanation
         for candidate in topk.candidates:
             assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.62)
+            assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["evidence_sufficiency"] == pytest.approx(0.5)
             assert candidate.metadata["shadow_action"] == "continue"
             assert candidate.metadata[STATIC_SCORE_METADATA_KEY]["value"] == pytest.approx(
                 candidate.score_breakdown["overall"]

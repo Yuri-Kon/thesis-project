@@ -105,6 +105,7 @@ def test_update_runtime_state_accepts_structured_update_input() -> None:
     assert state.p_structural_failure == 0.47
     assert state.recovery_margin == 0.31
     assert state.expected_remaining_cost == 5.0
+    assert state.evidence_sufficiency == 0.5015
 
 
 def test_workflow_context_apply_runtime_state_update_is_runner_entrypoint() -> None:

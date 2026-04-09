@@ -2133,7 +2133,12 @@ def _build_runtime_shadow_decision(
         runtime_state_summary.get("expected_remaining_cost"),
         default=0.0,
     )
-    cost_pressure = min(expected_remaining_cost / 5.0, 1.0)
+    evidence_sufficiency = _safe_float(
+        runtime_state_summary.get("evidence_sufficiency"),
+        default=0.5,
+    )
+    budget_pressure = min(max(expected_remaining_cost, 0.0), 1.5)
+    cost_pressure = min(budget_pressure, 1.0)
     margin_signal = max(-1.0, min(recovery_margin, 1.0))
     overall = _safe_float(score_breakdown.get("overall"), default=0.0)
     confidence = _safe_float(score_breakdown.get("confidence"), default=overall)
@@ -2147,13 +2152,23 @@ def _build_runtime_shadow_decision(
         p_success=p_success,
         p_structural_failure=p_structural_failure,
         recovery_margin=recovery_margin,
+        budget_pressure=budget_pressure,
         cost_pressure=cost_pressure,
     )
     evidence_effect = 0.18 * (p_success - 0.5) * confidence
+    evidence_sufficiency_effect = (
+        0.10 * ((2.0 * evidence_sufficiency) - 1.0) * max(confidence, feasibility)
+    )
     risk_effect = -0.16 * p_structural_failure * (1.0 - risk)
     recovery_effect = 0.10 * margin_signal * fallback_depth
     cost_effect = -0.14 * cost_pressure * (1.0 - cost)
-    delta = evidence_effect + risk_effect + recovery_effect + cost_effect
+    delta = (
+        evidence_effect
+        + evidence_sufficiency_effect
+        + risk_effect
+        + recovery_effect
+        + cost_effect
+    )
     factors = [
         _build_runtime_adjustment_factor(
             category="evidence",
@@ -2161,6 +2176,13 @@ def _build_runtime_shadow_decision(
             source="runtime_state.p_success+score_breakdown.confidence",
             contribution=evidence_effect,
             message="Current evidence and candidate confidence adjust the shadow score.",
+        ),
+        _build_runtime_adjustment_factor(
+            category="evidence",
+            signal="evidence_sufficiency",
+            source="runtime_state.evidence_sufficiency+score_breakdown.feasibility",
+            contribution=evidence_sufficiency_effect,
+            message="Evidence sufficiency raises confidence in routes backed by enough cheap validation.",
         ),
         _build_runtime_adjustment_factor(
             category="risk",
@@ -2230,6 +2252,7 @@ def _build_runtime_shadow_decision(
                 message="Stop guard applies when success is low and cost pressure is already high.",
             )
         )
+    delta = max(-0.35, min(0.35, delta))
     adjusted = max(0.0, min(1.0, overall + delta))
     final_score = ScoreSummary(
         value=round(adjusted, 6),
@@ -2257,6 +2280,7 @@ def _build_runtime_shadow_decision(
             "runtime_state.p_structural_failure",
             "runtime_state.recovery_margin",
             "runtime_state.expected_remaining_cost",
+            "runtime_state.evidence_sufficiency",
         ],
         candidate_metric_fields=[
             "score_breakdown.overall",
@@ -2273,7 +2297,8 @@ def _build_runtime_shadow_decision(
         "Runtime rerank records static_score, runtime_adjustment, and final_score separately; "
         f"static_score={overall:.2f}, runtime_adjustment={delta:.2f}, final_score={adjusted:.2f}; "
         f"signals use p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
-        f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}; "
+        f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}, "
+        f"evidence_sufficiency={evidence_sufficiency:.2f}; "
         f"shadow_action={action} because {reason}."
     )
     return _RuntimeShadowDecision(
@@ -2311,12 +2336,17 @@ def _resolve_shadow_action(
     p_success: float,
     p_structural_failure: float,
     recovery_margin: float,
+    budget_pressure: float,
     cost_pressure: float,
 ) -> tuple[str, str]:
-    if p_success <= 0.25 and cost_pressure >= 0.7:
+    if (
+        p_success <= 0.20
+        and budget_pressure >= 0.85
+        and recovery_margin <= 0.20
+    ):
         return (
             "stop",
-            "success probability is low while remaining cost pressure is high",
+            "success probability is low, budget pressure is high, and recovery headroom is nearly exhausted",
         )
     if candidate_kind == "patch":
         if p_structural_failure >= 0.55 and recovery_margin <= 0.1:

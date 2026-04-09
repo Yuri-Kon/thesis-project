@@ -59,3 +59,30 @@ def test_selector_stop_route_maps_to_waiting_replan_and_failed_terminal():
     assert route.waiting_status == InternalStatus.WAITING_REPLAN
     assert route.terminal_status == InternalStatus.FAILED
     assert route.terminal_policy == "stop"
+
+
+@pytest.mark.unit
+def test_selector_derives_runtime_features_from_core_belief_state_only():
+    decision = select_workflow_action(
+        WorkflowActionSelectorInput(
+            phase="execution",
+            stage_id="S3",
+            failure_code="S3_ALL_CANDIDATES_REJECTED",
+            failure_type=FailureType.NON_RETRYABLE,
+            retry_exhausted=True,
+            runtime_state_summary={
+                "p_success": 0.18,
+                "p_structural_failure": 0.62,
+                "recovery_margin": 0.12,
+                "expected_remaining_cost": 1.1,
+                "evidence_sufficiency": 0.66,
+            },
+        )
+    )
+
+    assert decision.action == "suffix_replan"
+    assert decision.evidence_source["budget_pressure"] == pytest.approx(1.1)
+    assert decision.evidence_source["evidence_sufficiency"] == pytest.approx(0.66)
+    assert decision.evidence_source["local_patchability"] == pytest.approx(0.459, rel=1e-3)
+    assert decision.evidence_source["prefix_preservability"] == pytest.approx(0.258, rel=1e-3)
+    assert decision.evidence_source["intervention_value"] == pytest.approx(0.4991375, rel=1e-3)

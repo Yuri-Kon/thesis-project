@@ -82,6 +82,7 @@ def test_update_runtime_state_with_success_step_is_deterministic() -> None:
     assert state.p_structural_failure == 0.12
     assert state.recovery_margin == 0.66
     assert state.expected_remaining_cost == 3.0
+    assert state.evidence_sufficiency == 0.5687
     assert state.observation_summary["completed_steps"] == 1
     assert state.observation_summary["remaining_steps"] == 3
 
@@ -123,6 +124,7 @@ def test_update_runtime_state_captures_patch_failure_context() -> None:
     assert state.p_structural_failure == 0.47
     assert state.recovery_margin == 0.31
     assert state.expected_remaining_cost == 5.0
+    assert state.evidence_sufficiency == 0.5015
     assert state.observation_summary["last_failure_code"] == "NIM_TIMEOUT"
     assert state.observation_summary["last_recovery_action"] == "patch_local"
 
@@ -164,6 +166,7 @@ def test_update_runtime_state_handles_safety_block_and_suffix_replan() -> None:
     assert state.p_structural_failure == 0.46
     assert state.recovery_margin == 0.32
     assert state.expected_remaining_cost == 4.95
+    assert state.evidence_sufficiency == 0.4499
     assert state.observation_summary["last_safety_action"] == "block"
     assert state.observation_summary["last_recovery_action"] == "suffix_replan"
 

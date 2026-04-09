@@ -342,6 +342,12 @@ def test_workflow_action_selector_maps_patch_local_to_waiting_patch():
     assert context.pending_action is not None
     assert context.pending_action.action_type == PendingActionType.PATCH_CONFIRM
     assert context.pending_action.metadata["workflow_action"] == "patch_local"
+    assert (
+        context.pending_action.metadata["workflow_action_evidence"]["runtime_state_summary"][
+            "evidence_sufficiency"
+        ]
+        == pytest.approx(0.50735)
+    )
 
 
 @pytest.mark.integration

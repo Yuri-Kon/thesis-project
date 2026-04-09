@@ -142,11 +142,13 @@ def test_restore_context_from_snapshot_backfills_partial_runtime_state_payload()
     assert context.runtime_state.p_structural_failure == pytest.approx(0.25)
     assert context.runtime_state.recovery_margin == pytest.approx(0.6)
     assert context.runtime_state.expected_remaining_cost == pytest.approx(1.0)
+    assert context.runtime_state.evidence_sufficiency == pytest.approx(0.4895)
     assert context.runtime_state.observation_summary == {
         "completed_steps": 1,
         "total_steps": 2,
         "remaining_steps": 1,
         "completed_ratio": 0.5,
+        "evidence_signal": 0.465,
         "selected_candidate_id": "patch_a",
     }
 
