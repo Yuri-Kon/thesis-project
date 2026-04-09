@@ -179,6 +179,7 @@ class TestRuntimeState:
 
         assert state.schema_version == 1
         assert state.p_success == 0.8
+        assert state.evidence_sufficiency == 0.5
         assert state.observation_summary["completed_high_cost_steps"] == 1
 
     def test_runtime_state_rejects_invalid_probability(self):
@@ -207,6 +208,7 @@ class TestRuntimeState:
             "p_structural_failure": 0.19,
             "recovery_margin": 0.32,
             "expected_remaining_cost": 5.5,
+            "evidence_sufficiency": 0.5,
         }
 
 
@@ -434,6 +436,7 @@ class TestCandidateSetContracts:
             "p_structural_failure": 0.11,
             "recovery_margin": 0.49,
             "expected_remaining_cost": 3.0,
+            "evidence_sufficiency": 0.5,
         }
 
     def test_candidate_invalid_runtime_state_summary_rejected(
@@ -468,6 +471,7 @@ class TestCandidateSetContracts:
                     "p_structural_failure": 0.11,
                     "recovery_margin": 0.49,
                     "expected_remaining_cost": 3.0,
+                    "evidence_sufficiency": 0.5,
                 },
                 DEFAULT_RECOMMENDATION_REASON_METADATA_KEY: {
                     "code": "plan_ranked_first",
