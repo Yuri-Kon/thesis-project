@@ -70,6 +70,7 @@ Rule of thumb:
 
 - Primary language: Python.
 - Follow existing style and typing patterns.
+- Use Google Style docstring in Chinese when writing code.
 - Prefer small, testable functions.
 - Avoid hidden side effects.
 - Keep structured logging aligned with task state transitions.
