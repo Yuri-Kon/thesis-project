@@ -304,6 +304,44 @@ def test_download_results_path_mapping(service: RESTModelInvocationService, tmp_
     assert str((output_dir / "esmfold.log").resolve()) in outputs["artifacts"]
 
 
+def test_download_results_preserves_nested_artifact_paths(
+    service: RESTModelInvocationService,
+    tmp_path: Path,
+) -> None:
+    """测试嵌套产物路径会被正确下载并映射。"""
+    output_dir = tmp_path / "output"
+
+    mock_results_response = Mock()
+    mock_results_response.json.return_value = {
+        "job_id": "job123",
+        "outputs": {
+            "pdb_path": "openfold3_request/seed_42/prediction_model.cif",
+            "plddt": 88.0,
+        },
+        "artifacts": [
+            {
+                "name": "openfold3_request/seed_42/prediction_model.cif",
+                "url": "http://localhost:8000/files/job123/openfold3_request/seed_42/prediction_model.cif",
+            }
+        ],
+    }
+    mock_results_response.raise_for_status = Mock()
+
+    mock_file_response = Mock()
+    mock_file_response.raise_for_status = Mock()
+    mock_file_response.iter_bytes = Mock(return_value=[b"data_test"])
+
+    with patch.object(service.client, "get", return_value=mock_results_response):
+        with patch.object(service.client, "stream") as mock_stream:
+            mock_stream.return_value.__enter__.return_value = mock_file_response
+            outputs = service.download_results("job123", output_dir)
+
+    expected_path = (output_dir / "openfold3_request" / "seed_42" / "prediction_model.cif").resolve()
+    assert outputs["pdb_path"] == str(expected_path)
+    assert outputs["artifacts"] == [str(expected_path)]
+    assert expected_path.exists()
+
+
 def test_download_results_stream_includes_default_headers(tmp_path: Path) -> None:
     service = RESTModelInvocationService(
         base_url="http://localhost:8000",

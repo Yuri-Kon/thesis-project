@@ -329,6 +329,7 @@ class RESTModelInvocationService(RemoteModelInvocationService):
 
                 # 下载文件
                 artifact_path = output_dir / artifact_name
+                artifact_path.parent.mkdir(parents=True, exist_ok=True)
                 self._download_file(artifact_url, artifact_path)
                 local_path = str(artifact_path.resolve())
                 downloaded_artifacts.append(local_path)

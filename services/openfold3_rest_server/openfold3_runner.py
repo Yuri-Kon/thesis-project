@@ -14,6 +14,7 @@ DEFAULT_MODEL_DIR = "/root/autodl-tmp/models/openfold3"
 DEFAULT_PREDICT_BIN = "run_openfold"
 DEFAULT_DEVICE = "cuda"
 _HELP_TEXT_CACHE: dict[str, str] = {}
+_RUNNER_YAML_ENV = "OPENFOLD3_RUNNER_YAML"
 
 
 def run_openfold3_prediction(
@@ -62,11 +63,11 @@ def run_openfold3_prediction(
         plddt = 0.0
 
     outputs: Dict[str, Any] = {
-        "pdb_path": structure_path.name,
+        "pdb_path": str(structure_path.relative_to(artifact_dir).as_posix()),
         "plddt": plddt,
     }
     if structure_path.suffix.lower() in {".cif", ".mmcif"}:
-        outputs["cif_path"] = structure_path.name
+        outputs["cif_path"] = str(structure_path.relative_to(artifact_dir).as_posix())
 
     metrics = {
         "device_used": device,
@@ -213,6 +214,10 @@ def _build_predict_command(
             command.append(model_arg)
             model_arg_mode = model_arg.split("=", 1)[0]
 
+    runner_yaml_arg = _build_runner_yaml_arg(predict_bin=predict_bin)
+    if runner_yaml_arg is not None:
+        command.append(runner_yaml_arg)
+
     extra = str(os.getenv("OPENFOLD3_EXTRA_ARGS", "")).strip()
     if extra:
         command.extend(shlex.split(extra))
@@ -221,6 +226,8 @@ def _build_predict_command(
         "query_arg": query_opt,
         "output_arg": output_opt,
         "model_arg": model_arg_mode,
+        "runner_yaml_arg": runner_yaml_arg.split("=", 1)[0] if runner_yaml_arg else "none",
+        "runner_yaml_path": runner_yaml_arg.split("=", 1)[1] if runner_yaml_arg else None,
     }
 
 
@@ -271,6 +278,30 @@ def _build_model_arg(*, predict_bin: str, model_dir: str) -> str | None:
     if not path.exists():
         return None
     return f"{ckpt_opt}={model_dir}"
+
+
+def _build_runner_yaml_arg(*, predict_bin: str) -> str | None:
+    configured = str(os.getenv(_RUNNER_YAML_ENV, "")).strip()
+    if not configured:
+        return None
+
+    runner_yaml = Path(configured)
+    if not runner_yaml.exists() or not runner_yaml.is_file():
+        raise RuntimeError(
+            f"{_RUNNER_YAML_ENV} does not exist or is not a file: {runner_yaml}"
+        )
+
+    runner_opt = _pick_supported_option(
+        predict_bin,
+        ("--runner-yaml", "--runner_yaml"),
+        default="--runner_yaml",
+    )
+    if runner_opt is None:
+        raise RuntimeError(
+            f"{predict_bin} predict does not support --runner-yaml/--runner_yaml"
+        )
+
+    return f"{runner_opt}={runner_yaml}"
 
 
 def _pick_supported_option(
@@ -337,14 +368,14 @@ def _resolve_predict_bin(predict_bin: str) -> str:
 def _find_structure_file(artifact_dir: Path) -> Path | None:
     patterns = ("*.pdb", "*.cif", "*.mmcif")
     for pattern in patterns:
-        files = sorted(artifact_dir.glob(pattern))
+        files = sorted(artifact_dir.rglob(pattern))
         if files:
             return files[0]
     return None
 
 
 def _extract_plddt_from_artifacts(artifact_dir: Path) -> float | None:
-    for json_file in sorted(artifact_dir.glob("*.json")):
+    for json_file in sorted(artifact_dir.rglob("*.json")):
         try:
             payload = json.loads(json_file.read_text(encoding="utf-8"))
         except Exception:

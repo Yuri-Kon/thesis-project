@@ -60,6 +60,55 @@ def test_build_predict_command_supports_legacy_underscore_flags(
     assert meta["model_arg"] == "--model_dir"
 
 
+def test_build_predict_command_appends_runner_yaml_from_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    help_text = """
+    Usage: run_openfold predict [OPTIONS]
+      --query-json FILE
+      --output-dir PATH
+      --runner-yaml FILE
+    """
+    runner_yaml = tmp_path / "runner.yml"
+    runner_yaml.write_text("model_update: {}\n", encoding="utf-8")
+    monkeypatch.setattr(runner, "_get_predict_help_text", lambda _bin: help_text)
+    monkeypatch.setenv("OPENFOLD3_RUNNER_YAML", str(runner_yaml))
+
+    command, meta = runner._build_predict_command(
+        query_json_path=tmp_path / "query.json",
+        output_dir=tmp_path / "artifacts",
+        model_dir="/models/openfold3",
+        predict_bin="run_openfold",
+    )
+
+    assert any(part == f"--runner-yaml={runner_yaml}" for part in command)
+    assert meta["runner_yaml_arg"] == "--runner-yaml"
+    assert meta["runner_yaml_path"] == str(runner_yaml)
+
+
+def test_build_predict_command_rejects_missing_runner_yaml(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    help_text = """
+    Usage: run_openfold predict [OPTIONS]
+      --query-json FILE
+      --output-dir PATH
+      --runner-yaml FILE
+    """
+    monkeypatch.setattr(runner, "_get_predict_help_text", lambda _bin: help_text)
+    monkeypatch.setenv("OPENFOLD3_RUNNER_YAML", str(tmp_path / "missing.yml"))
+
+    with pytest.raises(RuntimeError, match="OPENFOLD3_RUNNER_YAML"):
+        runner._build_predict_command(
+            query_json_path=tmp_path / "query.json",
+            output_dir=tmp_path / "artifacts",
+            model_dir="/models/openfold3",
+            predict_bin="run_openfold",
+        )
+
+
 def test_prepare_query_json_uses_queries_format_when_runtime_requires_queries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -95,6 +144,30 @@ def test_prepare_query_json_respects_env_override_inputs(
     assert query_format == "inputs"
     assert "inputs" in payload
     assert payload["inputs"][0]["molecules"][0]["sequence"] == "ACDEFG"
+
+
+def test_find_structure_file_supports_nested_artifact_paths(tmp_path: Path) -> None:
+    nested = tmp_path / "openfold3_request" / "seed_42"
+    nested.mkdir(parents=True, exist_ok=True)
+    model_path = nested / "prediction_model.cif"
+    model_path.write_text("data_test\n", encoding="utf-8")
+
+    found = runner._find_structure_file(tmp_path)
+
+    assert found == model_path
+
+
+def test_extract_plddt_supports_nested_artifact_paths(tmp_path: Path) -> None:
+    nested = tmp_path / "openfold3_request" / "seed_42"
+    nested.mkdir(parents=True, exist_ok=True)
+    (nested / "prediction_confidences.json").write_text(
+        json.dumps({"plddt": 81.25}),
+        encoding="utf-8",
+    )
+
+    plddt = runner._extract_plddt_from_artifacts(tmp_path)
+
+    assert plddt == pytest.approx(81.25)
 
 
 def test_resolve_predict_bin_prefers_which(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -90,6 +90,51 @@ def test_contract_failure_path(tmp_path: Path) -> None:
     assert err["code"] == "REMOTE_RESULTS_NOT_READY"
 
 
+def test_contract_lists_and_downloads_nested_artifacts(tmp_path: Path) -> None:
+    def fake_run_job(
+        base_dir: Path,
+        job_id: str,
+        *,
+        model_dir: str,
+        predict_bin: str,
+        device: str,
+    ) -> None:
+        job_path = base_dir / job_id
+        nested = job_path / "artifacts" / "openfold3_request" / "seed_42"
+        nested.mkdir(parents=True, exist_ok=True)
+        (job_path / "outputs.json").write_text(
+            '{"pdb_path":"openfold3_request/seed_42/prediction_model.cif","plddt":81.2}',
+            encoding="utf-8",
+        )
+        (nested / "prediction_model.cif").write_text("data_test\n", encoding="utf-8")
+        (job_path / "status.json").write_text(
+            '{"job_id":"%s","status":"completed"}' % job_id,
+            encoding="utf-8",
+        )
+
+    app = create_app(remote_base_dir=tmp_path, run_job_func=fake_run_job)
+    client = TestClient(app)
+    resp = client.post(
+        "/predict",
+        json={
+            "task_id": "task_nested",
+            "step_id": "S2",
+            "inputs": {"sequence": "ACDEFGHIKLMNPQRSTVWY"},
+        },
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["job_id"]
+
+    results_resp = client.get(f"/results/{job_id}")
+    assert results_resp.status_code == 200
+    payload = results_resp.json()
+    assert payload["outputs"]["pdb_path"] == "openfold3_request/seed_42/prediction_model.cif"
+    assert payload["artifacts"][0]["name"] == "openfold3_request/seed_42/prediction_model.cif"
+
+    file_resp = client.get(payload["artifacts"][0]["url"])
+    assert file_resp.status_code == 200
+
+
 def test_contract_error_envelope_and_auth(tmp_path: Path) -> None:
     app = create_app(remote_base_dir=tmp_path, api_token="token-123")
     client = TestClient(app)
