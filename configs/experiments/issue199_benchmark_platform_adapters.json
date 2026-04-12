@@ -1,0 +1,152 @@
+{
+  "schema_version": "w15.issue199.platform-adapters.v1",
+  "issue_id": 199,
+  "freeze_id": "issue199-platform-freeze-20260412",
+  "output_root": "output/experiment/w15-expr-0",
+  "task_set_version": "issue209-taskset-v1",
+  "dataset_version": "issue170-remote-batch3-20260316",
+  "difficulty_scheme_version": "issue209-difficulty-v1",
+  "source_references": {
+    "issue209_baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "issue210_evidence_baseline_path": "reports/w13-issue-210/evidence-index.baseline.json",
+    "consumer_issues": ["172", "221", "222", "224"]
+  },
+  "fairness_contract": {
+    "requirements": [
+      "same_input",
+      "same_budget",
+      "same_tool_whitelist",
+      "same_dataset_version"
+    ],
+    "notes": [
+      "Issue #199 only freezes adapter fields and sample persistence.",
+      "Issue #172 owns full E0/E1/E2 implementation.",
+      "Issue #221 reuses the same run-level evidence chain."
+    ]
+  },
+  "tool_whitelist": {
+    "tool_whitelist_version": "issue199-tool-whitelist-v1",
+    "allowed_tool_ids": [
+      "protgpt2",
+      "biopython_qc",
+      "dssp",
+      "objective_ranker",
+      "esmfold",
+      "openfold3",
+      "protein_mpnn"
+    ],
+    "allowed_capability_ids": [
+      "sequence_generation",
+      "quality_qc",
+      "secondary_structure_annotation",
+      "objective_scoring",
+      "structure_prediction",
+      "sequence_design"
+    ],
+    "high_cost_tool_ids": [
+      "esmfold",
+      "openfold3",
+      "protein_mpnn"
+    ],
+    "enforcement_rule": "External baseline runs must stay within the same allowlist and carry the whitelist version into every normalized artifact."
+  },
+  "budget_contract": {
+    "budget_version": "issue199-budget-v1",
+    "smoke_defaults": {
+      "max_plan_steps": 3,
+      "max_high_cost_steps": 1,
+      "max_llm_calls": 1,
+      "max_tool_calls": 3,
+      "max_wall_clock_seconds": 180
+    },
+    "carry_to_issue172": [
+      "max_plan_steps",
+      "max_high_cost_steps",
+      "max_llm_calls",
+      "max_tool_calls",
+      "max_wall_clock_seconds"
+    ]
+  },
+  "provider_allowlist": {
+    "catalog_path": "configs/llm_providers.json",
+    "allowed_aliases": [
+      "baseline",
+      "qwen-plus",
+      "deepseek-chat",
+      "glm-5",
+      "openai",
+      "nemotron"
+    ],
+    "default_promptfoo_provider_alias": "baseline",
+    "default_inspect_model": "openai-api/deepseek/deepseek-chat"
+  },
+  "platforms": {
+    "primary": {
+      "platform_id": "inspect_ai",
+      "role": "primary_platform",
+      "baseline_family": "react_style_external",
+      "status": "scaffolded_for_issue172",
+      "install_hint": "uv tool run --from 'inspect-ai[openai]' inspect info version"
+    },
+    "regression": {
+      "platform_id": "promptfoo",
+      "role": "lightweight_regression",
+      "status": "ready_for_local_cli",
+      "install_hint": "npx promptfoo@latest --version"
+    },
+    "external_baseline": {
+      "baseline_id": "react_style_external",
+      "owner_issue": 172,
+      "notes": "Issue #199 only prepares the adapter package and reproducibility bundle."
+    }
+  },
+  "sample_tasks": [
+    {
+      "task_key": "enzyme_like_fold",
+      "goal": "Design a compact enzyme-like fold with stable core while preserving the frozen fairness contract.",
+      "target": "Return a minimal plan that names allowed tools, keeps steps concise, and reflects the provided constraints.",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "constraints": {
+        "length_range": [40, 80],
+        "budget_tier": "standard",
+        "task_set_version": "issue209-taskset-v1"
+      }
+    },
+    {
+      "task_key": "binding_scaffold",
+      "goal": "Generate a binding scaffold plan with exposed pocket constraints under the same frozen tool whitelist and budget.",
+      "target": "Return a plan that respects the allowlist, mentions high-cost tradeoffs, and stays within the smoke budget fields.",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "constraints": {
+        "length_range": [45, 95],
+        "budget_tier": "high_cost_sensitive",
+        "task_set_version": "issue209-taskset-v1"
+      }
+    }
+  ],
+  "user_actions": [
+    {
+      "action_id": "export_provider_api_keys",
+      "summary": "Provide the API key environment variables for the chosen external provider alias before live runs.",
+      "owner": "user",
+      "stage": "before_live_run",
+      "details": "At minimum this means the env var referenced by configs/llm_providers.json for the selected provider alias."
+    },
+    {
+      "action_id": "confirm_remote_tool_services",
+      "summary": "Confirm PLM REST / OpenFold3 REST endpoints if the allowlist run needs remote tools.",
+      "owner": "user",
+      "stage": "before_live_run",
+      "details": "Default ports remain 8100 and 8200, but the final URL must be fixed in the run environment and reused by external baselines."
+    },
+    {
+      "action_id": "confirm_promptfoo_provider_override",
+      "summary": "Keep promptfoo on baseline for structural regression, or explicitly override provider_alias before any live-provider regression.",
+      "owner": "user",
+      "stage": "before_regression_gate",
+      "details": "The generated promptfoo suite is deterministic by default and uses provider_alias=baseline. Only switch to a live provider when you intentionally want a costed regression run under the same freeze contract."
+    }
+  ]
+}
