@@ -77,6 +77,7 @@ pip install fastapi uvicorn pydantic
 - `OPENFOLD3_REST_API_TOKEN`: Bearer token（可选）
 - `OPENFOLD3_MODEL_DIR`: 模型目录（默认 `/root/autodl-tmp/models/openfold3`）
 - `OPENFOLD3_PREDICT_BIN`: 推理命令（默认 `run_openfold`）
+- `OPENFOLD3_RUNNER_YAML`: 传给 `run_openfold predict` 的 runner 配置文件（可选）
 - `OPENFOLD3_PREDICT_CMD`: 自定义完整命令模板（可选）  
   支持占位符：`{query_json}`、`{output_dir}`、`{model_dir}`、`{predict_bin}`
 - `OPENFOLD3_EXTRA_ARGS`: 额外命令参数（可选，例如 `--num_recycles=3`）
@@ -121,3 +122,8 @@ export OPENFOLD3_PREDICT_BIN=run_openfold
 ```
 - 若真实命令与默认封装不一致，优先使用 `OPENFOLD3_PREDICT_CMD` 完整覆盖。
 - 当你仅做端到端联调时，可以先设置 `OPENFOLD3_MOCK_MODE=1` 验证调用链路，再切换到真实推理。
+- 若当前 GPU/DeepSpeed 环境无法兼容 `evoformer_attn` JIT，可设置：
+```bash
+export OPENFOLD3_RUNNER_YAML=/root/projects/2022112879/remote-model-rest/services/openfold3_rest_server/config/openfold3_no_deepspeed_evo_attention.yml
+```
+  该配置会关闭 `use_deepspeed_evo_attention`，优先保证真实推理链路可用。

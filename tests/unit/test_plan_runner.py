@@ -1280,3 +1280,36 @@ def test_failed_step_builds_replan_pending_action_with_nim_option() -> None:
         for event in context.safety_events
         for flag in event.risk_flags
     )
+
+
+def test_run_plan_stops_after_entering_waiting_patch(
+    multi_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """进入 WAITING_PATCH 后，PlanRunner 不应继续推进后续步骤。"""
+
+    class WaitingPatchRunner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run_step_with_patch(self, plan, step_index, context, record=None):
+            self.calls.append(plan.steps[step_index].id)
+            context.status = InternalStatus.WAITING_PATCH
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[],
+                next_step_index=step_index,
+            )
+
+    patch_runner = WaitingPatchRunner()
+    plan_runner = PlanRunner(
+        step_runner=DummyStepRunner(),
+        patch_runner=patch_runner,
+    )
+
+    result = plan_runner.run_plan(multi_step_plan, planned_context)
+
+    assert result is multi_step_plan
+    assert planned_context.status == InternalStatus.WAITING_PATCH
+    assert patch_runner.calls == ["S1"]
+    assert planned_context.step_results == {}

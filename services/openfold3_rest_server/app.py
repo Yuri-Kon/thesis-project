@@ -22,6 +22,13 @@ from services.openfold3_rest_server.jobs import (
 from services.openfold3_rest_server.schemas import PredictRequest
 
 
+def _iter_artifact_files(artifact_dir: Path) -> list[Path]:
+    """递归收集作业产物文件，兼容 OpenFold3 嵌套输出目录。"""
+    if not artifact_dir.exists():
+        return []
+    return sorted(path for path in artifact_dir.rglob("*") if path.is_file())
+
+
 def _error_response(
     *,
     status_code: int,
@@ -144,33 +151,32 @@ def _build_app(
 
         artifact_dir = job_dir(base_dir, job_id) / "artifacts"
         artifacts = []
-        if artifact_dir.exists():
-            for file_path in sorted(artifact_dir.iterdir()):
-                if file_path.is_file():
-                    artifacts.append(
-                        {
-                            "name": file_path.name,
-                            "url": str(
-                                request.url_for(
-                                    "download_artifact",
-                                    job_id=job_id,
-                                    filename=file_path.name,
-                                )
-                            ),
-                            "type": "file",
-                        }
-                    )
+        for file_path in _iter_artifact_files(artifact_dir):
+            relative_path = file_path.relative_to(artifact_dir).as_posix()
+            artifacts.append(
+                {
+                    "name": relative_path,
+                    "url": str(
+                        request.url_for(
+                            "download_artifact",
+                            job_id=job_id,
+                            artifact_path=relative_path,
+                        )
+                    ),
+                    "type": "file",
+                }
+            )
         payload["artifacts"] = artifacts
         return payload
 
-    @app.get("/files/{job_id}/{filename}", name="download_artifact")
-    def download_artifact(job_id: str, filename: str) -> FileResponse:
-        path = job_dir(base_dir, job_id) / "artifacts" / filename
+    @app.get("/files/{job_id}/{artifact_path:path}", name="download_artifact")
+    def download_artifact(job_id: str, artifact_path: str) -> FileResponse:
+        path = job_dir(base_dir, job_id) / "artifacts" / artifact_path
         if not path.exists() or not path.is_file():
             return _error_response(
                 status_code=404,
                 code="ARTIFACT_NOT_FOUND",
-                message=f"Artifact '{filename}' does not exist for job '{job_id}'",
+                message=f"Artifact '{artifact_path}' does not exist for job '{job_id}'",
                 retryable=False,
             )
         return FileResponse(path=path)
