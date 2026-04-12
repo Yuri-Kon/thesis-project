@@ -101,23 +101,18 @@ uv run pytest \
 
 本文件关于交互设计与澄清机制，参考了以下公开资料：
 
-- OpenAI Deep Research in ChatGPT
-  - `https://help.openai.com/articles/10500283`
+- [OpenAI Deep Research in ChatGPT](https://help.openai.com/articles/10500283)
   - 关键点：先澄清目标、允许用户审阅和修改计划、再执行研究。
-- OpenAI API Deep Research guide
-  - `https://platform.openai.com/docs/guides/deep-research`
+- [Open API Deep Research guide](https://platform.openai.com/docs/guides/deep-research)
   - 关键点：Clarification -> Prompt rewriting -> Research 是显式分层；如果开发者不做澄清，模型会直接开始执行。
-- LangChain / LangGraph human-in-the-loop
-  - `https://reference.langchain.com/javascript/functions/langchain.index.humanInTheLoopMiddleware.html`
-  - `https://reference.langchain.com/python/langchain/agents/middleware/human_in_the_loop`
-  - 关键点：动作决策不应只有 approve，还应支持 edit 与 reject。
-- Microsoft Adaptive Cards / Copilot Studio
-  - `https://learn.microsoft.com/en-us/adaptive-cards/`
-  - `https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/adaptive-card-summarize-responses`
-  - `https://learn.microsoft.com/en-us/microsoft-copilot-studio/adaptive-cards-overview`
+- [LangChain](https://reference.langchain.com/python/langchain/agents/middleware/human_in_the_loop)\
+- [LangGraph](https://reference.langchain.com/javascript/functions/langchain.index.humanInTheLoopMiddleware.html)
+    - 关键点：动作决策不应只有 approve，还应支持 edit 与 reject。
+- [Microsoft Adaptive Cards](https://learn.microsoft.com/en-us/adaptive-cards/)
+- [Copliot Studio](https://learn.microsoft.com/en-us/microsoft-copilot-studio/guidance/adaptive-card-summarize-responses)
   - 关键点：对话系统中的多轮收集应尽量落到显式表单、按钮和摘要确认。
 - Rahmani et al., 2024
-  - `https://aclanthology.org/2024.findings-eacl.84/`
+- [Rahmani et al., 2024](https://aclanthology.org/2024.findings-eacl.84/)
   - 关键点：对模糊或较短请求，具体、简短、针对性的澄清问题更有助于用户满意度。
 
 ## 3. 总体结论
