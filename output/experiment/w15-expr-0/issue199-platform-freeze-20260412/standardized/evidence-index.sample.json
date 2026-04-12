@@ -1,0 +1,95 @@
+{
+  "schema_version": "w15.issue199.evidence-index.v1",
+  "naming_convention_version": "w15-issue-199-v1",
+  "issue_id": 199,
+  "freeze_id": "issue199-platform-freeze-20260412",
+  "run_id": "issue199-react-smoke-001",
+  "report_pack": "reports/w15-issue-199",
+  "generated_at": "2026-04-12T16:01:45+00:00",
+  "roots": {
+    "experiment_output": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412",
+    "inspect_adapter": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai",
+    "promptfoo_adapter": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/promptfoo",
+    "report_output": "reports/w15-issue-199"
+  },
+  "traceability_chains": {
+    "chart": {
+      "required_refs": [
+        "config_path",
+        "adapter_manifest_path",
+        "run_manifest_path",
+        "aggregate_source_path",
+        "chart_artifact_path"
+      ],
+      "chain_rule": "config -> adapter_manifest -> run_manifest -> aggregate -> chart"
+    },
+    "case_study": {
+      "required_refs": [
+        "run_log_index_path",
+        "event_log_path",
+        "snapshot_path",
+        "task_report_path",
+        "case_artifact_path"
+      ],
+      "chain_rule": "run_log_index -> event_log -> snapshot -> task_report -> case_markdown"
+    }
+  },
+  "artifacts": [
+    {
+      "artifact_id": "inspect-react-task",
+      "artifact_type": "adapter",
+      "title": "Inspect AI ReAct smoke task",
+      "status": "ready",
+      "path": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai/inspect_issue199_react_smoke.py",
+      "run_ref": {
+        "freeze_id": "issue199-platform-freeze-20260412",
+        "platform": "inspect_ai",
+        "group_id": "react_style_external"
+      },
+      "source_refs": {
+        "config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+        "adapter_manifest_path": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/issue199_platform_adapter_manifest.json"
+      },
+      "upstream_refs": [],
+      "generated_by": {
+        "script_path": "scripts/benchmarks/prepare_issue199_platform_adapters.py",
+        "command": "uv run python scripts/benchmarks/prepare_issue199_platform_adapters.py"
+      },
+      "conclusion": "Primary platform scaffold validating sample loading, provider execution, eval logging, and answer-contract compliance.",
+      "tags": [
+        "inspect",
+        "react",
+        "adapter"
+      ]
+    },
+    {
+      "artifact_id": "promptfoo-regression-suite",
+      "artifact_type": "adapter",
+      "title": "promptfoo regression suite",
+      "status": "ready",
+      "path": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/promptfoo/promptfooconfig.yaml",
+      "run_ref": {
+        "freeze_id": "issue199-platform-freeze-20260412",
+        "platform": "promptfoo",
+        "group_id": "react_style_external"
+      },
+      "source_refs": {
+        "config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+        "adapter_manifest_path": "output/experiment/w15-expr-0/issue199-platform-freeze-20260412/issue199_platform_adapter_manifest.json"
+      },
+      "upstream_refs": [
+        "inspect-react-task"
+      ],
+      "generated_by": {
+        "script_path": "scripts/benchmarks/prepare_issue199_platform_adapters.py",
+        "command": "uv run python scripts/benchmarks/prepare_issue199_platform_adapters.py"
+      },
+      "conclusion": "Regression gate validating JSON structure, metadata propagation, budget guardrails, and allowlist compliance.",
+      "tags": [
+        "promptfoo",
+        "regression",
+        "quality-gate"
+      ]
+    }
+  ]
+}

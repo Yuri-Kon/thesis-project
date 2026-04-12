@@ -1,0 +1,12 @@
+{
+  "platform": "inspect_ai",
+  "baseline_family": "react_style_external",
+  "freeze_id": "issue199-platform-freeze-20260412",
+  "dataset_path": "/home/yurikon/文档/thesis/thesis-project.dev/output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai/inspect_react_samples.jsonl",
+  "task_path": "/home/yurikon/文档/thesis/thesis-project.dev/output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai/inspect_issue199_react_smoke.py",
+  "default_model": "openai-api/deepseek/deepseek-chat",
+  "suggested_commands": [
+    "uv tool run --from 'inspect-ai[openai]' inspect info version",
+    "DEEPSEEK_BASE_URL=https://api.deepseek.com ISSUE199_INSPECT_DATASET=output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai/inspect_react_samples.jsonl uv tool run --from inspect-ai --with openai inspect eval output/experiment/w15-expr-0/issue199-platform-freeze-20260412/inspect_ai/inspect_issue199_react_smoke.py --model openai-api/deepseek/deepseek-chat"
+  ]
+}
