@@ -1,0 +1,46 @@
+name: Issue200 Acceptance Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "configs/experiments/issue199_benchmark_platform_adapters.json"
+      - "scripts/benchmarks/run_issue200_acceptance_gate.py"
+      - "scripts/benchmarks/run_issue200_acceptance_suite.py"
+      - "src/infra/benchmark_platform_adapters.py"
+      - "src/infra/issue200_acceptance_gate.py"
+      - "src/infra/issue200_acceptance_suite.py"
+      - "tests/unit/test_benchmark_platform_adapters.py"
+      - "tests/unit/test_issue200_acceptance_gate.py"
+      - "tests/unit/test_issue200_acceptance_suite.py"
+
+jobs:
+  acceptance-gate:
+    runs-on: ubuntu-latest
+    env:
+      PLANNER_LLM_PROVIDER: off
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run Issue200 acceptance suite
+        run: |
+          uv run python scripts/benchmarks/run_issue200_acceptance_suite.py \
+            --output-root output/experiment/w16-issue200-ci \
+            --freeze-id issue200-ci-${{ github.run_id }}
+
+      - name: Upload gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue200-acceptance-gate-${{ github.run_id }}
+          path: output/experiment/w16-issue200-ci
+          if-no-files-found: warn
