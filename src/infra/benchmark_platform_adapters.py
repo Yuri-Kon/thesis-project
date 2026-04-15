@@ -9,6 +9,13 @@ from src.infra.w12_vertical_experiment import load_json, now_iso, stable_hash, w
 from src.llm.provider_registry import create_provider, load_provider_catalog
 from src.models.contracts import ProteinDesignTask
 
+__all__ = [
+    "build_issue199_platform_adapter_bundle",
+    "build_promptfoo_react_payload",
+    "load_json",
+    "normalize_issue199_platform_adapter_config",
+]
+
 
 DEFAULT_ISSUE199_OUTPUT_ROOT = Path("output/experiment/w15-expr-0")
 DEFAULT_ISSUE199_SCHEMA_VERSION = "w15.issue199.platform-adapters.v1"
@@ -180,6 +187,11 @@ def _normalize_config(config: dict[str, Any]) -> dict[str, Any]:
         "sample_tasks": _normalize_sample_tasks(config.get("sample_tasks")),
         "user_actions": _normalize_user_actions(config.get("user_actions")),
     }
+
+
+def normalize_issue199_platform_adapter_config(config: dict[str, Any]) -> dict[str, Any]:
+    """规范化 Issue #199/200 共享的实验冻结配置。"""
+    return _normalize_config(config)
 
 
 def _render_promptfoo_provider_script(repo_root: Path) -> str:
@@ -880,7 +892,7 @@ def build_issue199_platform_adapter_bundle(
     freeze_id: str | None = None,
 ) -> tuple[dict[str, Any], Path]:
     """生成 Issue #199 的平台接入旁路包。"""
-    normalized = _normalize_config(config)
+    normalized = normalize_issue199_platform_adapter_config(config)
     resolved_output_root = output_root or Path(normalized["output_root"])
     resolved_freeze_id = freeze_id or normalized["freeze_id"]
     output_dir = resolved_output_root / resolved_freeze_id

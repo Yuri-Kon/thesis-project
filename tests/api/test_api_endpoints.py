@@ -86,8 +86,20 @@ class TestAPIEndpoints:
         data = response.json()
         assert data["status"] == "ok"
         assert "kg_tool_count" in data
+        assert "capability_readiness_count" in data
         assert "paths" in data
         assert "logs" in data["paths"]
+
+    async def test_capability_readiness_endpoint(self, client: httpx.AsyncClient):
+        response = await client.get("/capabilities/readiness")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert any(item["capability_id"] == "objective_scoring" for item in data)
+        objective_entry = next(
+            item for item in data if item["capability_id"] == "objective_scoring"
+        )
+        assert objective_entry["primary_tool_id"] == "objective_ranker"
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""

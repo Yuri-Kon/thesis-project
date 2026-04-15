@@ -1,6 +1,4 @@
-"""
-OpenFold3Adapter - OpenFold3 structure prediction via NIM or remote REST.
-"""
+"""OpenFold 结构预测适配器。"""
 from __future__ import annotations
 
 import os
@@ -21,14 +19,19 @@ from src.models.contracts import PlanStep
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureCode, FailureType, StepRunError
 
-__all__ = ["OpenFold3Adapter"]
+__all__ = ["OpenFold2Adapter", "OpenFold3Adapter"]
 
 
 class OpenFold3Adapter(BaseToolAdapter):
-    """OpenFold3 adapter with two execution modes: NVIDIA NIM or remote REST."""
+    """OpenFold 适配器，兼容 NIM 与 REST 两种执行模式。"""
 
     tool_id = "openfold"
     adapter_id = "openfold"
+    display_name = "OpenFold3"
+    rest_provider_name = "openfold3_rest"
+    rest_provider_aliases = ("openfold3_rest", "openfold2_rest")
+    rest_base_url_env = "OPENFOLD3_REST_BASE_URL"
+    rest_api_token_env = "OPENFOLD3_REST_API_TOKEN"
     max_sequence_length = 1000
 
     def __init__(
@@ -42,9 +45,9 @@ class OpenFold3Adapter(BaseToolAdapter):
         nim_model_id: str = "openfold/openfold3/predict",
     ) -> None:
         normalized_mode = _normalize_execution_mode(execution_mode)
-        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest"}:
+        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest", "openfold2_rest"}:
             raise ValueError(
-                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest"
+                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest, openfold2_rest"
             )
         self.execution_mode = normalized_mode
         self.nim_model_id = nim_model_id
@@ -85,7 +88,7 @@ class OpenFold3Adapter(BaseToolAdapter):
             # molecules mode is accepted when user provides full request payload
             if not isinstance(molecules, list) or not molecules:
                 raise ValueError(
-                    f"Missing required input 'sequence' for OpenFold3 step '{step.id}'"
+                    f"Missing required input 'sequence' for {self.display_name} step '{step.id}'"
                 )
 
         resolved["task_id"] = context.task.task_id
@@ -101,7 +104,7 @@ class OpenFold3Adapter(BaseToolAdapter):
             mode = self._effective_execution_mode()
         if mode == "nvidia_nim":
             return self._run_nim(inputs)
-        if mode == "openfold3_rest":
+        if mode in self.rest_provider_aliases:
             return self._run_rest(inputs)
         raise StepRunError(
             failure_type=FailureType.NON_RETRYABLE,
@@ -113,13 +116,13 @@ class OpenFold3Adapter(BaseToolAdapter):
         api_key = str(getattr(self.nim_client, "api_key", "") or "").strip()
         if api_key or os.getenv("NIM_API_KEY"):
             return "nvidia_nim"
-        if _resolve_openfold3_rest_service_config(base_url=self.base_url) is not None:
-            return "openfold3_rest"
+        if self._resolve_rest_service_config(base_url=self.base_url) is not None:
+            return self.rest_provider_name
         raise StepRunError(
             failure_type=FailureType.NON_RETRYABLE,
             message=(
-                "OpenFold3 execution mode is unavailable. Set NIM_API_KEY for NIM "
-                "or configure OPENFOLD3_REST_BASE_URL for REST mode."
+                f"{self.display_name} execution mode is unavailable. Set NIM_API_KEY for NIM "
+                f"or configure {self.rest_base_url_env} for REST mode."
             ),
             code=FailureCode.NIM_API_KEY_MISSING.value,
         )
@@ -134,12 +137,12 @@ class OpenFold3Adapter(BaseToolAdapter):
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message=(
-                    "Sequence length exceeds OpenFold3 NIM limit "
+                    f"Sequence length exceeds {self.display_name} NIM limit "
                     f"({len(sequence)} > {self.max_sequence_length})"
                 ),
                 code=FailureCode.NIM_INVALID_INPUT.value,
             )
-        payload = _build_nim_payload(inputs)
+        payload = _build_nim_payload(inputs, request_prefix=self.tool_id)
 
         response = self.nim_client.call_sync(payload)
         response_data = _unwrap_response(response)
@@ -148,7 +151,7 @@ class OpenFold3Adapter(BaseToolAdapter):
         if not structure_text:
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
-                message="OpenFold3 NIM response missing structure content",
+                message=f"{self.display_name} NIM response missing structure content",
                 code=FailureCode.NIM_INVALID_RESPONSE.value,
             )
 
@@ -157,7 +160,7 @@ class OpenFold3Adapter(BaseToolAdapter):
         task_id = str(inputs.get("task_id", "unknown"))
         step_id = str(inputs.get("step_id", "unknown"))
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        structure_path = self.output_dir / f"openfold3_{task_id}_{step_id}.{extension}"
+        structure_path = self.output_dir / f"{self.tool_id}_{task_id}_{step_id}.{extension}"
         structure_path.write_text(structure_text, encoding="utf-8")
 
         if plddt is None and extension == "pdb":
@@ -233,7 +236,7 @@ class OpenFold3Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "remote",
             "duration_ms": int((perf_counter() - t0) * 1000),
-            "provider": "openfold3_rest",
+            "provider": self.rest_provider_name,
             "job_id": job_id,
         }
         return outputs, metrics
@@ -241,13 +244,13 @@ class OpenFold3Adapter(BaseToolAdapter):
     def _get_rest_service(self) -> RemoteModelInvocationService:
         if self.service is not None:
             return self.service
-        service_config = _resolve_openfold3_rest_service_config(base_url=self.base_url)
+        service_config = self._resolve_rest_service_config(base_url=self.base_url)
         if service_config is None:
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message=(
-                    "OpenFold3 REST configuration missing. Set OPENFOLD3_REST_BASE_URL "
-                    "or configure provider 'openfold3_rest' in configs/model_providers.json."
+                    f"{self.display_name} REST configuration missing. Set {self.rest_base_url_env} "
+                    f"or configure provider '{self.rest_provider_name}' in configs/model_providers.json."
                 ),
                 code=FailureCode.REMOTE_SUBMIT_INVALID_RESPONSE.value,
             )
@@ -258,10 +261,57 @@ class OpenFold3Adapter(BaseToolAdapter):
         )
         return self.service
 
+    def _resolve_rest_service_config(
+        self,
+        *,
+        base_url: str | None,
+    ) -> dict[str, Any] | None:
+        return _resolve_openfold_rest_service_config(
+            provider_names=self.rest_provider_aliases,
+            base_url_env_keys=(self.rest_base_url_env, "OPENFOLD3_REST_BASE_URL"),
+            api_token_env_keys=(self.rest_api_token_env, "OPENFOLD3_REST_API_TOKEN"),
+            base_url=base_url,
+        )
+
+    def healthcheck(self) -> Dict[str, Any]:
+        api_key = str(getattr(self.nim_client, "api_key", "") or "").strip()
+        if api_key or os.getenv("NIM_API_KEY"):
+            return {
+                "status": "ready",
+                "reason": "NIM API key configured",
+                "provider": "nvidia_nim",
+            }
+        rest_config = self._resolve_rest_service_config(base_url=self.base_url)
+        if rest_config is not None:
+            return {
+                "status": "ready",
+                "reason": "REST endpoint configured",
+                "provider": self.rest_provider_name,
+                "base_url": rest_config["base_url"],
+            }
+        return {
+            "status": "unavailable",
+            "reason": "neither NIM nor REST endpoint is configured",
+        }
+
+
+class OpenFold2Adapter(OpenFold3Adapter):
+    """OpenFold2 REST 兼容适配器。"""
+
+    tool_id = "openfold2"
+    adapter_id = "openfold2"
+    display_name = "OpenFold2"
+    rest_provider_name = "openfold2_rest"
+    rest_provider_aliases = ("openfold2_rest", "openfold3_rest")
+    rest_base_url_env = "OPENFOLD2_REST_BASE_URL"
+    rest_api_token_env = "OPENFOLD2_REST_API_TOKEN"
+
 
 def _normalize_execution_mode(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized in {"rest", "openfold3_rest", "remote_rest"}:
+    if normalized in {"rest", "openfold3_rest", "openfold2_rest", "remote_rest"}:
+        if normalized == "openfold2_rest":
+            return "openfold2_rest"
         return "openfold3_rest"
     if normalized in {"nim", "nvidia_nim"}:
         return "nvidia_nim"
@@ -270,7 +320,7 @@ def _normalize_execution_mode(value: str) -> str:
     return normalized
 
 
-def _build_nim_payload(inputs: Dict[str, Any]) -> Dict[str, Any]:
+def _build_nim_payload(inputs: Dict[str, Any], *, request_prefix: str) -> Dict[str, Any]:
     if isinstance(inputs.get("inputs"), list):
         payload: Dict[str, Any] = {"inputs": _inject_query_only_msa(inputs["inputs"])}
         if isinstance(inputs.get("request_id"), str):
@@ -281,11 +331,11 @@ def _build_nim_payload(inputs: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(sequence, str) or not sequence:
         raise StepRunError(
             failure_type=FailureType.NON_RETRYABLE,
-            message="Missing required input 'sequence' for OpenFold3 NIM mode",
+            message="Missing required input 'sequence' for OpenFold NIM mode",
             code=FailureCode.INPUT_RESOLUTION_FAILED.value,
         )
 
-    request_id = str(inputs.get("request_id", "openfold3-request"))
+    request_id = str(inputs.get("request_id", f"{request_prefix}-request"))
     return {
         "request_id": request_id,
         "inputs": [
@@ -322,21 +372,39 @@ def _build_rest_payload(inputs: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
-def _resolve_openfold3_rest_service_config(
+def _resolve_openfold_rest_service_config(
     *,
+    provider_names: tuple[str, ...],
+    base_url_env_keys: tuple[str, ...],
+    api_token_env_keys: tuple[str, ...],
     base_url: str | None,
 ) -> dict[str, Any] | None:
-    env_base_url = str(os.getenv("OPENFOLD3_REST_BASE_URL", "")).strip() or None
+    env_base_url = None
+    for env_key in base_url_env_keys:
+        candidate = str(os.getenv(env_key, "")).strip()
+        if candidate:
+            env_base_url = candidate
+            break
     timeout = 60.0
     headers: dict[str, str] | None = None
 
-    try:
-        config = get_provider_config("openfold3_rest")
-    except KeyError:
+    config = None
+    for provider_name in provider_names:
+        try:
+            config = get_provider_config(provider_name)
+            break
+        except KeyError:
+            continue
+    if config is None:
         resolved = env_base_url or base_url
         if not resolved:
             return None
-        token = str(os.getenv("OPENFOLD3_REST_API_TOKEN", "")).strip()
+        token = ""
+        for env_key in api_token_env_keys:
+            candidate = str(os.getenv(env_key, "")).strip()
+            if candidate:
+                token = candidate
+                break
         if token:
             headers = {"Authorization": f"Bearer {token}"}
         return {"base_url": resolved, "timeout": timeout, "headers": headers}

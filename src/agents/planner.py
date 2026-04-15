@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
+from src.adapters.registry import get_adapter
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
@@ -168,7 +169,7 @@ _SCORE_WEIGHT_KEY_ALIASES: dict[str, str] = {
 
 _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
     # Requirement-2: P0 capability swap matrix (structure prediction core path)
-    "structure_prediction": ("nim_esmfold", "esmfold", "alphafold", "openfold"),
+    "structure_prediction": ("nim_esmfold", "esmfold", "alphafold", "openfold2", "openfold"),
     # Requirement-2: minimal fallback path for quality_qc
     "quality_qc": ("biopython_qc", "dssp"),
     # Requirement-2: minimal fallback path for objective_scoring
@@ -2807,6 +2808,22 @@ def _tool_readiness_score(spec: ToolSpec) -> float:
         "unknown": 0.55,
     }
     base = adapter_base.get(spec.adapter_mode, 0.55)
+    try:
+        adapter = get_adapter(spec.id)
+    except KeyError:
+        adapter = None
+    if adapter is not None:
+        try:
+            health = adapter.healthcheck()
+        except Exception:
+            health = {"status": "degraded"}
+        status = str(health.get("status") or "ready")
+        if status == "unavailable":
+            base -= 0.55
+        elif status == "degraded":
+            base -= 0.22
+        elif status == "ready":
+            base += 0.05
     priority_bonus = 0.06 if _priority_rank(spec.priority) == 0 else 0.0
     safety_penalty = min(0.18, max(0, spec.safety_level - 1) * 0.05)
     return min(1.0, max(0.0, base + priority_bonus - safety_penalty))

@@ -1,6 +1,6 @@
 {
   "kg_id": "protein_tool_kg",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "capabilities": [
     {
       "capability_id": "structure_prediction",
@@ -43,6 +43,30 @@
       "name": "Secondary Structure Annotation",
       "domain": "protein/annotation",
       "description": "Annotate residue-level secondary structure and summarize Q3/Q8 composition."
+    },
+    {
+      "capability_id": "structure_similarity_search",
+      "name": "Structure Similarity Search",
+      "domain": "protein/similarity",
+      "description": "Search structural databases for nearest-neighbor folds and novelty evidence."
+    },
+    {
+      "capability_id": "function_annotation",
+      "name": "Function Annotation",
+      "domain": "protein/annotation",
+      "description": "Annotate protein families, domains, GO terms, and pathway evidence."
+    },
+    {
+      "capability_id": "stability_simulation",
+      "name": "Stability Simulation",
+      "domain": "protein/stability",
+      "description": "Estimate structural stability from trajectory or structure-derived proxy metrics."
+    },
+    {
+      "capability_id": "docking_scoring",
+      "name": "Docking Scoring",
+      "domain": "protein/docking",
+      "description": "Evaluate receptor-ligand binding affinity with docking-based proxy scores."
     }
   ],
   "io_types": [
@@ -130,6 +154,67 @@
       ],
       "combinable": true,
       "description": "Structure-to-secondary-structure annotation outputs."
+    },
+    {
+      "io_type_id": "structure_to_similarity_hits",
+      "input_types": [
+        "structure_pdb"
+      ],
+      "output_types": [
+        "structure_similarity_hits"
+      ],
+      "combinable": true,
+      "description": "Structure similarity search outputs normalized to comparable hit fields."
+    },
+    {
+      "io_type_id": "sequence_or_structure_to_function_terms",
+      "input_types": [
+        "sequence",
+        "structure_pdb"
+      ],
+      "output_types": [
+        "function_terms",
+        "annotation_summary"
+      ],
+      "combinable": true,
+      "description": "Function annotation outputs such as domains, GO terms, and pathway evidence."
+    },
+    {
+      "io_type_id": "trajectory_to_stability_metrics",
+      "input_types": [
+        "structure_pdb",
+        "trajectory"
+      ],
+      "output_types": [
+        "stability_metrics"
+      ],
+      "combinable": true,
+      "description": "Trajectory or structure-derived stability metrics."
+    },
+    {
+      "io_type_id": "structure_ligand_to_binding_score",
+      "input_types": [
+        "structure_pdb",
+        "ligand"
+      ],
+      "output_types": [
+        "binding_score",
+        "docking_poses"
+      ],
+      "combinable": false,
+      "description": "Docking outputs normalized to binding score and pose summaries."
+    },
+    {
+      "io_type_id": "candidates_to_objective_scores_topk",
+      "input_types": [
+        "candidates"
+      ],
+      "output_types": [
+        "score_table",
+        "top_k"
+      ],
+      "combinable": true,
+      "description": "Candidate reranking outputs for objective-based top-k selection."
     }
   ],
   "constraints": [
@@ -243,6 +328,79 @@
       ],
       "limits": {},
       "description": "DSSP runtime requirements for local secondary-structure annotation."
+    },
+    {
+      "constraint_id": "foldseek_runtime",
+      "preconditions": [
+        "structure_provided",
+        "database_ready"
+      ],
+      "resource_assumptions": [
+        "foldseek_installed",
+        "local_structure_database_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "Foldseek runtime requirements for structure similarity search."
+    },
+    {
+      "constraint_id": "interproscan_runtime",
+      "preconditions": [
+        "sequence_provided"
+      ],
+      "resource_assumptions": [
+        "interproscan_installed",
+        "python_environment_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "InterProScan runtime requirements for functional annotation."
+    },
+    {
+      "constraint_id": "objective_ranker_runtime",
+      "preconditions": [
+        "candidate_bundle_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "Objective ranker runtime requirements for composite candidate scoring."
+    },
+    {
+      "constraint_id": "mda_analysis_runtime",
+      "preconditions": [
+        "structure_provided"
+      ],
+      "resource_assumptions": [
+        "python_environment_ready"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "MDAnalysis proxy runtime requirements for stability metrics."
+    },
+    {
+      "constraint_id": "autodock_vina_runtime",
+      "preconditions": [
+        "receptor_and_ligand_provided"
+      ],
+      "resource_assumptions": [
+        "vina_installed"
+      ],
+      "model_assumptions": [
+        "single_candidate_or_batch"
+      ],
+      "limits": {},
+      "description": "AutoDock Vina runtime requirements for docking-based proxy scoring."
     }
   ],
   "tools": [
@@ -515,6 +673,73 @@
       ],
       "preferred_next": [
         "biopython_qc"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "openfold2",
+      "tool_id": "openfold2",
+      "name": "OpenFold2",
+      "domain": "protein/structure",
+      "description": "OpenFold2 structure prediction via remote REST GPU service.",
+      "capabilities": [
+        "structure_prediction"
+      ],
+      "io": {
+        "io_type_id": "sequence_to_structure",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "pdb_path": "path",
+          "plddt": "float"
+        },
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "structure_pdb",
+          "plddt"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "sequence_provided"
+        ],
+        "resource_assumptions": [
+          "network_available",
+          "openfold2_rest_service_available"
+        ],
+        "model_assumptions": [
+          "single_chain_or_complex"
+        ],
+        "limits": {
+          "max_length": 1000
+        }
+      },
+      "execution": {
+        "backend": "remote_model_service",
+        "provider": "openfold2_rest",
+        "sync_mode": true
+      },
+      "cost_score": 0.72,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [],
+      "compat": {
+        "from": [
+          "protein_mpnn.sequence",
+          "protgpt2.sequence"
+        ]
+      },
+      "failure_modes": [
+        "timeout",
+        "invalid_input"
+      ],
+      "preferred_next": [
+        "biopython_qc",
+        "dssp"
       ],
       "version": "1.0.0"
     },
@@ -913,6 +1138,285 @@
       "preferred_next": [
         "objective_ranker",
         "biopython_qc"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "objective_ranker",
+      "tool_id": "objective_ranker",
+      "name": "Objective Ranker",
+      "domain": "protein/score",
+      "description": "Composite objective scorer that reranks candidates with explicit proxy signals.",
+      "capabilities": [
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "candidates_to_objective_scores_topk",
+        "inputs": {
+          "candidates": "list"
+        },
+        "outputs": {
+          "score_table": "list",
+          "top_k": "list",
+          "default_recommendation": "str",
+          "explanation": "str"
+        },
+        "input_types": [
+          "candidates"
+        ],
+        "output_types": [
+          "score_table",
+          "top_k"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "candidate_bundle_provided"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.18,
+      "safety_level": 1,
+      "priority": "P0",
+      "official_links": [],
+      "failure_modes": [
+        "invalid_input"
+      ],
+      "preferred_next": [],
+      "version": "1.0.0"
+    },
+    {
+      "id": "foldseek",
+      "tool_id": "foldseek",
+      "name": "Foldseek",
+      "domain": "protein/similarity",
+      "description": "Structure similarity search aligned to a unified hit schema.",
+      "capabilities": [
+        "structure_similarity_search",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "structure_to_similarity_hits",
+        "inputs": {
+          "pdb_path": "path",
+          "database_path": "path"
+        },
+        "outputs": {
+          "structure_similarity_hits": "list",
+          "top_hit": "dict",
+          "hit_count": "int"
+        },
+        "input_types": [
+          "structure_pdb"
+        ],
+        "output_types": [
+          "structure_similarity_hits"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "structure_provided",
+          "database_ready"
+        ],
+        "resource_assumptions": [
+          "foldseek_installed",
+          "local_structure_database_ready"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.28,
+      "safety_level": 1,
+      "priority": "P1",
+      "official_links": [
+        "https://github.com/steineggerlab/foldseek"
+      ],
+      "failure_modes": [
+        "binary_missing",
+        "database_missing"
+      ],
+      "preferred_next": [
+        "objective_ranker"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "interproscan",
+      "tool_id": "interproscan",
+      "name": "InterProScan",
+      "domain": "protein/annotation",
+      "description": "Function annotation wrapper producing domains, GO terms, and pathway evidence.",
+      "capabilities": [
+        "function_annotation",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "sequence_or_structure_to_function_terms",
+        "inputs": {
+          "sequence": "str"
+        },
+        "outputs": {
+          "function_terms": "list",
+          "annotation_summary": "dict"
+        },
+        "input_types": [
+          "sequence"
+        ],
+        "output_types": [
+          "function_terms",
+          "annotation_summary"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "sequence_provided"
+        ],
+        "resource_assumptions": [
+          "interproscan_installed",
+          "python_environment_ready"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.45,
+      "safety_level": 1,
+      "priority": "P1",
+      "official_links": [
+        "https://github.com/ebi-pf-team/interproscan"
+      ],
+      "failure_modes": [
+        "binary_missing",
+        "invalid_sequence"
+      ],
+      "preferred_next": [
+        "objective_ranker"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "mda_analysis",
+      "tool_id": "mda_analysis",
+      "name": "MDAnalysis",
+      "domain": "protein/stability",
+      "description": "Structure-derived stability proxy metrics compatible with objective scoring.",
+      "capabilities": [
+        "stability_simulation",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "trajectory_to_stability_metrics",
+        "inputs": {
+          "pdb_path": "path"
+        },
+        "outputs": {
+          "stability_metrics": "dict"
+        },
+        "input_types": [
+          "structure_pdb"
+        ],
+        "output_types": [
+          "stability_metrics"
+        ],
+        "combinable": true
+      },
+      "constraints": {
+        "preconditions": [
+          "structure_provided"
+        ],
+        "resource_assumptions": [
+          "python_environment_ready"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.22,
+      "safety_level": 1,
+      "priority": "P1",
+      "official_links": [
+        "https://www.mdanalysis.org/pages/documentation/"
+      ],
+      "failure_modes": [
+        "invalid_structure"
+      ],
+      "preferred_next": [
+        "objective_ranker"
+      ],
+      "version": "1.0.0"
+    },
+    {
+      "id": "autodock_vina",
+      "tool_id": "autodock_vina",
+      "name": "AutoDock Vina",
+      "domain": "protein/docking",
+      "description": "Docking proxy tool for receptor-ligand binding score estimation.",
+      "capabilities": [
+        "docking_scoring",
+        "objective_scoring"
+      ],
+      "io": {
+        "io_type_id": "structure_ligand_to_binding_score",
+        "inputs": {
+          "receptor_path": "path",
+          "ligand_path": "path"
+        },
+        "outputs": {
+          "binding_score": "float",
+          "docking_poses": "list"
+        },
+        "input_types": [
+          "structure_pdb",
+          "ligand"
+        ],
+        "output_types": [
+          "binding_score",
+          "docking_poses"
+        ],
+        "combinable": false
+      },
+      "constraints": {
+        "preconditions": [
+          "receptor_and_ligand_provided"
+        ],
+        "resource_assumptions": [
+          "vina_installed"
+        ],
+        "model_assumptions": [
+          "single_candidate_or_batch"
+        ],
+        "limits": {}
+      },
+      "execution": "python",
+      "cost_score": 0.52,
+      "safety_level": 1,
+      "priority": "P1",
+      "official_links": [
+        "https://autodock-vina.readthedocs.io/en/latest/"
+      ],
+      "failure_modes": [
+        "binary_missing",
+        "invalid_ligand"
+      ],
+      "preferred_next": [
+        "objective_ranker"
       ],
       "version": "1.0.0"
     }
