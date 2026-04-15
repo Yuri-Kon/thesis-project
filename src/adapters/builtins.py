@@ -3,14 +3,19 @@ from __future__ import annotations
 import os
 
 from src.adapters.alphafold_adapter import AlphaFold2Adapter
+from src.adapters.autodock_vina_adapter import AutoDockVinaAdapter
 from src.adapters.blastp_adapter import BlastPAdapter
 from src.adapters.biopython_qc_adapter import BioPythonQCAdapter
 from src.adapters.dssp_adapter import DSSPAdapter
 from src.adapters.dummy_adapter import DummyToolAdapter
 from src.adapters.esmfold_adapter import ESMFoldAdapter
+from src.adapters.foldseek_adapter import FoldseekAdapter
+from src.adapters.interproscan_adapter import InterProScanAdapter
+from src.adapters.mda_analysis_adapter import MDAnalysisAdapter
 from src.adapters.mmseqs2_adapter import MMseqs2Adapter
 from src.adapters.nim_adapter import NIMESMFoldAdapter
-from src.adapters.openfold_adapter import OpenFold3Adapter
+from src.adapters.objective_ranker_adapter import ObjectiveRankerAdapter
+from src.adapters.openfold_adapter import OpenFold2Adapter, OpenFold3Adapter
 from src.adapters.protein_mpnn_adapter import ProteinMPNNAdapter
 from src.adapters.protgpt2_adapter import ProtGPT2Adapter
 from src.adapters.registry import get_adapter, register_adapter
@@ -52,18 +57,28 @@ def ensure_builtin_adapters() -> None:
             get_adapter(AlphaFold2Adapter.tool_id)
         except KeyError:
             register_adapter(AlphaFold2Adapter())
-    openfold3_rest_available = bool(os.getenv("OPENFOLD3_REST_BASE_URL"))
-    if not openfold3_rest_available:
+    openfold_rest_available = bool(os.getenv("OPENFOLD3_REST_BASE_URL")) or bool(
+        os.getenv("OPENFOLD2_REST_BASE_URL")
+    )
+    if not openfold_rest_available:
         try:
             provider_cfg = get_provider_config("openfold3_rest")
-            openfold3_rest_available = bool(provider_cfg.base_url)
+            openfold_rest_available = bool(provider_cfg.base_url)
         except KeyError:
-            openfold3_rest_available = False
-    if nim_api_key or openfold3_rest_available:
+            try:
+                provider_cfg = get_provider_config("openfold2_rest")
+                openfold_rest_available = bool(provider_cfg.base_url)
+            except KeyError:
+                openfold_rest_available = False
+    if nim_api_key or openfold_rest_available:
         try:
             get_adapter(OpenFold3Adapter.tool_id)
         except KeyError:
             register_adapter(OpenFold3Adapter())
+        try:
+            get_adapter(OpenFold2Adapter.tool_id)
+        except KeyError:
+            register_adapter(OpenFold2Adapter())
     try:
         get_adapter(ProteinMPNNAdapter.tool_id)
     except KeyError:
@@ -88,3 +103,23 @@ def ensure_builtin_adapters() -> None:
         get_adapter(DSSPAdapter.tool_id)
     except KeyError:
         register_adapter(DSSPAdapter())
+    try:
+        get_adapter(ObjectiveRankerAdapter.tool_id)
+    except KeyError:
+        register_adapter(ObjectiveRankerAdapter())
+    try:
+        get_adapter(FoldseekAdapter.tool_id)
+    except KeyError:
+        register_adapter(FoldseekAdapter())
+    try:
+        get_adapter(InterProScanAdapter.tool_id)
+    except KeyError:
+        register_adapter(InterProScanAdapter())
+    try:
+        get_adapter(MDAnalysisAdapter.tool_id)
+    except KeyError:
+        register_adapter(MDAnalysisAdapter())
+    try:
+        get_adapter(AutoDockVinaAdapter.tool_id)
+    except KeyError:
+        register_adapter(AutoDockVinaAdapter())

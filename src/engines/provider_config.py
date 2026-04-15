@@ -43,7 +43,52 @@ def _default_provider_configs() -> Dict[str, ProviderConfig]:
                     "nvidia/esm2nv",
                 ]
             },
-        )
+        ),
+        "openfold3_rest": ProviderConfig(
+            provider_type="openfold3_rest",
+            description="OpenFold3 remote REST service provider",
+            base_url="http://localhost:8200",
+            api_key_env="OPENFOLD3_REST_API_TOKEN",
+            timeout=120.0,
+            max_retries=3,
+            extra={
+                "endpoints": {
+                    "predict": "/predict",
+                    "job": "/job/{id}",
+                    "results": "/results/{id}",
+                }
+            },
+        ),
+        "openfold2_rest": ProviderConfig(
+            provider_type="openfold2_rest",
+            description="OpenFold2 remote REST service provider",
+            base_url="http://localhost:8200",
+            api_key_env="OPENFOLD2_REST_API_TOKEN",
+            timeout=120.0,
+            max_retries=3,
+            extra={
+                "endpoints": {
+                    "predict": "/predict",
+                    "job": "/job/{id}",
+                    "results": "/results/{id}",
+                }
+            },
+        ),
+        "plm_rest": ProviderConfig(
+            provider_type="plm_rest",
+            description="PLM remote REST service provider",
+            base_url="http://localhost:8100",
+            api_key_env="PLM_REST_API_TOKEN",
+            timeout=60.0,
+            max_retries=3,
+            extra={
+                "endpoints": {
+                    "predict": "/predict",
+                    "job": "/job/{id}",
+                    "results": "/results/{id}",
+                }
+            },
+        ),
     }
 
 

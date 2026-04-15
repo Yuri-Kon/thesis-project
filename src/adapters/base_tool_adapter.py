@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -65,3 +66,42 @@ class BaseToolAdapter(ABC):
         raise NotImplementedError(
             f"{self.__class__.__name__} does not support remote execution"
         )
+
+    def describe_capabilities(self) -> Dict[str, Any]:
+        """返回适配器能力摘要。"""
+        return {
+            "tool_id": getattr(self, "tool_id", ""),
+            "adapter_id": getattr(self, "adapter_id", None),
+        }
+
+    def healthcheck(self) -> Dict[str, Any]:
+        """返回适配器可用性检查结果。"""
+        binary = getattr(self, "binary", None)
+        if isinstance(binary, str) and binary:
+            resolved = shutil.which(binary)
+            if resolved is None:
+                return {
+                    "status": "unavailable",
+                    "reason": f"binary '{binary}' not installed",
+                }
+            return {
+                "status": "ready",
+                "reason": f"binary '{binary}' resolved",
+                "binary_path": resolved,
+            }
+        return {"status": "ready", "reason": "adapter registered"}
+
+    def normalize_error(self, exc: Exception) -> Dict[str, Any]:
+        """将工具异常转为统一结构。"""
+        return {
+            "error_type": exc.__class__.__name__,
+            "message": str(exc),
+        }
+
+    def estimate_cost(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """估计执行成本。"""
+        return {"level": "medium"}
+
+    def estimate_latency(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        """估计执行耗时。"""
+        return {"level": "medium"}
