@@ -6,7 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from src.adapters.biopython_qc_adapter import BioPythonQCAdapter
-from src.adapters.openfold_adapter import OpenFold3Adapter
+from src.adapters.openfold_adapter import OpenFold2Adapter, OpenFold3Adapter
 from src.engines.remote_model_service import JobStatus
 from src.models.contracts import PlanStep, ProteinDesignTask
 from src.workflow.context import WorkflowContext
@@ -255,3 +255,28 @@ def test_run_local_auto_picks_rest_when_base_url_present(
 
     assert outputs["plddt"] == 70.0
     assert metrics["provider"] == "openfold3_rest"
+
+
+def test_openfold2_adapter_uses_openfold2_rest_label(tmp_path: Path) -> None:
+    mock_service = Mock()
+    mock_service.submit_job.return_value = "job_222"
+    mock_service.wait_for_completion.return_value = JobStatus.COMPLETED
+    pdb_path = tmp_path / "prediction.pdb"
+    pdb_path.write_text("ATOM 1", encoding="utf-8")
+    mock_service.download_results.return_value = {
+        "pdb_path": str(pdb_path),
+        "plddt": 79.5,
+        "metrics": {"plddt_mean": 79.5},
+    }
+    adapter = OpenFold2Adapter(
+        execution_mode="openfold2_rest",
+        service=mock_service,
+        output_dir=tmp_path,
+    )
+
+    outputs, metrics = adapter.run_local(
+        {"sequence": "ACDEFG", "task_id": "task_openfold_002", "step_id": "S1"}
+    )
+
+    assert outputs["plddt"] == 79.5
+    assert metrics["provider"] == "openfold2_rest"
