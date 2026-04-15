@@ -36,6 +36,7 @@ from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
 from src.storage.log_store import read_timeline_events
 from src.workflow.context import WorkflowContext
+from src.infra.tool_readiness import build_capability_readiness_matrix
 
 API_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = API_DIR / "templates"
@@ -172,6 +173,16 @@ class PendingActionDetail(BaseModel):
     explanation: str
     recommendation_summary: str
     candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
+
+
+class CapabilityReadinessEntry(BaseModel):
+    capability_id: str
+    status: str
+    primary_tool_id: Optional[str] = None
+    fallback_tool_ids: list[str] = Field(default_factory=list)
+    reason: str
+    checked_at: str
+    tools: list[Dict[str, Any]] = Field(default_factory=list)
 
 
 def _render_ui_html(task_id: Optional[str]) -> str:
@@ -406,10 +417,12 @@ async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     runtime = _ensure_runtime_initialized()
+    readiness = build_capability_readiness_matrix()
     return {
         "status": "ok",
         "task_count": len(TASK_STORE),
         "kg_tool_count": runtime.tool_count,
+        "capability_readiness_count": len(readiness),
         "paths": {
             "kg": str(runtime.paths.kg_path),
             "output": str(runtime.paths.output_dir),
@@ -418,6 +431,12 @@ async def health() -> Dict[str, Any]:
             "snapshots": str(runtime.paths.snapshot_dir),
         },
     }
+
+
+@app.get("/capabilities/readiness", response_model=list[CapabilityReadinessEntry])
+async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
+    entries = build_capability_readiness_matrix()
+    return [CapabilityReadinessEntry(**entry) for entry in entries]
 
 
 @app.post("/tasks", response_model=TaskRecord)
