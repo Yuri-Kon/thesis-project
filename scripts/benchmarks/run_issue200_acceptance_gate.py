@@ -52,6 +52,9 @@ def main() -> int:
     print(f"[issue200] output_dir={output_dir}")
     print(f"[issue200] report={report['artifacts']['json_report_path']}")
     print(f"[issue200] summary={report['artifacts']['markdown_summary_path']}")
+    print(f"[issue200] gate_summary={report['artifacts']['gate_summary_path']}")
+    print(f"[issue200] blockers={report['artifacts']['blockers_path']}")
+    print(f"[issue200] evidence_index={report['artifacts']['evidence_index_path']}")
     for check in report["checks"]:
         if check["status"] == "block":
             print(f"[issue200] block {check['check_id']}: {check['message']}")

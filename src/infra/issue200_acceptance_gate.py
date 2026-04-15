@@ -21,6 +21,9 @@ __all__ = [
 
 
 DEFAULT_ISSUE200_GATE_SCHEMA_VERSION = "w16.issue200.acceptance-gate.v1"
+DEFAULT_ISSUE200_GATE_SUMMARY_SCHEMA_VERSION = "w16.issue200.gate-summary.v1"
+DEFAULT_ISSUE200_GATE_BLOCKERS_SCHEMA_VERSION = "w16.issue200.blockers.v1"
+DEFAULT_ISSUE200_GATE_EVIDENCE_INDEX_SCHEMA_VERSION = "w16.issue200.evidence-index.v1"
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -67,10 +70,24 @@ def run_issue200_acceptance_gate(
             "markdown_summary_path": str(
                 (output_dir / "issue200_acceptance_gate_summary.md").resolve()
             ),
+            "gate_summary_path": str((output_dir / "issue200_gate_summary.json").resolve()),
+            "blockers_path": str((output_dir / "issue200_gate_blockers.json").resolve()),
+            "evidence_index_path": str((output_dir / "issue200_gate_evidence_index.json").resolve()),
         },
     }
 
     write_json(output_dir / "issue200_acceptance_gate_report.json", report)
+    gate_summary = _build_gate_summary(report, config=normalized)
+    blockers = _build_gate_blockers(report)
+    evidence_index = _build_gate_evidence_index(
+        report,
+        gate_summary=gate_summary,
+        blockers=blockers,
+        output_dir=output_dir,
+    )
+    write_json(output_dir / "issue200_gate_summary.json", gate_summary)
+    write_json(output_dir / "issue200_gate_blockers.json", blockers)
+    write_json(output_dir / "issue200_gate_evidence_index.json", evidence_index)
     (output_dir / "issue200_acceptance_gate_summary.md").write_text(
         _render_gate_summary(report),
         encoding="utf-8",
@@ -477,3 +494,192 @@ def _render_gate_summary(report: dict[str, Any]) -> str:
         ]
     )
     return "\n".join(lines)
+
+
+def _build_gate_summary(report: dict[str, Any], *, config: dict[str, Any]) -> dict[str, Any]:
+    checks = report["checks"]
+    passed = [check for check in checks if check["status"] == "pass"]
+    warned = [check for check in checks if check["status"] == "warn"]
+    blocked = [check for check in checks if check["status"] == "block"]
+    consumer_issues = config.get("source_references", {}).get("consumer_issues")
+    if not isinstance(consumer_issues, list):
+        consumer_issues = []
+
+    return {
+        "schema_version": DEFAULT_ISSUE200_GATE_SUMMARY_SCHEMA_VERSION,
+        "issue_id": 200,
+        "freeze_id": report["freeze_id"],
+        "generated_at": report["generated_at"],
+        "overall_status": report["overall_status"],
+        "ready_for_downstream": report["overall_status"] == "pass",
+        "consumer_issues": [
+            str(issue_id)
+            for issue_id in consumer_issues
+            if isinstance(issue_id, (str, int))
+        ],
+        "carry_forward_contract": {
+            "freeze_id": report["freeze_id"],
+            "dataset_version": report["dataset_version"],
+            "task_set_version": report["task_set_version"],
+            "tool_whitelist_version": report["tool_whitelist_version"],
+            "budget_version": report["budget_version"],
+            "allowed_tool_ids": config["tool_whitelist"]["allowed_tool_ids"],
+            "allowed_capability_ids": config["tool_whitelist"]["allowed_capability_ids"],
+            "budget_fields": config["budget_contract"]["smoke_defaults"],
+            "fairness_requirements": config["fairness_contract"].get("requirements", []),
+        },
+        "counts": report["summary"],
+        "pass_items": [
+            _to_gate_item(check, include_remediation=False)
+            for check in passed
+        ],
+        "warn_items": [
+            _to_gate_item(check, include_remediation=True)
+            for check in warned
+        ],
+        "block_items": [
+            _to_gate_item(check, include_remediation=True)
+            for check in blocked
+        ],
+        "source_refs": {
+            "checks_report_path": report["artifacts"]["json_report_path"],
+            "checks_summary_markdown_path": report["artifacts"]["markdown_summary_path"],
+            "config_path": report["config_path"],
+        },
+        "conclusion": _compose_gate_conclusion(report["overall_status"], blocked_count=len(blocked)),
+    }
+
+
+def _build_gate_blockers(report: dict[str, Any]) -> dict[str, Any]:
+    blocked = [check for check in report["checks"] if check["status"] == "block"]
+    return {
+        "schema_version": DEFAULT_ISSUE200_GATE_BLOCKERS_SCHEMA_VERSION,
+        "issue_id": 200,
+        "freeze_id": report["freeze_id"],
+        "generated_at": report["generated_at"],
+        "overall_status": report["overall_status"],
+        "block_count": len(blocked),
+        "blockers": [
+            {
+                "check_id": check["check_id"],
+                "title": check["title"],
+                "reason": check["message"],
+                "remediation": check["remediation"],
+                "details": check["details"],
+            }
+            for check in blocked
+        ],
+    }
+
+
+def _build_gate_evidence_index(
+    report: dict[str, Any],
+    *,
+    gate_summary: dict[str, Any],
+    blockers: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, Any]:
+    return {
+        "schema_version": DEFAULT_ISSUE200_GATE_EVIDENCE_INDEX_SCHEMA_VERSION,
+        "naming_convention_version": "w16-issue-200-v1",
+        "issue_id": 200,
+        "freeze_id": report["freeze_id"],
+        "run_id": f"issue200-gate-{report['freeze_id']}",
+        "report_pack": "reports/w16-issue-200",
+        "generated_at": report["generated_at"],
+        "roots": {
+            "experiment_output": str(output_dir.resolve()),
+            "report_output": "reports/w16-issue-200",
+        },
+        "traceability_chains": {
+            "gate_summary": {
+                "required_refs": [
+                    "config_path",
+                    "checks_report_path",
+                    "gate_summary_path",
+                ],
+                "chain_rule": "config -> checks_report -> gate_summary",
+            },
+            "gate_blockers": {
+                "required_refs": [
+                    "config_path",
+                    "checks_report_path",
+                    "blockers_path",
+                ],
+                "chain_rule": "config -> checks_report -> blockers",
+            },
+        },
+        "artifacts": [
+            {
+                "artifact_id": "issue200-gate-summary",
+                "artifact_type": "summary",
+                "title": "Issue #200 gate summary",
+                "status": "ready" if gate_summary["ready_for_downstream"] else "blocked",
+                "path": report["artifacts"]["gate_summary_path"],
+                "run_ref": {
+                    "freeze_id": report["freeze_id"],
+                    "issue_id": 200,
+                    "status": report["overall_status"],
+                },
+                "source_refs": {
+                    "config_path": report["config_path"],
+                    "checks_report_path": report["artifacts"]["json_report_path"],
+                    "gate_summary_path": report["artifacts"]["gate_summary_path"],
+                },
+                "upstream_refs": [],
+                "generated_by": {
+                    "script_path": "scripts/benchmarks/run_issue200_acceptance_gate.py",
+                    "command": "uv run python scripts/benchmarks/run_issue200_acceptance_gate.py",
+                },
+                "conclusion": gate_summary["conclusion"],
+                "tags": ["gate", "summary", "issue200"],
+            },
+            {
+                "artifact_id": "issue200-gate-blockers",
+                "artifact_type": "report",
+                "title": "Issue #200 blocker list",
+                "status": "ready",
+                "path": report["artifacts"]["blockers_path"],
+                "run_ref": {
+                    "freeze_id": report["freeze_id"],
+                    "issue_id": 200,
+                    "status": report["overall_status"],
+                },
+                "source_refs": {
+                    "config_path": report["config_path"],
+                    "checks_report_path": report["artifacts"]["json_report_path"],
+                    "blockers_path": report["artifacts"]["blockers_path"],
+                },
+                "upstream_refs": ["issue200-gate-summary"],
+                "generated_by": {
+                    "script_path": "scripts/benchmarks/run_issue200_acceptance_gate.py",
+                    "command": "uv run python scripts/benchmarks/run_issue200_acceptance_gate.py",
+                },
+                "conclusion": (
+                    "Structured blocker list for fail-fast triage."
+                    if blockers["block_count"] > 0
+                    else "No blocking items remain."
+                ),
+                "tags": ["gate", "blockers", "issue200"],
+            },
+        ],
+    }
+
+
+def _to_gate_item(check: dict[str, Any], *, include_remediation: bool) -> dict[str, Any]:
+    item = {
+        "check_id": check["check_id"],
+        "title": check["title"],
+        "summary": check["message"],
+    }
+    if include_remediation:
+        item["remediation"] = check["remediation"]
+    return item
+
+
+def _compose_gate_conclusion(overall_status: str, *, blocked_count: int) -> str:
+    if overall_status == "pass":
+        return "Gate passed. The frozen contract can be carried into downstream experiment/report issues."
+    if overall_status == "warn":
+        return "Gate passed with warnings. Downstream reuse is possible, but warnings should be tracked."
+    return f"Gate blocked with {blocked_count} blocking item(s). Downstream experiment execution should not proceed."

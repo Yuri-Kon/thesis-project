@@ -21,11 +21,26 @@ def test_issue200_acceptance_gate_passes_current_freeze_config(tmp_path: Path) -
     assert report["summary"]["block_count"] == 0
     assert (output_dir / "issue200_acceptance_gate_report.json").exists()
     assert (output_dir / "issue200_acceptance_gate_summary.md").exists()
+    assert (output_dir / "issue200_gate_summary.json").exists()
+    assert (output_dir / "issue200_gate_blockers.json").exists()
+    assert (output_dir / "issue200_gate_evidence_index.json").exists()
 
     check_ids = {check["check_id"] for check in report["checks"]}
     assert "freeze_contract_fields" in check_ids
     assert "adapter_registration" in check_ids
     assert "llm_provider_catalog" in check_ids
+
+    gate_summary = json.loads((output_dir / "issue200_gate_summary.json").read_text(encoding="utf-8"))
+    blockers = json.loads((output_dir / "issue200_gate_blockers.json").read_text(encoding="utf-8"))
+    evidence_index = json.loads(
+        (output_dir / "issue200_gate_evidence_index.json").read_text(encoding="utf-8")
+    )
+    assert gate_summary["ready_for_downstream"] is True
+    assert "172" in gate_summary["consumer_issues"]
+    assert blockers["block_count"] == 0
+    artifact_ids = {artifact["artifact_id"] for artifact in evidence_index["artifacts"]}
+    assert "issue200-gate-summary" in artifact_ids
+    assert "issue200-gate-blockers" in artifact_ids
 
 
 def test_issue200_acceptance_gate_blocks_inconsistent_tool_and_provider_alias(
@@ -81,3 +96,4 @@ def test_issue200_acceptance_gate_cli_returns_nonzero_on_block(tmp_path: Path) -
     assert result.returncode == 1
     assert "[issue200] overall_status=block" in result.stdout
     assert "tool_whitelist_known_tools" in result.stdout
+    assert "[issue200] gate_summary=" in result.stdout
