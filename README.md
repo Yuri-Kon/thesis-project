@@ -1,140 +1,163 @@
-# thesis-project（master worktree）
+# thesis-project
 
-> 本目录是 `master` 分支的工作树（worktree）。
->
-> 角色：稳定主线与对外入口。
+面向蛋白设计任务的 LLM 驱动多智能体工作流系统。
 
-## 1. 项目定位
+当前 `master` 分支定位为稳定主线，已经合入 `dev` 的阶段性成果，并可作为 `v0.5.4` 稳定版本的对外入口。
 
-`thesis-project` 是一个面向蛋白设计任务的 **LLM 驱动多智能体工作流系统**。
-系统核心目标不是文本回答，而是可控、可执行、可恢复、可审计的工作流生成与执行。
+## 当前稳定版本
 
-关键能力：
+`v0.5.4` 对应的核心进展包括：
 
-- 生成工作流候选（Plan / Patch / Replan）
-- 失败恢复链路：`retry -> patch -> replan`
-- 人在环决策（HITL，`WAITING_*`）
-- 审计闭环（`PendingAction -> Decision -> EventLog`）
+- 补齐后续实验所需的关键工具接入：`alphafold`、`openfold/openfold2`、`biopython_qc`、`mmseqs2`、`blastp`、`dssp`、`objective_ranker`、`foldseek`、`interproscan`、`mda_analysis`、`autodock_vina`
+- 统一 ToolKG、Adapter、Provider、runtime 注册链与 readiness 暴露
+- 落地 issue `#199` / `#200` 的实验冻结配置与统一门禁
+- 提供本地/CI 一键验收入口，以及可复用的 gate summary / blockers / evidence-index
+- 补强运行时恢复、WAITING 审计、snapshot 回填和动作选择控制流
+
+如果你是第一次进入这个仓库，可以把它理解为：
+
+- 上层：Planner / Executor / Safety / Summarizer 组成的多智能体执行框架
+- 中层：显式 FSM、HITL 决策、retry -> patch -> replan 恢复链
+- 下层：ToolKG、工具适配器、provider 配置、实验与证据产物
+
+## 系统能力
+
+当前主线已经具备以下核心能力：
+
+- 显式任务生命周期管理：`CREATED -> PLANNING -> RUNNING -> SUMMARIZING -> DONE`
+- 人在环等待与确认：`WAITING_PLAN_CONFIRM`、`WAITING_PATCH_CONFIRM`、`WAITING_REPLAN_CONFIRM`
+- 有界恢复链路：`retry -> patch -> replan`
+- EventLog / Snapshot 驱动的审计与恢复
+- ToolKG 驱动的工具能力声明、兼容性检索与 readiness 检查
+- 面向实验冻结、门禁、一致性校验和证据归档的脚本体系
 
 系统级约束入口：
 
-- `AGENT_CONTRACT.md`：系统不变量（FSM、角色边界、恢复顺序）
-- `AGENTS.md`：Codex 操作规范
-- `CLAUDE.md`：Claude 操作规范
+- `AGENT_CONTRACT.md`：系统不变量与角色边界
+- `AGENTS.md`：Codex 在本仓库中的执行约束
+- `CLAUDE.md`：Claude 在本仓库中的执行约束
 
-## 2. 代码结构总览
+## 目录总览
 
 核心运行目录：
 
 - `src/workflow/`：任务状态迁移、执行流程、恢复策略
-- `src/agents/`：Planner / Safety / Summarizer 等智能体逻辑
+- `src/agents/`：Planner / Executor / Safety / Summarizer
 - `src/models/`：契约模型、验证规则、状态定义
 - `src/storage/`：日志、快照、持久化结构
-- `src/adapters/`、`src/tools/`、`src/engines/`：工具与执行后端适配
-- `src/api/`：API schema 与服务入口
-- `src/kg/`：ToolKG 能力事实与检索
+- `src/adapters/`、`src/engines/`、`src/tools/`：工具适配与执行后端
+- `src/api/`：API schema、服务入口与 UI
+- `src/kg/`：ToolKG、capability 元数据与兼容性事实
+- `src/infra/`：实验冻结、门禁、runtime 初始化等基础设施逻辑
 
 辅助目录：
 
-- `tests/`：单测、集成测试、API 测试
-- `services/`：独立服务（如 PLM REST）
-- `configs/`：模型/provider 配置
-- `examples/`：演示入口
-- `scripts/`：脚本工具
+- `tests/`：单测、集成测试、API 测试、服务契约测试
+- `configs/`：provider、实验与运行时配置
+- `scripts/`：实验、验收、冻结、评估与发布辅助脚本
+- `examples/`：演示入口与示例材料
+- `services/`：独立 REST 服务
 
-## 3. Worktree 与长线分支
+## 快速开始
 
-当前使用 3 个核心 worktree：
-
-| worktree 路径 | 分支 | 角色 | 主要内容 |
-|---|---|---|---|
-| `../thesis-project` | `master` | 稳定主线 | 已合并能力的稳定快照、对外阅读入口 |
-| `../thesis-project.dev` | `dev` | 开发主线 | 日常功能开发与集成验证 |
-| `../thesis-project.design` | `design` | 设计主线 | 设计文档、计划书、算法/训练说明 |
-
-### 当前分支关系（2026-03-02 本地快照）
-
-- `master...dev`：`4 | 0`
-- `master...origin/master`：`0 | 0`
-- `dev...origin/dev`：`0 | 0`
-
-解读：
-
-- `master` 已包含此前 `dev` 主线能力，并在此基础上有额外提交。
-- 若继续在 `dev` 开发，建议先将 `master` 的最新提交同步回 `dev`，避免后续重复冲突。
-
-## 4. 各分支职责（合并后版本）
-
-### 4.1 `master`
-
-- 作为稳定基线，适合演示、评审、发布前检查。
-- 已包含 Week6 工具/基础设施主线能力（通过 `dev -> master` 合并）。
-
-### 4.2 `dev`
-
-- 继续承担新功能开发与实验集成。
-- 推荐策略：短周期分支 -> 合并到 `dev` -> 回归 -> 再合并到 `master`。
-
-### 4.3 `design`
-
-- 继续作为架构与计划的权威来源，不承载运行时代码演进。
-- 关键路径：`docs/design/`、`docs/algorithm-and-llm/`、`plan/`。
-
-## 5. 远端专题分支状态（相对 master）
-
-| 分支 | 最近主题 | 当前状态（相对 `master`） | 备注 |
-|---|---|---|---|
-| `origin/dev` | 开发主线 | 已合入 | 当前 `master` 已覆盖该阶段能力 |
-| `origin/w6-tools-0/remote-rest-impl` | PLM REST server 参考实现 | 已合入 | 已通过 `dev` 纳入主线 |
-| `origin/w6-infra-1/remote-protgpt2-impl` | 远程 PLM 实现统一与测试 | 已合入 | 已通过 `dev` 纳入主线 |
-| `origin/w6-tools-1/adapte-plm` | ProtGPT2 接入 de novo 起始节点 | 已合入 | 已通过 `dev` 纳入主线 |
-| `origin/w6-tools-2/proteinmpnn-impl` | ProteinMPNN NIM 接入与回退修复 | 已合入 | 已通过 `dev` 纳入主线 |
-| `origin/fix/agent-contract` | 契约文档路径修正 | 已合入 | 已通过 `dev` 纳入主线 |
-| `origin/fix/test-url` | 测试 URL 修复 | 已合入 | 已在主线 |
-| `origin/design` | 设计与计划迭代 | 未合入 | 文档主线，通常不直接合并到代码主线 |
-| `origin/feature/de-novo-workflow` | de novo 工作流文档增强 | 未合入 | 需按当前契约评估 |
-| `origin/feat/auto-index-regen` | 索引 SID 自动修正 | 未合入 | 设计索引维护分支 |
-| `origin/thesis-paper` | 论文结构草稿 | 未合入 | 论文产物分支 |
-
-## 6. 推荐协作流
-
-1. 在 `design` 对齐需求与约束（先看契约，再看计划）
-2. 在 `dev` 实现代码与测试
-3. 在 `dev` 做回归（`uv run pytest ...`）
-4. 发起 `dev -> master` PR，经过验证后合并
-
-不建议：
-
-- 跳过设计约束直接修改 FSM 或 agent 边界
-- 在 `master` 直接做高频实验开发
-- 无测试验证直接合并
-
-## 7. 本地快速开始（master）
+### 1. 安装依赖
 
 ```bash
-# 安装依赖
 uv sync
+```
 
-# 运行测试
+### 2. 运行基础回归
+
+```bash
 uv run pytest
+```
 
-# 运行演示
+### 3. 运行本地演示
+
+```bash
 ./run_demo.sh
 ```
 
-## 8. 新成员最短路径
+启动后可访问：
+
+- `http://127.0.0.1:8000/docs`
+- `http://127.0.0.1:8000/health`
+- `http://127.0.0.1:8000/ui`
+- `http://127.0.0.1:8000/ui/tasks/<task_id>/events`
+
+更详细的演示说明见：
+
+- `examples/README_DEMO.md`
+
+## issue #200 统一门禁
+
+如果你要确认当前稳定版本是否满足工具接入与实验冻结的一致性要求，优先运行：
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache \
+uv run python scripts/benchmarks/run_issue200_acceptance_suite.py \
+  --output-root output/experiment/w16-issue200-local
+```
+
+如果只需要运行 gate：
+
+```bash
+UV_CACHE_DIR=/tmp/uv-cache \
+uv run python scripts/benchmarks/run_issue200_acceptance_gate.py \
+  --output-root output/experiment/w16-issue200-gate-only
+```
+
+关键产物包括：
+
+- `issue200_acceptance_suite.json`
+- `issue200_acceptance_gate_report.json`
+- `issue200_acceptance_gate_summary.md`
+- `issue200_gate_summary.json`
+- `issue200_gate_blockers.json`
+- `issue200_gate_evidence_index.json`
+
+对应 runbook：
+
+- `scripts/benchmarks/issue200-acceptance-gate-runbook.md`
+
+## 设计与协作约定
+
+本仓库当前采用多 worktree 协作：
+
+- `thesis-project.master`：稳定主线与发布入口
+- `thesis-project.dev`：开发主线
+- `thesis-project.design`：设计与计划主线
+
+推荐流程：
+
+1. 在 `design` 对齐契约、设计与计划
+2. 在 `dev` 实现代码与测试
+3. 在 `dev` 跑 focused tests / 回归 / gate
+4. 通过 `dev -> master` 合并形成稳定版本
+
+不建议：
+
+- 直接在 `master` 上进行高频实验开发
+- 跳过契约约束直接修改 FSM 或 agent 边界
+- 无验证地合入影响恢复链路或运行时语义的改动
+
+## 建议阅读顺序
+
+如果你要快速建立上下文，推荐按这个顺序阅读：
 
 1. `AGENT_CONTRACT.md`
 2. `AGENTS.md`
-3. `src/workflow/` 与 `src/agents/`
-4. `tests/integration/`
-5. `../thesis-project.design/plan/` 与 `../thesis-project.design/docs/design/`
+3. `src/workflow/`
+4. `src/agents/`
+5. `src/infra/issue200_acceptance_gate.py`
+6. `tests/integration/` 与 `tests/unit/`
+7. `../thesis-project.design/docs/design/`
 
-## 9. README 维护规则
+## 说明
 
-每次阶段合并后，至少更新这三项：
+`README` 应随着阶段性合并而更新，尤其要同步：
 
-- `master...dev` 分支关系数字
-- 远端 topic 分支合并状态
-- 当前推荐协作流（是否需要先同步 master 到 dev）
-
+- 当前稳定版本标签
+- 关键工具接入与门禁能力
+- 快速启动命令
+- 推荐协作流
