@@ -1,0 +1,273 @@
+{
+  "issue_id": 171,
+  "experiment_name": "w12-vertical-a0-a6",
+  "description": "Vertical A0-A6 comparison with mechanism increment attribution and Requirement2 tool/capability slicing.",
+  "freeze_id": "issue170-remote-batch3-20260316",
+  "freeze_manifest_path": "output/experiment/w12-expr-1/issue170-remote-batch3-20260316/dataset_manifest.json",
+  "output_root": "output/experiment/w12-expr-2",
+  "repeats": 3,
+  "offline_thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "requirement2_capability_map": {
+    "sequence_core": [
+      "sequence_generation",
+      "sequence_design"
+    ],
+    "quality_qc": [
+      "quality_qc"
+    ],
+    "objective_scoring": [
+      "objective_scoring"
+    ],
+    "structure_prediction": [
+      "structure_prediction"
+    ]
+  },
+  "base_constraints": {
+    "goal_type": "de_novo_design",
+    "length_range": [
+      35,
+      90
+    ],
+    "safety_level": 1,
+    "prefer_remote": false
+  },
+  "base_metadata": {
+    "issue": 171,
+    "experiment_track": "vertical",
+    "owner": "issue171"
+  },
+  "tasks": [
+    {
+      "task_key": "enzyme_like_fold",
+      "goal": "de_novo_design",
+      "constraints": {
+        "length_range": [
+          40,
+          80
+        ],
+        "prompt": "Design a compact enzyme-like fold with stable core."
+      }
+    },
+    {
+      "task_key": "binding_scaffold",
+      "goal": "de_novo_design",
+      "constraints": {
+        "length_range": [
+          45,
+          95
+        ],
+        "prompt": "Generate a scaffold with exposed pocket for small-molecule binding."
+      }
+    },
+    {
+      "task_key": "high_solubility",
+      "goal": "de_novo_design",
+      "constraints": {
+        "length_range": [
+          35,
+          75
+        ],
+        "prompt": "Favor high-solubility sequence candidates under mild constraints."
+      }
+    },
+    {
+      "task_key": "secondary_balance",
+      "goal": "de_novo_design",
+      "constraints": {
+        "length_range": [
+          50,
+          90
+        ],
+        "prompt": "Balance alpha/beta secondary elements for robust foldability."
+      }
+    }
+  ],
+  "groups": [
+    {
+      "id": "A0",
+      "name": "degraded_baseline",
+      "expected_mechanisms": [
+        "single_candidate",
+        "no_hard_validation",
+        "no_gate"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 1,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": false,
+        "min_candidate_confidence": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.0,
+        "structure_refinement": {
+          "max_iterations": 1,
+          "convergence_delta": 0.0,
+          "max_degradation_rounds": 0
+        }
+      }
+    },
+    {
+      "id": "A1",
+      "name": "topk_scoring",
+      "expected_mechanisms": [
+        "top_k",
+        "score_breakdown"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": false,
+        "min_candidate_confidence": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.0,
+        "structure_refinement": {
+          "max_iterations": 1,
+          "convergence_delta": 0.0,
+          "max_degradation_rounds": 0
+        }
+      }
+    },
+    {
+      "id": "A2",
+      "name": "hard_candidate_validation",
+      "expected_mechanisms": [
+        "schema_validation",
+        "io_validation",
+        "tool_validation"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.0,
+        "structure_refinement": {
+          "max_iterations": 1,
+          "convergence_delta": 0.0,
+          "max_degradation_rounds": 0
+        }
+      }
+    },
+    {
+      "id": "A3",
+      "name": "risk_cost_confidence_gate",
+      "expected_mechanisms": [
+        "risk_gate",
+        "cost_gate",
+        "confidence_gate",
+        "waiting_trigger"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "require_plan_confirm": true,
+        "require_patch_confirm": true,
+        "high_cost_min_overall": 0.85,
+        "structure_refinement": {
+          "max_iterations": 1,
+          "convergence_delta": 0.0,
+          "max_degradation_rounds": 0
+        }
+      }
+    },
+    {
+      "id": "A4",
+      "name": "layered_patch_suffix_replan",
+      "expected_mechanisms": [
+        "layered_patch",
+        "suffix_replan_priority"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.85,
+        "structure_refinement": {
+          "max_iterations": 1,
+          "convergence_delta": 0.0,
+          "max_degradation_rounds": 0
+        }
+      }
+    },
+    {
+      "id": "A5",
+      "name": "stage_enhancements_s3_s4_s5",
+      "expected_mechanisms": [
+        "s3_quality_gate",
+        "s4_refinement_loop",
+        "s5_objective_scoring"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.85,
+        "structure_refinement": {
+          "max_iterations": 3,
+          "convergence_delta": 0.01,
+          "max_degradation_rounds": 1
+        },
+        "s3_min_plddt": 0.7,
+        "s3_min_length": 35,
+        "s3_max_length": 120,
+        "objective_weights": {
+          "stability": 0.4,
+          "solubility": 0.3,
+          "diversity": 0.3
+        }
+      }
+    },
+    {
+      "id": "A6",
+      "name": "dual_route_fallback_and_audit",
+      "expected_mechanisms": [
+        "dual_route_fallback",
+        "governance_strengthening"
+      ],
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false,
+        "high_cost_min_overall": 0.85,
+        "prefer_remote": true,
+        "structure_refinement": {
+          "max_iterations": 3,
+          "convergence_delta": 0.01,
+          "max_degradation_rounds": 1
+        },
+        "runtime_fallback": {
+          "enable_dual_route": true,
+          "schema_fail_threshold": 2,
+          "execution_drop_threshold": 0.05,
+          "consecutive_failure_threshold": 2
+        }
+      }
+    }
+  ]
+}

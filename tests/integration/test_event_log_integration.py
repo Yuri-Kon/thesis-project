@@ -9,11 +9,16 @@ from pathlib import Path
 import pytest
 
 from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
     PendingActionStatus,
     PendingActionType,
     ProteinDesignTask,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
+    SHADOW_SCORE_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.models.event_log import EventType
@@ -61,10 +66,52 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
     )
 
     # Build and enter WAITING_PLAN_CONFIRM state
+    from src.models.contracts import PendingActionCandidate, Plan, PlanStep
+
+    candidate_plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(
+                id="S1",
+                tool="dummy_tool",
+                inputs={"sequence": "ACDE"},
+                metadata={},
+            )
+        ],
+        constraints={},
+        metadata={},
+    )
     pending_action = build_pending_action(
         task_id=task.task_id,
         action_type=PendingActionType.PLAN_CONFIRM,
-        candidates=[],
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="candidate_waiting",
+                payload=candidate_plan,
+                metadata={
+                    RUNTIME_STATE_SUMMARY_METADATA_KEY: {
+                        "schema_version": 1,
+                        "p_success": 0.77,
+                        "p_structural_failure": 0.12,
+                        "recovery_margin": 0.44,
+                        "expected_remaining_cost": 2.5,
+                    },
+                    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY: {
+                        "code": "plan_ranked_first",
+                        "message": "selected by deterministic rank",
+                    },
+                    ACTION_SCORE_METADATA_KEY: {
+                        "value": 0.77,
+                        "source": "score_breakdown.overall",
+                    },
+                    SHADOW_SCORE_METADATA_KEY: {
+                        "value": 0.77,
+                        "source": "score_breakdown.overall_passthrough",
+                    },
+                },
+            )
+        ],
+        default_recommendation="candidate_waiting",
         explanation="test waiting enter",
     )
     enter_waiting_state(
@@ -98,6 +145,16 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
     assert event["new_status"] == ExternalStatus.WAITING_PLAN_CONFIRM.value
     assert event["internal_status"] == InternalStatus.WAITING_PLAN_CONFIRM.value
     assert event["data"]["waiting_state"] == InternalStatus.WAITING_PLAN_CONFIRM.value
+    waiting_summary = event["data"][WAITING_RUNTIME_SUMMARY_METADATA_KEY]
+    assert waiting_summary["selected_candidate_id"] == "candidate_waiting"
+    assert waiting_summary["default_recommendation"] == "candidate_waiting"
+    assert waiting_summary[ACTION_SCORE_METADATA_KEY]["value"] == pytest.approx(0.77)
+    assert event["data"]["action_name"] == "plan"
+    assert event["data"]["action_score"]["value"] == pytest.approx(0.77)
+    assert event["data"]["shadow_score"]["value"] == pytest.approx(0.77)
+    assert event["data"]["evidence_source"]["code"] == "plan_ranked_first"
+    assert event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
+    assert pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["default_recommendation_reason"]["code"] == "plan_ranked_first"
     assert event["actor_type"] == "system"
 
 
@@ -153,6 +210,20 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
                 payload=candidate_plan,
                 summary="test plan",
                 score_breakdown={},
+                metadata={
+                    ACTION_SCORE_METADATA_KEY: {
+                        "value": 0.66,
+                        "source": "candidate.overall",
+                    },
+                    SHADOW_SCORE_METADATA_KEY: {
+                        "value": 0.61,
+                        "source": "candidate.shadow",
+                    },
+                    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY: {
+                        "code": "human_selected_default",
+                        "message": "default candidate selected",
+                    },
+                },
             )
         ],
         default_suggestion="candidate_1",
@@ -200,6 +271,11 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
     assert decision_event["prev_status"] == ExternalStatus.WAITING_PLAN_CONFIRM.value
     assert decision_event["new_status"] == ExternalStatus.PLANNED.value
     assert decision_event["data"]["choice"] == DecisionChoice.ACCEPT.value
+    assert decision_event["data"]["action_name"] == "plan"
+    assert decision_event["data"]["action_score"]["value"] == pytest.approx(0.66)
+    assert decision_event["data"]["shadow_score"]["value"] == pytest.approx(0.61)
+    assert decision_event["data"]["evidence_source"]["code"] == "human_selected_default"
+    assert decision_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert decision_event["actor_type"] == "human"
 
     # Find WAITING_EXIT event
@@ -217,6 +293,11 @@ def test_decision_apply_emits_waiting_exit_and_decision_applied(cleanup_logs):
         exit_event["data"]["waiting_state"] == InternalStatus.WAITING_PLAN_CONFIRM.value
     )
     assert exit_event["data"]["action_status"] == PendingActionStatus.DECIDED.value
+    assert exit_event["data"]["action_name"] == "plan"
+    assert exit_event["data"]["action_score"]["value"] == pytest.approx(0.66)
+    assert exit_event["data"]["shadow_score"]["value"] == pytest.approx(0.61)
+    assert exit_event["data"]["evidence_source"]["code"] == "human_selected_default"
+    assert exit_event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
 
 
 def test_fsm_reconstruction_from_logs(cleanup_logs):

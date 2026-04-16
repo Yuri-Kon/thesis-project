@@ -1,0 +1,7 @@
+artifact_id,artifact_type,title,source_path,status,note
+table-1,table,A0-A6 纵向对比总表,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,ready,成功率、可执行率、patch/replan 与时延统一汇总。
+table-2,table,E0-E2 横向对比总表,issue #172 (deferred),deferred,E0/E1/E2 横向对比对应 issue #172。由于其依赖外部平台，当前中期窗口先显式延期，不把缺失结果伪装成已完成。
+figure-1,figure,成功率-时延平衡图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,ready,使用 A0-A6 组的 success_rate 与 duration_ms_mean 绘制。
+figure-2,figure,恢复路径分布图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/mechanism_increment_deltas.csv,ready,结合 patch/replan/suffix_replan 指标构图。
+figure-3,figure,治理雷达图,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_by_group.csv,ready,使用 waiting/replay/traceable/snapshot 四项治理指标。
+evidence-1,evidence,治理汇总 JSON,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json,ready,记录全局治理统计与输入来源。

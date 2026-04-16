@@ -5,6 +5,19 @@ from src.agents.planner import PlannerAgent, ToolSpec
 from src.models.contracts import PatchRequest, Plan, PlanStep, PlanPatch, StepResult, now_iso
 
 
+@pytest.fixture(autouse=True)
+def _disable_catalog_provider_autoload(monkeypatch):
+    monkeypatch.setenv("PLANNER_LLM_PROVIDER", "off")
+    for env_name in (
+        "OPENAI_API_KEY",
+        "DASHSCOPE_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ZHIPU_API_KEY",
+        "NIM_API_KEY",
+    ):
+        monkeypatch.delenv(env_name, raising=False)
+
+
 def _build_registry():
     return [
         ToolSpec(
@@ -122,7 +135,7 @@ def _build_request():
     )
 
 
-def test_patch_returns_replace_step_with_cheapest_candidate(monkeypatch):
+def test_patch_prefers_parameter_level_retry_before_tool_swap(monkeypatch):
     monkeypatch.setattr(
         planner_module,
         "load_tool_kg",
@@ -138,7 +151,9 @@ def test_patch_returns_replace_step_with_cheapest_candidate(monkeypatch):
     op = patch.operations[0]
     assert op.op == "replace_step"
     assert op.target == "S1"
-    assert op.step.tool == "t_alt_low"  # 选择 cost 最低的候选
+    assert op.step.tool == "t_fail"
+    assert patch.metadata["recovery_layer"] == "parameter_level"
+    assert patch.metadata["reason"] == "parameter_tweak"
 
 
 def test_patch_raises_when_no_compatible_tool(monkeypatch):

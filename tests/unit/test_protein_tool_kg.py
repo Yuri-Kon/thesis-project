@@ -9,10 +9,38 @@ def test_kg_includes_plm_and_design_capabilities() -> None:
 
     assert "protein_mpnn" in tool_ids
     assert "protgpt2" in tool_ids
+    assert "alphafold" in tool_ids
+    assert "openfold" in tool_ids
+    assert "openfold2" in tool_ids
+    assert "biopython_qc" in tool_ids
+    assert "mmseqs2" in tool_ids
+    assert "blastp" in tool_ids
+    assert "dssp" in tool_ids
+    assert "objective_ranker" in tool_ids
+    assert "foldseek" in tool_ids
+    assert "interproscan" in tool_ids
+    assert "mda_analysis" in tool_ids
+    assert "autodock_vina" in tool_ids
     assert "sequence_design" in capability_ids
     assert "sequence_generation" in capability_ids
+    assert "quality_qc" in capability_ids
+    assert "objective_scoring" in capability_ids
+    assert "sequence_similarity_search" in capability_ids
+    assert "secondary_structure_annotation" in capability_ids
+    assert "structure_similarity_search" in capability_ids
+    assert "function_annotation" in capability_ids
+    assert "stability_simulation" in capability_ids
+    assert "docking_scoring" in capability_ids
     assert "structure_to_sequence" in io_type_ids
     assert "goal_to_sequence_candidates" in io_type_ids
+    assert "sequence_structure_to_qc_metrics" in io_type_ids
+    assert "sequence_to_similarity_hits" in io_type_ids
+    assert "structure_to_secondary_structure" in io_type_ids
+    assert "structure_to_similarity_hits" in io_type_ids
+    assert "sequence_or_structure_to_function_terms" in io_type_ids
+    assert "trajectory_to_stability_metrics" in io_type_ids
+    assert "structure_ligand_to_binding_score" in io_type_ids
+    assert "candidates_to_objective_scores_topk" in io_type_ids
 
 
 def test_generation_to_prediction_chain_is_compatible() -> None:
@@ -26,3 +54,13 @@ def test_generation_to_prediction_chain_is_compatible() -> None:
     esmfold_inputs = set(esmfold["io"]["inputs"].keys())
 
     assert esmfold_inputs.issubset(generation_outputs)
+
+
+def test_biopython_qc_accepts_single_structure_inputs() -> None:
+    kg = load_tool_kg()
+    tools = {tool["id"]: tool for tool in kg["tools"]}
+
+    biopython_qc = tools["biopython_qc"]
+    qc_inputs = set(biopython_qc["io"]["inputs"].keys())
+
+    assert qc_inputs == {"sequence", "pdb_path"}

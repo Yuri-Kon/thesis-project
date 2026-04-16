@@ -1,0 +1,30 @@
+{
+  "runtime_fallback": {
+    "enable_dual_route": true,
+    "force_external_only": false,
+    "schema_fail_threshold": 2,
+    "executable_rate_threshold": 0.95,
+    "executable_drop_threshold": 0.05,
+    "consecutive_failure_threshold": 2,
+    "sustained_high_risk_threshold": 2,
+    "fallback_capability": "planner_generation"
+  },
+  "release_defaults": {
+    "external_fallback_enabled_by_default": true,
+    "circuit_breaker_env": "PLANNER_FORCE_EXTERNAL_FALLBACK"
+  },
+  "threshold_recommendations": {
+    "schema_fail_threshold": "2",
+    "executable_rate_threshold": "0.95",
+    "executable_drop_threshold": "0.05",
+    "consecutive_failure_threshold": "2",
+    "sustained_high_risk_threshold": "2"
+  },
+  "change_log": [
+    {
+      "date": "2026-03-16",
+      "change": "Initial RC Gate-C baseline for dual-route runtime fallback",
+      "author": "codex"
+    }
+  ]
+}

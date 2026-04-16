@@ -37,14 +37,22 @@ All behavior changes must preserve system consistency.
 
 ### 1.2 Canonical lifecycle
 
-Required state flow:
+Required lifecycle must distinguish external semantic states and internal execution states.
 
-- `CREATED -> PLANNING -> WAITING_PLAN_CONFIRM -> PLANNED -> RUNNING`
-- `RUNNING -> WAITING_PATCH_CONFIRM` or `WAITING_REPLAN_CONFIRM`
-- `WAITING_* -> RUNNING` or `FAILED` or `CANCELLED`
+External semantic flow (API-facing):
+
+- `CREATED -> PLANNING -> (WAITING_PLAN_CONFIRM or PLANNED) -> RUNNING`
+- `RUNNING -> WAITING_PATCH_CONFIRM` or `WAITING_REPLAN_CONFIRM` or `SUMMARIZING`
+- `WAITING_*_CONFIRM -> RUNNING` or `FAILED` or `CANCELLED`
 - `RUNNING -> SUMMARIZING -> DONE`
 
-`WAITING_*` states mean execution is paused pending human decision.
+Internal execution flow (runtime detail, must map back to external states):
+
+- `RUNNING -> WAITING_PATCH -> PATCHING -> RUNNING`
+- `RUNNING/PATCHING -> WAITING_REPLAN -> REPLANNING -> RUNNING/PLANNING/FAILED`
+- `PLANNING -> WAITING_PLAN_CONFIRM` or `PLANNED` (confirmation can be required or skipped by policy)
+
+`WAITING_*` states always mean execution is paused pending human decision.
 
 ## 2. Agent Boundary Contract
 

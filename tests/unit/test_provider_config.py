@@ -92,3 +92,21 @@ def test_default_model_providers_contains_plm_rest():
     plm = configs["plm_rest"]
     assert plm.provider_type == "plm_rest"
     assert plm.base_url == "http://localhost:8100"
+
+
+def test_default_model_providers_contains_openfold3_rest():
+    configs = load_provider_config(provider_config.DEFAULT_PROVIDER_CONFIG_PATH)
+
+    assert "openfold3_rest" in configs
+    openfold3 = configs["openfold3_rest"]
+    assert openfold3.provider_type == "openfold3_rest"
+    assert openfold3.base_url == "http://localhost:8200"
+
+
+def test_default_model_providers_contains_openfold2_rest():
+    configs = load_provider_config(provider_config.DEFAULT_PROVIDER_CONFIG_PATH)
+
+    assert "openfold2_rest" in configs
+    openfold2 = configs["openfold2_rest"]
+    assert openfold2.provider_type == "openfold2_rest"
+    assert openfold2.base_url == "http://localhost:8200"

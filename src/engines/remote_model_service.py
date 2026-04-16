@@ -19,7 +19,7 @@ import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 import httpx
 
@@ -122,6 +122,7 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         timeout: float = 30.0,
         poll_interval: float = 5.0,
         max_poll_attempts: int = 60,
+        headers: Mapping[str, str] | None = None,
     ) -> None:
         """初始化 REST 客户端
 
@@ -130,11 +131,13 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             timeout: 请求超时时间（秒）
             poll_interval: 轮询间隔（秒）
             max_poll_attempts: 最大轮询次数
+            headers: 可选的默认请求头（例如 Authorization）
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.poll_interval = poll_interval
         self.max_poll_attempts = max_poll_attempts
+        self.default_headers = dict(headers) if headers else None
         self.client = httpx.Client(timeout=timeout)
 
     def __del__(self) -> None:
@@ -169,7 +172,10 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         }
 
         try:
-            response = self.client.post(endpoint, json=request_data)
+            request_kwargs: dict[str, Any] = {"json": request_data}
+            if self.default_headers:
+                request_kwargs["headers"] = self.default_headers
+            response = self.client.post(endpoint, **request_kwargs)
             response.raise_for_status()
             data = response.json()
 
@@ -229,7 +235,10 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         endpoint = f"{self.base_url}/job/{job_id}"
 
         try:
-            response = self.client.get(endpoint)
+            request_kwargs: dict[str, Any] = {}
+            if self.default_headers:
+                request_kwargs["headers"] = self.default_headers
+            response = self.client.get(endpoint, **request_kwargs)
             response.raise_for_status()
             data = response.json()
 
@@ -293,7 +302,10 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         endpoint = f"{self.base_url}/results/{job_id}"
 
         try:
-            response = self.client.get(endpoint)
+            request_kwargs: dict[str, Any] = {}
+            if self.default_headers:
+                request_kwargs["headers"] = self.default_headers
+            response = self.client.get(endpoint, **request_kwargs)
             response.raise_for_status()
             data = response.json()
 
@@ -317,6 +329,7 @@ class RESTModelInvocationService(RemoteModelInvocationService):
 
                 # 下载文件
                 artifact_path = output_dir / artifact_name
+                artifact_path.parent.mkdir(parents=True, exist_ok=True)
                 self._download_file(artifact_url, artifact_path)
                 local_path = str(artifact_path.resolve())
                 downloaded_artifacts.append(local_path)
@@ -381,7 +394,10 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             httpx.HTTPStatusError: HTTP 错误
             httpx.RequestError: 网络错误
         """
-        with self.client.stream("GET", url) as response:
+        request_kwargs: dict[str, Any] = {}
+        if self.default_headers:
+            request_kwargs["headers"] = self.default_headers
+        with self.client.stream("GET", url, **request_kwargs) as response:
             response.raise_for_status()
             with open(path, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=8192):

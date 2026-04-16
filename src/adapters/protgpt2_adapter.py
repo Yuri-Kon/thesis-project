@@ -9,6 +9,7 @@ ProtGPT2Adapter - ProtGPT2 远程序列生成适配器
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from time import perf_counter, sleep
 from typing import Any, Dict, Optional, Tuple
@@ -41,8 +42,12 @@ class ProtGPT2Adapter(BaseToolAdapter):
         output_dir: str | Path | None = None,
     ) -> None:
         if service is None:
-            resolved_base_url = base_url or _resolve_plm_rest_base_url()
-            service = RESTModelInvocationService(resolved_base_url)
+            service_config = _resolve_plm_rest_service_config(base_url=base_url)
+            service = RESTModelInvocationService(
+                service_config["base_url"],
+                timeout=service_config["timeout"],
+                headers=service_config["headers"],
+            )
         self.service = service
         self.output_dir = Path(output_dir or "output/sequences")
 
@@ -166,12 +171,53 @@ class ProtGPT2Adapter(BaseToolAdapter):
         )
 
 
-def _resolve_plm_rest_base_url() -> str:
+def _resolve_plm_rest_service_config(
+    *,
+    base_url: str | None,
+) -> dict[str, Any]:
+    default_base_url = "http://localhost:8100"
+    env_base_url = str(os.getenv("PLM_REST_BASE_URL", "")).strip() or None
+    timeout = 30.0
+    headers: dict[str, str] | None = None
+
     try:
         config = get_provider_config("plm_rest")
     except KeyError:
-        return "http://localhost:8100"
-    return config.base_url or "http://localhost:8100"
+        return {
+            "base_url": env_base_url or base_url or default_base_url,
+            "timeout": timeout,
+            "headers": headers,
+        }
+
+    resolved_base_url = env_base_url or base_url or config.base_url or default_base_url
+    if isinstance(config.timeout, (int, float)) and config.timeout > 0:
+        timeout = float(config.timeout)
+    headers = _resolve_plm_rest_headers(config)
+    return {
+        "base_url": resolved_base_url,
+        "timeout": timeout,
+        "headers": headers,
+    }
+
+
+def _resolve_plm_rest_headers(config: Any) -> dict[str, str] | None:
+    token = ""
+    try:
+        token = str(config.get_api_key() or "").strip()
+    except Exception:
+        token = ""
+    if not token:
+        return None
+
+    extra = config.extra if isinstance(getattr(config, "extra", None), dict) else {}
+    header_value = extra.get("auth_header")
+    if isinstance(header_value, str):
+        key, sep, value = header_value.partition(":")
+        if sep and key.strip():
+            rendered = value.strip().replace("<token>", token)
+            return {key.strip(): rendered}
+
+    return {"Authorization": f"Bearer {token}"}
 
 
 def _build_submit_payload(inputs: Dict[str, Any]) -> Dict[str, Any]:

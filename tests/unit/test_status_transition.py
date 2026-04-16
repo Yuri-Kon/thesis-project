@@ -70,6 +70,48 @@ class TestTaskStatusTransition:
     @pytest.mark.parametrize(
         "from_status,to_status",
         [
+            (InternalStatus.DONE, InternalStatus.RUNNING),
+            (InternalStatus.FAILED, InternalStatus.PLANNING),
+            (InternalStatus.CANCELLED, InternalStatus.WAITING_REPLAN),
+        ],
+    )
+    def test_transition_rejects_changes_from_terminal_states(
+        self, sample_task, from_status: InternalStatus, to_status: InternalStatus
+    ):
+        record = self._make_record(sample_task.task_id, from_status)
+        context = WorkflowContext(task=sample_task, status=from_status)
+
+        with pytest.raises(ValueError, match="terminal status"):
+            transition_task_status(context, record, to_status)
+
+        assert context.status == from_status
+        assert record.status == to_external_status(from_status)
+        assert record.internal_status == from_status
+
+    @pytest.mark.parametrize(
+        "from_status,to_status",
+        [
+            (InternalStatus.WAITING_PATCH, InternalStatus.RUNNING),
+            (InternalStatus.WAITING_REPLAN, InternalStatus.PATCHING),
+            (InternalStatus.SUMMARIZING, InternalStatus.RUNNING),
+        ],
+    )
+    def test_transition_rejects_illegal_waiting_or_terminal_bypass_jumps(
+        self, sample_task, from_status: InternalStatus, to_status: InternalStatus
+    ):
+        record = self._make_record(sample_task.task_id, from_status)
+        context = WorkflowContext(task=sample_task, status=from_status)
+
+        with pytest.raises(ValueError, match="Invalid task status transition"):
+            transition_task_status(context, record, to_status)
+
+        assert context.status == from_status
+        assert record.status == to_external_status(from_status)
+        assert record.internal_status == from_status
+
+    @pytest.mark.parametrize(
+        "from_status,to_status",
+        [
             (InternalStatus.CREATED, InternalStatus.PLANNING),
             (InternalStatus.PLANNING, InternalStatus.PLANNED),
             (InternalStatus.PLANNING, InternalStatus.WAITING_PLAN_CONFIRM),

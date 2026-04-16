@@ -1,0 +1,51 @@
+{
+  "schema_version": "w15.issue199.normalized-run.v1",
+  "issue_id": 199,
+  "freeze_id": "issue199-platform-freeze-20260412",
+  "run_id": "issue199-react-smoke-001",
+  "platform": "inspect_ai",
+  "baseline_family": "react_style_external",
+  "task_key": "enzyme_like_fold",
+  "task_set_version": "issue209-taskset-v1",
+  "dataset_version": "issue170-remote-batch3-20260316",
+  "difficulty_scheme_version": "issue209-difficulty-v1",
+  "tool_whitelist": {
+    "tool_whitelist_version": "issue199-tool-whitelist-v1",
+    "allowed_tool_ids": [
+      "protgpt2",
+      "biopython_qc",
+      "dssp",
+      "objective_ranker",
+      "esmfold",
+      "openfold3",
+      "protein_mpnn"
+    ]
+  },
+  "budget": {
+    "budget_version": "issue199-budget-v1",
+    "max_plan_steps": 3,
+    "max_high_cost_steps": 1,
+    "max_llm_calls": 1,
+    "max_tool_calls": 3,
+    "max_wall_clock_seconds": 180
+  },
+  "provider": {
+    "catalog_path": "configs/llm_providers.json",
+    "provider_alias": "baseline"
+  },
+  "raw_artifacts": {
+    "inspect_log_path": "output/inspect/logs/issue199-react-smoke-001.eval",
+    "promptfoo_result_path": "output/promptfoo/results/issue199-react-smoke-001.json",
+    "run_manifest_path": "output/experiment/<family>/<run_id>/runs_manifest.json"
+  },
+  "normalized_metrics": {
+    "planned_steps": 1,
+    "high_cost_planned_steps": 0,
+    "tool_whitelist_compliant": true,
+    "status": "sample_only"
+  },
+  "traceability": {
+    "config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+    "adapter_manifest_path": "output/experiment/w15-expr-0/<freeze_id>/issue199_platform_adapter_manifest.json"
+  }
+}

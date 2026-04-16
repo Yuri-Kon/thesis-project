@@ -2,6 +2,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.models.contracts import (
+    DECISION_SUMMARY_ARTIFACT_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
@@ -11,6 +12,8 @@ from src.models.contracts import (
     PlanPatch,
     PlanPatchOp,
     PlanStep,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     now_iso,
 )
 from src.models.db import InternalStatus, TaskRecord, to_external_status
@@ -108,6 +111,11 @@ def test_plan_confirm_accept_transitions_to_planned(sample_task, sample_plan):
     assert events[0]["event"] == "DECISION_SUBMITTED"
     assert events[-1]["event"] == "DECISION_APPLIED"
     assert snapshots, "snapshot should be written after decision applied"
+    assert snapshots[0].artifacts[RUNTIME_STATE_ARTIFACT_KEY]["last_update_source"] == (
+        "runtime_bootstrap"
+    )
+    assert snapshots[0].artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)
+    assert snapshots[0].artifacts[DECISION_SUMMARY_ARTIFACT_KEY]["choice"] == DecisionChoice.ACCEPT.value
 
 
 @pytest.mark.unit
@@ -274,6 +282,69 @@ def test_replan_confirm_accept_transitions_to_planning(sample_task, sample_plan)
     assert context.status == InternalStatus.PLANNING
     assert result.plan == sample_plan
     assert pending_action.status == PendingActionStatus.DECIDED
+
+
+@pytest.mark.unit
+def test_replan_confirm_accept_terminal_stop_transitions_to_failed(
+    sample_task,
+    sample_plan,
+):
+    stop_plan = sample_plan.model_copy(deep=True)
+    stop_plan.metadata = {
+        **(stop_plan.metadata if isinstance(stop_plan.metadata, dict) else {}),
+        "replan_mode": "suffix_replan",
+        "terminal_policy": "stop",
+        "terminal_reason": "economic_stop",
+    }
+    pending_action = PendingAction(
+        pending_action_id="pa_replan_terminal_stop",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.REPLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="terminal_stop_s1",
+                payload=stop_plan,
+                structured_payload=stop_plan,
+                metadata={
+                    "terminal_policy": "stop",
+                    "terminal_reason": "economic_stop",
+                    "replan_mode": "suffix_replan",
+                },
+            )
+        ],
+        default_recommendation="terminal_stop_s1",
+        explanation="terminal stop waiting",
+    )
+    decision = Decision(
+        decision_id="dec_terminal_stop",
+        task_id=sample_task.task_id,
+        pending_action_id=pending_action.pending_action_id,
+        choice=DecisionChoice.ACCEPT,
+        selected_candidate_id="terminal_stop_s1",
+        decided_by="user_1",
+    )
+    context = WorkflowContext(
+        task=sample_task,
+        status=InternalStatus.WAITING_REPLAN,
+        pending_action=pending_action,
+    )
+    record = _make_record(sample_task.task_id, InternalStatus.WAITING_REPLAN)
+    record.pending_action = pending_action
+
+    snapshots, snapshot_writer = _capture_snapshots()
+    result = apply_replan_confirm_decision(
+        context,
+        record,
+        decision,
+        snapshot_writer=snapshot_writer,
+    )
+
+    assert context.status == InternalStatus.FAILED
+    assert record.status == to_external_status(InternalStatus.FAILED)
+    assert result.plan is None
+    assert pending_action.status == PendingActionStatus.DECIDED
+    assert snapshots[0].artifacts[DECISION_SUMMARY_ARTIFACT_KEY]["terminal_policy"] == "stop"
+    assert snapshots[0].artifacts[DECISION_SUMMARY_ARTIFACT_KEY]["terminal_reason"] == "economic_stop"
 
 
 @pytest.mark.unit

@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.models.contracts import (
     ProteinDesignTask,
     Decision,
     DecisionChoice,
+    PendingAction,
+    PendingActionCandidate,
     PendingActionStatus,
 )
 from src.models.db import TaskRecord
@@ -25,13 +32,49 @@ from src.workflow.decision_apply import (
     DecisionApplyError,
     DecisionConflictError,
 )
+from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
+from src.storage.log_store import read_timeline_events
 from src.workflow.context import WorkflowContext
+from src.infra.tool_readiness import build_capability_readiness_matrix
+
+API_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = API_DIR / "templates"
+STATIC_DIR = API_DIR / "static"
 
 app = FastAPI(title="Protein Design Agent System (Mini Demo)", version="0.5.2")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
+RUNTIME_INIT: Optional[RuntimeInitResult] = None
+
+
+def _path_from_env(env_key: str) -> Optional[Path]:
+    raw = os.getenv(env_key)
+    if raw is None or raw == "":
+        return None
+    return Path(raw)
+
+
+def _ensure_runtime_initialized() -> RuntimeInitResult:
+    global RUNTIME_INIT
+    if RUNTIME_INIT is not None:
+        return RUNTIME_INIT
+
+    RUNTIME_INIT = initialize_runtime(
+        kg_path=_path_from_env("PROTEIN_KG_PATH"),
+        output_dir=_path_from_env("PROTEIN_OUTPUT_DIR"),
+        data_dir=_path_from_env("PROTEIN_DATA_DIR"),
+        log_dir=_path_from_env("PROTEIN_LOG_DIR"),
+        snapshot_dir=_path_from_env("PROTEIN_SNAPSHOT_DIR"),
+    )
+    return RUNTIME_INIT
+
+
+@app.on_event("startup")
+async def _startup_init() -> None:
+    _ensure_runtime_initialized()
 
 
 class TaskCreateRequest(BaseModel):
@@ -49,6 +92,351 @@ class DecisionSubmitRequest(BaseModel):
     )
     decided_by: str = Field(..., description="决策者标识")
     comment: Optional[str] = Field(None, description="可选的决策备注")
+
+
+class PendingActionSummary(BaseModel):
+    pending_action_id: str = Field(..., description="PendingAction ID")
+    task_id: str = Field(..., description="所属任务 ID")
+    action_type: PendingActionType = Field(..., description="待决策类型")
+    status: PendingActionStatus = Field(..., description="PendingAction 状态")
+    created_at: str = Field(..., description="创建时间")
+    candidate_count: int = Field(..., description="候选数量")
+    default_suggestion: Optional[str] = Field(None, description="默认建议候选 ID")
+    explanation: str = Field(..., description="待决策说明")
+    summary: str = Field(..., description="候选摘要")
+
+
+class TaskTimelineEvent(BaseModel):
+    seq: int = Field(..., description="日志行序号(稳定排序键)")
+    task_id: str = Field(..., description="任务 ID")
+    ts: Optional[str] = Field(None, description="事件时间戳")
+    event_type: str = Field(..., description="归一化事件类型")
+    source_event: Optional[str] = Field(None, description="原始事件名")
+    pending_action_id: Optional[str] = None
+    decision_id: Optional[str] = None
+    step_id: Optional[str] = None
+    tool: Optional[str] = None
+    tool_id: Optional[str] = None
+    capability_id: Optional[str] = None
+    io_type: Optional[str] = None
+    adapter_mode: Optional[str] = None
+    from_tool: Optional[str] = None
+    to_tool: Optional[str] = None
+    failure_type: Optional[str] = None
+    failure_code: Optional[str] = None
+    candidate_id: Optional[str] = None
+    decision_source: Optional[str] = None
+    recovery_layer: Optional[str] = None
+    recovery_reason: Optional[str] = None
+    status: Optional[str] = None
+    from_status: Optional[str] = None
+    to_status: Optional[str] = None
+    actor_type: Optional[str] = None
+    summary: str = Field(..., description="事件摘要")
+    highlight: bool = Field(..., description="是否属于关键高亮事件")
+    data: Dict[str, Any] = Field(default_factory=dict)
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PendingActionToolDisplay(BaseModel):
+    tool_id: Optional[str] = None
+    capability_id: Optional[str] = None
+    io_type: Optional[str] = None
+    adapter_mode: Optional[str] = None
+    source: str = Field(..., description="工具来源(local/remote/mock/hybrid/unknown)")
+    available: bool = Field(..., description="工具信息是否可用于决策展示")
+    can_fallback: bool = Field(..., description="是否可回退到备选工具")
+    availability_hint: str = Field(..., description="工具可用性提示")
+
+
+class PendingActionCandidateDisplay(BaseModel):
+    rank: int = Field(..., description="候选排名（按返回顺序）")
+    candidate_id: str
+    is_default: bool
+    summary: str
+    explanation: str
+    recommendation_reason: str
+    risk_level: Optional[str] = None
+    cost_estimate: Optional[str] = None
+    overall_score: Optional[float] = None
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    tool: PendingActionToolDisplay
+
+
+class PendingActionDetail(BaseModel):
+    pending_action_id: str
+    task_id: str
+    action_type: PendingActionType
+    status: PendingActionStatus
+    created_at: str
+    default_suggestion: Optional[str] = None
+    explanation: str
+    recommendation_summary: str
+    candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
+
+
+class CapabilityReadinessEntry(BaseModel):
+    capability_id: str
+    status: str
+    primary_tool_id: Optional[str] = None
+    fallback_tool_ids: list[str] = Field(default_factory=list)
+    reason: str
+    checked_at: str
+    tools: list[Dict[str, Any]] = Field(default_factory=list)
+
+
+def _render_ui_html(task_id: Optional[str]) -> str:
+    template_path = TEMPLATES_DIR / "index.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="UI template not found")
+    raw_html = template_path.read_text(encoding="utf-8")
+    bootstrap_payload = json.dumps({"taskId": task_id or ""}, ensure_ascii=True)
+    return raw_html.replace("__BOOTSTRAP__", bootstrap_payload)
+
+
+def _render_timeline_ui_html(task_id: str) -> str:
+    template_path = TEMPLATES_DIR / "event_timeline.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="timeline template not found")
+    raw_html = template_path.read_text(encoding="utf-8")
+    bootstrap_payload = json.dumps({"taskId": task_id}, ensure_ascii=True)
+    return raw_html.replace("__EVENT_BOOTSTRAP__", bootstrap_payload)
+
+
+def _build_pending_action_summary(pending_action: PendingAction) -> str:
+    if not pending_action.candidates:
+        return pending_action.explanation
+
+    snippets: list[str] = []
+    for candidate in pending_action.candidates[:2]:
+        text = candidate.summary or candidate.explanation or candidate.candidate_id
+        snippets.append(text.strip())
+
+    summary = " | ".join(snippets)
+    hidden_count = len(pending_action.candidates) - len(snippets)
+    if hidden_count > 0:
+        summary = f"{summary} | +{hidden_count} more"
+    return summary
+
+
+def _normalize_text(value: Any) -> Optional[str]:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized if normalized else None
+
+
+def _build_tool_display(
+    candidate: PendingActionCandidate,
+) -> PendingActionToolDisplay:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    tool_id = candidate.tool_id or _normalize_text(metadata.get("tool_id"))
+    capability_id = candidate.capability_id or _normalize_text(
+        metadata.get("capability_id")
+    )
+    io_type = candidate.io_type or _normalize_text(metadata.get("io_type"))
+    adapter_mode = candidate.adapter_mode or _normalize_text(
+        metadata.get("adapter_mode")
+    )
+
+    source = (
+        adapter_mode
+        if adapter_mode in {"local", "remote", "mock", "hybrid"}
+        else "unknown"
+    )
+
+    missing: list[str] = []
+    if tool_id is None:
+        missing.append("tool_id")
+    if capability_id is None:
+        missing.append("capability_id")
+    if io_type is None:
+        missing.append("io_type")
+    if adapter_mode is None:
+        missing.append("adapter_mode")
+
+    can_fallback = any(
+        metadata.get(key)
+        for key in (
+            "fallback_tool",
+            "fallback_tool_id",
+            "fallback_from",
+            "fallback_candidates",
+            "fallback_options",
+        )
+    )
+    fallback_depth = candidate.score_breakdown.get("fallback_depth")
+    if isinstance(fallback_depth, (int, float)) and fallback_depth > 0:
+        can_fallback = True
+
+    available = source != "unknown" and not missing
+    if missing:
+        availability_hint = (
+            f"Tool metadata missing ({', '.join(missing)}); use degraded display."
+        )
+    elif source == "remote":
+        availability_hint = (
+            "Remote adapter configured; availability depends on remote service health."
+        )
+    elif source == "local":
+        availability_hint = "Local adapter configured."
+    elif source == "mock":
+        availability_hint = "Mock adapter configured for demo."
+    elif source == "hybrid":
+        availability_hint = "Hybrid adapter configured."
+    else:
+        availability_hint = "Tool source unknown; use degraded display."
+
+    if can_fallback:
+        availability_hint = f"{availability_hint} Fallback path is available."
+
+    return PendingActionToolDisplay(
+        tool_id=tool_id,
+        capability_id=capability_id,
+        io_type=io_type,
+        adapter_mode=adapter_mode,
+        source=source,
+        available=available,
+        can_fallback=can_fallback,
+        availability_hint=availability_hint,
+    )
+
+
+def _build_candidate_reason(
+    candidate: PendingActionCandidate,
+    *,
+    is_default: bool,
+    tool_display: PendingActionToolDisplay,
+) -> str:
+    reason_parts: list[str] = []
+    if is_default:
+        reason_parts.append("默认推荐")
+    overall = candidate.score_breakdown.get("overall")
+    if isinstance(overall, (int, float)):
+        reason_parts.append(f"overall={float(overall):.2f}")
+    reason_parts.append(f"risk={candidate.risk_level or 'unknown'}")
+    reason_parts.append(f"cost={candidate.cost_estimate or 'unknown'}")
+    reason_parts.append(f"tool_source={tool_display.source}")
+    if tool_display.can_fallback:
+        reason_parts.append("supports_fallback")
+    return "; ".join(reason_parts)
+
+
+def _build_pending_action_detail(
+    record: TaskRecord, pending_action: PendingAction
+) -> PendingActionDetail:
+    default_suggestion = (
+        pending_action.default_suggestion or pending_action.default_recommendation
+    )
+    candidates: list[PendingActionCandidateDisplay] = []
+
+    for index, candidate in enumerate(pending_action.candidates, start=1):
+        is_default = candidate.candidate_id == default_suggestion
+        summary = candidate.summary or candidate.explanation or candidate.candidate_id
+        explanation = candidate.explanation or summary
+        score_breakdown = {
+            key: float(value)
+            for key, value in candidate.score_breakdown.items()
+            if isinstance(value, (int, float))
+        }
+        overall_score = score_breakdown.get("overall")
+        tool_display = _build_tool_display(candidate)
+        recommendation_reason = _build_candidate_reason(
+            candidate,
+            is_default=is_default,
+            tool_display=tool_display,
+        )
+        candidates.append(
+            PendingActionCandidateDisplay(
+                rank=index,
+                candidate_id=candidate.candidate_id,
+                is_default=is_default,
+                summary=summary,
+                explanation=explanation,
+                recommendation_reason=recommendation_reason,
+                risk_level=candidate.risk_level,
+                cost_estimate=candidate.cost_estimate,
+                overall_score=overall_score,
+                score_breakdown=score_breakdown,
+                tool=tool_display,
+            )
+        )
+
+    recommendation_summary = pending_action.explanation
+    if default_suggestion:
+        default_candidate = next(
+            (item for item in candidates if item.candidate_id == default_suggestion),
+            None,
+        )
+        if default_candidate is not None:
+            recommendation_summary = (
+                f"default={default_suggestion}; {default_candidate.recommendation_reason}"
+            )
+        else:
+            recommendation_summary = f"default={default_suggestion}; reason not found"
+
+    return PendingActionDetail(
+        pending_action_id=pending_action.pending_action_id,
+        task_id=record.id,
+        action_type=pending_action.action_type,
+        status=pending_action.status,
+        created_at=pending_action.created_at,
+        default_suggestion=default_suggestion,
+        explanation=pending_action.explanation,
+        recommendation_summary=recommendation_summary,
+        candidates=candidates,
+    )
+
+
+def _find_record_by_pending_action_id(pending_action_id: str) -> Optional[TaskRecord]:
+    for task_record in TASK_STORE.values():
+        if (
+            task_record.pending_action
+            and task_record.pending_action.pending_action_id == pending_action_id
+        ):
+            return task_record
+    return None
+
+
+@app.get("/", response_class=HTMLResponse)
+@app.get("/ui", response_class=HTMLResponse)
+async def get_hitl_dashboard() -> HTMLResponse:
+    return HTMLResponse(_render_ui_html(task_id=None))
+
+
+@app.get("/ui/tasks/{task_id}", response_class=HTMLResponse)
+async def get_task_detail_view(task_id: str) -> HTMLResponse:
+    return HTMLResponse(_render_ui_html(task_id=task_id))
+
+
+@app.get("/ui/tasks/{task_id}/events", response_class=HTMLResponse)
+async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
+    return HTMLResponse(_render_timeline_ui_html(task_id=task_id))
+
+
+@app.get("/health")
+async def health() -> Dict[str, Any]:
+    runtime = _ensure_runtime_initialized()
+    readiness = build_capability_readiness_matrix()
+    return {
+        "status": "ok",
+        "task_count": len(TASK_STORE),
+        "kg_tool_count": runtime.tool_count,
+        "capability_readiness_count": len(readiness),
+        "paths": {
+            "kg": str(runtime.paths.kg_path),
+            "output": str(runtime.paths.output_dir),
+            "data": str(runtime.paths.data_dir),
+            "logs": str(runtime.paths.log_dir),
+            "snapshots": str(runtime.paths.snapshot_dir),
+        },
+    }
+
+
+@app.get("/capabilities/readiness", response_model=list[CapabilityReadinessEntry])
+async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
+    entries = build_capability_readiness_matrix()
+    return [CapabilityReadinessEntry(**entry) for entry in entries]
 
 
 @app.post("/tasks", response_model=TaskRecord)
@@ -77,6 +465,137 @@ async def get_task(task_id: str):
     return record
 
 
+def _event_matches_filters(
+    event: dict[str, Any],
+    *,
+    event_type: Optional[str],
+    tool_id: Optional[str],
+    capability_id: Optional[str],
+    adapter_mode: Optional[str],
+) -> bool:
+    if event_type and event.get("event_type") != event_type:
+        return False
+
+    if tool_id:
+        related_tools = {
+            _normalize_text(event.get("tool")),
+            _normalize_text(event.get("tool_id")),
+            _normalize_text(event.get("from_tool")),
+            _normalize_text(event.get("to_tool")),
+        }
+        related_tools.discard(None)
+        if tool_id not in related_tools:
+            return False
+
+    if capability_id and event.get("capability_id") != capability_id:
+        return False
+
+    if adapter_mode and event.get("adapter_mode") != adapter_mode:
+        return False
+
+    return True
+
+
+@app.get("/tasks/{task_id}/events", response_model=list[TaskTimelineEvent])
+async def get_task_events(
+    task_id: str,
+    event_type: Optional[str] = Query(default=None),
+    tool_id: Optional[str] = Query(default=None),
+    capability_id: Optional[str] = Query(default=None),
+    adapter_mode: Optional[str] = Query(default=None),
+) -> list[TaskTimelineEvent]:
+    runtime = _ensure_runtime_initialized()
+    timeline = read_timeline_events(task_id, log_dir=runtime.paths.log_dir)
+
+    if task_id not in TASK_STORE and not timeline:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    highlighted = {
+        "STATE_TRANSITION",
+        "PENDING_ACTION_CREATED",
+        "DECISION_APPLIED",
+        "STEP_FINISHED",
+        "STEP_FAILED",
+        "WAITING_ENTER",
+        "WAITING_EXIT",
+        "REPLACE_TOOL",
+        "PARAM_TWEAK",
+        "STRUCTURE_PATCH",
+        "PLANNER_ROUTE_DECISION",
+        "RECOVERY_ESCALATED",
+        "CANDIDATE_VALIDATION_FAILED",
+    }
+    return [
+        TaskTimelineEvent(
+            **event,
+            highlight=event["event_type"] in highlighted,
+        )
+        for event in timeline
+        if _event_matches_filters(
+            event,
+            event_type=_normalize_text(event_type),
+            tool_id=_normalize_text(tool_id),
+            capability_id=_normalize_text(capability_id),
+            adapter_mode=_normalize_text(adapter_mode),
+        )
+    ]
+
+
+@app.get("/pending-actions", response_model=list[PendingActionSummary])
+async def list_pending_actions(
+    status: Optional[PendingActionStatus] = Query(
+        default=PendingActionStatus.PENDING
+    ),
+    task_id: Optional[str] = Query(default=None),
+) -> list[PendingActionSummary]:
+    summaries: list[PendingActionSummary] = []
+
+    for record in TASK_STORE.values():
+        if task_id is not None and record.id != task_id:
+            continue
+        pending_action = record.pending_action
+        if pending_action is None:
+            continue
+        if status is not None and pending_action.status != status:
+            continue
+
+        summaries.append(
+            PendingActionSummary(
+                pending_action_id=pending_action.pending_action_id,
+                task_id=record.id,
+                action_type=pending_action.action_type,
+                status=pending_action.status,
+                created_at=pending_action.created_at,
+                candidate_count=len(pending_action.candidates),
+                default_suggestion=(
+                    pending_action.default_suggestion
+                    or pending_action.default_recommendation
+                ),
+                explanation=pending_action.explanation,
+                summary=_build_pending_action_summary(pending_action),
+            )
+        )
+
+    return summaries
+
+
+@app.get("/pending-actions/{pending_action_id}", response_model=PendingActionDetail)
+async def get_pending_action_detail(pending_action_id: str) -> PendingActionDetail:
+    record = _find_record_by_pending_action_id(pending_action_id)
+    if record is None:
+        raise HTTPException(
+            status_code=404, detail=f"pending_action {pending_action_id} not found"
+        )
+
+    pending_action = record.pending_action
+    if pending_action is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"pending_action {pending_action_id} not found in task record",
+        )
+    return _build_pending_action_detail(record, pending_action)
+
+
 @app.post("/pending-actions/{pending_action_id}/decision", response_model=TaskRecord)
 async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
     """提交人工决策以驱动 FSM 前进
@@ -95,15 +614,7 @@ async def submit_decision(pending_action_id: str, req: DecisionSubmitRequest):
         HTTPException: 500 当应用决策失败
     """
     # 查找包含该 pending_action 的任务
-    record = None
-    for task_record in TASK_STORE.values():
-        if (
-            task_record.pending_action
-            and task_record.pending_action.pending_action_id == pending_action_id
-        ):
-            record = task_record
-            break
-
+    record = _find_record_by_pending_action_id(pending_action_id)
     if record is None:
         raise HTTPException(
             status_code=404, detail=f"pending_action {pending_action_id} not found"

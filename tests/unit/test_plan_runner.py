@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
@@ -28,6 +30,7 @@ from src.workflow.errors import (
 from src.agents.safety import SafetyAgent
 from src.agents.planner import PlannerAgent, ToolSpec
 from src.workflow.patch_runner import PatchRunOutcome
+from src.storage.log_store import DEFAULT_LOG_DIR
 
 
 def _resolve_inputs(step: PlanStep, context: WorkflowContext) -> dict:
@@ -406,6 +409,70 @@ def test_run_plan_maintains_status_on_exception(
     assert planned_context.step_results == {}
     assert excinfo.value.failure_type == FailureType.RETRYABLE
     assert excinfo.value.step_id == "S1"
+
+
+def test_run_plan_hard_fails_before_execution_when_candidate_invalid() -> None:
+    """候选不可执行时必须在执行前拦截，并写入结构化失败事件。"""
+    task_id = "test_candidate_validation_hard_fail_001"
+    log_file = DEFAULT_LOG_DIR / f"{task_id}.jsonl"
+    if log_file.exists():
+        log_file.unlink()
+
+    task = ProteinDesignTask(
+        task_id=task_id,
+        goal="candidate validation gate",
+        constraints={"enforce_candidate_validation": True},
+        metadata={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(
+                id="S1",
+                tool="missing_tool_for_validation",
+                inputs={"goal": task.goal},
+                metadata={},
+            )
+        ],
+        constraints={},
+        metadata={},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=None,
+        step_results={},
+        safety_events=[],
+        design_result=None,
+        status=InternalStatus.PLANNED,
+    )
+
+    runner = DummyStepRunner()
+    plan_runner = PlanRunner(step_runner=runner)
+
+    with pytest.raises(PlanRunError) as exc_info:
+        plan_runner.run_plan(plan, context)
+
+    assert exc_info.value.code == "CANDIDATE_TOOL_UNAVAILABLE"
+    assert context.status == InternalStatus.FAILED
+    assert runner.called_steps == []
+
+    assert log_file.exists()
+    with log_file.open("r", encoding="utf-8") as handle:
+        entries = [json.loads(line) for line in handle if line.strip()]
+
+    validation_events = [
+        e
+        for e in entries
+        if e.get("event_type") == "CANDIDATE_VALIDATION_FAILED"
+    ]
+    assert len(validation_events) == 1
+    event = validation_events[0]
+    assert event["data"]["failure_code"] == "CANDIDATE_TOOL_UNAVAILABLE"
+    assert event["data"]["failures"]
+    assert event["data"]["failures"][0]["tool_id"] == "missing_tool_for_validation"
+
+    if log_file.exists():
+        log_file.unlink()
 
 
 def test_run_plan_with_empty_steps_updates_status(
@@ -1213,3 +1280,36 @@ def test_failed_step_builds_replan_pending_action_with_nim_option() -> None:
         for event in context.safety_events
         for flag in event.risk_flags
     )
+
+
+def test_run_plan_stops_after_entering_waiting_patch(
+    multi_step_plan: Plan,
+    planned_context: WorkflowContext,
+) -> None:
+    """进入 WAITING_PATCH 后，PlanRunner 不应继续推进后续步骤。"""
+
+    class WaitingPatchRunner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run_step_with_patch(self, plan, step_index, context, record=None):
+            self.calls.append(plan.steps[step_index].id)
+            context.status = InternalStatus.WAITING_PATCH
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[],
+                next_step_index=step_index,
+            )
+
+    patch_runner = WaitingPatchRunner()
+    plan_runner = PlanRunner(
+        step_runner=DummyStepRunner(),
+        patch_runner=patch_runner,
+    )
+
+    result = plan_runner.run_plan(multi_step_plan, planned_context)
+
+    assert result is multi_step_plan
+    assert planned_context.status == InternalStatus.WAITING_PATCH
+    assert patch_runner.calls == ["S1"]
+    assert planned_context.step_results == {}

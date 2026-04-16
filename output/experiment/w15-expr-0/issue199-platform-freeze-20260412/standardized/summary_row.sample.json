@@ -1,0 +1,15 @@
+{
+  "schema_version": "w15.issue199.summary-row.v1",
+  "freeze_id": "issue199-platform-freeze-20260412",
+  "run_id": "issue199-react-smoke-001",
+  "group_id": "react_style_external",
+  "platform": "inspect_ai",
+  "task_key": "enzyme_like_fold",
+  "dataset_version": "issue170-remote-batch3-20260316",
+  "success_rate": null,
+  "first_pass_success_rate": null,
+  "high_cost_call_mean": null,
+  "patch_events_mean": null,
+  "replan_events_mean": null,
+  "notes": "Issue #199 standardization template. Real values are filled by #172 and #221."
+}

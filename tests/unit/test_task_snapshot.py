@@ -2,13 +2,26 @@ import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from src.models.contracts import ArtifactRef, TaskSnapshot, now_iso
-from src.models.db import ExternalStatus
+from src.models.contracts import (
+    ArtifactRef,
+    Plan,
+    PlanStep,
+    ProteinDesignTask,
+    RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
+    RuntimeState,
+    TaskSnapshot,
+    now_iso,
+)
+from src.models.db import ExternalStatus, InternalStatus
 from src.storage.snapshot_store import (
     append_snapshot,
     read_snapshots,
     read_latest_snapshot,
 )
+from src.workflow.context import WorkflowContext
+from src.workflow.snapshots import build_task_snapshot
 
 
 @pytest.mark.unit
@@ -192,3 +205,119 @@ def test_snapshot_with_remote_job_artifacts():
     assert restored.artifacts["remote_jobs"]["S1"]["job_id"] == "esmfold_job_123"
     assert restored.artifacts["remote_jobs"]["S1"]["endpoint"] == "http://example.com/esmfold"
     assert restored.artifacts["remote_jobs"]["S1"]["status"] == "running"
+
+
+@pytest.mark.unit
+def test_build_task_snapshot_persists_runtime_state_with_stable_keys():
+    task = ProteinDesignTask(
+        task_id="task_runtime_state_001",
+        goal="freeze runtime state schema",
+        constraints={},
+    )
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[PlanStep(id="S1", tool="dummy_tool", inputs={}, metadata={})],
+        metadata={"plan_version": 3},
+    )
+    runtime_state = RuntimeState(
+        p_success=0.72,
+        p_structural_failure=0.18,
+        recovery_margin=0.41,
+        expected_remaining_cost=12.5,
+        evidence_sufficiency=0.63,
+        last_update_source="safety:post_step",
+        observation_summary={"high_cost_steps_completed": 1},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=plan,
+        runtime_state=runtime_state,
+        status=InternalStatus.RUNNING,
+    )
+
+    snapshot = build_task_snapshot(context)
+
+    assert snapshot.plan_version == 3
+    assert snapshot.artifacts[RUNTIME_STATE_ARTIFACT_KEY] == {
+        "schema_version": 1,
+        "p_success": 0.72,
+        "p_structural_failure": 0.18,
+        "recovery_margin": 0.41,
+        "expected_remaining_cost": 12.5,
+        "evidence_sufficiency": 0.63,
+        "last_update_source": "safety:post_step",
+    }
+    assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
+        "high_cost_steps_completed": 1
+    }
+    assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY] == {
+        "schema_version": 1,
+        "p_success": 0.72,
+        "p_structural_failure": 0.18,
+        "recovery_margin": 0.41,
+        "expected_remaining_cost": 12.5,
+        "evidence_sufficiency": 0.63,
+    }
+
+
+@pytest.mark.unit
+def test_build_task_snapshot_waiting_bootstraps_runtime_state_when_missing():
+    task = ProteinDesignTask(
+        task_id="task_waiting_runtime_state_001",
+        goal="persist waiting runtime state",
+        constraints={},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=None,
+        runtime_state=None,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+    )
+
+    snapshot = build_task_snapshot(
+        context,
+        state_override=ExternalStatus.WAITING_PLAN_CONFIRM,
+        require_runtime_state=True,
+    )
+
+    assert context.runtime_state is not None
+    assert snapshot.artifacts[RUNTIME_STATE_ARTIFACT_KEY] == {
+        "schema_version": 1,
+        "p_success": 0.5,
+        "p_structural_failure": 0.25,
+        "recovery_margin": 0.6,
+        "expected_remaining_cost": 1.0,
+        "evidence_sufficiency": 0.5,
+        "last_update_source": "runtime_bootstrap",
+    }
+    assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
+        "completed_steps": 0,
+        "evidence_signal": 0.5,
+    }
+    assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)
+
+
+@pytest.mark.unit
+def test_build_task_snapshot_observation_only_policy_does_not_bootstrap_runtime_state():
+    task = ProteinDesignTask(
+        task_id="task_observation_only_snapshot_001",
+        goal="keep dynamic baseline free of belief-state artifacts",
+        constraints={"runtime_policy": "dynamic_observation_only"},
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=None,
+        runtime_state=None,
+        status=InternalStatus.WAITING_PLAN_CONFIRM,
+    )
+
+    snapshot = build_task_snapshot(
+        context,
+        state_override=ExternalStatus.WAITING_PLAN_CONFIRM,
+        require_runtime_state=True,
+    )
+
+    assert context.runtime_state is None
+    assert RUNTIME_STATE_ARTIFACT_KEY not in snapshot.artifacts
+    assert RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY not in snapshot.artifacts
+    assert RUNTIME_STATE_SUMMARY_METADATA_KEY not in snapshot.artifacts

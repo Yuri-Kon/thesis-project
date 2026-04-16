@@ -10,6 +10,7 @@ Snapshot-based recovery logic for resuming interrupted tasks.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,9 +18,13 @@ from typing import Any, Dict, Iterable, Optional, Sequence
 
 from src.models.contracts import (
     PendingAction,
+    PendingActionCandidate,
     Plan,
     PlanStep,
     ProteinDesignTask,
+    RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY,
+    RUNTIME_STATE_ARTIFACT_KEY,
+    RuntimeState,
     StepResult,
     TaskSnapshot,
     now_iso,
@@ -28,7 +33,13 @@ from src.models.db import ExternalStatus, InternalStatus
 from src.models.event_log import EventLog, EventType
 from src.storage.log_store import DEFAULT_LOG_DIR, read_event_logs
 from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DIR
+from src.workflow.belief_state import update_runtime_state
 from src.workflow.context import WorkflowContext
+from src.workflow.errors import FailureType
+from src.workflow.runtime_policy import (
+    DYNAMIC_OBSERVATION_ONLY_POLICY,
+    resolve_runtime_policy,
+)
 
 __all__ = [
     "restore_context_from_snapshot",
@@ -36,7 +47,727 @@ __all__ = [
     "extract_remote_job_context",
     "RemoteJobContext",
     "RecoveryResult",
+    "StructureRefinementIteration",
+    "build_structure_refinement_audit",
+    "persist_structure_refinement_audit",
+    "S6_TRIGGER_MATRIX_VERSION",
+    "get_s6_trigger_matrix",
+    "WorkflowActionSelectorInput",
+    "WorkflowActionSelectorResult",
+    "WorkflowActionRoute",
+    "select_workflow_action",
+    "resolve_s6_recovery_action",
+    "resolve_workflow_action_route",
+    "build_terminal_stop_candidate",
+    "extract_candidate_recovery_metadata",
+    "is_terminal_stop_candidate",
+    "resolve_terminal_stop_reason",
 ]
+
+S6_TRIGGER_MATRIX_VERSION = "2026-03-16.v1"
+_S6_STAGE_TRIGGER_MATRIX: dict[str, dict[str, Any]] = {
+    "S1": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["SAFETY_"],
+    },
+    "S2": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S2_ALL_", "S2_IO_"],
+    },
+    "S3": {
+        "default_action": "replan",
+        "replan_failure_prefixes": ["S3_"],
+    },
+    "S4": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S4_LOOP_EXHAUSTED"],
+    },
+    "S5": {
+        "default_action": "patch",
+        "replan_failure_prefixes": ["S5_OBJECTIVE_NOT_MET", "S5_SCORE_INVALID"],
+    },
+}
+
+_TERMINAL_STOP_REASON_BY_FAILURE_TYPE = {
+    FailureType.SAFETY_BLOCK: "unsafe_to_continue",
+    FailureType.TOOL_ERROR: "recovery_exhausted",
+    FailureType.NON_RETRYABLE: "evidence_exhausted",
+    FailureType.RETRYABLE: "economic_stop",
+}
+
+_PHASE_ALLOWED_ACTIONS: dict[str, frozenset[str]] = {
+    "execution": frozenset({"continue", "patch_local", "suffix_replan", "stop"}),
+    "patch": frozenset({"patch_local", "suffix_replan", "stop"}),
+    "replan": frozenset({"continue", "suffix_replan", "stop"}),
+}
+
+
+@dataclass(frozen=True)
+class WorkflowActionRoute:
+    """统一动作到既有 recovery 闭环的映射。"""
+
+    action: str
+    mapped_flow: str
+    waiting_status: InternalStatus | None = None
+    terminal_policy: str | None = None
+    terminal_status: InternalStatus | None = None
+
+
+_WORKFLOW_ACTION_ROUTES: dict[str, WorkflowActionRoute] = {
+    "continue": WorkflowActionRoute(
+        action="continue",
+        mapped_flow="continue",
+    ),
+    "patch_local": WorkflowActionRoute(
+        action="patch_local",
+        mapped_flow="patch",
+    ),
+    "suffix_replan": WorkflowActionRoute(
+        action="suffix_replan",
+        mapped_flow="replan",
+        waiting_status=InternalStatus.WAITING_REPLAN,
+    ),
+    "stop": WorkflowActionRoute(
+        action="stop",
+        mapped_flow="stop",
+        waiting_status=InternalStatus.WAITING_REPLAN,
+        terminal_policy="stop",
+        terminal_status=InternalStatus.FAILED,
+    ),
+}
+
+
+def get_s6_trigger_matrix() -> dict[str, Any]:
+    """返回 S6 阶段感知触发矩阵（用于审计与文档）。"""
+    return {
+        "version": S6_TRIGGER_MATRIX_VERSION,
+        "stages": json.loads(json.dumps(_S6_STAGE_TRIGGER_MATRIX, ensure_ascii=True)),
+    }
+
+
+@dataclass(frozen=True)
+class WorkflowActionSelectorInput:
+    """统一动作选择器输入契约。"""
+
+    phase: str = "execution"
+    stage_id: str | None = None
+    failure_code: str | None = None
+    failure_type: FailureType | str | None = None
+    retry_exhausted: bool = False
+    safety_blocked: bool = False
+    runtime_state_summary: dict[str, Any] | None = None
+    suggested_action: str | None = None
+    suggested_reason: str | None = None
+    runtime_policy: str | None = None
+
+
+@dataclass(frozen=True)
+class WorkflowActionSelectorResult:
+    """动作选择器输出契约。"""
+
+    action: str
+    mapped_flow: str
+    reason: str
+    evidence_source: dict[str, Any]
+
+
+def resolve_workflow_action_route(action: str) -> WorkflowActionRoute:
+    """返回统一动作的 recovery 映射信息。"""
+
+    normalized = _normalize_workflow_action(action)
+    if normalized is None:
+        raise ValueError(f"Unsupported workflow action: {action}")
+    return _WORKFLOW_ACTION_ROUTES[normalized]
+
+
+def select_workflow_action(
+    selector_input: WorkflowActionSelectorInput,
+) -> WorkflowActionSelectorResult:
+    """根据失败上下文与 runtime_state 选择既有 Workflow 的下一步动作。"""
+
+    phase = _normalize_selector_phase(selector_input.phase)
+    allowed_actions = _PHASE_ALLOWED_ACTIONS[phase]
+    suggested_action = _normalize_workflow_action(selector_input.suggested_action)
+    if suggested_action not in allowed_actions:
+        suggested_action = None
+    runtime_policy = resolve_runtime_policy(
+        {"runtime_policy": selector_input.runtime_policy}
+    )
+    observation_only = runtime_policy == DYNAMIC_OBSERVATION_ONLY_POLICY
+
+    runtime_summary = _normalize_runtime_state_summary(
+        selector_input.runtime_state_summary
+    )
+    p_success = _safe_float(runtime_summary.get("p_success"), default=0.5)
+    p_structural_failure = _safe_float(
+        runtime_summary.get("p_structural_failure"),
+        default=0.25,
+    )
+    recovery_margin = _safe_float(
+        runtime_summary.get("recovery_margin"),
+        default=0.6,
+    )
+    expected_remaining_cost = _safe_float(
+        runtime_summary.get("expected_remaining_cost"),
+        default=1.0,
+    )
+    evidence_sufficiency = _safe_float(
+        runtime_summary.get("evidence_sufficiency"),
+        default=0.5,
+    )
+    derived_runtime_features = _derive_runtime_action_features(
+        runtime_summary=runtime_summary,
+        p_success=p_success,
+        p_structural_failure=p_structural_failure,
+        recovery_margin=recovery_margin,
+        expected_remaining_cost=expected_remaining_cost,
+        evidence_sufficiency=evidence_sufficiency,
+        stage_id=selector_input.stage_id,
+        failure_type=selector_input.failure_type,
+        retry_exhausted=bool(selector_input.retry_exhausted),
+        safety_blocked=bool(selector_input.safety_blocked),
+    )
+    budget_pressure = derived_runtime_features["budget_pressure"]
+    intervention_value = derived_runtime_features["intervention_value"]
+    prefix_preservability = derived_runtime_features["prefix_preservability"]
+    local_patchability = derived_runtime_features["local_patchability"]
+    u_stop = derived_runtime_features["u_stop"]
+    allow_auto_stop = _safe_bool(
+        runtime_summary.get("allow_auto_stop"),
+        default=False,
+    )
+
+    normalized_failure_type = _normalize_failure_type(selector_input.failure_type)
+    normalized_failure_code = _normalize_text(selector_input.failure_code)
+    normalized_stage_id = _normalize_text(selector_input.stage_id)
+    has_failure_signal = (
+        normalized_failure_type is not None
+        or normalized_failure_code is not None
+        or bool(selector_input.retry_exhausted)
+        or bool(selector_input.safety_blocked)
+    )
+    s6_default_action = resolve_s6_recovery_action(
+        stage_id=normalized_stage_id,
+        failure_code=normalized_failure_code,
+        failure_type=normalized_failure_type,
+        retry_exhausted=bool(selector_input.retry_exhausted),
+        safety_blocked=bool(selector_input.safety_blocked),
+    )
+
+    if (
+        selector_input.safety_blocked
+        and "suffix_replan" in allowed_actions
+        and not _should_choose_stop(
+            allowed_actions=allowed_actions,
+            allow_auto_stop=allow_auto_stop,
+            u_stop=u_stop,
+            p_success=p_success,
+            budget_pressure=budget_pressure,
+            recovery_margin=recovery_margin,
+            intervention_value=intervention_value,
+        )
+    ):
+        action = "suffix_replan"
+        reason = "safety block disables continue and escalates to suffix replan"
+        basis = "hard_priority"
+    elif suggested_action is not None and not _is_hard_blocked_suggestion(
+        suggested_action=suggested_action,
+        safety_blocked=bool(selector_input.safety_blocked),
+    ):
+        action = suggested_action
+        reason = selector_input.suggested_reason or (
+            f"candidate/runtime suggestion selected {suggested_action}"
+        )
+        basis = "suggested_action"
+    elif not has_failure_signal:
+        action = "continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy saw no failure or safety signal "
+                "in the current execution step"
+            )
+            basis = "observation_only"
+        else:
+            reason = "no failure or safety signal is present in the current execution step"
+            basis = "default_continue"
+    elif _should_choose_stop(
+        allowed_actions=allowed_actions,
+        allow_auto_stop=allow_auto_stop,
+        u_stop=u_stop,
+        p_success=p_success,
+        budget_pressure=budget_pressure,
+        recovery_margin=recovery_margin,
+        intervention_value=intervention_value,
+    ):
+        action = "stop"
+        reason = (
+            "runtime stop threshold met; route through terminal_stop replan candidate"
+        )
+        basis = "action_priority"
+    elif (
+        phase != "replan"
+        and "patch_local" in allowed_actions
+        and s6_default_action == "patch"
+        and (
+            local_patchability is None
+            or (
+                (
+                    local_patchability >= 0.55
+                    and recovery_margin >= 0.30
+                )
+                or (
+                    phase == "patch"
+                    and local_patchability >= 0.65
+                    and recovery_margin >= 0.15
+                )
+            )
+        )
+        and not (
+            p_structural_failure >= 0.55
+            and recovery_margin <= 0.1
+        )
+    ):
+        action = "patch_local"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy routes the local failure "
+                "through patch_local"
+            )
+            basis = "observation_only"
+        else:
+            reason = "failure still looks local and existing recovery order prefers patch"
+            basis = "action_priority"
+    elif (
+        "suffix_replan" in allowed_actions
+        and (
+            s6_default_action == "replan"
+            or (
+                p_structural_failure >= 0.55
+                and recovery_margin <= 0.1
+            )
+        )
+    ):
+        action = "suffix_replan"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy escalates to suffix_replan "
+                "from the current failure signal"
+            )
+            basis = "observation_only"
+        else:
+            reason = (
+                "structural failure pressure is high or trigger matrix already prefers replan"
+            )
+            basis = "action_priority"
+    else:
+        action = "continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy keeps the current path because "
+                "the present signal does not justify escalation"
+            )
+            basis = "observation_only"
+        else:
+            reason = "current context does not justify escalating beyond the existing path"
+            basis = "default_continue"
+
+    route = resolve_workflow_action_route(action)
+    return WorkflowActionSelectorResult(
+        action=action,
+        mapped_flow=route.mapped_flow,
+        reason=reason,
+        evidence_source={
+            "phase": phase,
+            "basis": basis,
+            "stage_id": normalized_stage_id,
+            "failure_code": normalized_failure_code,
+            "failure_type": (
+                normalized_failure_type.value
+                if isinstance(normalized_failure_type, FailureType)
+                else None
+            ),
+            "retry_exhausted": bool(selector_input.retry_exhausted),
+            "s6_default_action": s6_default_action,
+            "budget_pressure": budget_pressure,
+            "evidence_sufficiency": evidence_sufficiency,
+            "intervention_value": intervention_value,
+            "prefix_preservability": prefix_preservability,
+            "local_patchability": local_patchability,
+            "allow_auto_stop": allow_auto_stop,
+            "u_stop": u_stop,
+            "runtime_policy": runtime_policy,
+            "belief_state_enabled": not observation_only,
+            "runtime_state_summary": runtime_summary or None,
+        },
+    )
+
+
+def build_terminal_stop_candidate(
+    *,
+    plan: Plan,
+    step_id: str | None,
+    failure_type: FailureType | str | None,
+    failure_code: str | None,
+    failure_reason: str,
+    runtime_state_summary: dict[str, Any] | None = None,
+    explanation: str | None = None,
+) -> PendingActionCandidate:
+    """构造复用 replan_confirm 闭环的 terminal_stop 候选。"""
+
+    stop_reason = resolve_terminal_stop_reason(
+        failure_type=failure_type,
+        failure_code=failure_code,
+    )
+    preserve_prefix_until_step_index = _resolve_preserve_prefix_until_step_index(
+        plan,
+        step_id,
+    )
+    payload = plan.model_copy(deep=True)
+    payload.metadata = {
+        **(payload.metadata if isinstance(payload.metadata, dict) else {}),
+        "replan_mode": "suffix_replan",
+        "terminal_policy": "stop",
+        "terminal_reason": stop_reason,
+        "preserve_prefix_until_step_index": preserve_prefix_until_step_index,
+    }
+    metadata: dict[str, Any] = {
+        "shadow_action": "stop",
+        "shadow_action_reason": explanation or failure_reason,
+        "replan_mode": "suffix_replan",
+        "terminal_policy": "stop",
+        "terminal_reason": stop_reason,
+        "preserve_prefix_until_step_index": preserve_prefix_until_step_index,
+    }
+    if runtime_state_summary:
+        metadata["runtime_state_summary"] = dict(runtime_state_summary)
+    candidate_suffix = (step_id or "task").strip().lower()
+    return PendingActionCandidate(
+        candidate_id=f"terminal_stop_{candidate_suffix}",
+        payload=payload,
+        structured_payload=payload,
+        summary="terminal stop candidate",
+        explanation=explanation or failure_reason,
+        metadata=metadata,
+    )
+
+
+def extract_candidate_recovery_metadata(
+    candidate: PendingActionCandidate | None,
+) -> dict[str, Any]:
+    """合并候选和 payload 上的恢复语义元数据。"""
+
+    if candidate is None:
+        return {}
+    metadata = (
+        dict(candidate.metadata)
+        if isinstance(candidate.metadata, dict)
+        else {}
+    )
+    payload = candidate.structured_payload or candidate.payload
+    if isinstance(payload, Plan):
+        payload_metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+        for key in (
+            "replan_mode",
+            "terminal_policy",
+            "terminal_reason",
+            "preserve_prefix_until_step_index",
+        ):
+            value = payload_metadata.get(key)
+            if value is not None and key not in metadata:
+                metadata[key] = value
+    return metadata
+
+
+def is_terminal_stop_candidate(candidate: PendingActionCandidate | None) -> bool:
+    metadata = extract_candidate_recovery_metadata(candidate)
+    terminal_policy = _normalize_text(metadata.get("terminal_policy"))
+    replan_mode = _normalize_text(metadata.get("replan_mode"))
+    return terminal_policy == "stop" or replan_mode == "terminal_stop"
+
+
+def resolve_terminal_stop_reason(
+    *,
+    failure_type: FailureType | str | None,
+    failure_code: str | None,
+) -> str:
+    """将 stop 候选映射到定稿约定的终止原因。"""
+
+    normalized_type = _normalize_failure_type(failure_type)
+    normalized_code = _normalize_text(failure_code) or ""
+    if normalized_type == FailureType.SAFETY_BLOCK or normalized_code.startswith("SAFETY_"):
+        return "unsafe_to_continue"
+    if normalized_code.startswith(("SCHEMA_", "IO_", "TOOL_")):
+        return "recovery_exhausted"
+    if normalized_type in _TERMINAL_STOP_REASON_BY_FAILURE_TYPE:
+        return _TERMINAL_STOP_REASON_BY_FAILURE_TYPE[normalized_type]
+    return "economic_stop"
+
+
+def resolve_s6_recovery_action(
+    *,
+    stage_id: str | None,
+    failure_code: str | None,
+    failure_type: FailureType | str | None,
+    retry_exhausted: bool,
+    safety_blocked: bool = False,
+) -> str:
+    """根据阶段与失败上下文决定优先恢复动作：patch 或 replan。"""
+    if safety_blocked:
+        return "replan"
+
+    normalized_type = _normalize_failure_type(failure_type)
+    if normalized_type == FailureType.SAFETY_BLOCK:
+        return "replan"
+
+    normalized_stage = (stage_id or "").strip().upper()
+    stage_rule = _S6_STAGE_TRIGGER_MATRIX.get(normalized_stage)
+    normalized_code = (failure_code or "").strip().upper()
+    if stage_rule and normalized_code:
+        for prefix in stage_rule.get("replan_failure_prefixes", []):
+            if isinstance(prefix, str) and normalized_code.startswith(prefix.upper()):
+                return "replan"
+
+    if stage_rule:
+        return str(stage_rule.get("default_action") or "patch")
+
+    if normalized_type in {
+        FailureType.RETRYABLE,
+        FailureType.TOOL_ERROR,
+        FailureType.NON_RETRYABLE,
+    }:
+        return "patch"
+    if retry_exhausted:
+        return "patch"
+    return "replan"
+
+
+def _normalize_selector_phase(value: str | None) -> str:
+    normalized = _normalize_text(value) or "execution"
+    if normalized not in _PHASE_ALLOWED_ACTIONS:
+        return "execution"
+    return normalized
+
+
+def _normalize_workflow_action(value: str | None) -> str | None:
+    normalized = _normalize_text(value)
+    if normalized in _WORKFLOW_ACTION_ROUTES:
+        return normalized
+    return None
+
+
+def _normalize_runtime_state_summary(
+    payload: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    return dict(payload)
+
+
+def _derive_runtime_action_features(
+    *,
+    runtime_summary: dict[str, Any],
+    p_success: float,
+    p_structural_failure: float,
+    recovery_margin: float,
+    expected_remaining_cost: float,
+    evidence_sufficiency: float,
+    stage_id: str | None,
+    failure_type: FailureType | str | None,
+    retry_exhausted: bool,
+    safety_blocked: bool,
+) -> dict[str, float]:
+    budget_pressure = _safe_float(
+        runtime_summary.get("budget_pressure"),
+        default=_clip_float(expected_remaining_cost, lower=0.0, upper=1.5),
+    )
+    local_patchability = _safe_optional_float(
+        runtime_summary.get("local_patchability")
+    )
+    if local_patchability is None:
+        stage_locality_bonus = 0.0
+        normalized_stage = _normalize_text(stage_id)
+        normalized_failure_type = _normalize_failure_type(failure_type)
+        if normalized_stage == "S1":
+            stage_locality_bonus += 0.18
+        if normalized_failure_type in {
+            FailureType.RETRYABLE,
+            FailureType.TOOL_ERROR,
+            FailureType.NON_RETRYABLE,
+        } and not safety_blocked:
+            stage_locality_bonus += 0.08
+        if retry_exhausted and not safety_blocked:
+            stage_locality_bonus += 0.06
+        local_patchability = _clip_float(
+            0.45 * recovery_margin
+            + 0.35 * (1.0 - p_structural_failure)
+            + 0.20 * evidence_sufficiency,
+            lower=0.0,
+            upper=1.0,
+        )
+        local_patchability = _clip_float(
+            local_patchability + stage_locality_bonus,
+            lower=0.0,
+            upper=1.0,
+        )
+    prefix_preservability = _safe_optional_float(
+        runtime_summary.get("prefix_preservability")
+    )
+    if prefix_preservability is None:
+        prefix_preservability = _clip_float(
+            0.50 * recovery_margin
+            + 0.30 * evidence_sufficiency
+            + 0.20 * (1.0 - min(budget_pressure, 1.0)),
+            lower=0.0,
+            upper=1.0,
+        )
+    intervention_value = _safe_optional_float(
+        runtime_summary.get("intervention_value")
+    )
+    if intervention_value is None:
+        uncertainty = _clip_float(
+            1.0 - abs(p_success - (1.0 - p_structural_failure)),
+            lower=0.0,
+            upper=1.0,
+        )
+        manual_salvageability = _clip_float(
+            0.55 * local_patchability + 0.45 * prefix_preservability,
+            lower=0.0,
+            upper=1.0,
+        )
+        artifact_salience = _clip_float(
+            0.60 * evidence_sufficiency + 0.40 * recovery_margin,
+            lower=0.0,
+            upper=1.0,
+        )
+        decision_gap = _clip_float(
+            0.50 + 0.25 * recovery_margin - 0.25 * min(budget_pressure, 1.0),
+            lower=0.0,
+            upper=1.0,
+        )
+        # 中文注释：这里把派生量限制在动作选择现场计算，避免将其误固化为新的主状态。
+        intervention_value = _clip_float(
+            0.30 * uncertainty
+            + 0.25 * manual_salvageability
+            + 0.25 * artifact_salience
+            + 0.20 * decision_gap,
+            lower=0.0,
+            upper=1.0,
+        )
+    u_stop = _safe_optional_float(runtime_summary.get("u_stop"))
+    if u_stop is None:
+        safety_terminality = 1.0 if (
+            safety_blocked or _normalize_failure_type(failure_type) == FailureType.SAFETY_BLOCK
+        ) else 0.0
+        u_stop = _clip_float(
+            0.32 * (1.0 - p_success)
+            + 0.24 * min(budget_pressure, 1.0)
+            + 0.18 * (1.0 - recovery_margin)
+            + 0.16 * safety_terminality
+            + 0.10 * (1.0 - intervention_value),
+            lower=0.0,
+            upper=1.0,
+        )
+    return {
+        "budget_pressure": budget_pressure,
+        "intervention_value": intervention_value,
+        "prefix_preservability": prefix_preservability,
+        "local_patchability": local_patchability,
+        "u_stop": u_stop,
+    }
+
+
+def _normalize_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    return normalized
+
+
+def _safe_float(value: object, *, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_optional_float(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_bool(value: object, *, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _clip_float(value: float, *, lower: float, upper: float) -> float:
+    return max(lower, min(upper, float(value)))
+
+
+def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
+    if isinstance(value, FailureType):
+        return value
+    if isinstance(value, str):
+        try:
+            return FailureType(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _is_hard_blocked_suggestion(
+    *,
+    suggested_action: str,
+    safety_blocked: bool,
+) -> bool:
+    return safety_blocked and suggested_action == "continue"
+
+
+def _should_choose_stop(
+    *,
+    allowed_actions: frozenset[str],
+    allow_auto_stop: bool,
+    u_stop: float,
+    p_success: float,
+    budget_pressure: float,
+    recovery_margin: float,
+    intervention_value: float,
+) -> bool:
+    if "stop" not in allowed_actions:
+        return False
+    if allow_auto_stop and u_stop >= 0.72:
+        return True
+    return (
+        p_success <= 0.20
+        and budget_pressure >= 0.85
+        and recovery_margin <= 0.20
+        and intervention_value <= 0.35
+    )
+
+
+def _resolve_preserve_prefix_until_step_index(
+    plan: Plan,
+    step_id: str | None,
+) -> int | None:
+    if not step_id:
+        return None
+    for index, step in enumerate(plan.steps):
+        if step.id == step_id:
+            return index - 1 if index > 0 else None
+    return None
 
 
 class RemoteJobContext:
@@ -100,6 +831,111 @@ class RecoveryResult:
     snapshot: TaskSnapshot
     applied_event_logs: Sequence[EventLog]
     resume_from_existing: bool
+
+
+@dataclass(frozen=True)
+class StructureRefinementIteration:
+    """S4 精修闭环单轮审计记录。"""
+
+    iteration: int
+    source_candidate_id: str | None
+    source_pdb_path: str | None
+    source_plddt: float | None
+    refined_candidate_id: str | None
+    refined_sequence: str | None
+    refined_pdb_path: str | None
+    refined_plddt: float | None
+    gain_vs_baseline: float | None
+    gain_vs_previous: float | None
+    qc_pass_count: int
+    qc_fail_count: int
+    status: str
+    stop_reason: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "iteration": int(self.iteration),
+            "source_candidate_id": self.source_candidate_id,
+            "source_pdb_path": self.source_pdb_path,
+            "source_plddt": self.source_plddt,
+            "refined_candidate_id": self.refined_candidate_id,
+            "refined_sequence": self.refined_sequence,
+            "refined_pdb_path": self.refined_pdb_path,
+            "refined_plddt": self.refined_plddt,
+            "gain_vs_baseline": self.gain_vs_baseline,
+            "gain_vs_previous": self.gain_vs_previous,
+            "qc_pass_count": int(self.qc_pass_count),
+            "qc_fail_count": int(self.qc_fail_count),
+            "status": self.status,
+            "stop_reason": self.stop_reason,
+        }
+
+
+def build_structure_refinement_audit(
+    *,
+    task_id: str,
+    step_id: str,
+    source_step_id: str,
+    baseline: dict[str, Any],
+    iterations: Sequence[StructureRefinementIteration | dict[str, Any]],
+    stop_reason: str,
+    rollback_applied: bool,
+    selected_candidate: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized_iterations: list[dict[str, Any]] = []
+    for row in iterations:
+        if isinstance(row, StructureRefinementIteration):
+            normalized_iterations.append(row.to_dict())
+        elif isinstance(row, dict):
+            normalized_iterations.append(dict(row))
+
+    baseline_plddt = baseline.get("plddt")
+    selected_plddt = (
+        selected_candidate.get("plddt")
+        if isinstance(selected_candidate, dict)
+        else None
+    )
+    gain_vs_baseline = None
+    if isinstance(baseline_plddt, (int, float)) and isinstance(selected_plddt, (int, float)):
+        gain_vs_baseline = round(float(selected_plddt) - float(baseline_plddt), 6)
+
+    return {
+        "stage_id": "S4",
+        "task_id": task_id,
+        "step_id": step_id,
+        "source_step_id": source_step_id,
+        "created_at": now_iso(),
+        "baseline": {
+            "candidate_id": baseline.get("candidate_id"),
+            "sequence": baseline.get("sequence"),
+            "pdb_path": baseline.get("pdb_path"),
+            "plddt": baseline_plddt,
+        },
+        "selected_candidate": selected_candidate if isinstance(selected_candidate, dict) else None,
+        "iterations": normalized_iterations,
+        "summary": {
+            "iteration_count": len(normalized_iterations),
+            "stop_reason": stop_reason,
+            "rollback_applied": bool(rollback_applied),
+            "gain_vs_baseline": gain_vs_baseline,
+        },
+    }
+
+
+def persist_structure_refinement_audit(
+    *,
+    task_id: str,
+    step_id: str,
+    audit_payload: dict[str, Any],
+    artifacts_dir: Path = Path("output/artifacts"),
+) -> Path:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    path = artifacts_dir / f"s4_refinement_{task_id}_{step_id}.json"
+    path.write_text(
+        json.dumps(audit_payload, ensure_ascii=True, indent=2),
+        encoding="utf-8",
+    )
+    return path
 
 
 def restore_context_from_snapshot(
@@ -177,6 +1013,7 @@ def restore_context_from_snapshot(
     context = WorkflowContext(
         task=task,
         plan=plan,
+        runtime_state=_extract_runtime_state(snapshot, plan),
         status=internal_status,
     )
 
@@ -214,6 +1051,98 @@ def extract_remote_job_context(
         return RemoteJobContext.from_dict(job_data)
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _extract_runtime_state(
+    snapshot: TaskSnapshot,
+    plan: Plan,
+) -> RuntimeState | None:
+    runtime_payload = snapshot.artifacts.get(RUNTIME_STATE_ARTIFACT_KEY)
+    if runtime_payload is not None and not isinstance(runtime_payload, dict):
+        runtime_payload = None
+
+    if not isinstance(runtime_payload, dict):
+        payload: dict[str, Any] = {}
+    else:
+        payload = dict(runtime_payload)
+
+    observation_summary = snapshot.artifacts.get(
+        RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY
+    )
+    bootstrap = None
+    if not _has_complete_runtime_state_payload(payload):
+        bootstrap = _bootstrap_runtime_state_from_snapshot(snapshot, plan)
+    if bootstrap is not None:
+        payload = {
+            **bootstrap.model_dump(),
+            **payload,
+        }
+        if isinstance(observation_summary, dict):
+            payload["observation_summary"] = {
+                **bootstrap.observation_summary,
+                **observation_summary,
+            }
+    elif (
+        "observation_summary" not in payload
+        and isinstance(observation_summary, dict)
+    ):
+        payload["observation_summary"] = observation_summary
+
+    if not payload:
+        return None
+
+    try:
+        return RuntimeState.model_validate(payload)
+    except Exception:
+        return bootstrap
+
+
+def _has_complete_runtime_state_payload(payload: dict[str, Any]) -> bool:
+    required_keys = {
+        "p_success",
+        "p_structural_failure",
+        "recovery_margin",
+        "expected_remaining_cost",
+        "evidence_sufficiency",
+        "last_update_source",
+    }
+    return required_keys.issubset(payload.keys())
+
+
+def _bootstrap_runtime_state_from_snapshot(
+    snapshot: TaskSnapshot,
+    plan: Plan,
+) -> RuntimeState | None:
+    completed_steps = _resolve_completed_steps(snapshot)
+    total_steps = len(plan.steps)
+    if (
+        completed_steps == 0
+        and snapshot.state not in {
+            ExternalStatus.WAITING_PLAN_CONFIRM.value,
+            ExternalStatus.WAITING_PATCH_CONFIRM.value,
+            ExternalStatus.WAITING_REPLAN_CONFIRM.value,
+        }
+        and not isinstance(
+            snapshot.artifacts.get(RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY),
+            dict,
+        )
+        and not isinstance(snapshot.artifacts.get(RUNTIME_STATE_ARTIFACT_KEY), dict)
+    ):
+        return None
+    return update_runtime_state(
+        previous_state=None,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+    )
+
+
+def _resolve_completed_steps(snapshot: TaskSnapshot) -> int:
+    if snapshot.completed_step_ids:
+        return len(snapshot.completed_step_ids)
+    return max(
+        int(snapshot.current_step_index or 0),
+        int(snapshot.step_index or 0),
+    )
 
 
 def recover_context_with_event_logs(

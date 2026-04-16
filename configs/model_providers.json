@@ -11,8 +11,42 @@
         "supported_models": [
           "nvidia/esmfold",
           "nvidia/esm2nv",
-          "ipd/proteinmpnn/predict"
+          "ipd/proteinmpnn/predict",
+          "deepmind/alphafold2",
+          "openfold/openfold3/predict"
         ]
+      }
+    },
+    "openfold3_rest": {
+      "provider_type": "openfold3_rest",
+      "description": "OpenFold3 remote REST service provider",
+      "base_url": "http://localhost:8200",
+      "api_key_env": "OPENFOLD3_REST_API_TOKEN",
+      "timeout": 120,
+      "max_retries": 3,
+      "extra": {
+        "endpoints": {
+          "predict": "/predict",
+          "job": "/job/{id}",
+          "results": "/results/{id}"
+        },
+        "auth_header": "Authorization: Bearer <token>"
+      }
+    },
+    "openfold2_rest": {
+      "provider_type": "openfold2_rest",
+      "description": "OpenFold2 remote REST service provider",
+      "base_url": "http://localhost:8200",
+      "api_key_env": "OPENFOLD2_REST_API_TOKEN",
+      "timeout": 120,
+      "max_retries": 3,
+      "extra": {
+        "endpoints": {
+          "predict": "/predict",
+          "job": "/job/{id}",
+          "results": "/results/{id}"
+        },
+        "auth_header": "Authorization: Bearer <token>"
       }
     },
     "plm_rest": {

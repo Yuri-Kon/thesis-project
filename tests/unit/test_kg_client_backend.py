@@ -17,7 +17,7 @@ def test_find_tools_by_backend_remote_model_service() -> None:
     tools = find_tools_by_backend("remote_model_service", "nvidia_nim")
     tool_ids = {tool["id"] for tool in tools}
 
-    assert tool_ids == {"nim_esmfold", "protein_mpnn"}
+    assert tool_ids == {"nim_esmfold", "protein_mpnn", "alphafold", "openfold"}
 
 
 def test_find_tools_by_backend_plm_rest() -> None:
@@ -25,6 +25,20 @@ def test_find_tools_by_backend_plm_rest() -> None:
     tool_ids = {tool["id"] for tool in tools}
 
     assert tool_ids == {"protgpt2"}
+
+
+def test_find_tools_by_backend_openfold3_rest() -> None:
+    tools = find_tools_by_backend("remote_model_service", "openfold3_rest")
+    tool_ids = {tool["id"] for tool in tools}
+
+    assert tool_ids == set()
+
+
+def test_find_tools_by_backend_openfold2_rest() -> None:
+    tools = find_tools_by_backend("remote_model_service", "openfold2_rest")
+    tool_ids = {tool["id"] for tool in tools}
+
+    assert tool_ids == {"openfold2"}
 
 
 def test_find_tools_by_backend_nextflow() -> None:

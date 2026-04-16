@@ -1,0 +1,56 @@
+{
+  "providers": [
+    {
+      "provider": "qwen-plus",
+      "success": true,
+      "model": "qwen-plus",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 5.553,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_qwen_plus"
+    },
+    {
+      "provider": "deepseek-chat",
+      "success": true,
+      "model": "deepseek-chat",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 14.096,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_deepseek_chat"
+    },
+    {
+      "provider": "glm-5",
+      "success": true,
+      "model": "glm-5",
+      "provider_name": "anthropic_messages",
+      "elapsed_seconds": 10.438,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_glm_5"
+    },
+    {
+      "provider": "nemotron",
+      "success": true,
+      "model": "nvidia/nemotron-3-nano-30b-a3b",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 4.75,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_nemotron"
+    }
+  ]
+}

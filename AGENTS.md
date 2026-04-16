@@ -47,6 +47,10 @@ Core runtime:
 - `src/models/`: contracts and validation (`contracts.py`, `validation.py`).
 - `src/storage/`: snapshots and logs.
 - `src/adapters/`, `src/tools/`, `src/engines/`: tool adapters and execution backends.
+- `src/infra/`: runtime infrastructure integration helpers.
+- `src/llm/`: model/provider invocation abstractions.
+- `src/kg/`: tool knowledge graph and capability metadata.
+- `src/schemas/`: JSON schema and compatibility assets.
 - `src/api/`: API schemas and endpoints.
 
 Tests:
@@ -54,16 +58,19 @@ Tests:
 - `tests/unit/`: unit-level contracts, FSM, agent behavior.
 - `tests/integration/`: workflow integration and recovery flows.
 - `tests/api/`: endpoint contracts.
+- `tests/services/`: service-level contract/integration tests.
 
 Rule of thumb:
 
 - Change only the nearest module that owns the behavior.
 - Mirror behavior changes with tests in the corresponding test area.
+- Do not broadly unignore `output/`; if specific output artifacts must be versioned, add only targeted files (for example with `git add -f <path>`).
 
 ## 3. Coding And Logging Expectations
 
 - Primary language: Python.
 - Follow existing style and typing patterns.
+- Use Google Style docstring in Chinese when writing code.
 - Prefer small, testable functions.
 - Avoid hidden side effects.
 - Keep structured logging aligned with task state transitions.
@@ -76,6 +83,29 @@ Rule of thumb:
 - Typical commands:
   - `uv run pytest ...`
   - `uv run python ...`
+
+## 4.1 Remote Server Baseline
+
+When work needs the shared AutoDL remote server, use the server state verified in
+`../remote-server/README.md` as the operational baseline.
+
+- Access the server via `ssh autodl`.
+- The shared account is `root`; do not assume per-user Linux accounts exist.
+- Current project roots live under `/root/projects/<student_id>/`.
+- The currently confirmed project root for this thesis work is `/root/projects/2022112879/`.
+- The currently confirmed remote service repository is `/root/projects/2022112879/remote-model-rest`.
+- The actively used Conda/Mamba installation is `/root/autodl-tmp/conda`, not `/root/miniconda3`.
+- The current experiment environment is `plm` at `/root/autodl-tmp/envs/plm`.
+- Remote service startup should default to the `plm` environment unless the user explicitly says otherwise.
+- The currently known PLM REST and OpenFold3 REST deployments do **not** use authentication by default.
+- Do not instruct users to set `PLM_REST_API_TOKEN` or `OPENFOLD3_REST_API_TOKEN` unless they explicitly ask to enable auth.
+- When documenting or running remote commands, prefer:
+  - `ssh autodl`
+  - `conda activate plm`
+  - `cd /root/projects/2022112879/remote-model-rest`
+  - `python -m uvicorn services.plm_rest_server.app:app --host 0.0.0.0 --port 8100`
+  - `python -m uvicorn services.openfold3_rest_server.app:app --host 0.0.0.0 --port 8200`
+- Do not assume `HF_HOME`, `TRANSFORMERS_CACHE`, or `TORCH_HOME` are preconfigured on the server; set them explicitly when a task depends on redirected caches.
 
 ## 5. Scope Control And Escalation
 
@@ -116,3 +146,9 @@ If intent is ambiguous:
 - avoid unrelated refactors,
 - avoid new abstractions unless required,
 - ask before architectural changes.
+
+## 9. Git Commit Message Convention
+
+- Use Conventional Commits for commit messages (for example: `feat(scope): short summary`).
+- Keep the subject line concise and in Conventional Commits format.
+- The commit body may be written in Chinese when needed.

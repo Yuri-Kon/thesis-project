@@ -5,6 +5,7 @@ from typing import Callable, Optional
 
 from src.infra.event_log_factory import make_waiting_exit, make_decision_applied
 from src.models.contracts import (
+    DECISION_SUMMARY_ARTIFACT_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
@@ -26,12 +27,19 @@ from src.storage.log_store import append_event, write_event_log
 from src.workflow.context import WorkflowContext
 from src.workflow.patch import apply_patch
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
+from src.workflow.recovery import (
+    extract_candidate_recovery_metadata,
+    is_terminal_stop_candidate,
+)
 from src.workflow.snapshots import (
     SnapshotWriter,
+    build_context_runtime_state_summary,
     build_task_snapshot,
     default_snapshot_writer,
+    extract_pending_action_waiting_summary,
 )
 from src.workflow.status import StatusLogger, transition_task_status
+from src.workflow.runtime_policy import runtime_policy_trace
 
 EventLogger = Callable[[dict], None]
 
@@ -39,6 +47,12 @@ _EXPECTED_EXTERNAL = {
     PendingActionType.PLAN_CONFIRM: ExternalStatus.WAITING_PLAN_CONFIRM,
     PendingActionType.PATCH_CONFIRM: ExternalStatus.WAITING_PATCH_CONFIRM,
     PendingActionType.REPLAN_CONFIRM: ExternalStatus.WAITING_REPLAN_CONFIRM,
+}
+
+_ACTION_NAME_MAP = {
+    PendingActionType.PLAN_CONFIRM: "plan",
+    PendingActionType.PATCH_CONFIRM: "patch",
+    PendingActionType.REPLAN_CONFIRM: "replan",
 }
 
 
@@ -128,12 +142,13 @@ def apply_plan_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_PLAN_CONFIRM.value,
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -199,6 +214,7 @@ def apply_patch_confirm_decision(
         _emit_waiting_exit_event(
             context,
             action,
+            decision,
             prev_status,
             waiting_state=InternalStatus.WAITING_PATCH.value,
         )
@@ -229,7 +245,7 @@ def apply_patch_confirm_decision(
         )
 
         logger(_decision_event("DECISION_APPLIED", context, action, decision))
-        _write_snapshot(context, replan_action, snapshot_writer)
+        _write_snapshot(context, replan_action, snapshot_writer, decision=decision)
         return DecisionApplyResult(
             status=to_external_status(context.status),
             internal_status=context.status,
@@ -261,12 +277,13 @@ def apply_patch_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_PATCH.value,
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -301,15 +318,28 @@ def apply_replan_confirm_decision(
     selected_plan: Optional[Plan] = None
     if decision.choice == DecisionChoice.ACCEPT:
         candidate = _select_candidate(action, decision)
-        selected_plan = _ensure_plan_payload(candidate)
-        _apply_plan_to_context(context, record, selected_plan)
-        transition_task_status(
-            context,
-            record,
-            InternalStatus.PLANNING,
-            reason="decision_accept_replan",
-            logger=status_logger,
-        )
+        if is_terminal_stop_candidate(candidate):
+            candidate_meta = extract_candidate_recovery_metadata(candidate)
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.FAILED,
+                reason=str(
+                    candidate_meta.get("terminal_reason")
+                    or "decision_accept_terminal_stop"
+                ),
+                logger=status_logger,
+            )
+        else:
+            selected_plan = _ensure_plan_payload(candidate)
+            _apply_plan_to_context(context, record, selected_plan)
+            transition_task_status(
+                context,
+                record,
+                InternalStatus.PLANNING,
+                reason="decision_accept_replan",
+                logger=status_logger,
+            )
         action.status = PendingActionStatus.DECIDED
     elif decision.choice == DecisionChoice.CONTINUE:
         transition_task_status(
@@ -344,12 +374,13 @@ def apply_replan_confirm_decision(
     _emit_waiting_exit_event(
         context,
         action,
+        decision,
         prev_status,
         waiting_state=InternalStatus.WAITING_REPLAN.value,
     )
 
     logger(_decision_event("DECISION_APPLIED", context, action, decision))
-    _write_snapshot(context, action, snapshot_writer)
+    _write_snapshot(context, action, snapshot_writer, decision=decision)
 
     return DecisionApplyResult(
         status=to_external_status(context.status),
@@ -493,6 +524,8 @@ def _write_snapshot(
     context: WorkflowContext,
     action: PendingAction,
     snapshot_writer: SnapshotWriter | None,
+    *,
+    decision: Decision | None = None,
 ) -> None:
     pending_id = None
     if (
@@ -508,6 +541,8 @@ def _write_snapshot(
     snapshot = build_task_snapshot(
         context,
         pending_action_id=pending_id,
+        artifacts=_build_decision_artifacts(context, action, decision),
+        require_runtime_state=True,
     )
     (snapshot_writer or default_snapshot_writer)(snapshot)
 
@@ -552,6 +587,18 @@ def _emit_decision_applied_event(
         prev_status: Previous external status (must be WAITING_*).
     """
     current_status = to_external_status(context.status)
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
+        else {}
+    )
+    runtime_trace = runtime_policy_trace(context.task)
     decision_event = make_decision_applied(
         task_id=context.task.task_id,
         decision_id=decision.decision_id,
@@ -564,6 +611,38 @@ def _emit_decision_applied_event(
         data={
             "selected_candidate_id": decision.selected_candidate_id,
             "action_type": action.action_type.value,
+            "action_name": _ACTION_NAME_MAP[action.action_type],
+            "decided_by": decision.decided_by,
+            "decision_source": "human",
+            "comment": decision.comment,
+            "tool_id": (
+                selected_candidate.tool_id if selected_candidate else candidate_meta.get("tool_id")
+            ),
+            "capability_id": (
+                selected_candidate.capability_id
+                if selected_candidate
+                else candidate_meta.get("capability_id")
+            ),
+            "io_type": (
+                selected_candidate.io_type if selected_candidate else candidate_meta.get("io_type")
+            ),
+            "adapter_mode": (
+                selected_candidate.adapter_mode
+                if selected_candidate
+                else candidate_meta.get("adapter_mode")
+            ),
+            "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "action_score": candidate_meta.get("action_score"),
+            "shadow_score": candidate_meta.get("shadow_score"),
+            "evidence_source": candidate_meta.get("default_recommendation_reason"),
+            "terminal_policy": candidate_meta.get("terminal_policy"),
+            "terminal_reason": candidate_meta.get("terminal_reason"),
+            "runtime_policy": runtime_trace["runtime_policy"],
+            "belief_state_enabled": runtime_trace["belief_state_enabled"],
+            "runtime_state_summary": build_context_runtime_state_summary(
+                context,
+                require_runtime_state=True,
+            ),
         },
     )
     write_event_log(decision_event)
@@ -572,6 +651,7 @@ def _emit_decision_applied_event(
 def _emit_waiting_exit_event(
     context: WorkflowContext,
     action: PendingAction,
+    decision: Decision,
     prev_status: ExternalStatus,
     waiting_state: str,
 ) -> None:
@@ -584,6 +664,18 @@ def _emit_waiting_exit_event(
         waiting_state: The waiting state description.
     """
     current_status = to_external_status(context.status)
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
+        else {}
+    )
+    runtime_trace = runtime_policy_trace(context.task)
     exit_event = make_waiting_exit(
         task_id=context.task.task_id,
         prev_status=prev_status,
@@ -594,7 +686,60 @@ def _emit_waiting_exit_event(
         pending_action_id=action.pending_action_id,
         data={
             "action_type": action.action_type.value,
+            "action_name": _ACTION_NAME_MAP[action.action_type],
             "action_status": action.status.value,
+            "decided_by": decision.decided_by,
+            "decision_source": "human",
+            "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+            "action_score": candidate_meta.get("action_score"),
+            "shadow_score": candidate_meta.get("shadow_score"),
+            "evidence_source": candidate_meta.get("default_recommendation_reason"),
+            "terminal_policy": candidate_meta.get("terminal_policy"),
+            "terminal_reason": candidate_meta.get("terminal_reason"),
+            "runtime_policy": runtime_trace["runtime_policy"],
+            "belief_state_enabled": runtime_trace["belief_state_enabled"],
+            "runtime_state_summary": build_context_runtime_state_summary(
+                context,
+                require_runtime_state=True,
+            ),
         },
     )
     write_event_log(exit_event)
+
+
+def _build_decision_artifacts(
+    context: WorkflowContext,
+    action: PendingAction,
+    decision: Decision | None,
+) -> dict[str, object] | None:
+    if decision is None:
+        return None
+    selected_candidate = None
+    if decision.selected_candidate_id:
+        selected_candidate = find_pending_action_candidate(
+            action,
+            decision.selected_candidate_id,
+        )
+    candidate_meta = (
+        extract_candidate_recovery_metadata(selected_candidate)
+        if selected_candidate is not None
+        else {}
+    )
+    summary = {
+        "decision_id": decision.decision_id,
+        "pending_action_id": action.pending_action_id,
+        "choice": decision.choice.value,
+        "selected_candidate_id": decision.selected_candidate_id,
+        "action_type": action.action_type.value,
+        "action_status": action.status.value,
+        "decided_by": decision.decided_by,
+        "decision_source": "human",
+        "terminal_policy": candidate_meta.get("terminal_policy"),
+        "terminal_reason": candidate_meta.get("terminal_reason"),
+        "runtime_state_summary": build_context_runtime_state_summary(
+            context,
+            require_runtime_state=True,
+        ),
+        "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
+    }
+    return {DECISION_SUMMARY_ARTIFACT_KEY: summary}

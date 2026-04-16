@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import math
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Literal
+from typing import Any, Dict, List, Optional, Literal, cast
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
@@ -11,6 +12,56 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator, model_valida
 def now_iso() -> str:
     """Small helper to generate ISO8601 timestamp strings."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+RUNTIME_STATE_SCHEMA_VERSION = 1
+RUNTIME_STATE_ARTIFACT_KEY = "runtime_state"
+RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY = "runtime_observation_summary"
+RUNTIME_STATE_SUMMARY_METADATA_KEY = "runtime_state_summary"
+DEFAULT_RECOMMENDATION_REASON_METADATA_KEY = "default_recommendation_reason"
+ACTION_SCORE_METADATA_KEY = "action_score"
+SHADOW_SCORE_METADATA_KEY = "shadow_score"
+STATIC_SCORE_METADATA_KEY = "static_score"
+FINAL_SCORE_METADATA_KEY = "final_score"
+RUNTIME_ADJUSTMENT_METADATA_KEY = "runtime_adjustment"
+RERANK_REASON_METADATA_KEY = "rerank_reason"
+WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
+DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
+
+
+def _validate_runtime_state_schema_version(value: int) -> int:
+    if value != RUNTIME_STATE_SCHEMA_VERSION:
+        raise ValueError(
+            f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}"
+        )
+    return value
+
+
+def _validate_probability_value(value: float) -> float:
+    if isinstance(value, bool):
+        raise ValueError("probability fields must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError("probability fields must be finite")
+    if not 0.0 <= normalized <= 1.0:
+        raise ValueError("probability fields must be between 0 and 1")
+    return normalized
+
+
+def _validate_finite_float_value(value: float, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"{field_name} must be finite")
+    return normalized
+
+
+def _validate_non_empty_text(value: str, *, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must not be empty")
+    return normalized
 
 
 class ProteinDesignTask(BaseModel):
@@ -93,6 +144,424 @@ class StepResult(BaseModel):
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     logs_path: Optional[str] = None
     timestamp: str
+
+
+class RuntimeFailureContext(BaseModel):
+    """运行时状态更新器消费的稳定失败上下文。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    failure_type: str | None = None
+    failure_code: str | None = None
+    retry_exhausted: bool = False
+    recovery_action: str | None = None
+    patch: Dict[str, Any] | None = None
+    recovery: Dict[str, Any] | None = None
+
+    @field_validator("failure_type", "failure_code", "recovery_action")
+    @classmethod
+    def _validate_optional_text(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return None
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("patch", "recovery")
+    @classmethod
+    def _validate_optional_mapping(
+        cls,
+        value: Dict[str, Any] | None,
+        info,
+    ) -> Dict[str, Any] | None:
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise ValueError(f"{info.field_name} must be a mapping")
+        try:
+            json.dumps(value, ensure_ascii=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{info.field_name} must be JSON-serializable"
+            ) from exc
+        return value
+
+    def to_replay_payload(self) -> Dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
+class RuntimeStateUpdateInput(BaseModel):
+    """belief-state 更新器的稳定输入接口。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    step_result: StepResult | None = None
+    safety_result: SafetyResult | None = None
+    failure_context: RuntimeFailureContext | None = None
+    completed_steps: int | None = None
+    total_steps: int | None = None
+
+    @field_validator("completed_steps", "total_steps")
+    @classmethod
+    def _validate_optional_progress_value(
+        cls,
+        value: int | None,
+        info,
+    ) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            raise ValueError(f"{info.field_name} must be an integer")
+        normalized = int(value)
+        if normalized < 0:
+            raise ValueError(f"{info.field_name} must be >= 0")
+        return normalized
+
+    @model_validator(mode="after")
+    def _validate_bounds_and_observation(self) -> "RuntimeStateUpdateInput":
+        if (
+            self.completed_steps is not None
+            and self.total_steps is not None
+            and self.completed_steps > self.total_steps
+        ):
+            raise ValueError("completed_steps must be <= total_steps")
+        if (
+            self.step_result is None
+            and self.safety_result is None
+            and self.failure_context is None
+            and self.completed_steps is None
+            and self.total_steps is None
+        ):
+            raise ValueError(
+                "at least one observation or progress counter must be provided"
+            )
+        return self
+
+    @classmethod
+    def from_step_result(
+        cls,
+        *,
+        step_result: StepResult,
+        failure_context: RuntimeFailureContext | None = None,
+        completed_steps: int | None = None,
+        total_steps: int | None = None,
+    ) -> "RuntimeStateUpdateInput":
+        return cls(
+            step_result=step_result,
+            failure_context=failure_context,
+            completed_steps=completed_steps,
+            total_steps=total_steps,
+        )
+
+    @classmethod
+    def from_safety_result(
+        cls,
+        *,
+        safety_result: SafetyResult,
+        failure_context: RuntimeFailureContext | None = None,
+        completed_steps: int | None = None,
+        total_steps: int | None = None,
+    ) -> "RuntimeStateUpdateInput":
+        return cls(
+            safety_result=safety_result,
+            failure_context=failure_context,
+            completed_steps=completed_steps,
+            total_steps=total_steps,
+        )
+
+    def to_replay_payload(self) -> Dict[str, Any]:
+        return self.model_dump(mode="json", exclude_none=True)
+
+
+class RuntimeState(BaseModel):
+    """稳定的运行时状态 schema。
+
+    该模型冻结 issue #227 所需的最小字段集合；后续扩展必须保持 additive。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=RUNTIME_STATE_SCHEMA_VERSION)
+    p_success: float
+    p_structural_failure: float
+    recovery_margin: float
+    expected_remaining_cost: float
+    evidence_sufficiency: float = 0.5
+    last_update_source: str
+    observation_summary: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, value: int) -> int:
+        return _validate_runtime_state_schema_version(value)
+
+    @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
+    @classmethod
+    def _validate_probability(cls, value: float) -> float:
+        return _validate_probability_value(value)
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_recovery_margin(cls, value: float) -> float:
+        return _validate_finite_float_value(value, field_name="recovery_margin")
+
+    @field_validator("expected_remaining_cost")
+    @classmethod
+    def _validate_expected_remaining_cost(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(
+            value,
+            field_name="expected_remaining_cost",
+        )
+        if normalized < 0.0:
+            raise ValueError("expected_remaining_cost must be >= 0")
+        return normalized
+
+    @field_validator("last_update_source")
+    @classmethod
+    def _validate_last_update_source(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("last_update_source must not be empty")
+        return normalized
+
+    @field_validator("observation_summary")
+    @classmethod
+    def _validate_observation_summary(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValueError("observation_summary must be a mapping")
+        try:
+            json.dumps(value, ensure_ascii=True)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                "observation_summary must be JSON-serializable"
+            ) from exc
+        return value
+
+    def to_snapshot_payload(self) -> Dict[str, Any]:
+        """Serialize the stable persisted fields for TaskSnapshot.artifacts."""
+        return self.model_dump(exclude={"observation_summary"})
+
+    def to_summary_payload(self) -> Dict[str, Any]:
+        """Serialize the candidate-facing runtime state summary."""
+        return RuntimeStateSummary.from_runtime_state(self).model_dump()
+
+
+class RuntimeStateSummary(BaseModel):
+    """候选展示态可复用的运行时状态摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=RUNTIME_STATE_SCHEMA_VERSION)
+    p_success: float
+    p_structural_failure: float
+    recovery_margin: float
+    expected_remaining_cost: float
+    evidence_sufficiency: float = 0.5
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, value: int) -> int:
+        return _validate_runtime_state_schema_version(value)
+
+    @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
+    @classmethod
+    def _validate_probability(cls, value: float) -> float:
+        return _validate_probability_value(value)
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_recovery_margin(cls, value: float) -> float:
+        return _validate_finite_float_value(value, field_name="recovery_margin")
+
+    @field_validator("expected_remaining_cost")
+    @classmethod
+    def _validate_expected_remaining_cost(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(
+            value,
+            field_name="expected_remaining_cost",
+        )
+        if normalized < 0.0:
+            raise ValueError("expected_remaining_cost must be >= 0")
+        return normalized
+
+    @classmethod
+    def from_runtime_state(cls, runtime_state: RuntimeState) -> "RuntimeStateSummary":
+        return cls(
+            schema_version=runtime_state.schema_version,
+            p_success=runtime_state.p_success,
+            p_structural_failure=runtime_state.p_structural_failure,
+            recovery_margin=runtime_state.recovery_margin,
+            expected_remaining_cost=runtime_state.expected_remaining_cost,
+            evidence_sufficiency=runtime_state.evidence_sufficiency,
+        )
+
+
+class RecommendationReason(BaseModel):
+    """默认建议理由的最小稳定摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    selection_basis: Literal["static_score", "final_score"] = "static_score"
+    rerank_applied: bool = False
+    static_candidate_id: str | None = None
+    static_score_gap: float | None = None
+    shadow_candidate_id: str | None = None
+    shadow_score_gap: float | None = None
+    shadow_only: bool = True
+
+    @field_validator("code", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("static_candidate_id", "shadow_candidate_id")
+    @classmethod
+    def _validate_optional_candidate_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_non_empty_text(value, field_name="candidate_id")
+
+    @field_validator("static_score_gap", "shadow_score_gap")
+    @classmethod
+    def _validate_optional_gap(cls, value: float | None) -> float | None:
+        if value is None:
+            return value
+        return _validate_finite_float_value(value, field_name="score_gap")
+
+
+class ScoreSummary(BaseModel):
+    """动作分或 shadow 分的最小稳定摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float
+    source: str
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(value, field_name="value")
+        if not 0.0 <= normalized <= 1.0:
+            raise ValueError("value must be between 0 and 1")
+        return normalized
+
+    @field_validator("source")
+    @classmethod
+    def _validate_source(cls, value: str) -> str:
+        return _validate_non_empty_text(value, field_name="source")
+
+
+class RuntimeAdjustmentFactor(BaseModel):
+    """runtime_adjustment 的可审计单因子。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    category: Literal["cost", "risk", "recovery", "evidence", "policy"]
+    signal: str
+    source: str
+    contribution: float
+    message: str
+
+    @field_validator("signal", "source", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("contribution")
+    @classmethod
+    def _validate_contribution(cls, value: float) -> float:
+        return _validate_finite_float_value(value, field_name="contribution")
+
+
+class RuntimeAdjustmentSummary(BaseModel):
+    """运行时修正摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    value: float
+    source: str
+    formula_version: str = "v1"
+    shadow_only: bool = True
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(value, field_name="value")
+        if not -1.0 <= normalized <= 1.0:
+            raise ValueError("value must be between -1 and 1")
+        return normalized
+
+    @field_validator("source", "formula_version")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+
+class RerankReason(BaseModel):
+    """shadow rerank 的最小可审计说明。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: str
+    message: str
+    shadow_only: bool = True
+    runtime_state_fields: List[str] = Field(default_factory=list)
+    candidate_metric_fields: List[str] = Field(default_factory=list)
+    tool_metadata_fields: List[str] = Field(default_factory=list)
+    factors: List[RuntimeAdjustmentFactor] = Field(default_factory=list)
+
+    @field_validator("code", "message")
+    @classmethod
+    def _validate_text(cls, value: str, info) -> str:
+        return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator(
+        "runtime_state_fields",
+        "candidate_metric_fields",
+        "tool_metadata_fields",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_string_list(cls, value: Any, info) -> list[str]:
+        if value is None:
+            return []
+        if not isinstance(value, list):
+            raise ValueError(f"{info.field_name} must be a list")
+        normalized: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise ValueError(f"{info.field_name} items must be strings")
+            normalized.append(_validate_non_empty_text(item, field_name=info.field_name))
+        return normalized
+
+
+class WaitingRuntimeSummary(BaseModel):
+    """WAITING 场景下用于 HITL 回放的最小状态摘要。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    selected_candidate_id: str | None = None
+    default_recommendation: str | None = None
+    waiting_reason: str | None = None
+    runtime_state_summary: RuntimeStateSummary | None = None
+    default_recommendation_reason: RecommendationReason | None = None
+    static_score: ScoreSummary | None = None
+    runtime_adjustment: RuntimeAdjustmentSummary | None = None
+    final_score: ScoreSummary | None = None
+    rerank_reason: RerankReason | None = None
+    action_score: ScoreSummary | None = None
+    shadow_score: ScoreSummary | None = None
+
+    @field_validator(
+        "selected_candidate_id",
+        "default_recommendation",
+        "waiting_reason",
+    )
+    @classmethod
+    def _validate_optional_text(cls, value: str | None, info) -> str | None:
+        if value is None:
+            return value
+        return _validate_non_empty_text(value, field_name=info.field_name)
 
 
 class DesignResult(BaseModel):
@@ -207,19 +676,313 @@ class PendingActionStatus(str, Enum):
 
 
 class PendingActionCandidate(BaseModel):
-    """候选方案的最小封装。
+    """候选方案封装（兼容 CandidateSetOutput v1）。
 
     Attributes:
         candidate_id: 候选唯一标识。
-        payload: 候选承载的对象（Plan 或 PlanPatch）。
+        payload: 兼容字段，等价于 structured_payload。
+        structured_payload: 候选承载的结构化对象（Plan 或 PlanPatch）。
+        score_breakdown: 候选打分拆解（feasibility/objective/risk/cost/overall）。
+        risk_level: 风险等级（low/medium/high）。
+        cost_estimate: 成本等级（low/medium/high）。
+        explanation: 候选解释。
+        tool_id: 工具标识（与 metadata.tool_id 同步）。
+        capability_id: 工具能力标识（与 metadata.capability_id 同步）。
+        io_type: I/O 类型标识（与 metadata.io_type 同步）。
+        adapter_mode: 适配器模式（local/remote/mock/hybrid/unknown）。
         summary: 候选摘要信息。
         metadata: 额外元数据。
+            - `runtime_state_summary` 可承载候选展示所需的轻量状态摘要。
+            - `default_recommendation_reason` 可承载默认建议理由。
+            - `action_score` / `shadow_score` 用于承载兼容动作分摘要。
+            - `static_score` / `runtime_adjustment` / `final_score` / `rerank_reason`
+              用于承载 shadow rerank 接口。
     """
 
     candidate_id: str
-    payload: Plan | PlanPatch
+    payload: Plan | PlanPatch | None = None
+    structured_payload: Plan | PlanPatch | None = None
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    risk_level: Literal["low", "medium", "high"] | None = None
+    cost_estimate: Literal["low", "medium", "high"] | None = None
+    explanation: str | None = None
+    tool_id: str | None = None
+    capability_id: str | None = None
+    io_type: str | None = None
+    adapter_mode: Literal["local", "remote", "mock", "hybrid", "unknown"] | None = None
     summary: Optional[str] = None
     metadata: Dict = Field(default_factory=dict)
+
+    @field_validator("candidate_id")
+    @classmethod
+    def _validate_candidate_id(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("candidate_id must not be empty")
+        return normalized
+
+    @field_validator("score_breakdown")
+    @classmethod
+    def _validate_score_breakdown(
+        cls, value: Dict[str, float]
+    ) -> Dict[str, float]:
+        normalized: Dict[str, float] = {}
+        for key, score in value.items():
+            if isinstance(score, bool) or not isinstance(score, (int, float)):
+                raise ValueError(f"score_breakdown[{key}] must be numeric")
+            normalized[key] = float(score)
+        return normalized
+
+    @field_validator("tool_id", "capability_id", "io_type")
+    @classmethod
+    def _validate_tool_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("tool metadata fields must not be empty")
+        return normalized
+
+    @model_validator(mode="after")
+    def _sync_payload_fields(self):
+        payload = self.payload
+        structured_payload = self.structured_payload
+        if payload is None and structured_payload is None:
+            raise ValueError(
+                "either payload or structured_payload must be provided"
+            )
+        if payload is None:
+            self.payload = structured_payload
+            return self
+        if structured_payload is None:
+            self.structured_payload = payload
+            return self
+        if (
+            type(payload) is not type(structured_payload)
+            or payload.model_dump() != structured_payload.model_dump()
+        ):
+            raise ValueError("payload and structured_payload must be equivalent")
+        return self
+
+    @model_validator(mode="after")
+    def _sync_tool_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+
+        self.tool_id = _sync_metadata_field(
+            metadata,
+            field_name="tool_id",
+            field_value=self.tool_id,
+        )
+        self.capability_id = _sync_metadata_field(
+            metadata,
+            field_name="capability_id",
+            field_value=self.capability_id,
+        )
+        self.io_type = _sync_metadata_field(
+            metadata,
+            field_name="io_type",
+            field_value=self.io_type,
+        )
+        self.adapter_mode = _sync_adapter_mode(
+            metadata,
+            field_value=self.adapter_mode,
+        )
+
+        has_any_tooling = any(
+            value is not None for value in (self.tool_id, self.capability_id, self.io_type)
+        )
+        if has_any_tooling and self.adapter_mode is None:
+            self.adapter_mode = "unknown"
+            metadata["adapter_mode"] = self.adapter_mode
+
+        return self
+
+    @model_validator(mode="after")
+    def _sync_runtime_state_summary_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+        summary_payload = metadata.get(RUNTIME_STATE_SUMMARY_METADATA_KEY)
+        normalized_summary = (
+            _normalize_runtime_state_summary(summary_payload)
+            if summary_payload is not None
+            else None
+        )
+        if normalized_summary is not None:
+            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = normalized_summary
+        _normalize_candidate_runtime_contracts(
+            metadata,
+            runtime_state_summary=normalized_summary,
+        )
+        return self
+
+
+def _sync_metadata_field(
+    metadata: Dict[str, Any],
+    *,
+    field_name: str,
+    field_value: str | None,
+) -> str | None:
+    metadata_value = metadata.get(field_name)
+    if metadata_value is None:
+        if field_value is not None:
+            metadata[field_name] = field_value
+        return field_value
+    if not isinstance(metadata_value, str):
+        raise ValueError(f"metadata.{field_name} must be a string")
+    normalized = metadata_value.strip()
+    if not normalized:
+        raise ValueError(f"metadata.{field_name} must not be empty")
+    if field_value is None:
+        return normalized
+    if field_value != normalized:
+        raise ValueError(f"metadata.{field_name} must match {field_name}")
+    metadata[field_name] = field_value
+    return field_value
+
+
+def _sync_adapter_mode(
+    metadata: Dict[str, Any],
+    *,
+    field_value: Literal["local", "remote", "mock", "hybrid", "unknown"] | None,
+) -> Literal["local", "remote", "mock", "hybrid", "unknown"] | None:
+    metadata_value = metadata.get("adapter_mode")
+    if metadata_value is None:
+        if field_value is not None:
+            metadata["adapter_mode"] = field_value
+        return field_value
+    if not isinstance(metadata_value, str):
+        raise ValueError("metadata.adapter_mode must be a string")
+    normalized = metadata_value.strip().lower()
+    allowed = {"local", "remote", "mock", "hybrid", "unknown"}
+    if normalized not in allowed:
+        raise ValueError(
+            "metadata.adapter_mode must be one of "
+            "local, remote, mock, hybrid, unknown"
+        )
+    if field_value is None:
+        metadata["adapter_mode"] = normalized
+        return cast(
+            Literal["local", "remote", "mock", "hybrid", "unknown"],
+            normalized,
+        )
+    if field_value != normalized:
+        raise ValueError("metadata.adapter_mode must match adapter_mode")
+    metadata["adapter_mode"] = field_value
+    return field_value
+
+
+def _normalize_runtime_state_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, RuntimeStateSummary):
+        return summary_payload.model_dump()
+    if isinstance(summary_payload, dict):
+        return RuntimeStateSummary.model_validate(summary_payload).model_dump()
+    raise ValueError(
+        f"metadata.{RUNTIME_STATE_SUMMARY_METADATA_KEY} must be a mapping"
+    )
+
+
+def _normalize_recommendation_reason(reason_payload: Any) -> Dict[str, Any]:
+    if isinstance(reason_payload, RecommendationReason):
+        return reason_payload.model_dump()
+    if isinstance(reason_payload, dict):
+        return RecommendationReason.model_validate(reason_payload).model_dump()
+    raise ValueError(
+        f"metadata.{DEFAULT_RECOMMENDATION_REASON_METADATA_KEY} must be a mapping"
+    )
+
+
+def _normalize_runtime_adjustment_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, RuntimeAdjustmentSummary):
+        return summary_payload.model_dump()
+    if isinstance(summary_payload, dict):
+        return RuntimeAdjustmentSummary.model_validate(summary_payload).model_dump()
+    raise ValueError(
+        f"metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping"
+    )
+
+
+def _normalize_rerank_reason(reason_payload: Any) -> Dict[str, Any]:
+    if isinstance(reason_payload, RerankReason):
+        return reason_payload.model_dump()
+    if isinstance(reason_payload, dict):
+        return RerankReason.model_validate(reason_payload).model_dump()
+    raise ValueError(f"metadata.{RERANK_REASON_METADATA_KEY} must be a mapping")
+
+
+def _normalize_score_summary(score_payload: Any, *, field_name: str) -> Dict[str, Any]:
+    if isinstance(score_payload, ScoreSummary):
+        return score_payload.model_dump()
+    if isinstance(score_payload, dict):
+        return ScoreSummary.model_validate(score_payload).model_dump()
+    raise ValueError(f"metadata.{field_name} must be a mapping")
+
+
+def _normalize_candidate_runtime_contracts(
+    metadata: Dict[str, Any],
+    *,
+    runtime_state_summary: Dict[str, Any] | None = None,
+) -> None:
+    if runtime_state_summary is not None:
+        metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = runtime_state_summary
+
+    reason_payload = metadata.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
+    if reason_payload is not None:
+        metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = _normalize_recommendation_reason(
+            reason_payload
+        )
+
+    action_score_payload = metadata.get(ACTION_SCORE_METADATA_KEY)
+    if action_score_payload is not None:
+        metadata[ACTION_SCORE_METADATA_KEY] = _normalize_score_summary(
+            action_score_payload,
+            field_name=ACTION_SCORE_METADATA_KEY,
+        )
+
+    shadow_score_payload = metadata.get(SHADOW_SCORE_METADATA_KEY)
+    if shadow_score_payload is not None:
+        metadata[SHADOW_SCORE_METADATA_KEY] = _normalize_score_summary(
+            shadow_score_payload,
+            field_name=SHADOW_SCORE_METADATA_KEY,
+        )
+
+    static_score_payload = metadata.get(STATIC_SCORE_METADATA_KEY)
+    if static_score_payload is not None:
+        metadata[STATIC_SCORE_METADATA_KEY] = _normalize_score_summary(
+            static_score_payload,
+            field_name=STATIC_SCORE_METADATA_KEY,
+        )
+
+    final_score_payload = metadata.get(FINAL_SCORE_METADATA_KEY)
+    if final_score_payload is not None:
+        metadata[FINAL_SCORE_METADATA_KEY] = _normalize_score_summary(
+            final_score_payload,
+            field_name=FINAL_SCORE_METADATA_KEY,
+        )
+
+    runtime_adjustment_payload = metadata.get(RUNTIME_ADJUSTMENT_METADATA_KEY)
+    if runtime_adjustment_payload is not None:
+        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = _normalize_runtime_adjustment_summary(
+            runtime_adjustment_payload
+        )
+
+    rerank_reason_payload = metadata.get(RERANK_REASON_METADATA_KEY)
+    if rerank_reason_payload is not None:
+        metadata[RERANK_REASON_METADATA_KEY] = _normalize_rerank_reason(
+            rerank_reason_payload
+        )
+
+
+def _normalize_waiting_runtime_summary(summary_payload: Any) -> Dict[str, Any]:
+    if isinstance(summary_payload, WaitingRuntimeSummary):
+        return summary_payload.model_dump(exclude_none=True)
+    if isinstance(summary_payload, dict):
+        return WaitingRuntimeSummary.model_validate(summary_payload).model_dump(
+            exclude_none=True
+        )
+    raise ValueError(
+        f"metadata.{WAITING_RUNTIME_SUMMARY_METADATA_KEY} must be a mapping"
+    )
 
 
 class PendingAction(BaseModel):
@@ -232,10 +995,12 @@ class PendingAction(BaseModel):
         candidates: 候选集合。
         explanation: 解释说明文本。
         status: PendingAction 当前状态。
-        default_suggestion: 默认建议候选 ID。
+        default_suggestion: 兼容字段，等价于 default_recommendation。
+        default_recommendation: 默认建议候选 ID（CandidateSetOutput v1）。
         created_at: 创建时间戳。
         decided_at: 决策完成时间戳。
         created_by: 创建者标识（通常为 system）。
+        metadata: WAITING 回放或审计所需的附加摘要。
     """
 
     pending_action_id: str
@@ -245,9 +1010,36 @@ class PendingAction(BaseModel):
     explanation: str
     status: PendingActionStatus = PendingActionStatus.PENDING
     default_suggestion: Optional[str] = None
+    default_recommendation: Optional[str] = None
     created_at: str = Field(default_factory=now_iso)
     decided_at: Optional[str] = None
     created_by: str = "system"
+    metadata: Dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _sync_default_recommendation(self):
+        suggestion = self.default_suggestion
+        recommendation = self.default_recommendation
+        if suggestion and recommendation and suggestion != recommendation:
+            raise ValueError(
+                "default_suggestion and default_recommendation must match"
+            )
+        resolved = recommendation or suggestion
+        self.default_suggestion = resolved
+        self.default_recommendation = resolved
+        return self
+
+    @model_validator(mode="after")
+    def _sync_waiting_runtime_summary_metadata(self):
+        metadata = dict(self.metadata or {})
+        self.metadata = metadata
+        summary_payload = metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+        if summary_payload is None:
+            return self
+        metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY] = _normalize_waiting_runtime_summary(
+            summary_payload
+        )
+        return self
 
 
 class DecisionChoice(str, Enum):

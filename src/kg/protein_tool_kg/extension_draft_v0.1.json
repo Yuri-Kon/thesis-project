@@ -1,0 +1,550 @@
+{
+  "draft_id": "protein_tool_kg_extension",
+  "version": "0.1.0",
+  "status": "draft",
+  "updated_at": "2026-03-03",
+  "scope": "Requirement-2: expand tool coverage for future large-scale training data generation",
+  "source_basis": {
+    "local_design_doc": "../thesis-project.design/docs/design/tools-catalog.md",
+    "local_runtime_kg": "src/kg/protein_tool_kg.json",
+    "official_links_curated": true
+  },
+  "priority_policy": {
+    "P0": "Must-connect first for six-stage runtime closure and training data generation.",
+    "P1": "High-value enrichment for function/structure labels and robustness.",
+    "P2": "Advanced expansion for dynamics, docking, and generative diversification."
+  },
+  "capability_catalog": [
+    {
+      "capability_id": "sequence_generation",
+      "name": "Sequence Generation",
+      "stage_mapping": ["1.sequence_exploration"],
+      "status": "existing"
+    },
+    {
+      "capability_id": "structure_prediction",
+      "name": "Structure Prediction",
+      "stage_mapping": ["2.structure_projection"],
+      "status": "existing"
+    },
+    {
+      "capability_id": "sequence_design",
+      "name": "Sequence Design",
+      "stage_mapping": ["4.structure_conditioned_refinement"],
+      "status": "existing"
+    },
+    {
+      "capability_id": "quality_qc",
+      "name": "Sequence/Structure Quality Gate",
+      "stage_mapping": ["3.quality_gate"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "objective_scoring",
+      "name": "Objective Multi-criteria Scoring",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "sequence_similarity_search",
+      "name": "Sequence Similarity Search",
+      "stage_mapping": ["3.quality_gate", "5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "remote_homology_search",
+      "name": "Remote Homology Search",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "structure_similarity_search",
+      "name": "Structure Similarity Search",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "secondary_structure_annotation",
+      "name": "Secondary Structure Annotation",
+      "stage_mapping": ["3.quality_gate", "5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "function_annotation",
+      "name": "Function/Domain Annotation",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "physicochemical_scoring",
+      "name": "Physicochemical and Surface Scoring",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "stability_simulation",
+      "name": "Stability Simulation",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "docking_scoring",
+      "name": "Binding/Docking Scoring",
+      "stage_mapping": ["5.objective_scoring"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "backbone_generation",
+      "name": "Backbone/Structure Generation",
+      "stage_mapping": ["1.sequence_exploration", "4.structure_conditioned_refinement"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "inverse_folding",
+      "name": "Inverse Folding",
+      "stage_mapping": ["4.structure_conditioned_refinement"],
+      "status": "proposed"
+    },
+    {
+      "capability_id": "patch_replan_control",
+      "name": "Patch/Replan Control",
+      "stage_mapping": ["6.patch_replan_control"],
+      "status": "existing"
+    }
+  ],
+  "io_type_catalog": [
+    {
+      "io_type_id": "goal_to_sequence_candidates",
+      "input_types": ["goal"],
+      "output_types": ["sequence", "sequence_candidates"],
+      "status": "existing"
+    },
+    {
+      "io_type_id": "sequence_to_structure",
+      "input_types": ["sequence"],
+      "output_types": ["structure_pdb", "plddt"],
+      "status": "existing"
+    },
+    {
+      "io_type_id": "structure_to_sequence",
+      "input_types": ["structure_pdb"],
+      "output_types": ["sequence", "sequence_score"],
+      "status": "existing"
+    },
+    {
+      "io_type_id": "sequence_structure_to_qc_metrics",
+      "input_types": ["sequence", "structure_pdb", "plddt"],
+      "output_types": ["qc_flags", "qc_metrics", "pass_fail"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "candidates_to_objective_scores_topk",
+      "input_types": ["sequence_candidates", "qc_metrics", "structure_metrics"],
+      "output_types": ["score_table", "top_k"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "sequence_to_similarity_hits",
+      "input_types": ["sequence"],
+      "output_types": ["similarity_hits", "coverage", "identity"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "sequence_to_homology_profile",
+      "input_types": ["sequence"],
+      "output_types": ["hmm_profile", "homology_hits"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "structure_to_similarity_hits",
+      "input_types": ["structure_pdb"],
+      "output_types": ["structure_hits", "tm_score"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "structure_to_secondary_structure",
+      "input_types": ["structure_pdb"],
+      "output_types": ["secondary_structure", "ss_summary"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "sequence_or_structure_to_function_terms",
+      "input_types": ["sequence", "structure_pdb"],
+      "output_types": ["domain_terms", "go_terms"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "structure_to_surface_and_energy",
+      "input_types": ["structure_pdb"],
+      "output_types": ["sasa", "energy_scores"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "trajectory_to_stability_metrics",
+      "input_types": ["md_trajectory", "structure_pdb"],
+      "output_types": ["rmsd", "rg", "stability_metrics"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "structure_ligand_to_binding_score",
+      "input_types": ["structure_pdb", "ligand"],
+      "output_types": ["binding_score", "poses"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "prompt_to_backbone",
+      "input_types": ["goal", "motif", "condition"],
+      "output_types": ["structure_pdb", "backbone_candidates"],
+      "status": "proposed"
+    },
+    {
+      "io_type_id": "structure_to_inverse_folding_candidates",
+      "input_types": ["structure_pdb"],
+      "output_types": ["sequence_candidates", "sequence"],
+      "status": "proposed"
+    }
+  ],
+  "tool_candidates": [
+    {
+      "tool_id": "protgpt2",
+      "name": "ProtGPT2",
+      "capability_id": ["sequence_generation"],
+      "io_type": ["goal_to_sequence_candidates"],
+      "adapter_modes": ["remote_model_service", "external_api"],
+      "priority": "P0",
+      "status": "existing",
+      "source": ["tools-catalog", "runtime-kg"],
+      "official_links": ["https://huggingface.co/nferruz/ProtGPT2"]
+    },
+    {
+      "tool_id": "esmfold",
+      "name": "ESMFold",
+      "capability_id": ["structure_prediction"],
+      "io_type": ["sequence_to_structure"],
+      "adapter_modes": ["nextflow", "python"],
+      "priority": "P0",
+      "status": "existing",
+      "source": ["tools-catalog", "runtime-kg"],
+      "official_links": [
+        "https://github.com/facebookresearch/esm",
+        "https://www.science.org/doi/10.1126/science.ade2574"
+      ]
+    },
+    {
+      "tool_id": "nim_esmfold",
+      "name": "NVIDIA NIM ESMFold",
+      "capability_id": ["structure_prediction"],
+      "io_type": ["sequence_to_structure"],
+      "adapter_modes": ["remote_model_service", "external_api"],
+      "priority": "P0",
+      "status": "existing",
+      "source": ["tools-catalog", "runtime-kg"],
+      "official_links": ["https://build.nvidia.com/explore/discover"]
+    },
+    {
+      "tool_id": "protein_mpnn",
+      "name": "ProteinMPNN",
+      "capability_id": ["sequence_design", "inverse_folding"],
+      "io_type": ["structure_to_sequence", "structure_to_inverse_folding_candidates"],
+      "adapter_modes": ["remote_model_service", "python", "nextflow"],
+      "priority": "P0",
+      "status": "existing",
+      "source": ["tools-catalog", "runtime-kg"],
+      "official_links": ["https://github.com/dauparas/ProteinMPNN"]
+    },
+    {
+      "tool_id": "alphafold2",
+      "name": "AlphaFold2",
+      "capability_id": ["structure_prediction"],
+      "io_type": ["sequence_to_structure"],
+      "adapter_modes": ["nextflow", "python"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog", "web"],
+      "official_links": ["https://github.com/google-deepmind/alphafold"]
+    },
+    {
+      "tool_id": "openfold",
+      "name": "OpenFold",
+      "capability_id": ["structure_prediction"],
+      "io_type": ["sequence_to_structure"],
+      "adapter_modes": ["python", "nextflow"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog", "web"],
+      "official_links": ["https://github.com/aqlaboratory/openfold"]
+    },
+    {
+      "tool_id": "biopython_qc",
+      "name": "BioPython Seq/PDB QC",
+      "capability_id": ["quality_qc"],
+      "io_type": ["sequence_structure_to_qc_metrics"],
+      "adapter_modes": ["python"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog"],
+      "official_links": ["https://biopython.org/"]
+    },
+    {
+      "tool_id": "mmseqs2",
+      "name": "MMseqs2",
+      "capability_id": ["sequence_similarity_search"],
+      "io_type": ["sequence_to_similarity_hits"],
+      "adapter_modes": ["nextflow", "external_api", "python"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog", "web"],
+      "official_links": ["https://github.com/soedinglab/MMseqs2"]
+    },
+    {
+      "tool_id": "blastp",
+      "name": "NCBI BLAST+",
+      "capability_id": ["sequence_similarity_search"],
+      "io_type": ["sequence_to_similarity_hits"],
+      "adapter_modes": ["nextflow", "external_api", "python"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog", "web"],
+      "official_links": ["https://www.ncbi.nlm.nih.gov/books/NBK279690/"]
+    },
+    {
+      "tool_id": "dssp",
+      "name": "DSSP",
+      "capability_id": ["secondary_structure_annotation", "quality_qc"],
+      "io_type": ["structure_to_secondary_structure", "sequence_structure_to_qc_metrics"],
+      "adapter_modes": ["python", "external_api", "nextflow"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["tools-catalog", "web"],
+      "official_links": [
+        "https://github.com/PDB-REDO/dssp",
+        "https://pdb-redo.eu/dssp"
+      ]
+    },
+    {
+      "tool_id": "objective_ranker",
+      "name": "Objective Ranker (internal composite scorer)",
+      "capability_id": ["objective_scoring"],
+      "io_type": ["candidates_to_objective_scores_topk"],
+      "adapter_modes": ["python"],
+      "priority": "P0",
+      "status": "candidate",
+      "source": ["runtime-planning"],
+      "official_links": []
+    },
+    {
+      "tool_id": "hmmer",
+      "name": "HMMER (phmmer/jackhmmer)",
+      "capability_id": ["remote_homology_search"],
+      "io_type": ["sequence_to_homology_profile"],
+      "adapter_modes": ["nextflow", "python", "external_api"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://hmmer.org/"]
+    },
+    {
+      "tool_id": "hhsuite",
+      "name": "HH-suite (HHblits/HHsearch)",
+      "capability_id": ["remote_homology_search"],
+      "io_type": ["sequence_to_homology_profile"],
+      "adapter_modes": ["nextflow", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/soedinglab/hh-suite"]
+    },
+    {
+      "tool_id": "foldseek",
+      "name": "Foldseek",
+      "capability_id": ["structure_similarity_search"],
+      "io_type": ["structure_to_similarity_hits"],
+      "adapter_modes": ["nextflow", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/steineggerlab/foldseek"]
+    },
+    {
+      "tool_id": "tmalign",
+      "name": "TM-align",
+      "capability_id": ["structure_similarity_search"],
+      "io_type": ["structure_to_similarity_hits"],
+      "adapter_modes": ["external_api", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://zhanggroup.org/TM-align/"]
+    },
+    {
+      "tool_id": "usalign",
+      "name": "US-align",
+      "capability_id": ["structure_similarity_search"],
+      "io_type": ["structure_to_similarity_hits"],
+      "adapter_modes": ["external_api", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://zhanggroup.org/US-align/"]
+    },
+    {
+      "tool_id": "interproscan",
+      "name": "InterProScan",
+      "capability_id": ["function_annotation", "objective_scoring"],
+      "io_type": ["sequence_or_structure_to_function_terms", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["nextflow", "python", "external_api"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/ebi-pf-team/interproscan"]
+    },
+    {
+      "tool_id": "freesasa",
+      "name": "FreeSASA",
+      "capability_id": ["physicochemical_scoring", "quality_qc"],
+      "io_type": ["structure_to_surface_and_energy", "sequence_structure_to_qc_metrics"],
+      "adapter_modes": ["python", "external_api"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/mittinatten/freesasa"]
+    },
+    {
+      "tool_id": "rosetta",
+      "name": "Rosetta/PyRosetta",
+      "capability_id": ["physicochemical_scoring", "sequence_design", "objective_scoring"],
+      "io_type": ["structure_to_surface_and_energy", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["python", "nextflow"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://www.pyrosetta.org/"]
+    },
+    {
+      "tool_id": "mda_analysis",
+      "name": "MDAnalysis",
+      "capability_id": ["stability_simulation", "objective_scoring"],
+      "io_type": ["trajectory_to_stability_metrics", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://www.mdanalysis.org/pages/documentation/"]
+    },
+    {
+      "tool_id": "openmm",
+      "name": "OpenMM",
+      "capability_id": ["stability_simulation"],
+      "io_type": ["trajectory_to_stability_metrics"],
+      "adapter_modes": ["python"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://docs.openmm.org/latest/userguide/index.html"]
+    },
+    {
+      "tool_id": "gromacs",
+      "name": "GROMACS",
+      "capability_id": ["stability_simulation"],
+      "io_type": ["trajectory_to_stability_metrics"],
+      "adapter_modes": ["nextflow", "external_api"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://manual.gromacs.org/current/index.html"]
+    },
+    {
+      "tool_id": "autodock_vina",
+      "name": "AutoDock Vina",
+      "capability_id": ["docking_scoring", "objective_scoring"],
+      "io_type": ["structure_ligand_to_binding_score", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["nextflow", "python", "external_api"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://autodock-vina.readthedocs.io/en/latest/"]
+    },
+    {
+      "tool_id": "rfdiffusion",
+      "name": "RFdiffusion",
+      "capability_id": ["backbone_generation"],
+      "io_type": ["prompt_to_backbone"],
+      "adapter_modes": ["python", "nextflow"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/RosettaCommons/RFdiffusion"]
+    },
+    {
+      "tool_id": "esm_if1",
+      "name": "ESM Inverse Folding",
+      "capability_id": ["inverse_folding", "sequence_design"],
+      "io_type": ["structure_to_inverse_folding_candidates", "structure_to_sequence"],
+      "adapter_modes": ["python"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/facebookresearch/esm"]
+    },
+    {
+      "tool_id": "chai1",
+      "name": "Chai-1",
+      "capability_id": ["structure_prediction", "objective_scoring"],
+      "io_type": ["sequence_to_structure", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["python", "external_api"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/chaidiscovery/chai-lab"]
+    },
+    {
+      "tool_id": "boltz",
+      "name": "Boltz",
+      "capability_id": ["structure_prediction", "objective_scoring"],
+      "io_type": ["sequence_to_structure", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["python", "nextflow"],
+      "priority": "P2",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://github.com/jwohlwend/boltz"]
+    },
+    {
+      "tool_id": "rcsb_data_api",
+      "name": "RCSB PDB Data API",
+      "capability_id": ["objective_scoring", "function_annotation"],
+      "io_type": ["sequence_or_structure_to_function_terms"],
+      "adapter_modes": ["external_api", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://data.rcsb.org/index.html"]
+    },
+    {
+      "tool_id": "alphafold_db_api",
+      "name": "AlphaFold DB",
+      "capability_id": ["structure_prediction", "objective_scoring"],
+      "io_type": ["sequence_to_structure", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["external_api", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://www.alphafold.ebi.ac.uk/"]
+    },
+    {
+      "tool_id": "uniprot_api",
+      "name": "UniProt API",
+      "capability_id": ["function_annotation", "objective_scoring"],
+      "io_type": ["sequence_or_structure_to_function_terms", "candidates_to_objective_scores_topk"],
+      "adapter_modes": ["external_api", "python"],
+      "priority": "P1",
+      "status": "candidate",
+      "source": ["web"],
+      "official_links": ["https://www.uniprot.org/help/programmatic_access"]
+    }
+  ],
+  "integration_notes": [
+    "Keep existing runtime schema backward-compatible; this file is a planning draft and not loaded by runtime.",
+    "P0 set is sufficient to close six-stage coverage when paired with Planner and PlanRunner loop logic.",
+    "For each new tool, add adapter + unit tests + integration tests before moving from candidate to existing."
+  ]
+}

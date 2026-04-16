@@ -1,6 +1,10 @@
 import pytest
 
 from src.models.contracts import (
+    FINAL_SCORE_METADATA_KEY,
+    RERANK_REASON_METADATA_KEY,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
@@ -9,7 +13,9 @@ from src.models.contracts import (
     now_iso,
 )
 from src.models.validation import (
+    CandidateSetValidationError,
     DecisionValidationError,
+    validate_candidate_set_output,
     validate_decision_for_pending_action,
 )
 
@@ -107,3 +113,451 @@ def test_valid_accept_passes(sample_task, sample_plan):
     )
 
     validate_decision_for_pending_action(pending_action, decision)
+
+
+@pytest.mark.unit
+def test_candidate_set_v1_validation_passes(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_ok",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a is balanced",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_shadow_rerank_validation_passes(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_shadow_ok",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a is balanced",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+                metadata={
+                    STATIC_SCORE_METADATA_KEY: {
+                        "value": 0.85,
+                        "source": "score_breakdown.overall.static.v1",
+                    },
+                    RUNTIME_ADJUSTMENT_METADATA_KEY: {
+                        "value": -0.05,
+                        "source": "planner.runtime_adjustment.continue.v1",
+                        "formula_version": "v1",
+                        "shadow_only": True,
+                    },
+                    FINAL_SCORE_METADATA_KEY: {
+                        "value": 0.8,
+                        "source": "static_score+runtime_adjustment.continue.v1",
+                    },
+                    RERANK_REASON_METADATA_KEY: {
+                        "code": "shadow_continue",
+                        "message": "runtime-adjusted shadow ordering",
+                        "shadow_only": True,
+                        "runtime_state_fields": [
+                            "runtime_state.p_success",
+                            "runtime_state.p_structural_failure",
+                        ],
+                        "candidate_metric_fields": ["score_breakdown.overall"],
+                        "tool_metadata_fields": [],
+                        "factors": [
+                            {
+                                "category": "risk",
+                                "signal": "p_structural_failure",
+                                "source": "runtime_state.p_structural_failure+score_breakdown.risk",
+                                "contribution": -0.05,
+                                "message": "risk penalty",
+                            }
+                        ],
+                    },
+                },
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(
+        pending_action,
+        require_shadow_rerank_fields=True,
+    )
+
+
+@pytest.mark.unit
+def test_candidate_set_shadow_rerank_requires_consistent_final_score(
+    sample_task, sample_plan
+):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_shadow_bad",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a is balanced",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+                metadata={
+                    STATIC_SCORE_METADATA_KEY: {
+                        "value": 0.85,
+                        "source": "score_breakdown.overall.static.v1",
+                    },
+                    RUNTIME_ADJUSTMENT_METADATA_KEY: {
+                        "value": -0.05,
+                        "source": "planner.runtime_adjustment.continue.v1",
+                        "formula_version": "v1",
+                        "shadow_only": True,
+                    },
+                    FINAL_SCORE_METADATA_KEY: {
+                        "value": 0.83,
+                        "source": "static_score+runtime_adjustment.continue.v1",
+                    },
+                    RERANK_REASON_METADATA_KEY: {
+                        "code": "shadow_continue",
+                        "message": "runtime-adjusted shadow ordering",
+                        "shadow_only": True,
+                        "runtime_state_fields": ["runtime_state.p_success"],
+                        "candidate_metric_fields": ["score_breakdown.overall"],
+                        "tool_metadata_fields": [],
+                        "factors": [],
+                    },
+                },
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="final_score\\.value must equal clip\\(static_score \\+ runtime_adjustment, 0, 1\\)",
+    ):
+        validate_candidate_set_output(
+            pending_action,
+            require_shadow_rerank_fields=True,
+        )
+
+
+@pytest.mark.unit
+def test_candidate_set_missing_required_score_key_rejected(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_missing_score",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="score_breakdown missing keys: cost",
+    ):
+        validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_default_recommendation_must_exist(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_bad_default",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+            )
+        ],
+        default_recommendation="plan_x",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="default_recommendation is not in candidates",
+    ):
+        validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_missing_tool_fields_rejected(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_missing_tooling",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="plan_a\\.tool_id is required",
+    ):
+        validate_candidate_set_output(pending_action)
+
+
+@pytest.mark.unit
+def test_candidate_set_tooling_defaults_adapter_mode_to_unknown(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_tooling_default_mode",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(pending_action)
+    assert pending_action.candidates[0].adapter_mode == "unknown"
+
+
+@pytest.mark.unit
+def test_candidate_set_backward_compat_payload_only_passes(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_compat",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                payload=sample_plan,
+            )
+        ],
+        explanation="test",
+        default_suggestion="plan_a",
+    )
+
+    validate_candidate_set_output(
+        pending_action,
+        require_v1_fields=False,
+        require_default_recommendation=False,
+    )
+
+
+@pytest.mark.unit
+def test_candidate_set_require_s5_fields_rejects_missing_contract(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_s5_missing",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    with pytest.raises(
+        CandidateSetValidationError,
+        match="metadata\\.s5_contract is required",
+    ):
+        validate_candidate_set_output(
+            pending_action,
+            require_s5_fields=True,
+        )
+
+
+@pytest.mark.unit
+def test_candidate_set_require_s5_fields_accepts_complete_contract(sample_task, sample_plan):
+    pending_action = PendingAction(
+        pending_action_id="pa_candidate_set_s5_ok",
+        task_id=sample_task.task_id,
+        action_type=PendingActionType.PLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="plan_a",
+                structured_payload=sample_plan,
+                score_breakdown={
+                    "feasibility": 1.0,
+                    "objective": 0.8,
+                    "risk": 0.2,
+                    "cost": 0.4,
+                    "overall": 0.85,
+                },
+                risk_level="low",
+                cost_estimate="medium",
+                explanation="candidate a",
+                tool_id="esmfold",
+                capability_id="structure_prediction",
+                io_type="sequence_to_structure",
+                adapter_mode="remote",
+                metadata={
+                    "tool_id": "esmfold",
+                    "capability_id": "structure_prediction",
+                    "io_type": "sequence_to_structure",
+                    "adapter_mode": "remote",
+                    "s5_contract": {
+                        "stage_id": "S5",
+                        "stage_name": "objective_scoring",
+                        "field_order": {
+                            "inputs": ["candidates", "metrics"],
+                            "outputs": [
+                                "score_breakdown",
+                                "top_k",
+                                "default_recommendation",
+                                "explanation",
+                            ],
+                        },
+                        "inputs": {
+                            "candidates": "list[PendingActionCandidate]",
+                            "metrics": "dict[str,float]",
+                        },
+                        "outputs": {
+                            "score_breakdown": "dict[str,float]",
+                            "top_k": "list[PendingActionCandidate]",
+                            "default_recommendation": "str",
+                            "explanation": "str",
+                        },
+                        "weights": {
+                            "feasibility": 0.2,
+                            "objective": 0.2,
+                            "risk": 0.15,
+                            "cost": 0.15,
+                            "confidence": 0.15,
+                            "tool_readiness": 0.075,
+                            "tool_coverage": 0.075,
+                        },
+                    },
+                },
+            )
+        ],
+        default_recommendation="plan_a",
+        explanation="test",
+    )
+
+    validate_candidate_set_output(
+        pending_action,
+        require_s5_fields=True,
+    )

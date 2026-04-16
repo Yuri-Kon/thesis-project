@@ -104,6 +104,8 @@ def test_run_local_success(tmp_path: Path) -> None:
 
     assert Path(outputs["pdb_path"]).exists()
     assert outputs["plddt"] == 85.0
+    assert outputs["stage_id"] == "S2"
+    assert outputs["confidence"]["level"] in {"high", "medium", "low"}
     assert metrics["provider"] == "nvidia_nim"
 
 

@@ -1,0 +1,165 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: Issue #199 regression scaffold for ReAct-style external baseline
+prompts:
+  - '{{goal}}'
+providers:
+  - id: file://promptfoo_react_provider.py
+    label: react-style-baseline
+    config:
+      pythonExecutable: .venv/bin/python
+      provider_alias: baseline
+      catalog_path: configs/llm_providers.json
+      max_plan_steps: 3
+      max_high_cost_steps: 1
+      high_cost_tool_ids: ["esmfold", "openfold3", "protein_mpnn"]
+      allowed_tool_ids: ["protgpt2", "biopython_qc", "dssp", "objective_ranker", "esmfold", "openfold3", "protein_mpnn"]
+      freeze_id: issue199-platform-freeze-20260412
+      tool_whitelist_version: issue199-tool-whitelist-v1
+      dataset_version: issue170-remote-batch3-20260316
+tests:
+  - description: issue199-react-smoke-1
+    vars:
+      task_id: issue199-react-smoke-001
+      task_key: enzyme_like_fold
+      goal: "Design a compact enzyme-like fold with stable core while preserving the frozen fairness contract."
+      constraints_json: "{\"length_range\": [40, 80], \"budget_tier\": \"standard\", \"task_set_version\": \"issue209-taskset-v1\"}"
+      freeze_id: issue199-platform-freeze-20260412
+      tool_whitelist_version: issue199-tool-whitelist-v1
+      dataset_version: issue170-remote-batch3-20260316
+    assert:
+      - type: is-json
+        metric: structure
+        value:
+          type: object
+          required: [plan, budget, tool_whitelist]
+      - type: javascript
+        metric: metadata_propagation
+        value: |
+          const payload = JSON.parse(output);
+          const metadata = payload.plan?.metadata || {};
+          if (metadata.freeze_id !== context.vars.freeze_id) {
+            return { pass: false, score: 0, reason: `freeze_id mismatch: ${metadata.freeze_id}` };
+          }
+          if (metadata.task_key !== context.vars.task_key) {
+            return { pass: false, score: 0, reason: `task_key mismatch: ${metadata.task_key}` };
+          }
+          if (metadata.tool_whitelist_version !== context.vars.tool_whitelist_version) {
+            return { pass: false, score: 0, reason: 'tool whitelist version missing or mismatched' };
+          }
+          return { pass: true, score: 1, reason: 'metadata propagated' };
+      - type: javascript
+        metric: budget_guard
+        value: |
+          const payload = JSON.parse(output);
+          const budget = payload.budget || {};
+          if ((budget.planned_steps || 0) > (budget.max_plan_steps || 0)) {
+            return { pass: false, score: 0, reason: 'planned_steps exceeds max_plan_steps' };
+          }
+          if ((budget.high_cost_planned_steps || 0) > (budget.max_high_cost_steps || 0)) {
+            return { pass: false, score: 0, reason: 'high_cost_planned_steps exceeds max_high_cost_steps' };
+          }
+          return { pass: true, score: 1, reason: 'budget respected' };
+      - type: javascript
+        metric: allowlist_compliance
+        value: |
+          const payload = JSON.parse(output);
+          const allowed = new Set(payload.tool_whitelist?.allowed_tool_ids || []);
+          const invalid = (payload.plan?.steps || []).filter((step) => !allowed.has(step.tool));
+          if (invalid.length > 0) {
+            return { pass: false, score: 0, reason: `disallowed tools: ${invalid.map((step) => step.tool).join(', ')}` };
+          }
+          return { pass: true, score: 1, reason: 'all tools are allowlisted' };
+      - type: javascript
+        metric: quality_rubric
+        value: |
+          const payload = JSON.parse(output);
+          const steps = payload.plan?.steps || [];
+          const constraints = payload.plan?.constraints || {};
+          if (steps.length === 0) {
+            return { pass: false, score: 0, reason: 'plan has no steps' };
+          }
+          if (steps.length > (payload.budget?.max_plan_steps || 0)) {
+            return { pass: false, score: 0, reason: 'plan is not minimal enough for smoke budget' };
+          }
+          if (!('length_range' in constraints)) {
+            return { pass: false, score: 0, reason: 'constraints were not propagated' };
+          }
+          const allInputsAreObjects = steps.every((step) => typeof step.inputs === 'object' && step.inputs !== null);
+          if (!allInputsAreObjects) {
+            return { pass: false, score: 0, reason: 'step inputs are malformed' };
+          }
+          return { pass: true, score: 1, reason: 'minimal ReAct-style smoke plan looks structurally sound' };
+
+  - description: issue199-react-smoke-2
+    vars:
+      task_id: issue199-react-smoke-002
+      task_key: binding_scaffold
+      goal: "Generate a binding scaffold plan with exposed pocket constraints under the same frozen tool whitelist and budget."
+      constraints_json: "{\"length_range\": [45, 95], \"budget_tier\": \"high_cost_sensitive\", \"task_set_version\": \"issue209-taskset-v1\"}"
+      freeze_id: issue199-platform-freeze-20260412
+      tool_whitelist_version: issue199-tool-whitelist-v1
+      dataset_version: issue170-remote-batch3-20260316
+    assert:
+      - type: is-json
+        metric: structure
+        value:
+          type: object
+          required: [plan, budget, tool_whitelist]
+      - type: javascript
+        metric: metadata_propagation
+        value: |
+          const payload = JSON.parse(output);
+          const metadata = payload.plan?.metadata || {};
+          if (metadata.freeze_id !== context.vars.freeze_id) {
+            return { pass: false, score: 0, reason: `freeze_id mismatch: ${metadata.freeze_id}` };
+          }
+          if (metadata.task_key !== context.vars.task_key) {
+            return { pass: false, score: 0, reason: `task_key mismatch: ${metadata.task_key}` };
+          }
+          if (metadata.tool_whitelist_version !== context.vars.tool_whitelist_version) {
+            return { pass: false, score: 0, reason: 'tool whitelist version missing or mismatched' };
+          }
+          return { pass: true, score: 1, reason: 'metadata propagated' };
+      - type: javascript
+        metric: budget_guard
+        value: |
+          const payload = JSON.parse(output);
+          const budget = payload.budget || {};
+          if ((budget.planned_steps || 0) > (budget.max_plan_steps || 0)) {
+            return { pass: false, score: 0, reason: 'planned_steps exceeds max_plan_steps' };
+          }
+          if ((budget.high_cost_planned_steps || 0) > (budget.max_high_cost_steps || 0)) {
+            return { pass: false, score: 0, reason: 'high_cost_planned_steps exceeds max_high_cost_steps' };
+          }
+          return { pass: true, score: 1, reason: 'budget respected' };
+      - type: javascript
+        metric: allowlist_compliance
+        value: |
+          const payload = JSON.parse(output);
+          const allowed = new Set(payload.tool_whitelist?.allowed_tool_ids || []);
+          const invalid = (payload.plan?.steps || []).filter((step) => !allowed.has(step.tool));
+          if (invalid.length > 0) {
+            return { pass: false, score: 0, reason: `disallowed tools: ${invalid.map((step) => step.tool).join(', ')}` };
+          }
+          return { pass: true, score: 1, reason: 'all tools are allowlisted' };
+      - type: javascript
+        metric: quality_rubric
+        value: |
+          const payload = JSON.parse(output);
+          const steps = payload.plan?.steps || [];
+          const constraints = payload.plan?.constraints || {};
+          if (steps.length === 0) {
+            return { pass: false, score: 0, reason: 'plan has no steps' };
+          }
+          if (steps.length > (payload.budget?.max_plan_steps || 0)) {
+            return { pass: false, score: 0, reason: 'plan is not minimal enough for smoke budget' };
+          }
+          if (!('length_range' in constraints)) {
+            return { pass: false, score: 0, reason: 'constraints were not propagated' };
+          }
+          const allInputsAreObjects = steps.every((step) => typeof step.inputs === 'object' && step.inputs !== null);
+          if (!allInputsAreObjects) {
+            return { pass: false, score: 0, reason: 'step inputs are malformed' };
+          }
+          return { pass: true, score: 1, reason: 'minimal ReAct-style smoke plan looks structurally sound' };
+

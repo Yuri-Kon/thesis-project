@@ -53,6 +53,33 @@ def test_submit_job_success(service: RESTModelInvocationService) -> None:
     )
 
 
+def test_submit_job_includes_default_headers() -> None:
+    service = RESTModelInvocationService(
+        base_url="http://localhost:8000",
+        headers={"Authorization": "Bearer token-123"},
+    )
+    mock_response = Mock()
+    mock_response.json.return_value = {"job_id": "job123"}
+    mock_response.raise_for_status = Mock()
+
+    with patch.object(service.client, "post", return_value=mock_response) as mock_post:
+        service.submit_job(
+            payload={"sequence": "ACDEFG"},
+            task_id="task123",
+            step_id="S1",
+        )
+
+    mock_post.assert_called_once_with(
+        "http://localhost:8000/predict",
+        json={
+            "task_id": "task123",
+            "step_id": "S1",
+            "inputs": {"sequence": "ACDEFG"},
+        },
+        headers={"Authorization": "Bearer token-123"},
+    )
+
+
 def test_submit_job_missing_job_id(service: RESTModelInvocationService) -> None:
     """测试服务响应缺少 job_id"""
     mock_response = Mock()
@@ -125,6 +152,24 @@ def test_poll_status_success(service: RESTModelInvocationService) -> None:
 
     assert status == JobStatus.COMPLETED
     mock_get.assert_called_once_with("http://localhost:8000/job/job123")
+
+
+def test_poll_status_includes_default_headers() -> None:
+    service = RESTModelInvocationService(
+        base_url="http://localhost:8000",
+        headers={"Authorization": "Bearer token-123"},
+    )
+    mock_response = Mock()
+    mock_response.json.return_value = {"job_id": "job123", "status": "running"}
+    mock_response.raise_for_status = Mock()
+
+    with patch.object(service.client, "get", return_value=mock_response) as mock_get:
+        service.poll_status("job123")
+
+    mock_get.assert_called_once_with(
+        "http://localhost:8000/job/job123",
+        headers={"Authorization": "Bearer token-123"},
+    )
 
 
 def test_poll_status_not_found(service: RESTModelInvocationService) -> None:
@@ -257,6 +302,77 @@ def test_download_results_path_mapping(service: RESTModelInvocationService, tmp_
     assert len(outputs["artifacts"]) == 2
     assert str((output_dir / "structure.pdb").resolve()) in outputs["artifacts"]
     assert str((output_dir / "esmfold.log").resolve()) in outputs["artifacts"]
+
+
+def test_download_results_preserves_nested_artifact_paths(
+    service: RESTModelInvocationService,
+    tmp_path: Path,
+) -> None:
+    """测试嵌套产物路径会被正确下载并映射。"""
+    output_dir = tmp_path / "output"
+
+    mock_results_response = Mock()
+    mock_results_response.json.return_value = {
+        "job_id": "job123",
+        "outputs": {
+            "pdb_path": "openfold3_request/seed_42/prediction_model.cif",
+            "plddt": 88.0,
+        },
+        "artifacts": [
+            {
+                "name": "openfold3_request/seed_42/prediction_model.cif",
+                "url": "http://localhost:8000/files/job123/openfold3_request/seed_42/prediction_model.cif",
+            }
+        ],
+    }
+    mock_results_response.raise_for_status = Mock()
+
+    mock_file_response = Mock()
+    mock_file_response.raise_for_status = Mock()
+    mock_file_response.iter_bytes = Mock(return_value=[b"data_test"])
+
+    with patch.object(service.client, "get", return_value=mock_results_response):
+        with patch.object(service.client, "stream") as mock_stream:
+            mock_stream.return_value.__enter__.return_value = mock_file_response
+            outputs = service.download_results("job123", output_dir)
+
+    expected_path = (output_dir / "openfold3_request" / "seed_42" / "prediction_model.cif").resolve()
+    assert outputs["pdb_path"] == str(expected_path)
+    assert outputs["artifacts"] == [str(expected_path)]
+    assert expected_path.exists()
+
+
+def test_download_results_stream_includes_default_headers(tmp_path: Path) -> None:
+    service = RESTModelInvocationService(
+        base_url="http://localhost:8000",
+        headers={"Authorization": "Bearer token-123"},
+    )
+    output_dir = tmp_path / "output"
+
+    mock_results_response = Mock()
+    mock_results_response.json.return_value = {
+        "job_id": "job123",
+        "outputs": {},
+        "artifacts": [
+            {"name": "structure.pdb", "url": "http://localhost:8000/files/structure.pdb"},
+        ],
+    }
+    mock_results_response.raise_for_status = Mock()
+
+    mock_file_response = Mock()
+    mock_file_response.raise_for_status = Mock()
+    mock_file_response.iter_bytes = Mock(return_value=[b"ATOM 1"])
+
+    with patch.object(service.client, "get", return_value=mock_results_response):
+        with patch.object(service.client, "stream") as mock_stream:
+            mock_stream.return_value.__enter__.return_value = mock_file_response
+            service.download_results("job123", output_dir)
+
+    mock_stream.assert_called_once_with(
+        "GET",
+        "http://localhost:8000/files/structure.pdb",
+        headers={"Authorization": "Bearer token-123"},
+    )
 
 
 def test_wait_for_completion_success(service: RESTModelInvocationService) -> None:
