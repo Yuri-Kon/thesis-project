@@ -1,0 +1,85 @@
+{
+  "issue_id": 221,
+  "experiment_name": "w16-issue221-four-group-matrix",
+  "description": "Unified four-group experiment matrix for Static Top-1, Fixed Threshold Gate, Dynamic Recovery (No Belief-State), and Lite Belief-State under the frozen issue209 task set and high-cost rules.",
+  "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+  "output_root": "output/experiment/w16-expr-1",
+  "repeats": 2,
+  "default_goal": "de_novo_design",
+  "group_overrides": {
+    "dynamic_no_belief_state": {
+      "implementation_status": "implemented",
+      "supports_current_repo": true,
+      "notes": "Observation-driven dynamic baseline with runtime_policy=dynamic_observation_only."
+    },
+    "lite_belief_state": {
+      "implementation_status": "implemented",
+      "supports_current_repo": true,
+      "notes": "Lite belief-state baseline with runtime rerank and adaptive action selection enabled."
+    }
+  },
+  "repeat_policy": {
+    "by_budget_tier": {
+      "high_cost_sensitive": 1,
+      "standard": 2,
+      "low_cost_first": 2
+    }
+  },
+  "artifact_policy": {
+    "all_runs_required": [
+      "run_config_path",
+      "event_log_path"
+    ],
+    "success_runs_required": [
+      "snapshot_path",
+      "report_path"
+    ],
+    "waiting_runs_required": [
+      "snapshot_path"
+    ],
+    "failed_runs_required": []
+  },
+  "rerun_policy": {
+    "max_attempts": 2
+  },
+  "offline_thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "requirement2_capability_map": {
+    "sequence_core": [
+      "sequence_generation",
+      "sequence_design"
+    ],
+    "quality_qc": [
+      "quality_qc"
+    ],
+    "objective_scoring": [
+      "objective_scoring"
+    ],
+    "structure_prediction": [
+      "structure_prediction"
+    ],
+    "similarity_search": [
+      "sequence_similarity_search"
+    ],
+    "secondary_structure": [
+      "secondary_structure_annotation"
+    ]
+  },
+  "base_constraints": {
+    "goal_type": "de_novo_design",
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc"
+  },
+  "base_metadata": {
+    "issue": 221,
+    "experiment_track": "paper_matrix",
+    "owner": "issue221"
+  }
+}
