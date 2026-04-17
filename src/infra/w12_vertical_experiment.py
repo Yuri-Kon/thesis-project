@@ -471,14 +471,104 @@ def _has_shadow_output(row: dict[str, Any]) -> bool:
     return False
 
 
+def _extract_shadow_action(row: dict[str, Any]) -> str | None:
+    data = row.get("data")
+    if not isinstance(data, dict):
+        data = {}
+
+    direct = data.get("shadow_action")
+    if isinstance(direct, str) and direct:
+        return direct
+
+    waiting_summary = data.get("waiting_runtime_summary")
+    if isinstance(waiting_summary, dict):
+        candidate = waiting_summary.get("shadow_action")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+
+    recovery = data.get("recovery")
+    if isinstance(recovery, dict):
+        candidate = recovery.get("shadow_action")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+
+    return None
+
+
+def _extract_logged_action_name(row: dict[str, Any]) -> str | None:
+    direct = row.get("action_name")
+    if isinstance(direct, str) and direct:
+        return direct
+
+    data = row.get("data")
+    if isinstance(data, dict):
+        candidate = data.get("action_name")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def _normalize_action_name(
+    action_name: str | None,
+    *,
+    row: dict[str, Any],
+    shadow_action: str | None = None,
+) -> str | None:
+    if not isinstance(action_name, str) or not action_name.strip():
+        return None
+
+    normalized = action_name.strip().lower()
+    if normalized == "patch":
+        return "patch_local"
+    if normalized == "replan":
+        reason = str(row.get("reason") or _nested(row, "data", "reason") or "").lower()
+        replan_mode = _nested(row, "data", "replan_mode") or _nested(
+            row,
+            "data",
+            "recovery",
+            "replan_mode",
+        )
+        if isinstance(replan_mode, str) and replan_mode.strip():
+            normalized = replan_mode.strip().lower()
+        elif isinstance(shadow_action, str) and shadow_action.strip():
+            normalized = shadow_action.strip().lower()
+        elif "suffix_replan" in reason:
+            normalized = "suffix_replan"
+        else:
+            normalized = "suffix_replan"
+
+    if normalized in {"continue", "patch_local", "suffix_replan", "stop"}:
+        return normalized
+    return None
+
+
 def _load_snapshot_payload(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
         payload = load_json(path)
     except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        return payload
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            last_mapping: dict[str, Any] | None = None
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict):
+                    last_mapping = value
+            return last_mapping
+    except Exception:
         return None
-    return payload if isinstance(payload, dict) else None
+    return None
 
 
 def _optional_path(value: Any) -> Path | None:
@@ -531,6 +621,9 @@ def extract_run_metrics(
     high_cost_failure_count = 0
     runtime_state_observable = False
     shadow_output_observable = False
+    action_counter: Counter[str] = Counter()
+    shadow_action_agreement_count = 0
+    shadow_action_observation_count = 0
 
     suffix_prefix_samples: list[bool] = []
     final_status: str | None = None
@@ -539,10 +632,38 @@ def extract_run_metrics(
         event_name = _event_name(row)
         runtime_state_observable = runtime_state_observable or _has_runtime_state_observation(row)
         shadow_output_observable = shadow_output_observable or _has_shadow_output(row)
+        shadow_action = _normalize_action_name(
+            _extract_shadow_action(row),
+            row=row,
+        )
 
         ts = parse_iso_datetime(row.get("timestamp") or row.get("ts"))
         if ts is not None:
             timestamps.append(ts)
+
+        if event_name in _PATCH_EVENT_NAMES:
+            actual_action = "patch_local"
+        elif event_name == "RECOVERY_ESCALATED":
+            actual_action = _normalize_action_name(
+                _extract_logged_action_name(row) or "replan",
+                row=row,
+                shadow_action=shadow_action,
+            )
+        elif event_name in {"STEP_FINISHED", "STEP_FAILED"}:
+            actual_action = _normalize_action_name(
+                _extract_logged_action_name(row),
+                row=row,
+                shadow_action=shadow_action,
+            )
+        else:
+            actual_action = None
+
+        if actual_action is not None:
+            action_counter[actual_action] += 1
+            if shadow_action is not None:
+                shadow_action_observation_count += 1
+                if shadow_action == actual_action:
+                    shadow_action_agreement_count += 1
 
         if event_name == "TASK_STATUS_CHANGED":
             to_status = row.get("to_status")
@@ -692,6 +813,12 @@ def extract_run_metrics(
         if isinstance(decision_summary.get("shadow_action"), str) and decision_summary.get("shadow_action"):
             shadow_output_observable = True
 
+    shadow_action_agreement_rate = None
+    if shadow_action_observation_count > 0:
+        shadow_action_agreement_rate = (
+            shadow_action_agreement_count / shadow_action_observation_count
+        )
+
     return {
         "run_id": run.get("run_id"),
         "task_id": run.get("task_id"),
@@ -722,6 +849,13 @@ def extract_run_metrics(
         "report_linked": bool(report_path and report_path.exists()),
         "runtime_state_observable": runtime_state_observable,
         "shadow_output_observable": shadow_output_observable,
+        "action_continue_count": action_counter.get("continue", 0),
+        "action_patch_local_count": action_counter.get("patch_local", 0),
+        "action_suffix_replan_count": action_counter.get("suffix_replan", 0),
+        "action_stop_count": action_counter.get("stop", 0),
+        "shadow_action_agreement_count": shadow_action_agreement_count,
+        "shadow_action_observation_count": shadow_action_observation_count,
+        "shadow_action_agreement_rate": shadow_action_agreement_rate,
         "layer_counter": dict(layer_counter),
         "tool_usage": dict(tool_usage),
         "capability_usage": dict(capability_usage),
@@ -782,6 +916,7 @@ def aggregate_group_metrics(
     summary_rows: list[dict[str, Any]] = []
     patch_rows: list[dict[str, Any]] = []
     high_cost_rows: list[dict[str, Any]] = []
+    action_rows: list[dict[str, Any]] = []
     requirement2_rows: list[dict[str, Any]] = []
     abnormal_rows: list[dict[str, Any]] = []
     gate_rows: list[dict[str, Any]] = []
@@ -813,6 +948,16 @@ def aggregate_group_metrics(
         high_cost_failure_counts = [
             float(item.get("high_cost_failure_count", 0) or 0) for item in rows
         ]
+        action_continue_counts = [
+            float(item.get("action_continue_count", 0) or 0) for item in rows
+        ]
+        action_patch_counts = [
+            float(item.get("action_patch_local_count", 0) or 0) for item in rows
+        ]
+        action_suffix_replan_counts = [
+            float(item.get("action_suffix_replan_count", 0) or 0) for item in rows
+        ]
+        action_stop_counts = [float(item.get("action_stop_count", 0) or 0) for item in rows]
 
         patch_summary = _mean_summary(patch_counts, iterations=iterations, seed=seed + idx * 11 + 1)
         replan_summary = _mean_summary(replan_counts, iterations=iterations, seed=seed + idx * 11 + 2)
@@ -828,6 +973,26 @@ def aggregate_group_metrics(
             iterations=iterations,
             seed=seed + idx * 11 + 6,
         )
+        continue_summary = _mean_summary(
+            action_continue_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 7,
+        )
+        patch_action_summary = _mean_summary(
+            action_patch_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 8,
+        )
+        suffix_action_summary = _mean_summary(
+            action_suffix_replan_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 9,
+        )
+        stop_action_summary = _mean_summary(
+            action_stop_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 10,
+        )
 
         patch_layer_counter: Counter[str] = Counter()
         suffix_prefix_samples: list[bool] = []
@@ -835,6 +1000,8 @@ def aggregate_group_metrics(
         tool_counter: Counter[str] = Counter()
         high_cost_rule_counter: Counter[str] = Counter()
         total_patch_events_with_layer = 0
+        shadow_action_agreement_total = 0
+        shadow_action_observation_total = 0
 
         for row in rows:
             for layer, count in (row.get("layer_counter") or {}).items():
@@ -851,6 +1018,12 @@ def aggregate_group_metrics(
                 if isinstance(key, str) and isinstance(value, (int, float)):
                     high_cost_rule_counter[key] += int(value)
             suffix_prefix_samples.extend([bool(v) for v in row.get("suffix_prefix_samples") or []])
+            shadow_action_agreement_total += int(
+                row.get("shadow_action_agreement_count", 0) or 0
+            )
+            shadow_action_observation_total += int(
+                row.get("shadow_action_observation_count", 0) or 0
+            )
 
         patch_minimality_hit_rate = None
         if total_patch_events_with_layer > 0:
@@ -860,6 +1033,12 @@ def aggregate_group_metrics(
         if suffix_prefix_samples:
             suffix_prefix_preservation_rate = (
                 sum(1 for flag in suffix_prefix_samples if flag) / len(suffix_prefix_samples)
+            )
+
+        shadow_action_agreement_rate = None
+        if shadow_action_observation_total > 0:
+            shadow_action_agreement_rate = (
+                shadow_action_agreement_total / shadow_action_observation_total
             )
 
         requirement2_bucket_status: dict[str, bool] = {}
@@ -908,6 +1087,19 @@ def aggregate_group_metrics(
             "high_cost_failure_ci_high": high_cost_failure_summary["ci_high"],
             "patch_minimality_hit_rate": patch_minimality_hit_rate,
             "suffix_replan_prefix_preservation_rate": suffix_prefix_preservation_rate,
+            "action_continue_mean": continue_summary["mean"],
+            "action_continue_ci_low": continue_summary["ci_low"],
+            "action_continue_ci_high": continue_summary["ci_high"],
+            "action_patch_local_mean": patch_action_summary["mean"],
+            "action_patch_local_ci_low": patch_action_summary["ci_low"],
+            "action_patch_local_ci_high": patch_action_summary["ci_high"],
+            "action_suffix_replan_mean": suffix_action_summary["mean"],
+            "action_suffix_replan_ci_low": suffix_action_summary["ci_low"],
+            "action_suffix_replan_ci_high": suffix_action_summary["ci_high"],
+            "action_stop_mean": stop_action_summary["mean"],
+            "action_stop_ci_low": stop_action_summary["ci_low"],
+            "action_stop_ci_high": stop_action_summary["ci_high"],
+            "shadow_action_agreement_rate": shadow_action_agreement_rate,
             "requirement2_sequence_core": requirement2_bucket_status.get("sequence_core", False),
             "requirement2_quality_qc": requirement2_bucket_status.get("quality_qc", False),
             "requirement2_objective_scoring": requirement2_bucket_status.get("objective_scoring", False),
@@ -938,6 +1130,19 @@ def aggregate_group_metrics(
                 "high_cost_calls_total": sum(high_cost_counts),
                 "high_cost_failures_total": sum(high_cost_failure_counts),
                 "high_cost_rule_hits": dict(high_cost_rule_counter),
+            }
+        )
+
+        action_rows.append(
+            {
+                "group_id": group_id,
+                "action_continue_total": sum(action_continue_counts),
+                "action_patch_local_total": sum(action_patch_counts),
+                "action_suffix_replan_total": sum(action_suffix_replan_counts),
+                "action_stop_total": sum(action_stop_counts),
+                "shadow_action_observation_total": shadow_action_observation_total,
+                "shadow_action_agreement_total": shadow_action_agreement_total,
+                "shadow_action_agreement_rate": shadow_action_agreement_rate,
             }
         )
 
@@ -1016,6 +1221,7 @@ def aggregate_group_metrics(
         "summary_rows": summary_rows,
         "patch_rows": patch_rows,
         "high_cost_rows": high_cost_rows,
+        "action_rows": action_rows,
         "requirement2_rows": requirement2_rows,
         "abnormal_rows": abnormal_rows,
         "gate_rows": gate_rows,
