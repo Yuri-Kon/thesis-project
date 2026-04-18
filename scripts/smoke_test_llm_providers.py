@@ -18,7 +18,7 @@ from src.llm.provider_registry import create_provider, load_provider_catalog, re
 from src.models.contracts import ProteinDesignTask
 
 DEFAULT_CONFIG_PATH = project_root / "configs" / "llm_providers.json"
-DEFAULT_PROVIDERS = ("qwen-plus", "deepseek-chat", "glm-5", "nemotron")
+DEFAULT_PROVIDERS = ("qwen-flash", "deepseek-chat", "glm-5", "nemotron")
 SMOKE_REGISTRY = [
     ToolSpec(
         id="protgpt2",

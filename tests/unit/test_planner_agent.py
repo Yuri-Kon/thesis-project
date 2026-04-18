@@ -1515,7 +1515,7 @@ class TestPlannerAgent:
             {
                 "providers": {
                     "baseline": object(),
-                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
                     "openai": type("Settings", (), {"api_key": None, "api_key_env": "OPENAI_API_KEY"})(),
                 }
             },
@@ -1551,13 +1551,13 @@ class TestPlannerAgent:
                     "baseline": object(),
                     "deepseek-chat": type("Settings", (), {"api_key": None, "api_key_env": "DEEPSEEK_API_KEY"})(),
                     "glm-5": type("Settings", (), {"api_key": None, "api_key_env": "ZHIPU_API_KEY"})(),
-                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
                 }
             },
         )()
         monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
 
-        assert planner_module._resolve_local_provider_alias(catalog) == "qwen-plus"
+        assert planner_module._resolve_local_provider_alias(catalog) == "qwen-flash"
 
     def test_planner_materializes_missing_llm_inputs_from_constraints_and_prior_steps(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())

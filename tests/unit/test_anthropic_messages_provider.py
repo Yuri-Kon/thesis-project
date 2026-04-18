@@ -1,8 +1,7 @@
 from types import SimpleNamespace
 
-import httpx
-
 from src.agents.planner import ToolSpec
+import src.llm.anthropic_messages_provider as anthropic_provider_module
 from src.llm.anthropic_messages_provider import AnthropicMessagesProvider
 from src.llm.base_llm_provider import ProviderConfig
 from src.models.contracts import PatchRequest, Plan, PlanStep, ProteinDesignTask, ReplanRequest, StepResult, now_iso
@@ -86,39 +85,43 @@ def _sample_replan_request() -> ReplanRequest:
 
 def _fake_response(payload):
     return SimpleNamespace(
-        raise_for_status=lambda: None,
-        json=lambda: payload,
+        model_dump=lambda mode="python": payload,
     )
 
 
 def test_anthropic_provider_generates_plan_via_tool_use(monkeypatch):
     calls = {}
 
-    def fake_post(url, *, headers, json, timeout):
-        calls["url"] = url
-        calls["headers"] = headers
-        calls["json"] = json
-        calls["timeout"] = timeout
-        return _fake_response(
-            {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "emit_plan",
-                        "input": {
-                            "task_id": "task_001",
-                            "steps": [
-                                {"id": "S1", "tool": "esmfold", "inputs": {"sequence": "AAA"}, "metadata": {}}
-                            ],
-                            "constraints": {},
-                            "metadata": {},
-                        },
-                    }
-                ]
-            }
-        )
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["kwargs"] = kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {"id": "S1", "tool": "esmfold", "inputs": {"sequence": "AAA"}, "metadata": {}}
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
 
-    monkeypatch.setattr(httpx, "post", fake_post)
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            calls["api_key"] = api_key
+            calls["base_url"] = base_url
+            calls["timeout"] = timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
     provider = AnthropicMessagesProvider(
         ProviderConfig(
             model_name="glm-5",
@@ -132,9 +135,10 @@ def test_anthropic_provider_generates_plan_via_tool_use(monkeypatch):
 
     assert plan["steps"][0]["tool"] == "esmfold"
     assert plan["metadata"]["provider"] == "anthropic_messages"
-    assert calls["url"] == "https://open.bigmodel.cn/api/anthropic/v1/messages"
-    assert calls["headers"]["x-api-key"] == "secret"
-    assert calls["json"]["tool_choice"] == {"type": "tool", "name": "emit_plan"}
+    assert calls["base_url"] == "https://open.bigmodel.cn/api/anthropic"
+    assert calls["api_key"] == "secret"
+    assert calls["kwargs"]["tool_choice"] == {"type": "tool", "name": "emit_plan"}
+    assert calls["kwargs"]["extra_headers"]["anthropic-version"] == "2023-06-01"
 
 
 def test_anthropic_provider_generates_patch_and_replan(monkeypatch):
@@ -180,12 +184,17 @@ def test_anthropic_provider_generates_patch_and_replan(monkeypatch):
         },
     }
 
-    def fake_post(_url, *, headers, json, timeout):
-        del headers, timeout
-        tool_name = json["tools"][0]["name"]
-        return _fake_response(payloads[tool_name])
+    class FakeMessages:
+        def create(self, **kwargs):
+            tool_name = kwargs["tools"][0]["name"]
+            return _fake_response(payloads[tool_name])
 
-    monkeypatch.setattr(httpx, "post", fake_post)
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
     provider = AnthropicMessagesProvider(ProviderConfig(model_name="glm-5", api_key="secret"))
 
     patch = provider.call_patch(_sample_patch_request(), _sample_registry())

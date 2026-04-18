@@ -180,8 +180,9 @@ _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
 _DEFAULT_PROVIDER_CATALOG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 _PREFERRED_LOCAL_PROVIDER_ORDER = (
-    "qwen-plus",
+    "qwen-flash",
     "glm-5",
+    "glm-4.7",
     "deepseek-chat",
     "deepseek-reasoner",
     "nemotron",

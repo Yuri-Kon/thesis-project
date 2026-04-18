@@ -23,6 +23,7 @@ class ProviderSettings(BaseModel):
     api_key: Optional[str] = None
     api_key_env: Optional[str] = None
     endpoint: Optional[str] = None
+    endpoint_env: Optional[str] = None
     timeout: int = 30
     max_tokens: int | None = 2000
     temperature: float = 0.7
@@ -70,6 +71,15 @@ def resolve_api_key(
     return None
 
 
+def resolve_endpoint(settings: ProviderSettings) -> Optional[str]:
+    """Resolve endpoint from inline value or environment variable."""
+    if settings.endpoint:
+        return settings.endpoint
+    if settings.endpoint_env:
+        return os.getenv(settings.endpoint_env)
+    return None
+
+
 def register_provider(provider_type: str, factory: ProviderFactory) -> None:
     """Register a provider factory for extension."""
     _PROVIDER_FACTORIES[provider_type] = factory
@@ -79,6 +89,7 @@ def _register_builtins() -> None:
     register_provider("baseline", _create_baseline_provider)
     register_provider("openai_compatible", _create_openai_provider)
     register_provider("anthropic_messages", _create_anthropic_provider)
+    register_provider("zai_chat", _create_zai_provider)
 
 
 def _ensure_registry() -> None:
@@ -111,6 +122,14 @@ def _create_anthropic_provider(
     return AnthropicMessagesProvider(config, endpoint=endpoint)
 
 
+def _create_zai_provider(
+    config: ProviderConfig, endpoint: Optional[str]
+) -> BaseProvider:
+    from src.llm.zai_chat_provider import ZaiChatProvider
+
+    return ZaiChatProvider(config, endpoint=endpoint)
+
+
 def create_provider(
     settings: ProviderSettings, *, api_key_override: Optional[str] = None
 ) -> BaseProvider:
@@ -137,7 +156,8 @@ def create_provider(
         extra_body=settings.extra_body,
         use_response_format=settings.use_response_format,
     )
+    endpoint = resolve_endpoint(settings)
     factory = _PROVIDER_FACTORIES.get(settings.provider_type)
     if factory is None:
         raise ValueError(f"Unknown provider type: {settings.provider_type}")
-    return factory(config, settings.endpoint)
+    return factory(config, endpoint)

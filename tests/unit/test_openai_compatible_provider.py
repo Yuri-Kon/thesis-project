@@ -126,7 +126,7 @@ def test_openai_provider_supports_json_schema_response_format(monkeypatch):
 
     provider = provider_module.OpenAICompatibleProvider(
         ProviderConfig(
-            model_name="qwen-plus",
+            model_name="qwen3.6-flash",
             api_key="test-key",
             max_tokens=None,
             structured_output_mode="json_schema",
@@ -295,7 +295,7 @@ def test_openai_provider_uses_plan_patch_schema_for_patch(monkeypatch):
     calls = _setup_dummy_openai(monkeypatch, response_content=json.dumps(patch_dict))
     provider = provider_module.OpenAICompatibleProvider(
         ProviderConfig(
-            model_name="qwen-plus",
+            model_name="qwen3.6-flash",
             api_key="test-key",
             structured_output_mode="json_schema",
         )
