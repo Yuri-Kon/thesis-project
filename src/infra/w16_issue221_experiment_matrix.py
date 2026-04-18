@@ -245,11 +245,13 @@ def build_issue221_run_manifest(
         if max_runs is not None and counter >= max_runs:
             break
 
+    run_manifest_path = run_dir / "runs_manifest.json"
     manifest = {
         "issue_id": issue_id,
         "generated_at": now_iso(),
         "run_id": resolved_run_id,
         "config_path": str(config_path),
+        "run_manifest_path": str(run_manifest_path),
         "config_hash": stable_hash(dict(config)),
         "description": config.get("description"),
         "freeze_id": matrix["freeze_id"],
@@ -270,7 +272,7 @@ def build_issue221_run_manifest(
         "runs": run_entries,
     }
 
-    write_json(run_dir / "runs_manifest.json", manifest)
+    write_json(run_manifest_path, manifest)
     write_json(
         run_dir / "resolved_config_snapshot.json",
         {
@@ -622,9 +624,13 @@ def evaluate_issue221_run_manifest(
     }
     write_json(output_dir / "validation_summary.json", validation_summary)
 
-    markdown = build_markdown_report(
+    markdown = _build_issue221_markdown_report(
         issue_id=int(manifest.get("issue_id") or 221),
-        run_manifest_path=Path(str(manifest.get("config_path") or "runs_manifest.json")),
+        run_manifest_path=_resolve_issue221_manifest_path(
+            manifest=manifest,
+            output_dir=output_dir,
+        ),
+        config_path=Path(str(manifest.get("config_path") or "UNKNOWN")),
         freeze_id=str(manifest.get("freeze_id") or "UNKNOWN"),
         summary_rows=summary_rows,
         delta_rows=delta_rows,
@@ -715,6 +721,55 @@ def _build_rerun_candidates(
 
 def _dict_value(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _resolve_issue221_manifest_path(*, manifest: Mapping[str, Any], output_dir: Path) -> Path:
+    raw_path = manifest.get("run_manifest_path")
+    if isinstance(raw_path, str) and raw_path:
+        return Path(raw_path)
+    return output_dir / "runs_manifest.json"
+
+
+def _build_issue221_markdown_report(
+    *,
+    issue_id: int,
+    run_manifest_path: Path,
+    config_path: Path,
+    freeze_id: str,
+    summary_rows: list[dict[str, Any]],
+    delta_rows: list[dict[str, Any]],
+    gate_rows: list[dict[str, Any]],
+    generated_at: str,
+) -> str:
+    """生成 issue221 专用矩阵报告，避免复用旧 A0-A6 文案。"""
+
+    base_report = build_markdown_report(
+        issue_id=issue_id,
+        run_manifest_path=run_manifest_path,
+        freeze_id=freeze_id,
+        summary_rows=summary_rows,
+        delta_rows=delta_rows,
+        gate_rows=gate_rows,
+        generated_at=generated_at,
+    )
+    legacy_header = f"# Issue #{issue_id} Vertical Experiment Report (A0-A6)"
+    issue221_header = f"# Issue #{issue_id} Four-Group Experiment Matrix Report"
+    lines = base_report.splitlines()
+    if lines and lines[0] == legacy_header:
+        lines[0] = issue221_header
+
+    lines_to_insert = [
+        "",
+        "## Matrix Context",
+        "",
+        f"- config_path: `{config_path}`",
+        "- comparison_scope: `static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state`",
+        "- report_contract: `issue221_run_level_matrix`",
+        "",
+    ]
+    insert_at = 5 if len(lines) >= 5 else len(lines)
+    lines[insert_at:insert_at] = lines_to_insert
+    return "\n".join(lines) + "\n"
 
 
 def _evaluate_run_artifacts(

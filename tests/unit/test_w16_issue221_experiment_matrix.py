@@ -230,6 +230,7 @@ def test_issue221_run_manifest_materializes_run_configs_for_selected_subset(
     )
 
     assert manifest["freeze_id"] == "issue209-baseline-freeze-20260326"
+    assert manifest["run_manifest_path"] == str(run_dir / "runs_manifest.json")
     assert len(manifest["runs"]) == 1
     run = manifest["runs"][0]
     assert run["group_id"] == "lite_belief_state"
@@ -310,7 +311,8 @@ def test_issue221_evaluator_writes_rerun_candidates_and_traceability_outputs(
 
     manifest = {
         "issue_id": 221,
-        "config_path": str(tmp_path / "runs_manifest.json"),
+        "config_path": str(tmp_path / "runs_manifest_config.json"),
+        "run_manifest_path": str(tmp_path / "actual_runs_manifest.json"),
         "freeze_id": "issue209-baseline-freeze-20260326",
         "high_cost_rules": [],
         "groups": [
@@ -389,3 +391,8 @@ def test_issue221_evaluator_writes_rerun_candidates_and_traceability_outputs(
     assert (evaluation_dir / "matrix_metrics_summary.csv").exists()
     assert (evaluation_dir / "rerun_selection.json").exists()
     assert (evaluation_dir / "evidence_index.json").exists()
+    matrix_report = (evaluation_dir / "matrix_report.md").read_text(encoding="utf-8")
+    assert "Four-Group Experiment Matrix Report" in matrix_report
+    assert "Vertical Experiment Report (A0-A6)" not in matrix_report
+    assert str(tmp_path / "actual_runs_manifest.json") in matrix_report
+    assert str(tmp_path / "runs_manifest_config.json") in matrix_report
