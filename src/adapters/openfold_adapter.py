@@ -19,7 +19,7 @@ from src.models.contracts import PlanStep
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureCode, FailureType, StepRunError
 
-__all__ = ["OpenFold2Adapter", "OpenFold3Adapter"]
+__all__ = ["OpenFold3Adapter"]
 
 
 class OpenFold3Adapter(BaseToolAdapter):
@@ -29,7 +29,7 @@ class OpenFold3Adapter(BaseToolAdapter):
     adapter_id = "openfold"
     display_name = "OpenFold3"
     rest_provider_name = "openfold3_rest"
-    rest_provider_aliases = ("openfold3_rest", "openfold2_rest")
+    rest_provider_aliases = ("openfold3_rest",)
     rest_base_url_env = "OPENFOLD3_REST_BASE_URL"
     rest_api_token_env = "OPENFOLD3_REST_API_TOKEN"
     max_sequence_length = 1000
@@ -45,9 +45,9 @@ class OpenFold3Adapter(BaseToolAdapter):
         nim_model_id: str = "openfold/openfold3/predict",
     ) -> None:
         normalized_mode = _normalize_execution_mode(execution_mode)
-        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest", "openfold2_rest"}:
+        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest"}:
             raise ValueError(
-                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest, openfold2_rest"
+                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest"
             )
         self.execution_mode = normalized_mode
         self.nim_model_id = nim_model_id
@@ -268,8 +268,8 @@ class OpenFold3Adapter(BaseToolAdapter):
     ) -> dict[str, Any] | None:
         return _resolve_openfold_rest_service_config(
             provider_names=self.rest_provider_aliases,
-            base_url_env_keys=(self.rest_base_url_env, "OPENFOLD3_REST_BASE_URL"),
-            api_token_env_keys=(self.rest_api_token_env, "OPENFOLD3_REST_API_TOKEN"),
+            base_url_env_keys=(self.rest_base_url_env,),
+            api_token_env_keys=(self.rest_api_token_env,),
             base_url=base_url,
         )
 
@@ -293,25 +293,9 @@ class OpenFold3Adapter(BaseToolAdapter):
             "status": "unavailable",
             "reason": "neither NIM nor REST endpoint is configured",
         }
-
-
-class OpenFold2Adapter(OpenFold3Adapter):
-    """OpenFold2 REST 兼容适配器。"""
-
-    tool_id = "openfold2"
-    adapter_id = "openfold2"
-    display_name = "OpenFold2"
-    rest_provider_name = "openfold2_rest"
-    rest_provider_aliases = ("openfold2_rest", "openfold3_rest")
-    rest_base_url_env = "OPENFOLD2_REST_BASE_URL"
-    rest_api_token_env = "OPENFOLD2_REST_API_TOKEN"
-
-
 def _normalize_execution_mode(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized in {"rest", "openfold3_rest", "openfold2_rest", "remote_rest"}:
-        if normalized == "openfold2_rest":
-            return "openfold2_rest"
+    if normalized in {"rest", "openfold3_rest", "remote_rest"}:
         return "openfold3_rest"
     if normalized in {"nim", "nvidia_nim"}:
         return "nvidia_nim"

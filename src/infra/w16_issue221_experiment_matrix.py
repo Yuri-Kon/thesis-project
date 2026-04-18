@@ -974,7 +974,7 @@ def _apply_experiment_plan_overrides(
                     }
                 )
                 step_changed = True
-            if override_mode and override_tool in {"openfold", "openfold2"}:
+            if override_mode and override_tool == "openfold":
                 if rewritten_inputs.get("execution_mode") != override_mode:
                     rewritten_inputs["execution_mode"] = override_mode
                     step_changed = True
@@ -1022,7 +1022,6 @@ def _is_structure_prediction_step(step) -> bool:
         "nim_esmfold",
         "alphafold",
         "openfold",
-        "openfold2",
     }:
         return True
     metadata = getattr(step, "metadata", None) or {}
