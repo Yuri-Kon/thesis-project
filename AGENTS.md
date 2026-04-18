@@ -97,14 +97,39 @@ When work needs the shared AutoDL remote server, use the server state verified i
 - The actively used Conda/Mamba installation is `/root/autodl-tmp/conda`, not `/root/miniconda3`.
 - The current experiment environment is `plm` at `/root/autodl-tmp/envs/plm`.
 - Remote service startup should default to the `plm` environment unless the user explicitly says otherwise.
+- Preferred activation sequence on the remote host:
+  - `source /root/autodl-tmp/conda/etc/profile.d/conda.sh`
+  - `mamba activate plm`
+  - If the shell is already initialized for Conda, `conda activate plm` is also acceptable.
 - The currently known PLM REST and OpenFold3 REST deployments do **not** use authentication by default.
 - Do not instruct users to set `PLM_REST_API_TOKEN` or `OPENFOLD3_REST_API_TOKEN` unless they explicitly ask to enable auth.
-- When documenting or running remote commands, prefer:
+- Start REST services from the repository root `/root/projects/2022112879/remote-model-rest`, not from the `services/` subdirectory.
+- Stable remote startup baseline for ProtGPT2 (`plm_rest` / port `8100`):
   - `ssh autodl`
-  - `conda activate plm`
+  - `source /root/autodl-tmp/conda/etc/profile.d/conda.sh`
+  - `mamba activate plm`
   - `cd /root/projects/2022112879/remote-model-rest`
+  - `export PLM_REST_BASE_DIR=/root/autodl-tmp/remote/plm_jobs`
+  - `export PLM_MODEL_DIR=/root/autodl-tmp/models/plm/ProtGPT2`
   - `python -m uvicorn services.plm_rest_server.app:app --host 0.0.0.0 --port 8100`
+- Stable remote startup baseline for OpenFold3 (`openfold3_rest` / port `8200`):
+  - `ssh autodl`
+  - `source /root/autodl-tmp/conda/etc/profile.d/conda.sh`
+  - `mamba activate plm`
+  - `cd /root/projects/2022112879/remote-model-rest`
+  - `export OPENFOLD3_REST_BASE_DIR=/root/autodl-tmp/remote/openfold3_jobs`
+  - `export OPENFOLD3_MODEL_DIR=/root/autodl-tmp/models/plm/openfold3/of3-p2-155k.pt`
+  - `export OPENFOLD3_PREDICT_BIN=run_openfold`
+  - `export OPENFOLD3_DEVICE=cuda`
+  - `export OPENFOLD3_RUNNER_YAML=/root/projects/2022112879/remote-model-rest/services/openfold3_rest_server/config/openfold3_no_deepspeed_evo_attention.yml`
   - `python -m uvicorn services.openfold3_rest_server.app:app --host 0.0.0.0 --port 8200`
+- For the current remote deployment, `OPENFOLD3_MODEL_DIR` should point to the checkpoint file `of3-p2-155k.pt`, not only the parent directory. The observed server layout does not provide a DeepSpeed `latest` marker, so passing only the directory causes `run_openfold` checkpoint resolution to fail.
+- For the current remote deployment, prefer the provided `openfold3_no_deepspeed_evo_attention.yml` runner config. This disables `use_deepspeed_evo_attention` and is the known-good path for real inference on the shared server.
+- Use `OPENFOLD3_MOCK_MODE=1` only for link validation or service smoke checks. Do not leave mock mode enabled for real experiment runs.
+- Prefer running long-lived services in `tmux`, with session names `plm_rest` and `openfold3_rest`.
+- Local project-side call baseline after remote services are up:
+  - `export PLM_REST_BASE_URL=http://<remote-host>:8100`
+  - `export OPENFOLD3_REST_BASE_URL=http://<remote-host>:8200`
 - Do not assume `HF_HOME`, `TRANSFORMERS_CACHE`, or `TORCH_HOME` are preconfigured on the server; set them explicitly when a task depends on redirected caches.
 
 ## 5. Scope Control And Escalation
