@@ -1,6 +1,6 @@
 # 模型集成说明
 
-更新时间：2026-03-16 12:02
+更新时间：2026-04-18 12:30
 
 ## 说明
 
@@ -1190,3 +1190,403 @@ OpenAI 官方 `openai/evals` 仓库仍然说明其可以：
 
 - OpenAI Evals API guide：https://developers.openai.com/api/docs/guides/evals
 - OpenAI Evals repository：https://github.com/openai/evals
+
+---
+
+## RFdiffusion
+
+### 集成方法
+
+- NVIDIA NIM
+- RosettaCommons（Official OSS）
+
+### NVIDIA NIM Integration
+
+#### Model Card
+
+- Description:
+
+  RFdiffusion（RoseTTAFold Diffusion）是一个用于生成新蛋白质结构与复合体结构的扩散模型。根据 NVIDIA NIM 官方文档，它适合生成 binder、motif scaffolding、对称体与无条件 backbone，并且可以自然接在 ProteinMPNN 之前形成“先生成 backbone，再回填序列”的设计链路。NVIDIA 文档还明确给出了一个与本项目高度一致的串联示例：先用 RFdiffusion 生成 binder 结构，再用 ProteinMPNN 设计可折叠到该 backbone 上的序列。
+- Third-Party Community Consideration
+
+  RFdiffusion 原始方法来自 RosettaCommons / Institute for Protein Design，对应论文为 Nature 2023《De novo design of protein structure and function with RFdiffusion》。NVIDIA NIM 版本是面向部署的封装与优化实现。
+- Model Architecture:
+
+  - Architecture Type: Protein backbone / structure generation
+  - Network Architecture: RoseTTAFold diffusion
+  - Input Type(s): Optional input PDB, contigs, hotspot residues, diffusion steps, random seed
+  - Input Format(s): PDB text, string, list of residue tags, integer
+  - Input Parameters: 1D JSON fields
+  - Other Properties Related to Input: `contigs` 是 RFdiffusion 的 DSL，用于描述保留哪些片段、在哪些位置生成新链、binder 的长度范围等
+- Output:
+
+  - Output Type(s): Generated protein structure in PDB format
+  - Output Format: PDB (text)
+  - Output Parameters: 1D JSON field
+  - Other Properties Related to Output: NIM endpoint返回 `output_pdb` 与 `elapsed_ms`
+- Training / Evaluation Notes:
+
+  - 原始论文表明 RFdiffusion 能处理 unconditional generation、binder design、symmetric oligomer design、enzyme active-site scaffolding 与 motif scaffolding。
+  - NVIDIA NIM 基准说明中给出：同架构 GPU 上输出可以与参考实现精确一致；跨 GPU 架构时，参考数据与生成结果的原子坐标 RMSE 均值低于 0.64 A。
+- Deployment / Hardware Notes:
+
+  - NVIDIA NIM 官方 support matrix 要求单卡运行，最低 GPU 显存 12 GB。
+  - 系统级最低资源建议为 4 CPU cores、16 GB RAM、15 GB NVMe SSD。
+
+#### How to Use
+
+推荐优先参考 NVIDIA NIM 的 Quickstart。最小启动方式如下：
+
+```bash
+export NGC_API_KEY=<your personal NGC key>
+export LOCAL_NIM_CACHE=~/.cache/nim
+mkdir -p "$LOCAL_NIM_CACHE"
+sudo chmod 0777 -R "$LOCAL_NIM_CACHE"
+
+docker run -it \
+    --runtime=nvidia \
+    --gpus='"device=0"' \
+    -p 8000:8000 \
+    -e NGC_API_KEY \
+    -v "$LOCAL_NIM_CACHE":/opt/nim/.cache \
+    nvcr.io/nim/ipd/rfdiffusion:2
+
+curl http://localhost:8000/v1/health/ready
+```
+
+最小 Python 调用示例如下：
+
+```python
+#!/usr/bin/env python3
+import json
+from pathlib import Path
+
+import requests
+
+pdb_text = requests.get("https://files.rcsb.org/download/1R42.pdb", timeout=60).text
+atom_lines = [line for line in pdb_text.splitlines() if line.startswith("ATOM")][:400]
+reduced_pdb = "\n".join(atom_lines)
+
+payload = {
+    "input_pdb": reduced_pdb,
+    "contigs": "A20-60/0 50-100",
+    "hotspot_res": ["A50", "A51", "A52", "A53", "A54"],
+    "diffusion_steps": 15,
+}
+
+response = requests.post(
+    "http://localhost:8000/biology/ipd/rfdiffusion/generate",
+    json=payload,
+    timeout=300,
+)
+response.raise_for_status()
+Path("output.pdb").write_text(response.json()["output_pdb"], encoding="utf-8")
+```
+
+#### Recommended Integration Notes For This Project
+
+对于本项目，RFdiffusion 不应简单并入现有 `structure_prediction`，更合理的做法是把它建模为新的生成能力，例如：
+
+- `capability_id = backbone_generation` 或 `conditional_structure_generation`
+- `io_type = structure_seed_to_structure` / `constraint_to_structure`
+- 典型链路：`RFdiffusion -> ProteinMPNN -> ESMFold/OpenFold -> QC -> Objective Ranker`
+
+这样做的原因是：RFdiffusion 的输入并不是“单条序列 -> 预测结构”，而是“约束 / 目标位点 / motif / target backbone -> 生成新 backbone”。它在语义上更接近本项目的 `S1/S4` 之间新增一个“结构先行生成”层。
+
+### RosettaCommons Integration
+
+#### Quick Start
+
+如果希望采用原始开源实现，可按官方 README 启动：
+
+```bash
+git clone https://github.com/RosettaCommons/RFdiffusion.git
+cd RFdiffusion
+# 按官方 README / Docker 文档配置环境
+```
+
+官方 README 强调的核心能力包括：
+
+- Motif scaffolding
+- Unconditional protein generation
+- Symmetric generation
+- Binder design
+- Partial diffusion（在已有设计周围做多样化采样）
+
+这一路径的优点是与论文实现更接近，便于做方法学复现；缺点是运维复杂度高于 NIM，且对推理环境、权重和依赖版本的锁定要求更高。
+
+#### References
+
+- RFdiffusion NIM Overview: https://docs.nvidia.com/nim/bionemo/rfdiffusion/latest/overview.html
+- RFdiffusion NIM Quickstart: https://docs.nvidia.com/nim/bionemo/rfdiffusion/latest/quickstart-guide.html
+- RFdiffusion NIM Endpoints: https://docs.nvidia.com/nim/bionemo/rfdiffusion/latest/endpoints.html
+- RFdiffusion NIM Support Matrix: https://docs.nvidia.com/nim/bionemo/rfdiffusion/2.2.0/support-matrix.html
+- RosettaCommons RFdiffusion: https://github.com/RosettaCommons/RFdiffusion
+- Nature paper: https://www.nature.com/articles/s41586-023-06415-8
+
+---
+
+## DiffDock
+
+### 集成方法
+
+- NVIDIA NIM
+- Official GitHub / Docker
+
+### NVIDIA NIM Integration
+
+#### Model Card
+
+- Description:
+
+  DiffDock 是一个面向 protein-ligand pose prediction 的生成式 docking 模型。NVIDIA NIM 概述将其描述为“预测蛋白-配体复合体三维结构”的 state-of-the-art generative model，并强调其既可做 blind docking，又能输出 pose confidence，适合进入药物发现和 protein-ligand 设计流水线。
+- Model Architecture:
+
+  - Architecture Type: Protein-ligand docking / pose generation
+  - Network Architecture: Equivariant geometric diffusion model
+  - Input Type(s): Protein 3D structure, ligand structure, ligand file type, sampling hyperparameters
+  - Input Format(s): PDB text for protein, SDF or other RDKit-readable ligand description
+  - Input Parameters: 1D JSON fields
+  - Other Properties Related to Input: 官方 NIM 默认 endpoint 是 blind docking，不要求事先提供 binding pocket
+- Output:
+
+  - Output Type(s): Docked ligand poses, pose confidence, optional trajectory
+  - Output Format: JSON + SDF/PDB text blobs
+  - Output Parameters: list of pose strings + list of confidence scores
+  - Other Properties Related to Output: NIM 返回 `ligand_positions`、`position_confidence`，可直接用于生成 rank-ordered SDF pose files
+- Training Dataset:
+
+  NVIDIA NIM 文档说明该版本使用了组合训练集，包括：
+
+  - PLINDER：来自 PDB 的蛋白-配体相互作用数据集
+  - SAIR（Structurally-Augmented IC50 Repository）：由 SandboxAQ 公开的大规模 protein-ligand 结构-活性数据集
+
+  这一点与原始开源 DiffDock 仓库不同，后者论文与代码主要围绕 PDBBind、BindingMOAD、PoseBusters、DockGen 等评测或训练数据组织。
+- Evaluation / Usage Notes:
+
+  - 原始 DiffDock ICLR 2023 论文将 docking 重新表述为在平移、旋转和扭转自由度上的扩散生成问题。
+  - 开源仓库 README 明确指出：当前仓库默认运行的是改进版 `DiffDock-L`。
+  - 官方 FAQ 明确强调：DiffDock 预测的是 pose 与 pose confidence，不是 binding affinity 本身。
+- Deployment / Hardware Notes:
+
+  - NIM support matrix 给出的最小系统资源为 4 CPU cores、8 GB RAM、40 GB NVMe SSD、单 GPU。
+  - 官方测试覆盖的 GPU 包括 H100、A100、L40S、A6000、A10G。
+
+#### How to Use
+
+NVIDIA NIM 的最小启动方式如下：
+
+```bash
+export NGC_API_KEY=<your personal NGC key>
+
+docker pull nvcr.io/nim/mit/diffdock:2.2.0
+
+docker run --rm -it --name diffdock-nim \
+  --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=0 \
+  --shm-size=2G \
+  --ulimit memlock=-1 \
+  --ulimit stack=67108864 \
+  -e NGC_API_KEY=$NGC_API_KEY \
+  -p 8000:8000 \
+  nvcr.io/nim/mit/diffdock:2.2.0
+
+curl localhost:8000/v1/health/ready
+```
+
+最小请求示例：
+
+```bash
+protein_bytes=$(curl https://files.rcsb.org/download/8G43.pdb | grep -E '^ATOM' | sed -z 's/\n/\\\n/g')
+ligand_bytes=$(curl https://files.rcsb.org/ligands/download/ZU6_ideal.sdf | sed -z 's/\n/\\\n/g')
+
+cat > diffdock.json <<EOF
+{
+  "ligand": "${ligand_bytes}",
+  "ligand_file_type": "sdf",
+  "protein": "${protein_bytes}",
+  "num_poses": 1,
+  "time_divisions": 20,
+  "steps": 18,
+  "save_trajectory": false,
+  "is_staged": false
+}
+EOF
+
+curl --header "Content-Type: application/json" \
+  --request POST \
+  --data @diffdock.json \
+  --output output.json \
+  http://localhost:8000/molecular-docking/diffdock/generate
+```
+
+#### Recommended Integration Notes For This Project
+
+DiffDock 与本项目现有 KG 中的 `docking_scoring` 能力是直接匹配的，因此它最适合以“第二后端”方式并入，而不是新开语义层：
+
+- `capability_id = docking_scoring`
+- `io_type = structure_ligand_to_binding_score`
+- 推荐与现有 `autodock_vina` 形成主备或横向对比
+
+但在论文与系统说明里需要特别写清：
+
+- DiffDock 的 `position_confidence` 不是亲和力；
+- 如果任务目标需要真正的 binding affinity proxy，应再串联 `vina`、`gnina`、MM/GBSA 或其他打分工具；
+- 对本项目而言，DiffDock 更适合承担“pose proposal + confidence evidence”角色，而不是独立完成最终 objective scoring。
+
+### Official GitHub Integration
+
+#### Quick Start
+
+如果使用官方开源仓库，README 推荐：
+
+```bash
+git clone https://github.com/gcorso/DiffDock.git
+cd DiffDock
+conda env create --file environment.yml
+conda activate diffdock
+python -m inference --config default_inference_args.yaml \
+  --protein_ligand_csv data/protein_ligand_example.csv \
+  --out_dir results/user_predictions_small
+```
+
+官方 Docker 方式：
+
+```bash
+docker pull rbgcsail/diffdock
+docker run -it --gpus all --entrypoint /bin/bash rbgcsail/diffdock
+```
+
+开源路径的优点是便于方法学复现、直接对齐 ICLR 论文与 DiffDock-L 更新；缺点是本地依赖更多，且需要自己管理 ESMFold/输入文件准备与结果落盘逻辑。
+
+#### References
+
+- DiffDock NIM Overview: https://docs.nvidia.com/nim/bionemo/diffdock/latest/overview.html
+- DiffDock NIM Getting Started: https://docs.nvidia.com/nim/bionemo/diffdock/latest/getting-started.html
+- DiffDock NIM Support Matrix: https://docs.nvidia.com/nim/bionemo/diffdock/2.2.0/support-matrix.html
+- DiffDock NIM Configure NIM: https://docs.nvidia.com/nim/bionemo/diffdock/latest/configure-nim.html
+- DiffDock GitHub: https://github.com/gcorso/DiffDock
+- DiffDock OpenReview / ICLR 2023: https://openreview.net/forum?id=SttOaKinOI
+
+---
+
+## MSA Search
+
+### 集成方法
+
+- NVIDIA NIM
+
+### NVIDIA NIM Integration
+
+#### Model Card
+
+- Description:
+
+  MSA Search NIM 提供 GPU 加速的 multiple sequence alignment 搜索服务，用于把查询蛋白序列在一组数据库中进行同源搜索并输出对齐结果。官方概述明确指出，它的输出主要服务于 AlphaFold2、OpenFold 等结构预测模型，并且同时支持 monomer search、paired MSA search（多聚体）和 structural template search。
+- Model / Service Architecture:
+
+  - Architecture Type: MSA generation / template retrieval service
+  - Backend Core: GPU-accelerated MMseqs2
+  - Search Styles: `alphafold2`（single-pass iterative）与 `colabfold`（cascaded search）
+  - Extended Modes: paired MSA for multimers, structural template search
+- Input:
+
+  - Input Type(s): Protein sequence; optional databases, search type, e-value, iterations, output formats
+  - Input Format(s): JSON string fields; sequence length 1-4096
+  - Input Parameters: 1D JSON fields
+  - Other Properties Related to Input: paired endpoint 接受多条链序列；template endpoint 还会返回结构模板 hits 与 mmCIF 文件
+- Output:
+
+  - Output Type(s): A3M / FASTA alignments, paired alignments by chain, optional structural template hits
+  - Output Format: JSON object with nested alignment records
+  - Output Parameters: alignment strings + metrics dictionaries
+  - Other Properties Related to Output: `colabfold` 聚合结果主要用于兼容性，官方文档提醒未来可能移除，正式接入时应优先使用按数据库拆分的结果字段
+- Deployment / Hardware Notes:
+
+  - 官方 getting started 页面指出：首次启动默认 profile 会下载约 1.4 TB 数据库到本地缓存。
+  - support matrix 给出的系统建议为 24 CPU cores、64 GB RAM、约 1.3-1.6 TB NVMe SSD、>=48 GB 显存 GPU。
+  - 默认数据库包含 Uniref30、colabfold_envdb、PDB70；paired search 依赖带 taxonomy 的数据库。
+
+#### How to Use
+
+最小启动方式：
+
+```bash
+export NGC_API_KEY=<your personal NGC key>
+export LOCAL_NIM_CACHE=~/.cache/nim
+mkdir -p "$LOCAL_NIM_CACHE"
+sudo chmod 0777 -R "$LOCAL_NIM_CACHE"
+
+docker run -it --rm \
+  --runtime=nvidia \
+  --gpus all \
+  -e NGC_API_KEY \
+  -v "$LOCAL_NIM_CACHE:/opt/nim/.cache" \
+  -p 8000:8000 \
+  nvcr.io/nim/colabfold/msa-search:2
+
+curl http://localhost:8000/v1/health/ready
+```
+
+最小 Python 示例：
+
+```python
+#!/usr/bin/env python3
+import requests
+
+url = "http://localhost:8000/biology/colabfold/msa-search/predict"
+payload = {
+    "sequence": "SGSMKTAISLPDETFDRVSRRASELGMSRSEFFTKAAQR",
+    "e_value": 0.0001,
+    "iterations": 1,
+    "output_alignment_formats": ["a3m", "fasta"],
+}
+
+response = requests.post(url, json=payload, timeout=300)
+response.raise_for_status()
+print(response.json().keys())
+```
+
+对应 shell 示例：
+
+```bash
+curl http://localhost:8000/biology/colabfold/msa-search/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sequence": "SGSMKTAISLPDETFDRVSRRASELGMSRSEFFTKAAQR",
+    "e_value": 0.0001,
+    "iterations": 1,
+    "output_alignment_formats": ["a3m", "fasta"]
+  }' -o response.json
+```
+
+paired multimer search endpoint 为：
+
+- `/biology/colabfold/msa-search/paired/predict`
+
+template search endpoint 为：
+
+- `/biology/colabfold/msa-search/structure-templates/predict`
+
+#### Recommended Integration Notes For This Project
+
+MSA Search 不应被当作一般的 `sequence_similarity_search` 替代品，它更适合在系统中承担“结构预测前置依赖”能力：
+
+- 建议新增 `capability_id = msa_generation` 或 `msa_template_search`
+- 对应 `io_type = sequence_to_msa` / `sequence_to_msa_and_templates`
+- 主要服务对象：`alphafold`、`openfold`、未来可能的 `boltz` 或 multimer 预测链路
+
+对本项目尤其重要的几点：
+
+- 它能把 AlphaFold2 / OpenFold 的 MSA 依赖显式化，而不是把数据库准备隐藏在 adapter 外部；
+- paired search 为后续复杂体任务预留了接口；
+- structural template search 可以把 `msa + template retrieval` 一次性落盘，方便论文中说明 template-based prediction 的证据来源；
+- 但它的运维成本很高，应明确区分“开发默认不开启”和“结构预测高精度 profile 才启用”的运行策略。
+
+#### References
+
+- MSA Search Overview: https://docs.nvidia.com/nim/bionemo/msa-search/latest/overview.html
+- MSA Search Getting Started: https://docs.nvidia.com/nim/bionemo/msa-search/latest/getting-started.html
+- MSA Search API Reference: https://docs.nvidia.com/nim/bionemo/msa-search/latest/api-reference.html
+- MSA Search Task-Specific Profiles / Custom Databases: https://docs.nvidia.com/nim/bionemo/msa-search/latest/database-selection.html
+- MSA Search Indexing Databases: https://docs.nvidia.com/nim/bionemo/msa-search/latest/indexing-databases.html
+

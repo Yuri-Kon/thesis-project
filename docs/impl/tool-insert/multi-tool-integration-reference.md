@@ -1,6 +1,6 @@
 # 多工具接入归纳（面向 Issue #172 与 Requirement-2）
 
-更新时间：2026-03-16
+更新时间：2026-04-18
 
 ## 1. 归纳范围与依据
 
@@ -78,3 +78,35 @@
 
 - 本文是“接入参考清单”，不改变现有 FSM、角色边界或执行语义。
 - 横向对比建议采用“一个主平台 + 一个轻量回归工具”策略，避免一次性引入过多变量。
+
+## 8. 下一轮拟接入工具（2026-04 续写）
+
+以下三项不是“把已有能力再堆一层同类工具”，而是为了补齐当前设计中最值得扩展的三个方向：结构先行生成、docking 代理、MSA 前置依赖显式化。
+
+| 名称 | 网址 | 建议接入位置（项目） | 接入方式 | 具体功能 | 需要补充 |
+| --- | --- | --- | --- | --- | --- |
+| RFdiffusion | https://github.com/RosettaCommons/RFdiffusion ; https://docs.nvidia.com/nim/bionemo/rfdiffusion/latest/overview.html | `src/adapters/rfdiffusion_adapter.py`（建议新增）、`configs/model_providers.json`（如走 NIM）、`src/kg/protein_tool_kg.json`（新增 capability / io_type）、可选 `services/` 远端封装 | `remote_model_service`（优先 NIM） / docker / python | 结构先行生成：binder design、motif scaffolding、conditional backbone generation，形成 `RFdiffusion -> ProteinMPNN` 新链路 | 不建议硬塞进 `structure_prediction`；应新增 `backbone_generation` 或 `conditional_structure_generation`；补齐 contigs / hotspot_res 的 schema 与失败码 |
+| DiffDock | https://github.com/gcorso/DiffDock ; https://docs.nvidia.com/nim/bionemo/diffdock/latest/overview.html | `src/adapters/diffdock_adapter.py`（建议新增）、`src/kg/protein_tool_kg.json`（绑定现有 `docking_scoring`）、`configs/model_providers.json`（如走 NIM） | `remote_model_service`（优先 NIM） / docker / python | 为 `protein + ligand -> poses + confidence` 提供 ML docking 后端，与 `autodock_vina` 形成互补与对比 | 要明确 `position_confidence != binding_affinity`；建议把它定位为 pose proposal / pose confidence 工具，再由 objective scoring 聚合 |
+| MSA Search | https://docs.nvidia.com/nim/bionemo/msa-search/latest/overview.html | `src/adapters/msa_search_adapter.py`（建议新增）、`src/kg/protein_tool_kg.json`（新增 `msa_generation` / `msa_template_search`）、`configs/model_providers.json`（新增 provider）、必要时 `services/` 或部署脚本 | `remote_model_service`（NVIDIA NIM） | 为 AlphaFold2 / OpenFold / multimer 预测提供 A3M、paired MSA 和 template search；把高精度结构预测所需的前置证据显式化 | 运维成本高，首次启动会拉取约 1.4 TB 数据库；需要 profile 化启用策略、数据库版本锁定与 artifact 落盘规范 |
+
+## 9. 接入顺序建议（面向论文主线）
+
+- 第一优先：`RFdiffusion`
+  - 原因：它补的是当前主链里真正缺失的“结构先行设计”能力，并且能直接与已接入的 `ProteinMPNN` 串起来。
+- 第二优先：`DiffDock`
+  - 原因：项目已经有 `docking_scoring` 能力和 `autodock_vina`，接入 DiffDock 成本较低，且能形成更有论文价值的 ML vs classical docking 对比。
+- 第三优先：`MSA Search`
+  - 原因：它更像高精度结构预测的基础设施。学术价值明确，但部署与数据成本最高，适合在 AF2 / OpenFold 主链稳定后接入。
+
+## 10. 三项工具的设计映射摘要
+
+- `RFdiffusion`
+  - 更适合新 capability：`backbone_generation`
+  - 不建议复用 `structure_prediction`
+- `DiffDock`
+  - 直接映射现有 capability：`docking_scoring`
+  - 作为 `autodock_vina` 的互补 / 主备 / 对比后端
+- `MSA Search`
+  - 更适合新 capability：`msa_generation` / `msa_template_search`
+  - 作为 `alphafold`、`openfold` 及未来复杂体预测链路的前置工具
+
