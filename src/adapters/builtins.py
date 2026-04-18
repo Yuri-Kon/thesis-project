@@ -15,7 +15,7 @@ from src.adapters.mda_analysis_adapter import MDAnalysisAdapter
 from src.adapters.mmseqs2_adapter import MMseqs2Adapter
 from src.adapters.nim_adapter import NIMESMFoldAdapter
 from src.adapters.objective_ranker_adapter import ObjectiveRankerAdapter
-from src.adapters.openfold_adapter import OpenFold2Adapter, OpenFold3Adapter
+from src.adapters.openfold_adapter import OpenFold3Adapter
 from src.adapters.protein_mpnn_adapter import ProteinMPNNAdapter
 from src.adapters.protgpt2_adapter import ProtGPT2Adapter
 from src.adapters.registry import get_adapter, register_adapter
@@ -57,28 +57,15 @@ def ensure_builtin_adapters() -> None:
             get_adapter(AlphaFold2Adapter.tool_id)
         except KeyError:
             register_adapter(AlphaFold2Adapter())
-    openfold_rest_available = bool(os.getenv("OPENFOLD3_REST_BASE_URL")) or bool(
-        os.getenv("OPENFOLD2_REST_BASE_URL")
+    openfold3_rest_available = _has_provider_base_url(
+        env_key="OPENFOLD3_REST_BASE_URL",
+        provider_name="openfold3_rest",
     )
-    if not openfold_rest_available:
-        try:
-            provider_cfg = get_provider_config("openfold3_rest")
-            openfold_rest_available = bool(provider_cfg.base_url)
-        except KeyError:
-            try:
-                provider_cfg = get_provider_config("openfold2_rest")
-                openfold_rest_available = bool(provider_cfg.base_url)
-            except KeyError:
-                openfold_rest_available = False
-    if nim_api_key or openfold_rest_available:
+    if nim_api_key or openfold3_rest_available:
         try:
             get_adapter(OpenFold3Adapter.tool_id)
         except KeyError:
             register_adapter(OpenFold3Adapter())
-        try:
-            get_adapter(OpenFold2Adapter.tool_id)
-        except KeyError:
-            register_adapter(OpenFold2Adapter())
     try:
         get_adapter(ProteinMPNNAdapter.tool_id)
     except KeyError:
@@ -123,3 +110,14 @@ def ensure_builtin_adapters() -> None:
         get_adapter(AutoDockVinaAdapter.tool_id)
     except KeyError:
         register_adapter(AutoDockVinaAdapter())
+
+
+def _has_provider_base_url(*, env_key: str, provider_name: str) -> bool:
+    candidate = str(os.getenv(env_key, "")).strip()
+    if candidate:
+        return True
+    try:
+        provider_cfg = get_provider_config(provider_name)
+    except KeyError:
+        return False
+    return bool(str(provider_cfg.base_url or "").strip())

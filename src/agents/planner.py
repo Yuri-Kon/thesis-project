@@ -169,7 +169,7 @@ _SCORE_WEIGHT_KEY_ALIASES: dict[str, str] = {
 
 _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
     # Requirement-2: P0 capability swap matrix (structure prediction core path)
-    "structure_prediction": ("nim_esmfold", "esmfold", "alphafold", "openfold2", "openfold"),
+    "structure_prediction": ("nim_esmfold", "esmfold", "alphafold", "openfold"),
     # Requirement-2: minimal fallback path for quality_qc
     "quality_qc": ("biopython_qc", "dssp"),
     # Requirement-2: minimal fallback path for objective_scoring

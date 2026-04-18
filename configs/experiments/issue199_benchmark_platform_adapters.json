@@ -32,7 +32,7 @@
       "dssp",
       "objective_ranker",
       "esmfold",
-      "openfold2",
+      "openfold",
       "protein_mpnn"
     ],
     "allowed_capability_ids": [
@@ -45,7 +45,7 @@
     ],
     "high_cost_tool_ids": [
       "esmfold",
-      "openfold2",
+      "openfold",
       "protein_mpnn"
     ],
     "enforcement_rule": "External baseline runs must stay within the same allowlist and carry the whitelist version into every normalized artifact."
@@ -136,7 +136,7 @@
     },
     {
       "action_id": "confirm_remote_tool_services",
-      "summary": "Confirm PLM REST / OpenFold2 REST endpoints if the allowlist run needs remote tools.",
+      "summary": "Confirm PLM REST / OpenFold3 REST endpoints if the allowlist run needs remote tools.",
       "owner": "user",
       "stage": "before_live_run",
       "details": "Default ports remain 8100 and 8200, but the final URL must be fixed in the run environment and reused by external baselines."

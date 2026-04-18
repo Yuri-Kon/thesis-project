@@ -154,6 +154,81 @@ def test_replay_sample_materialization_extracts_runtime_snapshot_and_shadow_fiel
     assert metrics["replay_source_freeze_id"] == "issue209-baseline-freeze-smoke"
 
 
+def test_extract_run_metrics_reads_latest_jsonl_snapshot(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs" / "task_jsonl_snapshot.jsonl"
+    snapshot_path = tmp_path / "snapshots" / "task_jsonl_snapshot.jsonl"
+    report_path = tmp_path / "reports" / "task_jsonl_snapshot.json"
+
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_jsonl_snapshot",
+                "step_id": "S2",
+                "tool": "esmfold",
+                "status": "success",
+                "timestamp": "2026-04-16T10:00:01+00:00",
+                "data": {
+                    "action_name": "continue",
+                    "shadow_action": "continue",
+                },
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_jsonl_snapshot",
+                "from_status": "SUMMARIZING",
+                "to_status": "DONE",
+                "timestamp": "2026-04-16T10:00:02+00:00",
+            },
+        ],
+    )
+    _write_jsonl(
+        snapshot_path,
+        [
+            {"task_id": "task_jsonl_snapshot", "artifacts": {}},
+            {
+                "task_id": "task_jsonl_snapshot",
+                "artifacts": {
+                    "runtime_state": {
+                        "p_success": 0.73,
+                        "p_structural_failure": 0.19,
+                    },
+                    "decision_summary": {
+                        "shadow_action": "continue",
+                        "shadow_score": {"value": 0.88},
+                    },
+                },
+            },
+        ],
+    )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text("{}", encoding="utf-8")
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "r_jsonl_snapshot",
+            "task_id": "task_jsonl_snapshot",
+            "task_key": "k_jsonl_snapshot",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "freeze_id": "f_jsonl_snapshot",
+            "event_log_path": str(log_path),
+            "snapshot_path": str(snapshot_path),
+            "report_path": str(report_path),
+            "status_external": "DONE",
+        },
+        tool_capability_map={"esmfold": ["structure_prediction"]},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["snapshot_linked"] is True
+    assert metrics["runtime_state_observable"] is True
+    assert metrics["shadow_output_observable"] is True
+    assert metrics["action_continue_count"] == 1
+    assert metrics["shadow_action_agreement_rate"] == 1.0
+
+
 def test_replay_sample_is_deterministic_for_same_fixture(tmp_path: Path) -> None:
     sample_path = DEFAULT_REPLAY_SAMPLE_DIR / "runtime_shadow_success_sample.json"
     tool_map = {
@@ -214,6 +289,96 @@ def test_replay_samples_batch_returns_reusable_metrics(tmp_path: Path) -> None:
     assert by_id["replan_waiting_shadow_sample"]["requirement2_coverage"]["sequence_core"] is True
 
 
+def test_extract_run_metrics_tracks_action_counts_and_shadow_agreement(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "logs" / "task_action_metrics.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_action_metrics",
+                "step_id": "S1",
+                "tool": "seqgen_local",
+                "status": "success",
+                "timestamp": "2026-04-16T10:10:01+00:00",
+                "data": {
+                    "action_name": "continue",
+                    "shadow_action": "continue",
+                },
+            },
+            {
+                "event": "PARAM_TWEAK",
+                "task_id": "task_action_metrics",
+                "step_id": "S2",
+                "timestamp": "2026-04-16T10:10:02+00:00",
+                "data": {
+                    "shadow_action": "patch",
+                    "recovery": {"recovery_layer": "parameter_level"},
+                },
+            },
+            {
+                "event": "RECOVERY_ESCALATED",
+                "task_id": "task_action_metrics",
+                "step_id": "S3",
+                "timestamp": "2026-04-16T10:10:03+00:00",
+                "data": {
+                    "action_name": "replan",
+                    "shadow_action": "suffix_replan",
+                    "recovery": {"upgrade_reason": "suffix_replan"},
+                },
+            },
+            {
+                "event": "STEP_FAILED",
+                "task_id": "task_action_metrics",
+                "step_id": "S4",
+                "tool": "esmfold",
+                "status": "failed",
+                "timestamp": "2026-04-16T10:10:04+00:00",
+                "data": {
+                    "action_name": "stop",
+                    "shadow_action": "suffix_replan",
+                    "failure_code": "STOP_REQUESTED",
+                },
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_action_metrics",
+                "from_status": "RUNNING",
+                "to_status": "FAILED",
+                "timestamp": "2026-04-16T10:10:05+00:00",
+            },
+        ],
+    )
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "r_action_metrics",
+            "task_id": "task_action_metrics",
+            "task_key": "k_action_metrics",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "freeze_id": "f_action_metrics",
+            "event_log_path": str(log_path),
+            "status_external": "FAILED",
+        },
+        tool_capability_map={
+            "seqgen_local": ["sequence_generation"],
+            "esmfold": ["structure_prediction"],
+        },
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["action_continue_count"] == 1
+    assert metrics["action_patch_local_count"] == 1
+    assert metrics["action_suffix_replan_count"] == 1
+    assert metrics["action_stop_count"] == 1
+    assert metrics["shadow_action_observation_count"] == 4
+    assert metrics["shadow_action_agreement_count"] == 3
+    assert metrics["shadow_action_agreement_rate"] == 0.75
+
+
 def test_aggregate_and_deltas(tmp_path: Path) -> None:
     def make_run(group_id: str, task_key: str, replicate: int, success: bool, patch_count: int) -> dict:
         return {
@@ -242,6 +407,13 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
             "step_finished_count": 1,
             "waiting_chain_complete": True,
             "failure_traceable": True,
+            "action_continue_count": 1 if success else 0,
+            "action_patch_local_count": patch_count,
+            "action_suffix_replan_count": 0 if success else 1,
+            "action_stop_count": 0,
+            "shadow_action_agreement_count": 1 if success else 0,
+            "shadow_action_observation_count": 1,
+            "shadow_action_agreement_rate": 1.0 if success else 0.0,
             "layer_counter": {"parameter_level": patch_count} if patch_count else {},
             "tool_usage": {"protgpt2": 1},
             "capability_usage": {"sequence_generation": 1},
@@ -284,6 +456,10 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert summary["A0"]["high_cost_call_mean"] == 0.0
     assert summary["A0"]["runtime_state_observable_rate"] == 0.0
     assert summary["A1"]["shadow_output_observable_rate"] == 0.0
+    assert summary["A1"]["action_continue_mean"] == 1.0
+    assert summary["A0"]["action_patch_local_mean"] == 1.0
+    assert summary["A0"]["action_suffix_replan_mean"] == 0.5
+    assert summary["A1"]["shadow_action_agreement_rate"] == 1.0
 
     deltas = compute_increment_deltas(
         runs,

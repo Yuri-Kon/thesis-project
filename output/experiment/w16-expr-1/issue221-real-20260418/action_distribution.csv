@@ -1,0 +1,5 @@
+group_id,action_continue_total,action_patch_local_total,action_suffix_replan_total,action_stop_total,shadow_action_observation_total,shadow_action_agreement_total,shadow_action_agreement_rate
+static_top1,4.0,0.0,0.0,0.0,0,0,
+fixed_threshold_gate,4.0,0.0,0.0,0.0,0,0,
+dynamic_no_belief_state,4.0,0.0,0.0,0.0,0,0,
+lite_belief_state,4.0,0.0,0.0,0.0,0,0,

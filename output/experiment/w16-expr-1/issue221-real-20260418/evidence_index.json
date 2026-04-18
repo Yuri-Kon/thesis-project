@@ -1,0 +1,58 @@
+[
+  {
+    "run_id": "issue221-real-20260418_static_top1_high_solubility_r01",
+    "group_id": "static_top1",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-real-20260418/run_configs/issue221-real-20260418_static_top1_high_solubility_r01.json",
+    "event_log_path": "data/logs/issue221-real-20260418_static_top1_high_solubility_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue221-real-20260418_static_top1_high_solubility_r01.jsonl",
+    "report_path": "output/reports/issue221-real-20260418_static_top1_high_solubility_r01_denovo.md",
+    "summary_row_id": "945c57a8d773",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "issue221-real-20260418_fixed_threshold_gate_high_solubility_r01",
+    "group_id": "fixed_threshold_gate",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-real-20260418/run_configs/issue221-real-20260418_fixed_threshold_gate_high_solubility_r01.json",
+    "event_log_path": "data/logs/issue221-real-20260418_fixed_threshold_gate_high_solubility_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue221-real-20260418_fixed_threshold_gate_high_solubility_r01.jsonl",
+    "report_path": "output/reports/issue221-real-20260418_fixed_threshold_gate_high_solubility_r01_denovo.md",
+    "summary_row_id": "2c58788fba69",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "issue221-real-20260418_dynamic_no_belief_state_high_solubility_r01",
+    "group_id": "dynamic_no_belief_state",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-real-20260418/run_configs/issue221-real-20260418_dynamic_no_belief_state_high_solubility_r01.json",
+    "event_log_path": "data/logs/issue221-real-20260418_dynamic_no_belief_state_high_solubility_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue221-real-20260418_dynamic_no_belief_state_high_solubility_r01.jsonl",
+    "report_path": "output/reports/issue221-real-20260418_dynamic_no_belief_state_high_solubility_r01_denovo.md",
+    "summary_row_id": "1e20148e8657",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "issue221-real-20260418_lite_belief_state_high_solubility_r01",
+    "group_id": "lite_belief_state",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-real-20260418/run_configs/issue221-real-20260418_lite_belief_state_high_solubility_r01.json",
+    "event_log_path": "data/logs/issue221-real-20260418_lite_belief_state_high_solubility_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue221-real-20260418_lite_belief_state_high_solubility_r01.jsonl",
+    "report_path": "output/reports/issue221-real-20260418_lite_belief_state_high_solubility_r01_denovo.md",
+    "summary_row_id": "d36d7982d17a",
+    "artifact_complete": true
+  }
+]
