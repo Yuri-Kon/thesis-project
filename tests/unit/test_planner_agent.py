@@ -14,6 +14,7 @@ from src.models.contracts import (
     PendingActionType,
     Plan,
     PlanPatch,
+    PlanPatchOp,
     PlanStep,
     ProteinDesignTask,
     RERANK_REASON_METADATA_KEY,
@@ -313,6 +314,20 @@ class _AutoProvider:
         }
 
 
+class _FailingProvider:
+    def __init__(self, model_name: str = "failing-provider") -> None:
+        self.config = ProviderConfig(model_name=model_name)
+
+    def call_planner(self, task: ProteinDesignTask, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+    def call_patch(self, request: PatchRequest, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+    def call_replan(self, request: ReplanRequest, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+
 def _patch_request_for_topk() -> PatchRequest:
     plan = Plan(
         task_id="task_topk_patch",
@@ -339,7 +354,7 @@ def _patch_request_for_topk() -> PatchRequest:
         original_plan=plan,
         context_step_results=[previous],
         safety_events=[],
-        reason="unit-test",
+        reason="retry exhausted",
     )
 
 
@@ -1039,7 +1054,7 @@ class TestPlannerAgent:
 
         assert topk.candidates
         first = topk.candidates[0]
-        assert first.metadata.get("recovery_layer") == "parameter_level"
+        assert first.metadata.get("recovery_layer") == "tool_level"
         assert first.metadata.get("capability_id") == "structure_prediction"
 
         tool_level = [
@@ -1053,6 +1068,37 @@ class TestPlannerAgent:
             candidate.metadata.get("from_tool") == "esmfold"
             and candidate.metadata.get("to_tool") == "nim_esmfold"
             for candidate in tool_level
+        )
+
+    def test_patch_top_k_respects_structure_prediction_tool_override(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_topk()
+        request.original_plan = request.original_plan.model_copy(
+            update={
+                "constraints": {
+                    **request.original_plan.constraints,
+                    "structure_prediction_tool_override": "esmfold",
+                }
+            },
+            deep=True,
+        )
+        request.reason = "plan_high_cost_low_benefit"
+
+        topk = planner.patch_top_k(request, k=6)
+
+        assert topk.candidates
+        assert all(
+            candidate.metadata.get("recovery_layer") != "parameter_level"
+            for candidate in topk.candidates
+        )
+        assert all(
+            candidate.metadata.get("recovery_layer") != "tool_level"
+            for candidate in topk.candidates
+        )
+        assert any(
+            candidate.metadata.get("recovery_layer") == "structure_level"
+            for candidate in topk.candidates
         )
 
     def test_patch_top_k_supports_requirement2_qc_and_objective_replacements(self, monkeypatch):
@@ -1205,6 +1251,56 @@ class TestPlannerAgent:
             and candidate.metadata.get("recovery_layer") == "tool_level"
             for candidate in objective_topk.candidates
         )
+
+    def test_patch_top_k_normalizes_candidate_capability_metadata_when_payload_differs(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        payload = PlanPatch(
+            task_id="task_patch_provider_mismatch",
+            operations=[
+                PlanPatchOp(
+                    op="replace_step",
+                    target="S5",
+                    step=PlanStep(
+                        id="S5",
+                        tool="objective_ranker",
+                        inputs={"candidates": "S4.candidates"},
+                        metadata={},
+                    ),
+                )
+            ],
+            metadata={
+                "capability_id": "structure_prediction",
+                "recovery_layer": "tool_level",
+                "reason": "provider_patch_candidate",
+                "from_tool": "openfold",
+                "to_tool": "objective_ranker",
+            },
+        )
+
+        topk = planner_module._build_top_k_result(
+            payloads=[
+                planner_module._CandidatePayload(
+                    payload=payload,
+                    primary_tool_id="objective_ranker",
+                    capability_bucket="objective_scoring",
+                    note="provider_patch:mismatch",
+                    recovery_layer="tool_level",
+                    recovery_reason="provider_patch_candidate",
+                )
+            ],
+            registry=_topk_registry(),
+            candidate_kind="patch",
+            top_k=1,
+            task_constraints={},
+            runtime_state=None,
+        )
+
+        candidate = topk.candidates[0]
+        assert candidate.capability_id == "objective_scoring"
+        assert candidate.metadata.get("capability_id") == "objective_scoring"
+        assert candidate.metadata.get("target_capability_id") == "structure_prediction"
 
     def test_replan_top_k_order_is_deterministic(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
@@ -1536,6 +1632,38 @@ class TestPlannerAgent:
 
         assert planner._llm_provider is auto_provider
         assert plan.metadata["provider"] == "catalog-qwen"
+
+    def test_planner_falls_back_to_next_catalog_provider_when_primary_call_fails(self, monkeypatch):
+        monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "qwen-key")
+        monkeypatch.setenv("ZHIPU_API_KEY", "glm-key")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        catalog = type(
+            "Catalog",
+            (),
+            {
+                "providers": {
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "glm-5": type("Settings", (), {"api_key": None, "api_key_env": "ZHIPU_API_KEY"})(),
+                }
+            },
+        )()
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
+        provider_queue = iter([_FailingProvider("catalog-qwen"), _AutoProvider("catalog-glm")])
+        monkeypatch.setattr(planner_module, "create_provider", lambda _settings: next(provider_queue))
+
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="llm_auto_fallback_001",
+            goal="Design a stable protein with structure preview.",
+            constraints={},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert plan.metadata["provider"] == "catalog-glm"
+        assert planner._llm_provider.config.model_name == "catalog-glm"
 
     def test_planner_prefers_qwen_when_multiple_domestic_keys_are_present(self, monkeypatch):
         monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)

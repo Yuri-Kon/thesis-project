@@ -175,6 +175,10 @@ _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
     # Requirement-2: minimal fallback path for objective_scoring
     "objective_scoring": ("objective_ranker",),
 }
+_CONSTRAINT_OVERRIDE_BY_CAPABILITY: dict[str, str] = {
+    "structure_prediction": "structure_prediction_tool_override",
+    "secondary_structure_annotation": "secondary_structure_annotation_tool_override",
+}
 
 _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
 _DEFAULT_PROVIDER_CATALOG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
@@ -217,7 +221,13 @@ class PlannerAgent:
             raise ValueError(
                 "Tool registry is empty; ensure ProteinToolKG provides tools."
             )
-        self._llm_provider = llm_provider or _load_configured_llm_provider()
+        if llm_provider is not None:
+            self._llm_provider = llm_provider
+            self._llm_provider_fallbacks: list[BaseProvider] = []
+        else:
+            self._llm_provider, self._llm_provider_fallbacks = (
+                _load_configured_llm_providers()
+            )
         self._fallback_llm_provider = (
             fallback_llm_provider
             if fallback_llm_provider is not None
@@ -450,12 +460,39 @@ class PlannerAgent:
                 provider_name="planner_default",
             )
 
-        plan = self._plan_from_provider(task, provider=self._llm_provider)
-        provider_name = _provider_name(self._llm_provider)
+        providers = [self._llm_provider]
+        if not _planner_provider_is_pinned():
+            providers.extend(self._llm_provider_fallbacks)
+
+        last_error: Exception | None = None
+        for idx, provider in enumerate(providers):
+            try:
+                plan = self._plan_from_provider(task, provider=provider)
+            except Exception as exc:
+                last_error = exc
+                continue
+            if idx > 0:
+                remaining = [
+                    candidate
+                    for candidate in providers
+                    if candidate is not provider
+                ]
+                self._llm_provider = provider
+                self._llm_provider_fallbacks = remaining
+            provider_name = _provider_name(provider)
+            return self._attach_route_metadata(
+                plan,
+                provider_tier="local",
+                provider_name=provider_name,
+            )
+
+        if last_error is not None:
+            raise last_error
+        plan = self._default_plan(task)
         return self._attach_route_metadata(
             plan,
             provider_tier="local",
-            provider_name=provider_name,
+            provider_name="planner_default",
         )
 
     def _plan_from_provider(
@@ -845,33 +882,67 @@ def _provider_name(provider: BaseProvider) -> str:
     return provider.__class__.__name__
 
 
-def _load_configured_llm_provider() -> BaseProvider | None:
-    if not _DEFAULT_PROVIDER_CATALOG_PATH.exists():
+def _normalized_planner_provider_env() -> str | None:
+    explicit = os.getenv(_PLANNER_PROVIDER_ENV)
+    if not isinstance(explicit, str):
         return None
+    normalized = explicit.strip()
+    return normalized or None
+
+
+def _planner_provider_is_disabled(explicit: str | None = None) -> bool:
+    normalized = explicit if explicit is not None else _normalized_planner_provider_env()
+    if normalized is None:
+        return False
+    return normalized.lower() in {"none", "disabled", "off", "baseline"}
+
+
+def _planner_provider_is_pinned() -> bool:
+    explicit = _normalized_planner_provider_env()
+    if explicit is None:
+        return False
+    return not _planner_provider_is_disabled(explicit)
+
+
+def _load_configured_llm_provider() -> BaseProvider | None:
+    provider, _fallbacks = _load_configured_llm_providers()
+    return provider
+
+
+def _load_configured_llm_providers() -> tuple[BaseProvider | None, list[BaseProvider]]:
+    if not _DEFAULT_PROVIDER_CATALOG_PATH.exists():
+        return None, []
     try:
         catalog = load_provider_catalog(_DEFAULT_PROVIDER_CATALOG_PATH)
     except Exception:
-        return None
-    provider_alias = _resolve_local_provider_alias(catalog)
-    if not provider_alias:
-        return None
-    settings = catalog.providers.get(provider_alias)
-    if settings is None:
-        return None
-    try:
-        return create_provider(settings)
-    except Exception:
-        return None
+        return None, []
+
+    providers: list[BaseProvider] = []
+    for provider_alias in _resolve_local_provider_aliases(catalog):
+        settings = catalog.providers.get(provider_alias)
+        if settings is None:
+            continue
+        try:
+            providers.append(create_provider(settings))
+        except Exception:
+            continue
+
+    if not providers:
+        return None, []
+    return providers[0], providers[1:]
 
 
 def _resolve_local_provider_alias(catalog: object | None = None) -> str | None:
-    explicit = os.getenv(_PLANNER_PROVIDER_ENV)
-    if isinstance(explicit, str):
-        explicit = explicit.strip()
-        if explicit:
-            if explicit.lower() in {"none", "disabled", "off", "baseline"}:
-                return None
-            return explicit
+    aliases = _resolve_local_provider_aliases(catalog)
+    return aliases[0] if aliases else None
+
+
+def _resolve_local_provider_aliases(catalog: object | None = None) -> list[str]:
+    explicit = _normalized_planner_provider_env()
+    if explicit is not None:
+        if _planner_provider_is_disabled(explicit):
+            return []
+        return [explicit]
 
     providers = getattr(catalog, "providers", None)
     if isinstance(providers, dict):
@@ -885,19 +956,31 @@ def _resolve_local_provider_alias(catalog: object | None = None) -> str | None:
             if alias not in seen_aliases:
                 ordered_aliases.append(alias)
 
+        selected_aliases: list[str] = []
         for alias in ordered_aliases:
             if alias == "baseline":
                 continue
             settings = providers[alias]
             api_key = getattr(settings, "api_key", None)
             if isinstance(api_key, str) and api_key.strip():
-                return alias
+                selected_aliases.append(alias)
+                continue
             api_key_env = getattr(settings, "api_key_env", None)
             if isinstance(api_key_env, str) and api_key_env.strip() and os.getenv(api_key_env):
-                return alias
+                selected_aliases.append(alias)
+                continue
             if alias == "openai" and os.getenv("OPENAI_API_KEY"):
-                return alias
-    return None
+                selected_aliases.append(alias)
+
+        unique_aliases: list[str] = []
+        seen_selected: set[str] = set()
+        for alias in selected_aliases:
+            if alias in seen_selected:
+                continue
+            seen_selected.add(alias)
+            unique_aliases.append(alias)
+        return unique_aliases
+    return []
 
 
 def _safe_int(value: object, *, default: int) -> int:
@@ -1444,6 +1527,12 @@ def _build_patch_candidate_payloads(
             available_inputs=fallback_inputs,
             exclude_tool=target_step.tool,
         )
+    alternatives = _filter_alternatives_by_constraint_override(
+        alternatives=alternatives,
+        constraints=request.original_plan.constraints,
+        capability=capability,
+        current_tool=target_step.tool,
+    )
 
     payloads: List[_CandidatePayload] = []
     parameter_patch = _build_parameter_level_patch(
@@ -1550,6 +1639,8 @@ def _build_parameter_level_patch(
     target_capability: str,
     failed_result: StepResult | None,
 ) -> PlanPatch | None:
+    if failed_result is None and not _reason_supports_parameter_patch(request.reason):
+        return None
     param_updates = _derive_param_updates(failed_result, target_step)
     if not param_updates:
         return None
@@ -1605,10 +1696,28 @@ def _derive_param_updates(
             updates["temperature"] = max(0.0, min(1.0, round(current * 0.8, 3)))
         except (TypeError, ValueError):
             pass
-
-    if not updates:
-        updates["patch_mode"] = "safe_default_retry"
     return updates
+
+
+def _reason_supports_parameter_patch(reason: object) -> bool:
+    if not isinstance(reason, str):
+        return False
+    normalized = reason.strip().lower()
+    if not normalized:
+        return False
+    keywords = (
+        "failed",
+        "failure",
+        "retry",
+        "timeout",
+        "oom",
+        "memory",
+        "tool_error",
+        "tool_failed",
+        "patch_failed",
+        "exhausted",
+    )
+    return any(keyword in normalized for keyword in keywords)
 
 
 def _build_structure_level_patch(
@@ -1742,6 +1851,25 @@ def _build_patch_metadata(
     return metadata
 
 
+def _filter_alternatives_by_constraint_override(
+    *,
+    alternatives: Sequence[ToolSpec],
+    constraints: dict[str, Any],
+    capability: str,
+    current_tool: str,
+) -> list[ToolSpec]:
+    override_key = _CONSTRAINT_OVERRIDE_BY_CAPABILITY.get(capability)
+    if override_key is None:
+        return list(alternatives)
+    pinned_tool = constraints.get(override_key)
+    if not isinstance(pinned_tool, str) or not pinned_tool.strip():
+        return list(alternatives)
+    normalized_pinned_tool = pinned_tool.strip()
+    if normalized_pinned_tool != current_tool:
+        return list(alternatives)
+    return [candidate for candidate in alternatives if candidate.id == normalized_pinned_tool]
+
+
 def _build_replan_candidate_payloads(
     *,
     request: ReplanRequest,
@@ -1770,6 +1898,12 @@ def _build_replan_candidate_payloads(
             available_inputs=fallback_inputs,
             exclude_tool=target_step.tool,
         )
+    alternatives = _filter_alternatives_by_constraint_override(
+        alternatives=alternatives,
+        constraints=request.original_plan.constraints,
+        capability=capability,
+        current_tool=target_step.tool,
+    )
     if not alternatives:
         raise ValueError(
             f"No alternative tool found for capability '{capability}' "
@@ -2586,7 +2720,6 @@ def _extract_patch_candidate_metadata(payload: PlanPatch) -> dict:
         "recovery_layer",
         "recovery_layer_rank",
         "reason",
-        "capability_id",
         "from_tool",
         "to_tool",
         "request_reason",
@@ -2594,6 +2727,9 @@ def _extract_patch_candidate_metadata(payload: PlanPatch) -> dict:
         value = metadata.get(key)
         if value is not None:
             extracted[key] = value
+    target_capability = metadata.get("capability_id")
+    if target_capability is not None:
+        extracted["target_capability_id"] = target_capability
     replacement_matrix = metadata.get("replacement_matrix")
     if isinstance(replacement_matrix, (tuple, list)):
         extracted["replacement_matrix"] = list(replacement_matrix)
