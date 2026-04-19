@@ -1,0 +1,44 @@
+[
+  {
+    "run_id": "issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01",
+    "group_id": "fixed_threshold_gate",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_configs/issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01.json",
+    "event_log_path": "data/logs/issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01.jsonl",
+    "report_path": "output/reports/issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01_denovo.md",
+    "summary_row_id": "bd4505b269f2",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01",
+    "group_id": "dynamic_no_belief_state",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_configs/issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01.json",
+    "event_log_path": "data/logs/issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01.jsonl",
+    "report_path": "output/reports/issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01_denovo.md",
+    "summary_row_id": "aefcc7b935ed",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02",
+    "group_id": "lite_belief_state",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_configs/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.json",
+    "event_log_path": "data/logs/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.jsonl",
+    "snapshot_path": "data/snapshots/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.jsonl",
+    "report_path": "output/reports/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02_denovo.md",
+    "summary_row_id": "05440871fa8c",
+    "artifact_complete": true
+  }
+]
