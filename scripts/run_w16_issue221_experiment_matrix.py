@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -89,44 +91,70 @@ def parse_args() -> argparse.Namespace:
         default=20260416,
         help="Random seed for post-run evaluation.",
     )
+    parser.add_argument(
+        "--planner-provider",
+        type=str,
+        default=None,
+        help="Optional planner provider alias override for this run.",
+    )
     return parser.parse_args()
+
+
+@contextmanager
+def _temporary_env(name: str, value: str | None):
+    original = os.getenv(name)
+    try:
+        if value is None:
+            yield
+            return
+        os.environ[name] = value
+        yield
+    finally:
+        if value is None:
+            return
+        if original is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = original
 
 
 def main() -> int:
     args = parse_args()
-    config = load_json(args.config)
-    selection = (
-        load_issue221_selection(args.selection_manifest_path)
-        if args.selection_manifest_path is not None
-        else None
-    )
-    manifest, run_dir = build_issue221_run_manifest(
-        config=config,
-        config_path=args.config,
-        output_root=args.output_root,
-        run_id=args.run_id,
-        repeats_override=args.repeats,
-        max_runs=args.max_runs,
-        dry_run=args.dry_run,
-        selection=selection,
-    )
-
-    print(f"[issue221] run_id={manifest['run_id']}")
-    print(f"[issue221] freeze_id={manifest['freeze_id']}")
-    print(f"[issue221] runs={len(manifest['runs'])}")
-    print(f"[issue221] manifest={run_dir / 'runs_manifest.json'}")
-    print(f"[issue221] log_index={run_dir / 'run_log_index.csv'}")
-    if not args.dry_run and args.evaluate:
-        result = evaluate_issue221_run_manifest(
-            manifest=manifest,
-            output_dir=run_dir,
-            kg_path=args.kg_path,
-            bootstrap_iterations=args.bootstrap_iterations,
-            seed=args.seed,
+    with _temporary_env("PLANNER_LLM_PROVIDER", args.planner_provider):
+        config = load_json(args.config)
+        selection = (
+            load_issue221_selection(args.selection_manifest_path)
+            if args.selection_manifest_path is not None
+            else None
         )
-        print(f"[issue221] evaluated_runs={len(result['run_level_results'])}")
-        print(f"[issue221] summary_csv={run_dir / 'matrix_metrics_summary.csv'}")
-        print(f"[issue221] validation_summary={run_dir / 'validation_summary.json'}")
+        manifest, run_dir = build_issue221_run_manifest(
+            config=config,
+            config_path=args.config,
+            output_root=args.output_root,
+            run_id=args.run_id,
+            repeats_override=args.repeats,
+            max_runs=args.max_runs,
+            dry_run=args.dry_run,
+            selection=selection,
+        )
+        print(f"[issue221] run_id={manifest['run_id']}")
+        print(f"[issue221] freeze_id={manifest['freeze_id']}")
+        print(f"[issue221] runs={len(manifest['runs'])}")
+        print(f"[issue221] manifest={run_dir / 'runs_manifest.json'}")
+        print(f"[issue221] log_index={run_dir / 'run_log_index.csv'}")
+        if args.planner_provider:
+            print(f"[issue221] planner_provider={args.planner_provider}")
+        if not args.dry_run and args.evaluate:
+            result = evaluate_issue221_run_manifest(
+                manifest=manifest,
+                output_dir=run_dir,
+                kg_path=args.kg_path,
+                bootstrap_iterations=args.bootstrap_iterations,
+                seed=args.seed,
+            )
+            print(f"[issue221] evaluated_runs={len(result['run_level_results'])}")
+            print(f"[issue221] summary_csv={run_dir / 'matrix_metrics_summary.csv'}")
+            print(f"[issue221] validation_summary={run_dir / 'validation_summary.json'}")
     return 0
 
 

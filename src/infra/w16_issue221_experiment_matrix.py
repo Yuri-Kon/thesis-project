@@ -839,6 +839,7 @@ def _execute_matrix_run(
         apply_plan_confirm_decision,
         apply_replan_confirm_decision,
     )
+    from src.workflow.errors import PlanRunError
     from src.workflow.snapshots import build_task_snapshot
     from src.workflow.status import transition_task_status
 
@@ -885,6 +886,7 @@ def _execute_matrix_run(
         record.plan = plan
         loop_budget = 12
         resume_from_existing = False
+        auto_decision_history: dict[str, int] = {}
         while loop_budget > 0:
             if context.status in TERMINAL_INTERNAL_STATUSES:
                 break
@@ -893,6 +895,7 @@ def _execute_matrix_run(
                     task=task,
                     context=context,
                     record=record,
+                    decision_history=auto_decision_history,
                 )
                 resume_from_existing = False
             elif context.status == InternalStatus.WAITING_PATCH:
@@ -900,6 +903,7 @@ def _execute_matrix_run(
                     task=task,
                     context=context,
                     record=record,
+                    decision_history=auto_decision_history,
                 )
                 resume_from_existing = True
             elif context.status == InternalStatus.WAITING_REPLAN:
@@ -907,6 +911,7 @@ def _execute_matrix_run(
                     task=task,
                     context=context,
                     record=record,
+                    decision_history=auto_decision_history,
                 )
                 if context.status == InternalStatus.PLANNING and context.plan is not None:
                     transition_task_status(
@@ -927,23 +932,29 @@ def _execute_matrix_run(
                 context.plan = active_plan
                 record.plan = active_plan
                 plan = active_plan
-                plan = executor.run_plan(
-                    active_plan,
-                    context,
-                    record=record,
-                    finalize_status=False,
-                    resume_from_existing=resume_from_existing,
-                )
-                if context.status in TERMINAL_INTERNAL_STATUSES:
-                    break
-                if context.status not in {
-                    InternalStatus.WAITING_PLAN_CONFIRM,
-                    InternalStatus.WAITING_PATCH,
-                    InternalStatus.WAITING_REPLAN,
-                }:
-                    executor.summarize_and_finalize(context, record, summarizer)
-                    break
-                resume_from_existing = True
+                try:
+                    plan = executor.run_plan(
+                        active_plan,
+                        context,
+                        record=record,
+                        finalize_status=False,
+                        resume_from_existing=resume_from_existing,
+                    )
+                except PlanRunError:
+                    if context.status != InternalStatus.WAITING_REPLAN:
+                        raise
+                    resume_from_existing = True
+                else:
+                    if context.status in TERMINAL_INTERNAL_STATUSES:
+                        break
+                    if context.status not in {
+                        InternalStatus.WAITING_PLAN_CONFIRM,
+                        InternalStatus.WAITING_PATCH,
+                        InternalStatus.WAITING_REPLAN,
+                    }:
+                        executor.summarize_and_finalize(context, record, summarizer)
+                        break
+                    resume_from_existing = True
             else:
                 break
             loop_budget -= 1
@@ -1109,6 +1120,7 @@ def _auto_apply_waiting_decision(
     task,
     context,
     record,
+    decision_history: dict[str, int] | None = None,
 ) -> None:
     from src.models.contracts import (
         Decision,
@@ -1134,6 +1146,42 @@ def _auto_apply_waiting_decision(
     else:
         choice = DecisionChoice.ACCEPT
 
+    fingerprint = stable_hash(
+        [
+            pending_action.action_type.value,
+            candidate_id or "",
+            str(pending_action.metadata.get("workflow_action") or ""),
+            str(pending_action.metadata.get("workflow_action_reason") or ""),
+        ]
+    )
+    repeated_count = (
+        int(decision_history.get(fingerprint, 0))
+        if decision_history is not None
+        else 0
+    )
+    if pending_action.action_type == PendingActionType.PATCH_CONFIRM and repeated_count >= 1:
+        choice = DecisionChoice.REPLAN
+        candidate_id = None
+    elif pending_action.action_type == PendingActionType.REPLAN_CONFIRM and repeated_count >= 1:
+        choice = DecisionChoice.CONTINUE
+        candidate_id = None
+
+    if decision_history is not None:
+        decision_history[fingerprint] = repeated_count + 1
+
+    if choice == DecisionChoice.REPLAN:
+        comment = (
+            "repeated patch candidate detected during offline matrix execution; "
+            "request replan instead of re-accepting the same patch"
+        )
+    elif choice == DecisionChoice.CONTINUE:
+        comment = (
+            "offline matrix runner continues execution because the current "
+            "replan candidate set is empty or repeated"
+        )
+    else:
+        comment = "auto-accept default recommendation for offline matrix execution"
+
     decision = Decision(
         decision_id=f"auto_decision_{stable_hash([task.task_id, pending_action.pending_action_id, now_iso()])}",
         task_id=task.task_id,
@@ -1141,7 +1189,7 @@ def _auto_apply_waiting_decision(
         choice=choice,
         selected_candidate_id=candidate_id if choice == DecisionChoice.ACCEPT else None,
         decided_by="issue221_auto_runner",
-        comment="auto-accept default recommendation for offline matrix execution",
+        comment=comment,
     )
 
     if pending_action.action_type == PendingActionType.PLAN_CONFIRM:

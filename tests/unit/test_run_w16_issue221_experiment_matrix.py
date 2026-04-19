@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -117,3 +118,44 @@ def test_main_skips_evaluation_during_dry_run(
     )
 
     assert module.main() == 0
+
+
+@pytest.mark.unit
+def test_main_temporarily_sets_planner_provider_override(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_script_module()
+    run_dir = tmp_path / "issue221-run"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("PLANNER_LLM_PROVIDER", "original-provider")
+    monkeypatch.setattr(module, "load_json", lambda _: {"issue_id": 221})
+    monkeypatch.setattr(module, "load_issue221_selection", lambda _: None)
+
+    captured: dict[str, str | None] = {}
+
+    def fake_build_issue221_run_manifest(**_kwargs):
+        captured["planner_provider"] = os.getenv("PLANNER_LLM_PROVIDER")
+        return ({"run_id": "issue221-run", "freeze_id": "freeze", "runs": []}, run_dir)
+
+    monkeypatch.setattr(module, "build_issue221_run_manifest", fake_build_issue221_run_manifest)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "run_w16_issue221_experiment_matrix.py",
+            "--config",
+            str(tmp_path / "config.json"),
+            "--run-id",
+            "issue221-run",
+            "--dry-run",
+            "--planner-provider",
+            "glm-5",
+        ],
+    )
+
+    assert module.main() == 0
+    assert captured["planner_provider"] == "glm-5"
+    assert os.getenv("PLANNER_LLM_PROVIDER") == "original-provider"
+    assert "[issue221] planner_provider=glm-5" in capsys.readouterr().out
