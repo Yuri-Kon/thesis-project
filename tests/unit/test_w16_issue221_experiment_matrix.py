@@ -3,23 +3,30 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.models.contracts import (
     PendingAction,
     PendingActionCandidate,
     PendingActionType,
     Plan,
+    PlanPatch,
+    PlanPatchOp,
     PlanStep,
     ProteinDesignTask,
 )
 from src.models.db import InternalStatus, TaskRecord, to_external_status
 from src.workflow.context import WorkflowContext
+from src.workflow.errors import FailureType, PlanRunError
 from src.infra.w16_issue221_experiment_matrix import (
     _auto_apply_waiting_decision,
     _apply_experiment_plan_overrides,
+    _execute_matrix_run,
     build_issue221_run_manifest,
     evaluate_issue221_run_manifest,
     load_issue221_selection,
 )
+from src.infra.w12_vertical_experiment import stable_hash
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:
@@ -97,6 +104,97 @@ def test_auto_apply_waiting_decision_uses_continue_for_replan_without_candidate(
     record.pending_action = pending_action
 
     _auto_apply_waiting_decision(task=task, context=context, record=record)
+
+    assert context.status == InternalStatus.RUNNING
+
+
+def test_auto_apply_waiting_decision_escalates_repeated_patch_to_replan() -> None:
+    task = ProteinDesignTask(task_id="task_auto_patch_repeat", goal="demo", constraints={}, metadata={})
+    patch = PlanPatch(
+        task_id=task.task_id,
+        operations=[
+            PlanPatchOp(
+                op="replace_step",
+                target="S1",
+                step=PlanStep(id="S1", tool="dummy_tool", inputs={"sequence": "ACDE"}, metadata={}),
+            )
+        ],
+        metadata={},
+    )
+    pending_action = PendingAction(
+        pending_action_id="pa_auto_patch_repeat",
+        task_id=task.task_id,
+        action_type=PendingActionType.PATCH_CONFIRM,
+        candidates=[PendingActionCandidate(candidate_id="patch_repeat", payload=patch)],
+        default_recommendation="patch_repeat",
+        explanation="auto patch repeat",
+    )
+    plan = _make_plan(task.task_id)
+    context = WorkflowContext(
+        task=task,
+        plan=plan,
+        status=InternalStatus.WAITING_PATCH,
+        pending_action=pending_action,
+    )
+    record = _make_record(task, InternalStatus.WAITING_PATCH)
+    record.plan = plan
+    record.pending_action = pending_action
+
+    fingerprint = stable_hash(
+        [
+            pending_action.action_type.value,
+            "patch_repeat",
+            "",
+            "",
+        ]
+    )
+
+    _auto_apply_waiting_decision(
+        task=task,
+        context=context,
+        record=record,
+        decision_history={fingerprint: 1},
+    )
+
+    assert context.status == InternalStatus.WAITING_REPLAN
+
+
+def test_auto_apply_waiting_decision_continues_repeated_replan_candidate() -> None:
+    task = ProteinDesignTask(task_id="task_auto_replan_repeat", goal="demo", constraints={}, metadata={})
+    plan = _make_plan(task.task_id)
+    pending_action = PendingAction(
+        pending_action_id="pa_auto_replan_repeat",
+        task_id=task.task_id,
+        action_type=PendingActionType.REPLAN_CONFIRM,
+        candidates=[PendingActionCandidate(candidate_id="replan_repeat", payload=plan)],
+        default_recommendation="replan_repeat",
+        explanation="auto replan repeat",
+    )
+    context = WorkflowContext(
+        task=task,
+        plan=plan,
+        status=InternalStatus.WAITING_REPLAN,
+        pending_action=pending_action,
+    )
+    record = _make_record(task, InternalStatus.WAITING_REPLAN)
+    record.plan = plan
+    record.pending_action = pending_action
+
+    fingerprint = stable_hash(
+        [
+            pending_action.action_type.value,
+            "replan_repeat",
+            "",
+            "",
+        ]
+    )
+
+    _auto_apply_waiting_decision(
+        task=task,
+        context=context,
+        record=record,
+        decision_history={fingerprint: 1},
+    )
 
     assert context.status == InternalStatus.RUNNING
 
@@ -396,3 +494,96 @@ def test_issue221_evaluator_writes_rerun_candidates_and_traceability_outputs(
     assert "Vertical Experiment Report (A0-A6)" not in matrix_report
     assert str(tmp_path / "actual_runs_manifest.json") in matrix_report
     assert str(tmp_path / "runs_manifest_config.json") in matrix_report
+
+
+def test_execute_matrix_run_continues_after_waiting_replan_plan_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    class FakePlannerAgent:
+        def plan_with_status(self, task, context, record=None):
+            plan = _make_plan(task.task_id)
+            context.status = InternalStatus.PLANNED
+            if record is not None:
+                record.plan = plan
+                record.internal_status = InternalStatus.PLANNED
+                record.status = to_external_status(InternalStatus.PLANNED)
+            return plan
+
+    class FakeExecutorAgent:
+        instances: list["FakeExecutorAgent"] = []
+
+        def __init__(self) -> None:
+            self.run_calls = 0
+            self.__class__.instances.append(self)
+
+        def run_plan(
+            self,
+            plan,
+            context,
+            *,
+            record=None,
+            finalize_status=False,
+            resume_from_existing=False,
+        ):
+            self.run_calls += 1
+            if self.run_calls == 1:
+                pending_action = PendingAction(
+                    pending_action_id="pa_test_replan",
+                    task_id=context.task.task_id,
+                    action_type=PendingActionType.REPLAN_CONFIRM,
+                    candidates=[],
+                    explanation="test waiting replan",
+                )
+                context.pending_action = pending_action
+                context.status = InternalStatus.WAITING_REPLAN
+                if record is not None:
+                    record.pending_action = pending_action
+                    record.internal_status = InternalStatus.WAITING_REPLAN
+                    record.status = to_external_status(InternalStatus.WAITING_REPLAN)
+                raise PlanRunError(
+                    failure_type=FailureType.NON_RETRYABLE,
+                    message="test waiting replan",
+                    step_id="S1",
+                    code="TEST_WAITING_REPLAN",
+                )
+
+            assert resume_from_existing is True
+            context.status = InternalStatus.RUNNING
+            if record is not None:
+                record.internal_status = InternalStatus.RUNNING
+                record.status = to_external_status(InternalStatus.RUNNING)
+            return plan
+
+        def summarize_and_finalize(self, context, record, summarizer) -> None:
+            context.status = InternalStatus.DONE
+            if record is not None:
+                record.internal_status = InternalStatus.DONE
+                record.status = to_external_status(InternalStatus.DONE)
+
+    class FakeSummarizerAgent:
+        pass
+
+    monkeypatch.setattr("src.adapters.builtins.ensure_builtin_adapters", lambda: None)
+    monkeypatch.setattr("src.agents.planner.PlannerAgent", FakePlannerAgent)
+    monkeypatch.setattr("src.agents.executor.ExecutorAgent", FakeExecutorAgent)
+    monkeypatch.setattr("src.agents.summarizer.SummarizerAgent", FakeSummarizerAgent)
+
+    result = _execute_matrix_run(
+        task_id="task_waiting_replan_resume",
+        goal="demo",
+        constraints={},
+        metadata={},
+    )
+
+    assert result[0] == "DONE"
+    assert result[1] == "DONE"
+    assert result[4] is None
+    assert FakeExecutorAgent.instances[0].run_calls == 2
+
+    log_path = tmp_path / "data/logs/task_waiting_replan_resume.jsonl"
+    events = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
+    assert any(event.get("event") == "DECISION_SUBMITTED" for event in events)
+    assert any(event.get("event") == "DECISION_APPLIED" for event in events)

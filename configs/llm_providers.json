@@ -5,10 +5,24 @@
       "description": "Deterministic single-step baseline",
       "model_name": "baseline"
     },
+    "qwen-flash": {
+      "provider_type": "openai_compatible",
+      "description": "Qwen 3.6 Flash via DashScope compatible API",
+      "model_name": "qwen3.6-flash",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "timeout": 60,
+      "max_tokens": null,
+      "temperature": 0.2,
+      "top_p": 1.0,
+      "stream": false,
+      "structured_output_mode": "json_schema",
+      "use_response_format": true
+    },
     "qwen-plus": {
       "provider_type": "openai_compatible",
-      "description": "Qwen Plus via DashScope compatible API",
-      "model_name": "qwen-plus",
+      "description": "Qwen 3.6 Plus via DashScope compatible API",
+      "model_name": "qwen3.6-plus",
       "api_key_env": "DASHSCOPE_API_KEY",
       "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "timeout": 60,
@@ -34,11 +48,43 @@
       "use_response_format": true
     },
     "glm-5": {
-      "provider_type": "anthropic_messages",
-      "description": "GLM-5 via Zhipu Anthropic-compatible Messages API",
+      "provider_type": "zai_chat",
+      "description": "GLM-5 via Z.AI SDK chat completions",
       "model_name": "glm-5",
       "api_key_env": "ZHIPU_API_KEY",
-      "endpoint": "https://open.bigmodel.cn/api/anthropic",
+      "timeout": 60,
+      "max_tokens": 4000,
+      "temperature": 0.2,
+      "structured_output_mode": "json_schema",
+      "use_response_format": true,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    "glm-4.7": {
+      "provider_type": "zai_chat",
+      "description": "GLM-4.7 via Z.AI SDK chat completions",
+      "model_name": "glm-4.7",
+      "api_key_env": "ZHIPU_API_KEY",
+      "timeout": 60,
+      "max_tokens": 4000,
+      "temperature": 0.2,
+      "structured_output_mode": "json_schema",
+      "use_response_format": true,
+      "extra_body": {
+        "thinking": {
+          "type": "enabled"
+        }
+      }
+    },
+    "minimax-m2.5": {
+      "provider_type": "anthropic_messages",
+      "description": "MiniMax M2.5 via Anthropic-compatible Messages API",
+      "model_name": "MiniMax-M2.5",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "endpoint_env": "ANTHROPIC_BASE_URL",
       "timeout": 60,
       "max_tokens": 4000,
       "temperature": 0.2,

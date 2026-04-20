@@ -21,9 +21,9 @@ def test_run_provider_returns_missing_api_key_without_calling_provider(monkeypat
         """
 {
   "providers": {
-    "qwen-plus": {
+    "qwen-flash": {
       "provider_type": "openai_compatible",
-      "model_name": "qwen-plus",
+      "model_name": "qwen3.6-flash",
       "api_key_env": "DASHSCOPE_API_KEY"
     }
   }
@@ -33,13 +33,13 @@ def test_run_provider_returns_missing_api_key_without_calling_provider(monkeypat
     )
 
     result = module.run_provider(
-        alias="qwen-plus",
+        alias="qwen-flash",
         catalog_path=config_path,
         goal="demo",
         target_length=32,
     )
 
-    assert result["provider"] == "qwen-plus"
+    assert result["provider"] == "qwen-flash"
     assert result["success"] is False
     assert result["error"] == "missing_api_key:DASHSCOPE_API_KEY"
 

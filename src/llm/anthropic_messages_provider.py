@@ -4,7 +4,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Type
 
-import httpx
+from anthropic import Anthropic
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.models.contracts import (
@@ -25,7 +25,11 @@ class AnthropicMessagesProvider(BaseProvider):
     def __init__(self, config: ProviderConfig, endpoint: str | None = None):
         self.config = config
         self.endpoint = (endpoint or "https://api.anthropic.com").rstrip("/")
-        self._headers = self._build_headers()
+        self._client = Anthropic(
+            api_key=self.config.api_key,
+            base_url=self.endpoint,
+            timeout=self.config.timeout,
+        )
 
     def call_planner(
         self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
@@ -152,28 +156,25 @@ class AnthropicMessagesProvider(BaseProvider):
 
     def _post_messages(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            response = httpx.post(
-                f"{self.endpoint}/v1/messages",
-                headers=self._headers,
-                json=payload,
-                timeout=self.config.timeout,
+            response = self._client.messages.create(
+                **payload,
+                extra_headers=self._build_extra_headers(),
             )
-            response.raise_for_status()
         except Exception as exc:
             raise Exception(f"LLM API 调用失败: {exc}") from exc
 
-        try:
-            body = response.json()
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"Anthropic 响应不是合法 JSON: {exc}") from exc
+        if hasattr(response, "model_dump"):
+            body = response.model_dump(mode="python")
+        elif isinstance(response, dict):
+            body = response
+        else:
+            raise ValueError(f"Anthropic 响应不是可解析对象: {type(response)}")
         if not isinstance(body, dict):
             raise ValueError(f"Anthropic 响应不是 dict: {type(body)}")
         return body
 
-    def _build_headers(self) -> dict[str, str]:
+    def _build_extra_headers(self) -> dict[str, str]:
         headers = {
-            "content-type": "application/json",
-            "x-api-key": self.config.api_key or "dummy-key",
             "anthropic-version": self.config.anthropic_version or "2023-06-01",
         }
         if self.config.headers:

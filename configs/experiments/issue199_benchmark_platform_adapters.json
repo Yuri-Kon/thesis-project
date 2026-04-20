@@ -71,7 +71,7 @@
     "catalog_path": "configs/llm_providers.json",
     "allowed_aliases": [
       "baseline",
-      "qwen-plus",
+      "qwen-flash",
       "deepseek-chat",
       "glm-5",
       "openai",

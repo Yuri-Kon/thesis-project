@@ -1,0 +1,90 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-04-19T16:31:29+00:00",
+  "run_id": "issue270-rerun-20260419b_dynamic_no_belief_state_secondary_balance_r01",
+  "task_id": "issue270-rerun-20260419b_dynamic_no_belief_state_secondary_balance_r01",
+  "group": {
+    "id": "dynamic_no_belief_state",
+    "label": "动态无 belief-state",
+    "comparison_order": 2,
+    "implementation_status": "implemented",
+    "runtime_policy": "dynamic_observation_only",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 3,
+      "patch_top_k": 3,
+      "replan_top_k": 3,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.75,
+      "high_cost_min_overall": 0.85
+    },
+    "output_fields": [
+      "success_rate",
+      "high_cost_call_mean",
+      "patch_events_mean",
+      "replan_events_mean",
+      "waiting_chain_complete_rate"
+    ],
+    "notes": "Observation-driven dynamic baseline with runtime_policy=dynamic_observation_only."
+  },
+  "task": {
+    "task_key": "secondary_balance",
+    "goal": "de_novo_design",
+    "display_name": "Secondary Balance",
+    "difficulty": "medium",
+    "budget_tier": "standard",
+    "rationale": "Requires both sequence exploration and structure verification, but without the strongest downstream function pressure.",
+    "constraints": {
+      "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+      "length_range": [
+        50,
+        90
+      ]
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "goal_type": "de_novo_design",
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "plan_top_k": 3,
+    "patch_top_k": 3,
+    "replan_top_k": 3,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.75,
+    "high_cost_min_overall": 0.85,
+    "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+    "length_range": [
+      50,
+      90
+    ],
+    "runtime_policy": "dynamic_observation_only"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "paper_matrix",
+    "owner": "issue221",
+    "issue_id": 221,
+    "experiment": "w16_issue221_matrix",
+    "group_id": "dynamic_no_belief_state",
+    "group_label": "动态无 belief-state",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty": "medium",
+    "budget_tier": "standard"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "baseline_freeze_config_hash": "04ceb6102ddc",
+    "baseline_freeze_manifest_path": null,
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}
