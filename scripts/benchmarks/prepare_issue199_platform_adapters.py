@@ -17,7 +17,7 @@ from src.infra.benchmark_platform_adapters import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Prepare Issue #199 Inspect/promptfoo benchmark platform adapters."
+        description="Prepare Issue #199 Inspect/MLflow/promptfoo benchmark platform adapters."
     )
     parser.add_argument(
         "--config",

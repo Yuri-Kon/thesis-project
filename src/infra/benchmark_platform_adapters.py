@@ -536,6 +536,202 @@ def _build_inspect_eval_manifest(manifest: dict[str, Any], output_dir: Path) -> 
     }
 
 
+def _build_mlflow_samples(manifest: dict[str, Any]) -> list[dict[str, Any]]:
+    samples: list[dict[str, Any]] = []
+    for index, task in enumerate(manifest["sample_tasks"], start=1):
+        samples.append(
+            {
+                "id": f"issue199-mlflow-sample-{index}",
+                "task_id": f"issue199-mlflow-react-{index:03d}",
+                "task_key": task["task_key"],
+                "goal": task["goal"],
+                "target": task["target"],
+                "constraints": task["constraints"],
+                "difficulty": task["difficulty"],
+                "budget_tier": task["budget_tier"],
+                "freeze_id": manifest["freeze_id"],
+                "dataset_version": manifest["dataset_version"],
+                "tool_whitelist_version": manifest["tool_whitelist"]["tool_whitelist_version"],
+                "allowed_tool_ids": manifest["tool_whitelist"]["allowed_tool_ids"],
+            }
+        )
+    return samples
+
+
+def _render_mlflow_eval_script(repo_root: Path) -> str:
+    repo_root_text = json.dumps(str(repo_root.resolve()), ensure_ascii=False)
+    template = """from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__REPO_ROOT__)
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.infra.benchmark_platform_adapters import build_promptfoo_react_payload
+
+
+def _dataset_path() -> Path:
+    raw = os.getenv("ISSUE199_MLFLOW_DATASET", "").strip()
+    if raw:
+        return Path(raw).resolve()
+    return Path(__file__).resolve().with_name("mlflow_react_samples.jsonl")
+
+
+def _tracking_uri(script_dir: Path) -> str:
+    raw = os.getenv("MLFLOW_TRACKING_URI", "").strip()
+    if raw:
+        return raw
+    return (script_dir / "mlruns").resolve().as_uri()
+
+
+def _load_samples(dataset_path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with dataset_path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            text = line.strip()
+            if not text:
+                continue
+            rows.append(json.loads(text))
+    if not rows:
+        raise ValueError(f"MLflow dataset is empty: {dataset_path}")
+    return rows
+
+
+def main() -> int:
+    import mlflow
+
+    script_dir = Path(__file__).resolve().parent
+    dataset_path = _dataset_path()
+    samples = _load_samples(dataset_path)
+    tracking_uri = _tracking_uri(script_dir)
+    experiment_name = os.getenv("ISSUE199_MLFLOW_EXPERIMENT", "issue199-react-smoke")
+    provider_alias = os.getenv("ISSUE199_MLFLOW_PROVIDER_ALIAS", "baseline").strip() or "baseline"
+    artifact_dir = script_dir / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    mlflow.set_tracking_uri(tracking_uri)
+    mlflow.set_experiment(experiment_name)
+
+    summary_rows: list[dict[str, Any]] = []
+    for sample in samples:
+        payload = build_promptfoo_react_payload(
+            prompt=str(sample.get("goal") or ""),
+            provider_alias=provider_alias,
+            catalog_path=REPO_ROOT / "configs/llm_providers.json",
+            max_plan_steps=3,
+            max_high_cost_steps=1,
+            high_cost_tool_ids=["esmfold", "openfold", "protein_mpnn"],
+            allowed_tool_ids=sample.get("allowed_tool_ids") or [],
+            task_id=str(sample.get("task_id") or sample.get("id") or "issue199-mlflow-task"),
+            task_key=str(sample.get("task_key") or "unknown"),
+            goal=str(sample.get("goal") or ""),
+            constraints=sample.get("constraints") if isinstance(sample.get("constraints"), dict) else {},
+            freeze_id=str(sample.get("freeze_id") or ""),
+            tool_whitelist_version=str(sample.get("tool_whitelist_version") or ""),
+            dataset_version=str(sample.get("dataset_version") or ""),
+        )
+        run_payload = {
+            "sample": sample,
+            "payload": payload,
+        }
+        sample_artifact_path = artifact_dir / f"{sample['id']}.json"
+        sample_artifact_path.write_text(
+            json.dumps(run_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        planned_steps = int(payload["budget"].get("planned_steps") or 0)
+        high_cost_planned_steps = int(payload["budget"].get("high_cost_planned_steps") or 0)
+        tool_whitelist_compliant = 1.0
+        with mlflow.start_run(run_name=str(sample["id"])):
+            mlflow.set_tags(
+                {
+                    "freeze_id": str(sample.get("freeze_id") or ""),
+                    "platform": "mlflow",
+                    "baseline_family": "react_style_external",
+                    "task_key": str(sample.get("task_key") or ""),
+                }
+            )
+            mlflow.log_params(
+                {
+                    "dataset_version": str(sample.get("dataset_version") or ""),
+                    "tool_whitelist_version": str(sample.get("tool_whitelist_version") or ""),
+                    "provider_alias": provider_alias,
+                    "budget_tier": str(sample.get("budget_tier") or ""),
+                    "difficulty": str(sample.get("difficulty") or ""),
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    "planned_steps": float(planned_steps),
+                    "high_cost_planned_steps": float(high_cost_planned_steps),
+                    "tool_whitelist_compliant": tool_whitelist_compliant,
+                }
+            )
+            mlflow.log_artifact(str(sample_artifact_path), artifact_path="issue199_samples")
+            summary_rows.append(
+                {
+                    "run_name": str(sample["id"]),
+                    "task_key": str(sample.get("task_key") or ""),
+                    "planned_steps": planned_steps,
+                    "high_cost_planned_steps": high_cost_planned_steps,
+                    "tool_whitelist_compliant": bool(tool_whitelist_compliant),
+                    "artifact_path": str(sample_artifact_path),
+                }
+            )
+
+    summary = {
+        "tracking_uri": tracking_uri,
+        "experiment_name": experiment_name,
+        "provider_alias": provider_alias,
+        "runs": summary_rows,
+    }
+    summary_path = script_dir / "mlflow_run_summary.json"
+    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"[issue199-mlflow] tracking_uri={tracking_uri}")
+    print(f"[issue199-mlflow] experiment_name={experiment_name}")
+    print(f"[issue199-mlflow] summary_path={summary_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+"""
+    return template.replace("__REPO_ROOT__", repo_root_text)
+
+
+def _build_mlflow_eval_manifest(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+    mlflow_dir = output_dir / "mlflow"
+    dataset_path = mlflow_dir / "mlflow_react_samples.jsonl"
+    script_path = mlflow_dir / "mlflow_issue199_react_eval.py"
+    tracking_uri = (mlflow_dir / "mlruns").resolve().as_uri()
+    return {
+        "platform": "mlflow",
+        "baseline_family": "react_style_external",
+        "freeze_id": manifest["freeze_id"],
+        "dataset_path": str(dataset_path.resolve()),
+        "script_path": str(script_path.resolve()),
+        "default_tracking_uri": tracking_uri,
+        "default_experiment_name": "issue199-react-smoke",
+        "suggested_commands": [
+            "uv tool run --from mlflow mlflow --version",
+            (
+                "MLFLOW_TRACKING_URI={tracking_uri} "
+                "ISSUE199_MLFLOW_DATASET={dataset} "
+                "uv run --with mlflow python {script}"
+            ).format(
+                tracking_uri=tracking_uri,
+                dataset=dataset_path,
+                script=script_path,
+            ),
+        ],
+    }
+
+
 def _build_normalized_run_sample(manifest: dict[str, Any]) -> dict[str, Any]:
     first_task = manifest["sample_tasks"][0]
     tool_ids = manifest["tool_whitelist"]["allowed_tool_ids"]
@@ -570,6 +766,7 @@ def _build_normalized_run_sample(manifest: dict[str, Any]) -> dict[str, Any]:
         "raw_artifacts": {
             "inspect_log_path": "output/inspect/logs/issue199-react-smoke-001.eval",
             "promptfoo_result_path": "output/promptfoo/results/issue199-react-smoke-001.json",
+            "mlflow_run_summary_path": "output/experiment/w15-expr-0/<freeze_id>/mlflow/mlflow_run_summary.json",
             "run_manifest_path": "output/experiment/<family>/<run_id>/runs_manifest.json",
         },
         "normalized_metrics": {
@@ -606,6 +803,7 @@ def _build_summary_row_sample(manifest: dict[str, Any]) -> dict[str, Any]:
 
 def _build_evidence_index_sample(manifest: dict[str, Any], output_dir: Path) -> dict[str, Any]:
     inspect_dir = output_dir / "inspect_ai"
+    mlflow_dir = output_dir / "mlflow"
     promptfoo_dir = output_dir / "promptfoo"
     return {
         "schema_version": "w15.issue199.evidence-index.v1",
@@ -618,6 +816,7 @@ def _build_evidence_index_sample(manifest: dict[str, Any], output_dir: Path) -> 
         "roots": {
             "experiment_output": str(output_dir),
             "inspect_adapter": str(inspect_dir),
+            "mlflow_adapter": str(mlflow_dir),
             "promptfoo_adapter": str(promptfoo_dir),
             "report_output": "reports/w15-issue-199",
         },
@@ -696,6 +895,32 @@ def _build_evidence_index_sample(manifest: dict[str, Any], output_dir: Path) -> 
                 ),
                 "tags": ["promptfoo", "regression", "quality-gate"],
             },
+            {
+                "artifact_id": "mlflow-tracking-eval",
+                "artifact_type": "adapter",
+                "title": "MLflow tracking scaffold",
+                "status": "ready",
+                "path": str(mlflow_dir / "mlflow_issue199_react_eval.py"),
+                "run_ref": {
+                    "freeze_id": manifest["freeze_id"],
+                    "platform": "mlflow",
+                    "group_id": "react_style_external",
+                },
+                "source_refs": {
+                    "config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+                    "adapter_manifest_path": str(output_dir / "issue199_platform_adapter_manifest.json"),
+                },
+                "upstream_refs": ["inspect-react-task"],
+                "generated_by": {
+                    "script_path": "scripts/benchmarks/prepare_issue199_platform_adapters.py",
+                    "command": "uv run python scripts/benchmarks/prepare_issue199_platform_adapters.py",
+                },
+                "conclusion": (
+                    "Tracking scaffold logging frozen params, derived smoke metrics, "
+                    "and per-sample artifacts into an MLflow experiment store."
+                ),
+                "tags": ["mlflow", "tracking", "artifacts"],
+            },
         ],
     }
 
@@ -712,6 +937,7 @@ def _render_result_layout(manifest: dict[str, Any]) -> str:
             "## Required Roots",
             "",
             f"- `inspect_ai/`：主平台任务、样例数据与 Inspect 运行清单",
+            f"- `mlflow/`：实验追踪脚本、样例输入与 tracking summary",
             f"- `promptfoo/`：轻量回归配置与 provider bridge",
             f"- `standardized/`：标准化样例落盘与 evidence-index 模板",
             "",
@@ -784,6 +1010,9 @@ def _render_report(manifest: dict[str, Any]) -> str:
     lines.append("")
     lines.append(
         "- `Inspect AI`: validates real sample loading, provider initialization, live model execution, eval log persistence, and the issue #199 answer contract."
+    )
+    lines.append(
+        "- `MLflow`: logs frozen params, derived smoke metrics, and per-sample artifacts into a tracking backend for downstream comparison and traceability."
     )
     lines.append(
         "- `promptfoo`: validates adapter JSON structure, metadata propagation, budget guardrails, and allowlist compliance as a lightweight regression gate."
@@ -897,9 +1126,10 @@ def build_issue199_platform_adapter_bundle(
     resolved_freeze_id = freeze_id or normalized["freeze_id"]
     output_dir = resolved_output_root / resolved_freeze_id
     inspect_dir = output_dir / "inspect_ai"
+    mlflow_dir = output_dir / "mlflow"
     promptfoo_dir = output_dir / "promptfoo"
     standardized_dir = output_dir / "standardized"
-    for path in (output_dir, inspect_dir, promptfoo_dir, standardized_dir):
+    for path in (output_dir, inspect_dir, mlflow_dir, promptfoo_dir, standardized_dir):
         path.mkdir(parents=True, exist_ok=True)
 
     manifest = {
@@ -919,6 +1149,7 @@ def build_issue199_platform_adapter_bundle(
     }
 
     inspect_eval_manifest = _build_inspect_eval_manifest(manifest, output_dir)
+    mlflow_eval_manifest = _build_mlflow_eval_manifest(manifest, output_dir)
     normalized_run = _build_normalized_run_sample(manifest)
     summary_row = _build_summary_row_sample(manifest)
     evidence_index = _build_evidence_index_sample(manifest, output_dir)
@@ -929,6 +1160,7 @@ def build_issue199_platform_adapter_bundle(
             "output_dir": str(output_dir),
             "report_path": str((output_dir / "issue199_platform_adapter_report.md").resolve()),
             "inspect_eval_manifest_path": str((inspect_dir / "inspect_eval_manifest.json").resolve()),
+            "mlflow_eval_manifest_path": str((mlflow_dir / "mlflow_eval_manifest.json").resolve()),
             "promptfoo_config_path": str((promptfoo_dir / "promptfooconfig.yaml").resolve()),
             "normalized_run_sample_path": str((standardized_dir / "normalized_run.sample.json").resolve()),
             "summary_row_sample_path": str((standardized_dir / "summary_row.sample.json").resolve()),
@@ -938,6 +1170,7 @@ def build_issue199_platform_adapter_bundle(
     manifest = load_json(output_dir / "issue199_platform_adapter_manifest.json")
 
     write_json(inspect_dir / "inspect_eval_manifest.json", inspect_eval_manifest)
+    write_json(mlflow_dir / "mlflow_eval_manifest.json", mlflow_eval_manifest)
     write_json(standardized_dir / "normalized_run.sample.json", normalized_run)
     write_json(standardized_dir / "summary_row.sample.json", summary_row)
     write_json(standardized_dir / "evidence-index.sample.json", evidence_index)
@@ -948,6 +1181,14 @@ def build_issue199_platform_adapter_bundle(
     )
     (inspect_dir / "inspect_issue199_react_smoke.py").write_text(
         _render_inspect_task_script(),
+        encoding="utf-8",
+    )
+    (mlflow_dir / "mlflow_react_samples.jsonl").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in _build_mlflow_samples(manifest)) + "\n",
+        encoding="utf-8",
+    )
+    (mlflow_dir / "mlflow_issue199_react_eval.py").write_text(
+        _render_mlflow_eval_script(Path(__file__).resolve().parents[2]),
         encoding="utf-8",
     )
     (promptfoo_dir / "promptfoo_react_provider.py").write_text(
