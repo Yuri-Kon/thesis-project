@@ -82,6 +82,15 @@ class NIMESMFoldAdapter(BaseToolAdapter):
                 message="Missing required input 'sequence'",
                 code=FailureCode.INPUT_RESOLUTION_FAILED.value,
             )
+        if not isinstance(sequence, str):
+            raise StepRunError(
+                failure_type=FailureType.NON_RETRYABLE,
+                message=(
+                    "Invalid input 'sequence' for NIM ESMFold: "
+                    f"expected non-empty string, got {type(sequence).__name__}"
+                ),
+                code=FailureCode.NIM_INVALID_INPUT.value,
+            )
         if isinstance(sequence, str) and len(sequence) > self.max_sequence_length:
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,

@@ -177,6 +177,7 @@ def test_call_sync_http_model_not_found() -> None:
 def test_call_sync_http_invalid_input() -> None:
     mock_response = Mock()
     mock_response.status_code = 422
+    mock_response.text = '{"detail":"sequence must be a string"}'
     mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
         "Invalid input",
         request=Mock(),
@@ -197,6 +198,7 @@ def test_call_sync_http_invalid_input() -> None:
 
     assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
     assert exc_info.value.code == "NIM_INVALID_INPUT"
+    assert "sequence must be a string" in str(exc_info.value)
 
 
 def test_call_sync_timeout() -> None:

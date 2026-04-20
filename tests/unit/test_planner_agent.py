@@ -1085,19 +1085,51 @@ class TestPlannerAgent:
         )
         request.reason = "plan_high_cost_low_benefit"
 
+        with pytest.raises(ValueError, match="No patch candidate found"):
+            planner.patch_top_k(request, k=6)
+
+    def test_patch_top_k_rewrites_structure_patch_inputs_to_sequence_refs(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_tool(
+            task_id="task_patch_seq_ref",
+            tool_id="openfold",
+            inputs={"sequence": "S0.candidates"},
+            previous_outputs={
+                "sequence": "MKTAYIAK",
+                "candidates": [{"sequence": "MKTAYIAK", "score": -0.1}],
+            },
+        )
+
+        topk = planner.patch_top_k(request, k=3)
+
+        tool_level = next(
+            candidate
+            for candidate in topk.candidates
+            if candidate.metadata.get("recovery_layer") == "tool_level"
+            and candidate.metadata.get("to_tool") == "nim_esmfold"
+        )
+        patch = tool_level.structured_payload
+        op = patch.operations[0]
+
+        assert op.step.tool == "nim_esmfold"
+        assert op.step.inputs == {"sequence": "S0.sequence"}
+
+    def test_patch_top_k_skips_structure_guard_that_depends_on_failed_step_outputs(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_tool(
+            task_id="task_patch_no_invalid_guard",
+            tool_id="openfold",
+            inputs={"sequence": "S0.sequence"},
+            previous_outputs={"sequence": "MKTAYIAK"},
+        )
+
         topk = planner.patch_top_k(request, k=6)
 
         assert topk.candidates
         assert all(
-            candidate.metadata.get("recovery_layer") != "parameter_level"
-            for candidate in topk.candidates
-        )
-        assert all(
-            candidate.metadata.get("recovery_layer") != "tool_level"
-            for candidate in topk.candidates
-        )
-        assert any(
-            candidate.metadata.get("recovery_layer") == "structure_level"
+            candidate.metadata.get("recovery_layer") != "structure_level"
             for candidate in topk.candidates
         )
 

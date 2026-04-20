@@ -206,3 +206,332 @@ def test_anthropic_provider_generates_patch_and_replan(monkeypatch):
     assert replan is not None
     assert replan["metadata"]["planning_mode"] == "replan"
     assert replan["steps"][0]["tool"] == "protein_mpnn"
+
+
+def test_anthropic_provider_repairs_stringified_steps_payload(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": (
+                                    '[{""id"": ""S1"", ""tool"": ""esmfold"", '
+                                    '""inputs"": {""sequence"": ""AAA""}, ""metadata"": {}}]'
+                                ),
+                                "constraints": "{}",
+                                "metadata": "{}",
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert isinstance(plan["steps"], list)
+    assert plan["steps"][0]["id"] == "S1"
+    assert plan["steps"][0]["inputs"]["sequence"] == "AAA"
+
+
+def test_anthropic_provider_repairs_stringified_nested_inputs(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "S1",
+                                        "tool": "protein_mpnn",
+                                        "inputs": {
+                                            "candidates": '[{"sequence":"AAA","score":0.9}]',
+                                        },
+                                        "metadata": {},
+                                    }
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert isinstance(plan["steps"][0]["inputs"]["candidates"], list)
+    assert plan["steps"][0]["inputs"]["candidates"][0]["sequence"] == "AAA"
+
+
+def test_anthropic_provider_normalizes_tool_output_references_and_step_ids(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "1",
+                                        "tool": "protein_mpnn",
+                                        "inputs": {"goal": "design"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "2",
+                                        "tool": "openfold",
+                                        "inputs": {
+                                            "sequence": "protein_mpnn.output.sequence",
+                                        },
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "3",
+                                        "tool": "biopython_qc",
+                                        "inputs": {
+                                            "sequence": "protein_mpnn.output.sequence",
+                                            "pdb_path": "openfold.output.pdb_path",
+                                        },
+                                        "metadata": {},
+                                    },
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert [step["id"] for step in plan["steps"]] == ["S1", "S2", "S3"]
+    assert plan["steps"][1]["inputs"]["sequence"] == "S1.sequence"
+    assert plan["steps"][2]["inputs"]["sequence"] == "S1.sequence"
+    assert plan["steps"][2]["inputs"]["pdb_path"] == "S2.pdb_path"
+
+
+def test_anthropic_provider_normalizes_candidate_references(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "step_1",
+                                        "tool": "protein_mpnn",
+                                        "inputs": {"goal": "design"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "step_2",
+                                        "tool": "objective_ranker",
+                                        "inputs": {
+                                            "candidates": "protein_mpnn.output.candidates",
+                                            "top_k": 1,
+                                        },
+                                        "metadata": {},
+                                    },
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert [step["id"] for step in plan["steps"]] == ["S1", "S2"]
+    assert plan["steps"][1]["inputs"]["candidates"] == "S1.candidates"
+
+
+def test_anthropic_provider_normalizes_placeholder_references(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "1",
+                                        "tool": "protein_mpnn",
+                                        "inputs": {"goal": "design"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "2",
+                                        "tool": "openfold",
+                                        "inputs": {"sequence": "<from_step_1>"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "3",
+                                        "tool": "objective_ranker",
+                                        "inputs": {
+                                            "candidates": "<from_step_1_candidates>",
+                                            "top_k": 1,
+                                        },
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "4",
+                                        "tool": "biopython_qc",
+                                        "inputs": {
+                                            "pdb_path": "<from_step_2>",
+                                            "sequence": "<from_step_1>",
+                                        },
+                                        "metadata": {},
+                                    },
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert plan["steps"][1]["inputs"]["sequence"] == "S1.sequence"
+    assert plan["steps"][2]["inputs"]["candidates"] == "S1.candidates"
+    assert plan["steps"][3]["inputs"]["pdb_path"] == "S2.pdb_path"
+    assert plan["steps"][3]["inputs"]["sequence"] == "S1.sequence"
+
+
+def test_anthropic_provider_rewrites_semantically_wrong_reference_fields(monkeypatch):
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "S1",
+                                        "tool": "protgpt2",
+                                        "inputs": {"goal": "design"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "S2",
+                                        "tool": "openfold",
+                                        "inputs": {"sequence": "S1.candidates"},
+                                        "metadata": {},
+                                    },
+                                    {
+                                        "id": "S3",
+                                        "tool": "objective_ranker",
+                                        "inputs": {"candidates": "S1.sequence"},
+                                        "metadata": {},
+                                    },
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert plan["steps"][1]["inputs"]["sequence"] == "S1.sequence"
+    assert plan["steps"][2]["inputs"]["candidates"] == "S1.candidates"

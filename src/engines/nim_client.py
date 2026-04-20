@@ -78,6 +78,7 @@ class NvidiaNIMClient:
             raise
         except httpx.HTTPStatusError as exc:
             status_code = exc.response.status_code
+            response_excerpt = _response_text_excerpt(exc.response)
             if status_code in {401, 403}:
                 failure_code = FailureCode.NIM_AUTH_FAILED
                 failure_type = FailureType.NON_RETRYABLE
@@ -96,9 +97,12 @@ class NvidiaNIMClient:
             else:
                 failure_code = FailureCode.NIM_INVALID_INPUT
                 failure_type = FailureType.NON_RETRYABLE
+            detail = f"NIM request failed: HTTP {status_code}"
+            if response_excerpt:
+                detail = f"{detail} body={response_excerpt}"
             raise StepRunError(
                 failure_type=failure_type,
-                message=f"NIM request failed: HTTP {status_code}",
+                message=detail,
                 code=failure_code.value,
             ) from exc
         except httpx.TimeoutException as exc:
@@ -130,3 +134,16 @@ def _build_invoke_url(base_url: str, model_id: str) -> str:
             return f"{base_url}/{model_id}"
         return base_url
     return f"{base_url}/biology/{model_id}"
+
+
+def _response_text_excerpt(response: httpx.Response) -> str:
+    try:
+        text = str(response.text or "").strip()
+    except Exception:
+        return ""
+    if not text:
+        return ""
+    compact = " ".join(text.split())
+    if len(compact) > 240:
+        return compact[:237] + "..."
+    return compact
