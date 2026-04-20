@@ -26,6 +26,7 @@ dependencies = [
   "inspect-ai>=0.3.205",
   "anthropic>=0.96.0",
   "zai-sdk>=0.2.2",
+  "mlflow>=3.11.1",
 ]
 
 [build-system]

@@ -150,6 +150,7 @@ class AnthropicMessagesProvider(BaseProvider):
         if not isinstance(tool_input, dict):
             raise ValueError("Anthropic 响应缺少结构化 tool_use payload")
 
+        tool_input = _normalize_tool_payload(tool_input)
         metadata = tool_input.setdefault("metadata", {})
         metadata["elapsed_seconds"] = time.time() - started_at
         return tool_input
@@ -257,3 +258,341 @@ class AnthropicMessagesProvider(BaseProvider):
                 for tool in tool_registry
             ]
         )
+
+
+def _normalize_tool_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = _normalize_json_like_value(payload)
+    if not isinstance(normalized, dict):
+        raise ValueError("Anthropic tool_use payload 归一化后不是 dict")
+    return _normalize_plan_like_payload(normalized)
+
+
+def _normalize_plan_like_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    normalized = dict(payload)
+    if isinstance(normalized.get("steps"), list):
+        normalized["steps"] = _normalize_plan_steps(normalized["steps"])
+    if isinstance(normalized.get("operations"), list):
+        normalized["operations"] = _normalize_patch_operations(normalized["operations"])
+    return normalized
+
+
+def _normalize_plan_steps(steps: list[Any]) -> list[Any]:
+    step_id_map, tool_reference_map = _build_step_reference_maps(steps)
+    normalized_steps: list[Any] = []
+    for index, raw_step in enumerate(steps, start=1):
+        if not isinstance(raw_step, dict):
+            normalized_steps.append(raw_step)
+            continue
+        step = dict(raw_step)
+        step["id"] = f"S{index}"
+        inputs = step.get("inputs")
+        if isinstance(inputs, dict):
+            step["inputs"] = {
+                key: _normalize_reference_value(
+                    value,
+                    input_key=key,
+                    step_id_map=step_id_map,
+                    tool_reference_map=tool_reference_map,
+                )
+                for key, value in inputs.items()
+            }
+        normalized_steps.append(step)
+    return normalized_steps
+
+
+def _normalize_patch_operations(operations: list[Any]) -> list[Any]:
+    pseudo_steps: list[dict[str, Any]] = []
+    for operation in operations:
+        if not isinstance(operation, dict):
+            continue
+        step = operation.get("step")
+        if not isinstance(step, dict):
+            continue
+        target = operation.get("target")
+        pseudo_step = dict(step)
+        if "id" not in pseudo_step and isinstance(target, str):
+            pseudo_step["id"] = target
+        pseudo_steps.append(pseudo_step)
+
+    step_id_map, tool_reference_map = _build_step_reference_maps(pseudo_steps)
+    normalized_operations: list[Any] = []
+    for operation in operations:
+        if not isinstance(operation, dict):
+            normalized_operations.append(operation)
+            continue
+        normalized = dict(operation)
+        target = normalized.get("target")
+        if isinstance(target, str):
+            normalized["target"] = _normalize_step_identifier(
+                target,
+                step_id_map=step_id_map,
+            )
+        step = normalized.get("step")
+        if isinstance(step, dict):
+            normalized_step = dict(step)
+            step_id = normalized_step.get("id")
+            if isinstance(step_id, str):
+                normalized_step["id"] = _normalize_step_identifier(
+                    step_id,
+                    step_id_map=step_id_map,
+                )
+            inputs = normalized_step.get("inputs")
+            if isinstance(inputs, dict):
+                normalized_step["inputs"] = {
+                    key: _normalize_reference_value(
+                        value,
+                        input_key=key,
+                        step_id_map=step_id_map,
+                        tool_reference_map=tool_reference_map,
+                    )
+                    for key, value in inputs.items()
+                }
+            normalized["step"] = normalized_step
+        normalized_operations.append(normalized)
+    return normalized_operations
+
+
+def _build_step_reference_maps(
+    steps: list[Any],
+) -> tuple[dict[str, str], dict[str, str]]:
+    step_id_map: dict[str, str] = {}
+    tool_to_step_ids: dict[str, list[str]] = {}
+    for index, raw_step in enumerate(steps, start=1):
+        if not isinstance(raw_step, dict):
+            continue
+        canonical_id = f"S{index}"
+        raw_id = raw_step.get("id")
+        if isinstance(raw_id, str):
+            step_id_map[raw_id] = canonical_id
+            compact = raw_id.strip()
+            if compact:
+                step_id_map[compact] = canonical_id
+                if compact.isdigit():
+                    step_id_map[f"step_{compact}"] = canonical_id
+        step_id_map[str(index)] = canonical_id
+        step_id_map[f"step_{index}"] = canonical_id
+
+        tool_name = raw_step.get("tool")
+        if isinstance(tool_name, str) and tool_name.strip():
+            tool_to_step_ids.setdefault(tool_name.strip(), []).append(canonical_id)
+
+    tool_reference_map = {
+        tool_name: step_ids[0]
+        for tool_name, step_ids in tool_to_step_ids.items()
+        if len(step_ids) == 1
+    }
+    return step_id_map, tool_reference_map
+
+
+def _normalize_reference_value(
+    value: Any,
+    *,
+    input_key: str | None,
+    step_id_map: dict[str, str],
+    tool_reference_map: dict[str, str],
+) -> Any:
+    if isinstance(value, list):
+        return [
+            _normalize_reference_value(
+                item,
+                input_key=input_key,
+                step_id_map=step_id_map,
+                tool_reference_map=tool_reference_map,
+            )
+            for item in value
+        ]
+    if isinstance(value, dict):
+        return {
+            key: _normalize_reference_value(
+                item,
+                input_key=key,
+                step_id_map=step_id_map,
+                tool_reference_map=tool_reference_map,
+            )
+            for key, item in value.items()
+        }
+    if not isinstance(value, str):
+        return value
+
+    normalized = _normalize_symbolic_reference(
+        value,
+        input_key=input_key,
+        step_id_map=step_id_map,
+        tool_reference_map=tool_reference_map,
+    )
+    if normalized is not None:
+        return _normalize_reference_field_for_input_key(
+            normalized,
+            input_key=input_key,
+        )
+    return value
+
+
+def _normalize_symbolic_reference(
+    value: str,
+    *,
+    input_key: str | None,
+    step_id_map: dict[str, str],
+    tool_reference_map: dict[str, str],
+) -> str | None:
+    placeholder = _normalize_placeholder_reference(
+        value,
+        input_key=input_key,
+        step_id_map=step_id_map,
+    )
+    if placeholder is not None:
+        return placeholder
+
+    head, sep, tail = value.partition(".")
+    if not sep or not tail:
+        return None
+
+    normalized_head = step_id_map.get(head.strip())
+    normalized_field = tail.strip()
+    if normalized_head is None and normalized_field.startswith("output."):
+        normalized_head = tool_reference_map.get(head.strip())
+        normalized_field = normalized_field.removeprefix("output.").strip()
+    if normalized_head is None:
+        return None
+    if not normalized_field:
+        return None
+    return f"{normalized_head}.{normalized_field}"
+
+
+def _normalize_placeholder_reference(
+    value: str,
+    *,
+    input_key: str | None,
+    step_id_map: dict[str, str],
+) -> str | None:
+    payload = value.strip()
+    if not (payload.startswith("<from_step_") and payload.endswith(">")):
+        return None
+    body = payload[len("<from_step_") : -1]
+    step_token, sep, suffix = body.partition("_")
+    canonical_step = step_id_map.get(step_token)
+    if canonical_step is None:
+        return None
+
+    field = suffix.strip() if sep else ""
+    if field == "output":
+        field = ""
+    if not field:
+        field = _infer_reference_field(input_key)
+    if not field:
+        return None
+    return f"{canonical_step}.{field}"
+
+
+def _infer_reference_field(input_key: str | None) -> str | None:
+    if not isinstance(input_key, str):
+        return None
+    lookup = {
+        "sequence": "sequence",
+        "pdb_path": "pdb_path",
+        "candidates": "candidates",
+        "structure_results": "structure_results",
+        "qc_metrics": "qc_metrics",
+        "score_table": "score_table",
+        "top_k": "top_k",
+    }
+    return lookup.get(input_key.strip())
+
+
+def _normalize_reference_field_for_input_key(
+    value: str,
+    *,
+    input_key: str | None,
+) -> str:
+    head, sep, tail = value.partition(".")
+    if not sep or not tail:
+        return value
+    expected_field = _infer_reference_field(input_key)
+    if expected_field is None:
+        return value
+    normalized_field = tail.strip()
+    if normalized_field == expected_field:
+        return value
+    if not _should_rewrite_reference_field(
+        input_key=input_key,
+        current_field=normalized_field,
+        expected_field=expected_field,
+    ):
+        return value
+    return f"{head.strip()}.{expected_field}"
+
+
+def _should_rewrite_reference_field(
+    *,
+    input_key: str | None,
+    current_field: str,
+    expected_field: str,
+) -> bool:
+    if not isinstance(input_key, str):
+        return False
+    normalized_key = input_key.strip()
+    if normalized_key == "sequence" and current_field in {"candidates", "sequence_candidates"}:
+        return True
+    if normalized_key == "candidates" and current_field == "sequence":
+        return True
+    if normalized_key == "pdb_path" and current_field in {"structure_pdb", "structure_path", "cif_path"}:
+        return True
+    if normalized_key == "structure_results" and current_field in {"pdb_path", "sequence", "plddt"}:
+        return True
+    return current_field == expected_field
+
+
+def _normalize_step_identifier(
+    value: str,
+    *,
+    step_id_map: dict[str, str],
+) -> str:
+    return step_id_map.get(value.strip(), value)
+
+
+def _normalize_json_like_value(value: Any) -> Any:
+    parsed = _parse_json_like_string(value)
+    if parsed is not value:
+        return _normalize_json_like_value(parsed)
+    if isinstance(value, list):
+        return [_normalize_json_like_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _normalize_json_like_value(item)
+            for key, item in value.items()
+        }
+    return value
+
+
+def _parse_json_like_string(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    payload = _strip_markdown_json_fence(value).strip()
+    if not payload or payload[0] not in "[{":
+        return value
+
+    candidates = [payload]
+    if '""' in payload:
+        candidates.append(payload.replace('""', '"'))
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return value
+
+
+def _strip_markdown_json_fence(content: str) -> str:
+    payload = content.strip()
+    if not payload.startswith("```"):
+        return payload
+
+    lines = payload.splitlines()
+    if not lines:
+        return payload
+    if lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()

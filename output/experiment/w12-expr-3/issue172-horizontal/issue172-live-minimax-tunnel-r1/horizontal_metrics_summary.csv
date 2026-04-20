@@ -1,0 +1,4 @@
+group_id,runs,success_rate,success_ci_low,success_ci_high,first_pass_success_rate,schema_valid_rate,executable_plan_rate,waiting_chain_complete_rate,failure_traceable_rate,patch_events_mean,replan_events_mean,suffix_replan_events_mean,duration_ms_mean,high_cost_call_mean,high_cost_failure_mean,action_continue_mean,action_patch_local_mean,action_suffix_replan_mean,action_stop_mean,patch_minimality_hit_rate,suffix_replan_prefix_preservation_rate
+E0,7,0.14285714285714285,0.02567895594897479,0.51313450331903,0.14285714285714285,0.7142857142857143,0.42857142857142855,1.0,1.0,0.0,0.0,0.5714285714285714,120285.71428571429,0.0,0.0,1.5714285714285714,0.0,0.5714285714285714,0.0,,
+E1,7,0.0,0.0,0.35433884297520657,0.0,1.0,0.0,1.0,1.0,0.0,0.0,1.0,128000.0,0.0,0.0,2.0,0.0,1.0,0.0,,
+E2,7,0.0,0.0,0.35433884297520657,0.0,0.8571428571428571,0.42857142857142855,1.0,1.0,1.0,0.0,0.42857142857142855,190142.85714285713,0.0,0.0,1.0,1.1428571428571428,0.5714285714285714,0.0,0.0,

@@ -117,6 +117,23 @@ def test_run_local_missing_sequence() -> None:
     assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
 
 
+def test_run_local_rejects_non_string_sequence() -> None:
+    adapter = NIMESMFoldAdapter(client=Mock())
+
+    with pytest.raises(StepRunError) as exc_info:
+        adapter.run_local(
+            {
+                "sequence": [{"sequence": "ACDEFG"}],
+                "task_id": "task123",
+                "step_id": "S1",
+            }
+        )
+
+    assert exc_info.value.failure_type == FailureType.NON_RETRYABLE
+    assert exc_info.value.code == "NIM_INVALID_INPUT"
+    assert "got list" in str(exc_info.value)
+
+
 def test_run_local_sequence_too_long() -> None:
     mock_client = Mock()
     adapter = NIMESMFoldAdapter(client=mock_client)

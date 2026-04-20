@@ -503,6 +503,10 @@ class PlannerAgent:
     ) -> Plan:
         plan_dict = provider.call_planner(task=task, tool_registry=self._tool_registry)
         plan = Plan.model_validate(plan_dict)
+        plan = _normalize_plan_input_contract_references(
+            plan,
+            registry=self._tool_registry,
+        )
         plan = _resolve_plan_tools(
             plan,
             self._tool_registry,
@@ -810,6 +814,10 @@ class PlannerAgent:
             return []
         try:
             patch = PlanPatch.model_validate(patch_dict)
+            patch = _normalize_patch_input_contract_references(
+                patch,
+                registry=self._tool_registry,
+            )
         except Exception:
             return []
         route_name = _provider_name(provider)
@@ -849,6 +857,10 @@ class PlannerAgent:
             return []
         try:
             plan = Plan.model_validate(plan_dict)
+            plan = _normalize_plan_input_contract_references(
+                plan,
+                registry=self._tool_registry,
+            )
             plan = _resolve_plan_tools(
                 plan,
                 self._tool_registry,
@@ -1555,9 +1567,17 @@ def _build_patch_candidate_payloads(
 
     max_candidates = max(1, top_k * 2)
     for alternative in alternatives[:max_candidates]:
+        patched_inputs = _materialize_patch_inputs_for_tool(
+            target_step=target_step,
+            target_tool=alternative,
+            context_step_results=request.context_step_results,
+        )
+        if patched_inputs is None:
+            continue
         patched_step = target_step.model_copy(
             update={
                 "tool": alternative.id,
+                "inputs": patched_inputs,
                 "metadata": {
                     **(target_step.metadata or {}),
                     "patched_from": target_step.tool,
@@ -1802,22 +1822,9 @@ def _materialize_structure_guard_inputs(
 ) -> dict | None:
     resolved: dict[str, object] = {}
     source_inputs = target_step.inputs if isinstance(target_step.inputs, dict) else {}
-    output_ref_aliases = {
-        "sequence": "sequence",
-        "pdb_path": "pdb_path",
-        "structure_pdb": "pdb_path",
-        "plddt": "plddt",
-        "candidates": "candidates",
-        "qc_metrics": "qc_metrics",
-        "structure_metrics": "structure_metrics",
-    }
     for required in guard_tool.inputs:
         if required in source_inputs:
             resolved[required] = source_inputs[required]
-            continue
-        alias = output_ref_aliases.get(required)
-        if alias is not None:
-            resolved[required] = f"{target_step.id}.{alias}"
             continue
         return None
     return resolved
@@ -3213,6 +3220,453 @@ def _collect_available_inputs(
     # 键名本身代表用户提供的输入
     available.update(target_step.inputs.keys())
     return available
+
+
+def _normalize_plan_input_contract_references(
+    plan: Plan,
+    *,
+    registry: Sequence[ToolSpec] | None = None,
+) -> Plan:
+    step_id_map, tool_reference_map = _build_plan_reference_maps(plan.steps)
+    registry_map = {spec.id: spec for spec in registry or ()}
+    updated_steps: list[PlanStep] = []
+    field_source_map: dict[str, str] = {}
+    changed = False
+    for step in plan.steps:
+        normalized_step_id = _normalize_reference_head(step.id, step_id_map=step_id_map)
+        normalized_inputs = _normalize_input_contract_mapping(
+            step.inputs,
+            step_id_map=step_id_map,
+            tool_reference_map=tool_reference_map,
+            field_source_map=field_source_map,
+        )
+        if normalized_inputs != step.inputs or normalized_step_id != step.id:
+            changed = True
+            normalized_step = (
+                step.model_copy(
+                    update={"id": normalized_step_id, "inputs": normalized_inputs},
+                    deep=True,
+                )
+            )
+            updated_steps.append(normalized_step)
+        else:
+            normalized_step = step
+            updated_steps.append(step)
+
+        for output_field in _collect_step_output_fields(
+            step=normalized_step,
+            registry_map=registry_map,
+        ):
+            field_source_map[output_field] = normalized_step_id
+    if not changed:
+        return plan
+    return plan.model_copy(update={"steps": updated_steps}, deep=True)
+
+
+def _normalize_patch_input_contract_references(
+    patch: PlanPatch,
+    *,
+    registry: Sequence[ToolSpec] | None = None,
+) -> PlanPatch:
+    pseudo_steps: list[PlanStep] = []
+    for operation in patch.operations:
+        pseudo_steps.append(operation.step)
+    step_id_map, tool_reference_map = _build_plan_reference_maps(pseudo_steps)
+    registry_map = {spec.id: spec for spec in registry or ()}
+    updated_operations: list[PlanPatchOp] = []
+    field_source_map: dict[str, str] = {}
+    changed = False
+    for operation in patch.operations:
+        normalized_target = _normalize_reference_head(
+            operation.target,
+            step_id_map=step_id_map,
+        )
+        normalized_step_id = _normalize_reference_head(
+            operation.step.id,
+            step_id_map=step_id_map,
+        )
+        normalized_inputs = _normalize_input_contract_mapping(
+            operation.step.inputs,
+            step_id_map=step_id_map,
+            tool_reference_map=tool_reference_map,
+            field_source_map=field_source_map,
+        )
+        if (
+            normalized_inputs != operation.step.inputs
+            or normalized_target != operation.target
+            or normalized_step_id != operation.step.id
+        ):
+            changed = True
+            updated_step = operation.step.model_copy(
+                update={"id": normalized_step_id, "inputs": normalized_inputs},
+                deep=True,
+            )
+            updated_operations.append(
+                operation.model_copy(
+                    update={"target": normalized_target, "step": updated_step},
+                    deep=True,
+                )
+            )
+        else:
+            updated_step = operation.step
+            updated_operations.append(operation)
+        for output_field in _collect_step_output_fields(
+            step=updated_step,
+            registry_map=registry_map,
+        ):
+            field_source_map[output_field] = normalized_step_id
+    if not changed:
+        return patch
+    return patch.model_copy(update={"operations": updated_operations}, deep=True)
+
+
+def _build_plan_reference_maps(
+    steps: Sequence[PlanStep],
+) -> tuple[dict[str, str], dict[str, str]]:
+    step_id_map: dict[str, str] = {}
+    tool_to_step_ids: dict[str, list[str]] = {}
+    for index, step in enumerate(steps, start=1):
+        canonical_id = str(step.id)
+        step_id_map[canonical_id] = canonical_id
+        step_id_map[str(index)] = canonical_id
+        step_id_map[f"step_{index}"] = canonical_id
+        compact = canonical_id.strip()
+        if compact:
+            step_id_map[compact] = canonical_id
+        tool_to_step_ids.setdefault(step.tool, []).append(canonical_id)
+    tool_reference_map = {
+        tool_name: step_ids[0]
+        for tool_name, step_ids in tool_to_step_ids.items()
+        if len(step_ids) == 1
+    }
+    return step_id_map, tool_reference_map
+
+
+def _normalize_input_contract_mapping(
+    inputs: dict[str, Any],
+    *,
+    step_id_map: dict[str, str],
+    tool_reference_map: dict[str, str],
+    field_source_map: dict[str, str],
+) -> dict[str, Any]:
+    return {
+        key: _normalize_input_contract_reference_value(
+            key,
+            value,
+            step_id_map=step_id_map,
+            tool_reference_map=tool_reference_map,
+            field_source_map=field_source_map,
+        )
+        for key, value in inputs.items()
+    }
+
+
+def _normalize_input_contract_reference_value(
+    input_key: str,
+    value: Any,
+    *,
+    step_id_map: dict[str, str],
+    tool_reference_map: dict[str, str],
+    field_source_map: dict[str, str],
+) -> Any:
+    if isinstance(value, list):
+        return [
+            _normalize_input_contract_reference_value(
+                input_key,
+                item,
+                step_id_map=step_id_map,
+                tool_reference_map=tool_reference_map,
+                field_source_map=field_source_map,
+            )
+            for item in value
+        ]
+    if isinstance(value, dict):
+        return {
+            key: _normalize_input_contract_reference_value(
+                key,
+                item,
+                step_id_map=step_id_map,
+                tool_reference_map=tool_reference_map,
+                field_source_map=field_source_map,
+            )
+            for key, item in value.items()
+        }
+    if not isinstance(value, str):
+        return value
+    placeholder_reference = _normalize_named_placeholder_reference(
+        value,
+        input_key=input_key,
+        step_id_map=step_id_map,
+        field_source_map=field_source_map,
+    )
+    if placeholder_reference is not None:
+        return placeholder_reference
+    normalized_reference = _normalize_reference_string(
+        value,
+        step_id_map=step_id_map,
+        tool_reference_map=tool_reference_map,
+    )
+    if normalized_reference is None:
+        return value
+    step_id, _, field = normalized_reference.partition(".")
+    expected_field = _expected_output_field_for_input_key(input_key)
+    if expected_field is None or field == expected_field:
+        return normalized_reference
+    if not _should_rewrite_input_contract_field(
+        input_key=input_key,
+        current_field=field,
+        expected_field=expected_field,
+    ):
+        return normalized_reference
+    return f"{step_id}.{expected_field}"
+
+
+def _normalize_reference_string(
+    value: str,
+    *,
+    step_id_map: dict[str, str],
+    tool_reference_map: dict[str, str],
+) -> str | None:
+    step_id, sep, field = value.partition(".")
+    if not sep or not field:
+        return None
+    normalized_head = _normalize_reference_head(step_id, step_id_map=step_id_map)
+    normalized_field = field.strip()
+    if normalized_head == step_id:
+        normalized_head = tool_reference_map.get(step_id.strip(), normalized_head)
+    if normalized_field.startswith("output."):
+        normalized_field = normalized_field.removeprefix("output.").strip()
+    if not normalized_head or not normalized_field:
+        return None
+    return f"{normalized_head}.{normalized_field}"
+
+
+def _normalize_reference_head(value: str, *, step_id_map: dict[str, str]) -> str:
+    return step_id_map.get(value.strip(), value)
+
+
+def _collect_step_output_fields(
+    *,
+    step: PlanStep,
+    registry_map: Mapping[str, ToolSpec],
+) -> set[str]:
+    spec = registry_map.get(step.tool)
+    if spec is None:
+        return set()
+    aliases = {
+        "structure_pdb": "pdb_path",
+        "structure_path": "pdb_path",
+        "cif_path": "pdb_path",
+        "sequence_candidates": "candidates",
+    }
+    return {
+        aliases.get(output_field, output_field)
+        for output_field in spec.outputs
+    }
+
+
+def _normalize_named_placeholder_reference(
+    value: str,
+    *,
+    input_key: str,
+    step_id_map: Mapping[str, str],
+    field_source_map: Mapping[str, str],
+) -> str | None:
+    payload = value.strip()
+    token = ""
+    if payload.startswith("<") and payload.endswith(">"):
+        token = payload[1:-1].strip().lower()
+    elif payload.startswith("$"):
+        token = payload[1:].strip().lower()
+    else:
+        lowered = payload.lower()
+        if lowered not in {
+            "auto",
+            "candidates",
+            "generated_sequence",
+            "generated_seq",
+            "predicted_pdb",
+            "predicted_structure",
+        }:
+            return None
+        token = lowered
+    if not token:
+        return None
+    if token.startswith("step_"):
+        canonical_step = step_id_map.get(token.removeprefix("step_"))
+        expected_field = _expected_output_field_for_input_key(input_key)
+        if canonical_step is not None and expected_field is not None:
+            return f"{canonical_step}.{expected_field}"
+    if token.startswith("from_step_"):
+        return None
+
+    candidate_fields: list[str] = []
+    expected_field = _expected_output_field_for_input_key(input_key)
+    if expected_field is not None:
+        candidate_fields.append(expected_field)
+    if "sequence" in token:
+        candidate_fields.append("sequence")
+    if "candidate" in token:
+        candidate_fields.append("candidates")
+    if "pdb" in token or "structure" in token:
+        candidate_fields.append("pdb_path")
+    if "plddt" in token or "confidence" in token:
+        candidate_fields.append("plddt")
+
+    seen: set[str] = set()
+    for field in candidate_fields:
+        if field in seen:
+            continue
+        seen.add(field)
+        step_id = field_source_map.get(field)
+        if step_id is not None:
+            return f"{step_id}.{field}"
+    return None
+
+
+def _should_rewrite_input_contract_field(
+    *,
+    input_key: str,
+    current_field: str,
+    expected_field: str,
+) -> bool:
+    if input_key == "sequence" and current_field in {"candidates", "sequence_candidates"}:
+        return True
+    if input_key == "candidates" and current_field == "sequence":
+        return True
+    if input_key == "pdb_path" and current_field in {"structure_pdb", "structure_path", "cif_path"}:
+        return True
+    if input_key == "structure_results" and current_field in {"sequence", "pdb_path", "plddt"}:
+        return True
+    return current_field == expected_field
+
+
+def _materialize_patch_inputs_for_tool(
+    *,
+    target_step: PlanStep,
+    target_tool: ToolSpec,
+    context_step_results: Sequence[StepResult],
+) -> dict[str, Any] | None:
+    source_inputs = target_step.inputs if isinstance(target_step.inputs, dict) else {}
+    materialized: dict[str, Any] = {}
+    for required_key in target_tool.inputs:
+        value = source_inputs.get(required_key)
+        if value is None:
+            value = _infer_patch_input_from_context(
+                input_key=required_key,
+                source_inputs=source_inputs,
+                context_step_results=context_step_results,
+            )
+        value = _normalize_patch_input_value(
+            input_key=required_key,
+            value=value,
+            source_inputs=source_inputs,
+            context_step_results=context_step_results,
+        )
+        if value is None:
+            return None
+        materialized[required_key] = value
+    return materialized
+
+
+def _infer_patch_input_from_context(
+    *,
+    input_key: str,
+    source_inputs: dict[str, Any],
+    context_step_results: Sequence[StepResult],
+) -> Any:
+    expected_field = _expected_output_field_for_input_key(input_key)
+    if expected_field is None:
+        return None
+    for candidate in source_inputs.values():
+        if not isinstance(candidate, str):
+            continue
+        step_id, sep, _field = candidate.partition(".")
+        if not sep or not step_id.startswith("S"):
+            continue
+        if _step_result_has_output(
+            context_step_results,
+            step_id=step_id,
+            output_key=expected_field,
+        ):
+            return f"{step_id}.{expected_field}"
+    for result in reversed(list(context_step_results)):
+        if result.status != "success":
+            continue
+        outputs = result.outputs if isinstance(result.outputs, dict) else {}
+        if expected_field in outputs:
+            return f"{result.step_id}.{expected_field}"
+    return None
+
+
+def _normalize_patch_input_value(
+    *,
+    input_key: str,
+    value: Any,
+    source_inputs: dict[str, Any],
+    context_step_results: Sequence[StepResult],
+) -> Any:
+    if isinstance(value, str):
+        step_id, sep, field = value.partition(".")
+        if not sep or not step_id.startswith("S"):
+            return value
+        expected_field = _expected_output_field_for_input_key(input_key)
+        if expected_field is None or field == expected_field:
+            return value
+        if _step_result_has_output(
+            context_step_results,
+            step_id=step_id,
+            output_key=expected_field,
+        ):
+            return f"{step_id}.{expected_field}"
+        return value
+    if value is not None:
+        if _is_literal_patch_input_compatible(input_key=input_key, value=value):
+            return value
+        return _infer_patch_input_from_context(
+            input_key=input_key,
+            source_inputs=source_inputs,
+            context_step_results=context_step_results,
+        )
+    return value
+
+
+def _expected_output_field_for_input_key(input_key: str) -> str | None:
+    lookup = {
+        "sequence": "sequence",
+        "pdb_path": "pdb_path",
+        "plddt": "plddt",
+        "candidates": "candidates",
+        "structure_results": "structure_results",
+        "qc_metrics": "qc_metrics",
+        "score_table": "score_table",
+        "top_k": "top_k",
+    }
+    return lookup.get(input_key)
+
+
+def _step_result_has_output(
+    context_step_results: Sequence[StepResult],
+    *,
+    step_id: str,
+    output_key: str,
+) -> bool:
+    for result in context_step_results:
+        if result.step_id != step_id or result.status != "success":
+            continue
+        outputs = result.outputs if isinstance(result.outputs, dict) else {}
+        return output_key in outputs
+    return False
+
+
+def _is_literal_patch_input_compatible(*, input_key: str, value: Any) -> bool:
+    if input_key in {"sequence", "pdb_path"}:
+        return isinstance(value, str) and bool(value.strip())
+    if input_key == "candidates":
+        return isinstance(value, list)
+    if input_key in {"plddt", "top_k"}:
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return value is not None
 
 
 def _select_candidate(
