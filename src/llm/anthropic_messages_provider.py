@@ -5,7 +5,7 @@ import time
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
 
 from anthropic import Anthropic
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.provider_payload_parser import (
@@ -31,6 +31,43 @@ if TYPE_CHECKING:
 
 
 _MAX_PROVIDER_REPAIR_RETRIES = 2
+_TWO_STAGE_PLAN_STRATEGY = "two_stage_plan"
+
+
+class PlanSkeletonStep(BaseModel):
+    """两阶段规划中的单步骨架。
+
+    Attributes:
+        id: 可选步骤 ID，provider 层会归一化为 S1/S2/...。
+        tool: 该步骤选择的工具 ID。
+        metadata: 步骤级附加说明，不承载执行结果。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str | None = None
+    tool: str
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+class PlanSkeleton(BaseModel):
+    """两阶段规划第一阶段输出的计划骨架。
+
+    Attributes:
+        task_id: 任务 ID，可由 provider 层补齐。
+        steps: 只包含步骤顺序和工具选择，不包含 inputs。
+        constraints: 任务约束透传字段。
+        metadata: 骨架生成元信息。
+        explanation: 可选解释。
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str | None = None
+    steps: List[PlanSkeletonStep]
+    constraints: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    explanation: str | None = None
 
 
 class AnthropicMessagesProvider(BaseProvider):
@@ -48,6 +85,9 @@ class AnthropicMessagesProvider(BaseProvider):
     def call_planner(
         self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
     ) -> Dict:
+        if self._uses_two_stage_plan():
+            return self._call_two_stage_planner(task, tool_registry)
+
         payload = self._request_tool_payload(
             system_prompt=self._build_plan_system_prompt(),
             user_prompt=self._build_plan_user_prompt(task, tool_registry),
@@ -70,6 +110,60 @@ class AnthropicMessagesProvider(BaseProvider):
                 "provider": "anthropic_messages",
                 "model": self.config.model_name,
                 "endpoint": self.endpoint,
+            }
+        )
+        if not self.validate_plan(payload):
+            raise ValueError(f"LLM 生成的 Plan 无效: {payload}")
+        return payload
+
+    def _call_two_stage_planner(
+        self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
+    ) -> Dict[str, Any]:
+        skeleton = self._request_tool_payload(
+            system_prompt=self._build_plan_skeleton_system_prompt(),
+            user_prompt=self._build_plan_skeleton_user_prompt(task, tool_registry),
+            tool_name="emit_plan_skeleton",
+            tool_description="Emit a PlanSkeleton JSON object with steps and tools only.",
+            schema_model=PlanSkeleton,
+            candidate_kind="plan_skeleton",
+            tool_registry=tool_registry,
+            validator=lambda candidate, parse_result: self._validate_plan_skeleton_candidate(
+                candidate,
+                parse_result=parse_result,
+                task=task,
+                tool_registry=tool_registry,
+            ),
+        )
+        skeleton_plan = PlanSkeleton.model_validate(skeleton)
+        payload = self._request_tool_payload(
+            system_prompt=self._build_plan_system_prompt(),
+            user_prompt=self._build_plan_inputs_user_prompt(
+                task,
+                tool_registry,
+                skeleton=skeleton_plan,
+            ),
+            tool_name="emit_plan",
+            tool_description="Emit a single Plan JSON object aligned with the provided skeleton.",
+            schema_model=Plan,
+            candidate_kind="plan",
+            tool_registry=tool_registry,
+            validator=lambda candidate, parse_result: self._validate_plan_candidate(
+                candidate,
+                parse_result=parse_result,
+                task=task,
+                tool_registry=tool_registry,
+                materialize_inputs=True,
+                skeleton=skeleton_plan,
+            ),
+        )
+        metadata = payload.setdefault("metadata", {})
+        metadata.update(
+            {
+                "provider": "anthropic_messages",
+                "model": self.config.model_name,
+                "endpoint": self.endpoint,
+                "provider_generation_mode": _TWO_STAGE_PLAN_STRATEGY,
+                "provider_plan_skeleton": self._skeleton_summary(skeleton_plan),
             }
         )
         if not self.validate_plan(payload):
@@ -154,7 +248,7 @@ class AnthropicMessagesProvider(BaseProvider):
         user_prompt: str,
         tool_name: str,
         tool_description: str,
-        schema_model: Type[Plan] | Type[PlanPatch],
+        schema_model: Type[BaseModel],
         candidate_kind: str,
         tool_registry: List["ToolSpec"],
         validator: Callable[[dict[str, Any], ProviderPayloadParseResult], dict[str, Any]],
@@ -250,6 +344,14 @@ class AnthropicMessagesProvider(BaseProvider):
             "CANDIDATES 之类裸占位符。"
         )
 
+    def _build_plan_skeleton_system_prompt(self) -> str:
+        return (
+            "你是一个蛋白质设计规划助手。必须调用 emit_plan_skeleton 工具输出计划骨架，"
+            "只决定步骤顺序和 tool，不要填写 inputs，不要输出执行结果。"
+            "steps 必须是 JSON array；step id 必须是 S1/S2/...；"
+            "tool 必须来自可用工具列表。"
+        )
+
     def _build_plan_user_prompt(
         self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
     ) -> str:
@@ -262,6 +364,50 @@ class AnthropicMessagesProvider(BaseProvider):
             "要求：\n"
             "- steps must be a JSON array, never a string\n"
             "- all step ids must be S1/S2/... in execution order\n"
+            "- all cross-step references must be S<n>.field\n"
+            "- do not emit ${...}, $CANDIDATES, $STEP_2, <generated_sequence>, <predicted_pdb>, auto\n"
+        )
+
+    def _build_plan_skeleton_user_prompt(
+        self, task: ProteinDesignTask, tool_registry: List["ToolSpec"]
+    ) -> str:
+        return (
+            f"任务 ID: {task.task_id}\n"
+            f"目标: {task.goal}\n"
+            f"约束: {json.dumps(task.constraints, ensure_ascii=False, indent=2)}\n"
+            f"可用工具:\n{self._format_tool_registry(tool_registry)}\n"
+            "请先生成 PlanSkeleton。\n"
+            "要求：\n"
+            "- steps must be a JSON array, never a string\n"
+            "- each step must contain only id/tool/metadata, no inputs\n"
+            "- all step ids must be S1/S2/... in execution order\n"
+            "- tool must be selected from the available tools\n"
+            "- do not emit execution outputs, placeholders, or cross-step references\n"
+        )
+
+    def _build_plan_inputs_user_prompt(
+        self,
+        task: ProteinDesignTask,
+        tool_registry: List["ToolSpec"],
+        *,
+        skeleton: PlanSkeleton,
+    ) -> str:
+        skeleton_json = json.dumps(
+            skeleton.model_dump(mode="json"),
+            ensure_ascii=False,
+            indent=2,
+        )
+        return (
+            f"任务 ID: {task.task_id}\n"
+            f"目标: {task.goal}\n"
+            f"约束: {json.dumps(task.constraints, ensure_ascii=False, indent=2)}\n"
+            f"可用工具:\n{self._format_tool_registry(tool_registry)}\n"
+            f"已确认 PlanSkeleton:\n{skeleton_json}\n"
+            "请基于该 skeleton 生成完整 Plan。\n"
+            "要求：\n"
+            "- keep exactly the same step count, ids, order, and tools as PlanSkeleton\n"
+            "- fill only executable inputs and metadata; do not invent execution outputs\n"
+            "- steps must be a JSON array, never a string\n"
             "- all cross-step references must be S<n>.field\n"
             "- do not emit ${...}, $CANDIDATES, $STEP_2, <generated_sequence>, <predicted_pdb>, auto\n"
         )
@@ -374,6 +520,7 @@ class AnthropicMessagesProvider(BaseProvider):
         tool_registry: List["ToolSpec"],
         materialize_inputs: bool,
         constraints_override: dict[str, Any] | None = None,
+        skeleton: PlanSkeleton | None = None,
     ) -> dict[str, Any]:
         candidate = dict(candidate)
         candidate.setdefault("task_id", task.task_id)
@@ -392,6 +539,13 @@ class AnthropicMessagesProvider(BaseProvider):
                 normalized_payload=candidate,
                 parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
             ) from exc
+
+        if skeleton is not None:
+            self._raise_on_skeleton_mismatch(
+                plan=plan,
+                skeleton=skeleton,
+                parse_result=parse_result,
+            )
 
         try:
             plan = self._prepare_plan_for_validation(
@@ -426,6 +580,56 @@ class AnthropicMessagesProvider(BaseProvider):
                 parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
             ) from exc
         return plan.model_dump(mode="json")
+
+    def _validate_plan_skeleton_candidate(
+        self,
+        candidate: dict[str, Any],
+        *,
+        parse_result: ProviderPayloadParseResult,
+        task: ProteinDesignTask,
+        tool_registry: List["ToolSpec"],
+    ) -> dict[str, Any]:
+        candidate = dict(candidate)
+        candidate.setdefault("task_id", task.task_id)
+        candidate.setdefault("constraints", task.constraints)
+        candidate.setdefault("metadata", {})
+        self._raise_on_syntax_issues(
+            candidate_kind="plan_skeleton",
+            parse_result=parse_result,
+        )
+        try:
+            skeleton = PlanSkeleton.model_validate(candidate)
+        except ValidationError as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan_skeleton",
+                failure_type="SCHEMA_INVALID",
+                issues=self._build_schema_issues(exc),
+                normalized_payload=candidate,
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
+
+        registry_ids = {tool.id for tool in tool_registry}
+        issues: list[dict[str, Any]] = []
+        for index, step in enumerate(skeleton.steps):
+            if step.tool not in registry_ids:
+                issues.append(
+                    {
+                        "code": "SKELETON_TOOL_UNKNOWN",
+                        "path": f"$.steps[{index}].tool",
+                        "message": f"tool '{step.tool}' is not in registry",
+                        "observed": step.tool,
+                        "repair_hint": "choose a tool id from the available tool registry",
+                    }
+                )
+        if issues:
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan_skeleton",
+                failure_type="SCHEMA_INVALID",
+                issues=issues,
+                normalized_payload=skeleton.model_dump(mode="json"),
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            )
+        return skeleton.model_dump(mode="json")
 
     def _validate_patch_candidate(
         self,
@@ -545,6 +749,70 @@ class AnthropicMessagesProvider(BaseProvider):
             normalized_payload=parse_result.normalized_payload,
             parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
         )
+
+    def _raise_on_skeleton_mismatch(
+        self,
+        *,
+        plan: Plan,
+        skeleton: PlanSkeleton,
+        parse_result: ProviderPayloadParseResult,
+    ) -> None:
+        issues: list[dict[str, Any]] = []
+        if len(plan.steps) != len(skeleton.steps):
+            issues.append(
+                {
+                    "code": "PLAN_SKELETON_STEP_COUNT_MISMATCH",
+                    "path": "$.steps",
+                    "message": "final Plan must keep the same step count as PlanSkeleton",
+                    "observed": len(plan.steps),
+                    "repair_hint": "keep exactly the skeleton steps and fill only inputs",
+                }
+            )
+        for index, skeleton_step in enumerate(skeleton.steps):
+            if index >= len(plan.steps):
+                break
+            plan_step = plan.steps[index]
+            if plan_step.id != skeleton_step.id:
+                issues.append(
+                    {
+                        "code": "PLAN_SKELETON_STEP_ID_MISMATCH",
+                        "path": f"$.steps[{index}].id",
+                        "message": "final Plan step id must match PlanSkeleton",
+                        "observed": plan_step.id,
+                        "repair_hint": f"use {skeleton_step.id}",
+                    }
+                )
+            if plan_step.tool != skeleton_step.tool:
+                issues.append(
+                    {
+                        "code": "PLAN_SKELETON_TOOL_MISMATCH",
+                        "path": f"$.steps[{index}].tool",
+                        "message": "final Plan tool must match PlanSkeleton",
+                        "observed": plan_step.tool,
+                        "repair_hint": f"use {skeleton_step.tool}",
+                    }
+                )
+        if not issues:
+            return
+        raise ProviderPayloadValidationError(
+            candidate_kind="plan",
+            failure_type="SCHEMA_INVALID",
+            issues=issues,
+            normalized_payload=plan.model_dump(mode="json"),
+            parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+        )
+
+    def _uses_two_stage_plan(self) -> bool:
+        return self.config.tool_strategy == _TWO_STAGE_PLAN_STRATEGY
+
+    def _skeleton_summary(self, skeleton: PlanSkeleton) -> dict[str, Any]:
+        return {
+            "step_count": len(skeleton.steps),
+            "steps": [
+                {"id": step.id, "tool": step.tool}
+                for step in skeleton.steps
+            ],
+        }
 
     def _build_repair_user_prompt(
         self,

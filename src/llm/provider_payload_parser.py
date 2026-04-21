@@ -141,7 +141,7 @@ class ProviderPayloadParser:
             )
 
         normalized_payload = dict(normalized)
-        if candidate_kind in {"plan", "replan"}:
+        if candidate_kind in {"plan", "replan", "plan_skeleton"}:
             normalized_payload = self._normalize_plan_payload(
                 normalized_payload,
                 repairs=repairs,

@@ -186,6 +186,300 @@ def test_anthropic_provider_generates_plan_via_tool_use(monkeypatch):
     assert calls["kwargs"]["extra_headers"]["anthropic-version"] == "2023-06-01"
 
 
+def test_anthropic_provider_generates_two_stage_plan_when_configured(monkeypatch):
+    calls = {"tool_names": [], "prompts": []}
+    payloads = {
+        "emit_plan_skeleton": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan_skeleton",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {"id": "1", "tool": "protgpt2", "metadata": {}},
+                            {"id": "2", "tool": "openfold", "metadata": {}},
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+        "emit_plan": {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "protgpt2",
+                                "inputs": {"goal": "design a stable protein"},
+                                "metadata": {},
+                            },
+                            {
+                                "id": "S2",
+                                "tool": "openfold",
+                                "inputs": {"sequence": "S1.sequence"},
+                                "metadata": {},
+                            },
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+    }
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            tool_name = kwargs["tools"][0]["name"]
+            calls["tool_names"].append(tool_name)
+            calls["prompts"].append(kwargs["messages"][0]["content"])
+            return _fake_response(payloads[tool_name])
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(
+            model_name="MiniMax-M2.7",
+            api_key="secret",
+            tool_strategy="two_stage_plan",
+        )
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert calls["tool_names"] == ["emit_plan_skeleton", "emit_plan"]
+    assert "已确认 PlanSkeleton" in calls["prompts"][1]
+    assert [step["tool"] for step in plan["steps"]] == ["protgpt2", "openfold"]
+    assert plan["steps"][0]["id"] == "S1"
+    assert plan["metadata"]["provider_generation_mode"] == "two_stage_plan"
+    assert plan["metadata"]["provider_plan_skeleton"]["step_count"] == 2
+
+
+def test_anthropic_provider_repairs_skeleton_with_inputs(monkeypatch):
+    calls = {"tool_names": [], "prompts": []}
+    skeleton_payloads = [
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan_skeleton",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "protgpt2",
+                                "inputs": {"goal": "design"},
+                                "metadata": {},
+                            }
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan_skeleton",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [{"id": "S1", "tool": "protgpt2", "metadata": {}}],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+    ]
+
+    class FakeMessages:
+        def __init__(self):
+            self.skeleton_count = 0
+
+        def create(self, **kwargs):
+            tool_name = kwargs["tools"][0]["name"]
+            calls["tool_names"].append(tool_name)
+            calls["prompts"].append(kwargs["messages"][0]["content"])
+            if tool_name == "emit_plan_skeleton":
+                index = min(self.skeleton_count, len(skeleton_payloads) - 1)
+                self.skeleton_count += 1
+                return _fake_response(skeleton_payloads[index])
+            return _fake_response(
+                {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "name": "emit_plan",
+                            "input": {
+                                "task_id": "task_001",
+                                "steps": [
+                                    {
+                                        "id": "S1",
+                                        "tool": "protgpt2",
+                                        "inputs": {"goal": "design"},
+                                        "metadata": {},
+                                    }
+                                ],
+                                "constraints": {},
+                                "metadata": {},
+                            },
+                        }
+                    ]
+                }
+            )
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(
+            model_name="MiniMax-M2.7",
+            api_key="secret",
+            tool_strategy="two_stage_plan",
+        )
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert calls["tool_names"] == [
+        "emit_plan_skeleton",
+        "emit_plan_skeleton",
+        "emit_plan",
+    ]
+    assert "失败分类: SCHEMA_INVALID" in calls["prompts"][1]
+    assert plan["steps"][0]["tool"] == "protgpt2"
+
+
+def test_anthropic_provider_repairs_two_stage_plan_when_skeleton_mismatches(monkeypatch):
+    calls = {"tool_names": [], "prompts": []}
+    final_payloads = [
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "protgpt2",
+                                "inputs": {"goal": "design"},
+                                "metadata": {},
+                            },
+                            {
+                                "id": "S2",
+                                "tool": "esmfold",
+                                "inputs": {"sequence": "S1.sequence"},
+                                "metadata": {},
+                            },
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "protgpt2",
+                                "inputs": {"goal": "design"},
+                                "metadata": {},
+                            },
+                            {
+                                "id": "S2",
+                                "tool": "openfold",
+                                "inputs": {"sequence": "S1.sequence"},
+                                "metadata": {},
+                            },
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+    ]
+
+    class FakeMessages:
+        def __init__(self):
+            self.final_count = 0
+
+        def create(self, **kwargs):
+            tool_name = kwargs["tools"][0]["name"]
+            calls["tool_names"].append(tool_name)
+            calls["prompts"].append(kwargs["messages"][0]["content"])
+            if tool_name == "emit_plan_skeleton":
+                return _fake_response(
+                    {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "name": "emit_plan_skeleton",
+                                "input": {
+                                    "task_id": "task_001",
+                                    "steps": [
+                                        {"id": "S1", "tool": "protgpt2", "metadata": {}},
+                                        {"id": "S2", "tool": "openfold", "metadata": {}},
+                                    ],
+                                    "constraints": {},
+                                    "metadata": {},
+                                },
+                            }
+                        ]
+                    }
+                )
+            index = min(self.final_count, len(final_payloads) - 1)
+            self.final_count += 1
+            return _fake_response(final_payloads[index])
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(
+            model_name="MiniMax-M2.7",
+            api_key="secret",
+            tool_strategy="two_stage_plan",
+        )
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert calls["tool_names"] == ["emit_plan_skeleton", "emit_plan", "emit_plan"]
+    assert "final Plan tool must match PlanSkeleton" in calls["prompts"][2]
+    assert plan["steps"][1]["tool"] == "openfold"
+    assert plan["metadata"]["provider_validation"]["repair_attempts"] == 1
+
+
 def test_anthropic_provider_generates_patch_and_replan(monkeypatch):
     payloads = {
         "emit_patch": {
