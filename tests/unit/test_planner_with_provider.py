@@ -6,7 +6,9 @@ from typing import Dict, List
 from src.agents.planner import PlannerAgent, ToolSpec
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
 from src.models.contracts import ProteinDesignTask, Plan, PatchRequest, StepResult, now_iso
+import src.agents.planner as planner_module
 
 
 @pytest.fixture(autouse=True)
@@ -118,6 +120,42 @@ class TestPlannerWithoutProvider:
         plan = planner.plan(sample_task)
 
         assert plan.steps[0].inputs["sequence"] == sample_task.constraints["sequence"]
+
+
+def test_planner_logs_provider_validation_failure(sample_task, monkeypatch):
+    events = []
+
+    class BrokenProvider(BaseProvider):
+        def __init__(self):
+            self.config = ProviderConfig(model_name="broken-provider")
+
+        def call_planner(self, task, tool_registry):
+            del task, tool_registry
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan",
+                failure_type="SYNTAX_INVALID",
+                issues=[
+                    {
+                        "code": "REFERENCE_SYNTAX_INVALID",
+                        "path": "$.steps[1].inputs.sequence",
+                        "message": "reference token is not compliant",
+                    }
+                ],
+                attempts=3,
+            )
+
+    monkeypatch.setattr(planner_module, "append_event", lambda task_id, event: events.append((task_id, event)))
+    planner = PlannerAgent(llm_provider=BrokenProvider())
+
+    with pytest.raises(ProviderPayloadValidationError):
+        planner.plan(sample_task)
+
+    assert events
+    task_id, event = events[0]
+    assert task_id == sample_task.task_id
+    assert event["event"] == "PROVIDER_VALIDATION_FAILED"
+    assert event["failure_code"] == "SYNTAX_INVALID"
+    assert event["data"]["provider_name"] == "broken-provider"
 
 
 class TestPlannerWithBaselineProvider:

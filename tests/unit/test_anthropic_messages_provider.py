@@ -1,14 +1,26 @@
 from types import SimpleNamespace
 
+import pytest
+
 from src.agents.planner import ToolSpec
 import src.llm.anthropic_messages_provider as anthropic_provider_module
 from src.llm.anthropic_messages_provider import AnthropicMessagesProvider
 from src.llm.base_llm_provider import ProviderConfig
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
 from src.models.contracts import PatchRequest, Plan, PlanStep, ProteinDesignTask, ReplanRequest, StepResult, now_iso
+from src.models.validation import CandidateExecutionIssue, CandidateExecutionValidationError
 
 
 def _sample_registry():
     return [
+        ToolSpec(
+            id="protgpt2",
+            capabilities=("sequence_generation",),
+            inputs=("goal",),
+            outputs=("sequence", "candidates"),
+            cost=1,
+            safety_level=0,
+        ),
         ToolSpec(
             id="esmfold",
             capabilities=("structure_prediction",),
@@ -25,7 +37,40 @@ def _sample_registry():
             cost=1,
             safety_level=0,
         ),
+        ToolSpec(
+            id="openfold",
+            capabilities=("structure_prediction",),
+            inputs=("sequence",),
+            outputs=("pdb_path", "structure_results"),
+            cost=1,
+            safety_level=0,
+        ),
+        ToolSpec(
+            id="objective_ranker",
+            capabilities=("ranking",),
+            inputs=("candidates",),
+            outputs=("score_table", "top_k"),
+            cost=1,
+            safety_level=0,
+        ),
+        ToolSpec(
+            id="biopython_qc",
+            capabilities=("quality_control",),
+            inputs=("sequence", "pdb_path"),
+            outputs=("qc_metrics",),
+            cost=1,
+            safety_level=0,
+        ),
     ]
+
+
+@pytest.fixture(autouse=True)
+def _stub_candidate_validation(monkeypatch):
+    monkeypatch.setattr(
+        anthropic_provider_module,
+        "validate_plan_executability",
+        lambda plan, task: None,
+    )
 
 
 def _sample_task():
@@ -535,3 +580,233 @@ def test_anthropic_provider_rewrites_semantically_wrong_reference_fields(monkeyp
 
     assert plan["steps"][1]["inputs"]["sequence"] == "S1.sequence"
     assert plan["steps"][2]["inputs"]["candidates"] == "S1.candidates"
+
+
+def test_anthropic_provider_retries_plan_when_syntax_invalid(monkeypatch):
+    calls = {"count": 0, "prompts": []}
+    payloads = [
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "esmfold",
+                                "inputs": {"sequence": "AAA"},
+                                "metadata": {},
+                            },
+                            {
+                                "id": "S2",
+                                "tool": "protein_mpnn",
+                                "inputs": {"pdb_path": "$STEP_9"},
+                                "metadata": {},
+                            },
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_plan",
+                    "input": {
+                        "task_id": "task_001",
+                        "steps": [
+                            {
+                                "id": "S1",
+                                "tool": "esmfold",
+                                "inputs": {"sequence": "AAA"},
+                                "metadata": {},
+                            },
+                            {
+                                "id": "S2",
+                                "tool": "protein_mpnn",
+                                "inputs": {"pdb_path": "S1.pdb_path"},
+                                "metadata": {},
+                            },
+                        ],
+                        "constraints": {},
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+    ]
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["prompts"].append(kwargs["messages"][0]["content"])
+            index = min(calls["count"], len(payloads) - 1)
+            calls["count"] += 1
+            return _fake_response(payloads[index])
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    plan = provider.call_planner(_sample_task(), _sample_registry())
+
+    assert calls["count"] == 2
+    assert "失败分类: SYNTAX_INVALID" in calls["prompts"][1]
+    assert plan["steps"][1]["inputs"]["pdb_path"] == "S1.pdb_path"
+    assert plan["metadata"]["provider_validation"]["repair_attempts"] == 1
+
+
+def test_anthropic_provider_retries_patch_when_executability_invalid(monkeypatch):
+    calls = {"count": 0, "prompts": []}
+    payloads = [
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_patch",
+                    "input": {
+                        "task_id": "task_patch",
+                        "operations": [
+                            {
+                                "op": "replace_step",
+                                "target": "S1",
+                                "step": {
+                                    "tool": "protein_mpnn",
+                                    "inputs": {},
+                                    "metadata": {},
+                                },
+                            }
+                        ],
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "name": "emit_patch",
+                    "input": {
+                        "task_id": "task_patch",
+                        "operations": [
+                            {
+                                "op": "replace_step",
+                                "target": "S1",
+                                "step": {
+                                    "tool": "protein_mpnn",
+                                    "inputs": {"pdb_path": "input.pdb"},
+                                    "metadata": {},
+                                },
+                            }
+                        ],
+                        "metadata": {},
+                    },
+                }
+            ]
+        },
+    ]
+
+    def fake_validate(plan, task):
+        del task
+        step = plan.steps[0]
+        if step.tool == "protein_mpnn" and "pdb_path" not in step.inputs:
+            raise CandidateExecutionValidationError(
+                [
+                    CandidateExecutionIssue(
+                        code="CANDIDATE_PARAMS_INVALID",
+                        message="required input 'pdb_path' is missing",
+                        step_id=step.id,
+                        tool_id=step.tool,
+                    )
+                ]
+            )
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls["prompts"].append(kwargs["messages"][0]["content"])
+            index = min(calls["count"], len(payloads) - 1)
+            calls["count"] += 1
+            return _fake_response(payloads[index])
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    monkeypatch.setattr(
+        anthropic_provider_module,
+        "validate_plan_executability",
+        fake_validate,
+    )
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    patch = provider.call_patch(_sample_patch_request(), _sample_registry())
+
+    assert patch is not None
+    assert calls["count"] == 2
+    assert "失败分类: EXECUTABILITY_INVALID" in calls["prompts"][1]
+    assert patch["operations"][0]["step"]["inputs"]["pdb_path"] == "input.pdb"
+    assert patch["metadata"]["provider_validation"]["repair_attempts"] == 1
+
+
+def test_anthropic_provider_raises_typed_error_after_retry_exhausted(monkeypatch):
+    calls = {"count": 0}
+    payload = {
+        "content": [
+            {
+                "type": "tool_use",
+                "name": "emit_replan",
+                "input": {
+                    "task_id": "task_replan",
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protein_mpnn",
+                            "inputs": {"pdb_path": "$STEP_9"},
+                            "metadata": {},
+                        }
+                    ],
+                    "constraints": {},
+                    "metadata": {},
+                },
+            }
+        ]
+    }
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            del kwargs
+            calls["count"] += 1
+            return _fake_response(payload)
+
+    class FakeAnthropic:
+        def __init__(self, *, api_key, base_url, timeout):
+            del api_key, base_url, timeout
+            self.messages = FakeMessages()
+
+    monkeypatch.setattr(anthropic_provider_module, "Anthropic", FakeAnthropic)
+    provider = AnthropicMessagesProvider(
+        ProviderConfig(model_name="glm-5", api_key="secret")
+    )
+
+    with pytest.raises(ProviderPayloadValidationError) as exc_info:
+        provider.call_replan(_sample_replan_request(), _sample_registry())
+
+    assert calls["count"] == 3
+    assert exc_info.value.failure_type == "SYNTAX_INVALID"
+    assert exc_info.value.candidate_kind == "replan"
+    assert exc_info.value.attempts == 3

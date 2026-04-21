@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import json
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Type
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Type
 
 from anthropic import Anthropic
+from pydantic import ValidationError
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.provider_payload_parser import (
+    ProviderPayloadParseResult,
+    ProviderPayloadParser,
+    ProviderPayloadValidationError,
+)
 from src.models.contracts import (
     PatchRequest,
     Plan,
@@ -14,9 +20,17 @@ from src.models.contracts import (
     ProteinDesignTask,
     ReplanRequest,
 )
+from src.models.validation import (
+    CandidateExecutionValidationError,
+    validate_plan_executability,
+)
+from src.workflow.patch import apply_patch
 
 if TYPE_CHECKING:
     from src.agents.planner import ToolSpec
+
+
+_MAX_PROVIDER_REPAIR_RETRIES = 2
 
 
 class AnthropicMessagesProvider(BaseProvider):
@@ -40,8 +54,16 @@ class AnthropicMessagesProvider(BaseProvider):
             tool_name="emit_plan",
             tool_description="Emit a single Plan JSON object.",
             schema_model=Plan,
+            candidate_kind="plan",
+            tool_registry=tool_registry,
+            validator=lambda candidate, parse_result: self._validate_plan_candidate(
+                candidate,
+                parse_result=parse_result,
+                task=task,
+                tool_registry=tool_registry,
+                materialize_inputs=True,
+            ),
         )
-        payload.setdefault("task_id", task.task_id)
         metadata = payload.setdefault("metadata", {})
         metadata.update(
             {
@@ -65,8 +87,15 @@ class AnthropicMessagesProvider(BaseProvider):
             tool_name="emit_patch",
             tool_description="Emit a single PlanPatch JSON object.",
             schema_model=PlanPatch,
+            candidate_kind="patch",
+            tool_registry=tool_registry,
+            validator=lambda candidate, parse_result: self._validate_patch_candidate(
+                candidate,
+                parse_result=parse_result,
+                request=request,
+                tool_registry=tool_registry,
+            ),
         )
-        payload.setdefault("task_id", request.task_id)
         metadata = payload.setdefault("metadata", {})
         metadata.update(
             {
@@ -91,8 +120,20 @@ class AnthropicMessagesProvider(BaseProvider):
             tool_name="emit_replan",
             tool_description="Emit a single Plan JSON object for replan.",
             schema_model=Plan,
+            candidate_kind="replan",
+            tool_registry=tool_registry,
+            validator=lambda candidate, parse_result: self._validate_plan_candidate(
+                candidate,
+                parse_result=parse_result,
+                task=self._build_validation_task(
+                    task_id=request.task_id,
+                    constraints=request.original_plan.constraints,
+                ),
+                tool_registry=tool_registry,
+                materialize_inputs=False,
+                constraints_override=request.original_plan.constraints,
+            ),
         )
-        payload.setdefault("task_id", request.task_id)
         metadata = payload.setdefault("metadata", {})
         metadata.update(
             {
@@ -114,46 +155,64 @@ class AnthropicMessagesProvider(BaseProvider):
         tool_name: str,
         tool_description: str,
         schema_model: Type[Plan] | Type[PlanPatch],
+        candidate_kind: str,
+        tool_registry: List["ToolSpec"],
+        validator: Callable[[dict[str, Any], ProviderPayloadParseResult], dict[str, Any]],
     ) -> Dict[str, Any]:
         started_at = time.time()
-        response = self._post_messages(
-            {
-                "model": self.config.model_name,
-                "system": system_prompt,
-                "messages": [{"role": "user", "content": user_prompt}],
-                "max_tokens": self.config.max_tokens or 4000,
-                "temperature": self.config.temperature,
-                "tools": [
-                    {
-                        "name": tool_name,
-                        "description": tool_description,
-                        "input_schema": schema_model.model_json_schema(),
-                    }
-                ],
-                "tool_choice": {"type": "tool", "name": tool_name},
+        parser = ProviderPayloadParser(tool_registry)
+        last_error: ProviderPayloadValidationError | None = None
+
+        for attempt in range(_MAX_PROVIDER_REPAIR_RETRIES + 1):
+            current_user_prompt = user_prompt
+            if last_error is not None:
+                current_user_prompt = self._build_repair_user_prompt(
+                    base_user_prompt=user_prompt,
+                    candidate_kind=candidate_kind,
+                    tool_name=tool_name,
+                    error=last_error,
+                )
+            response = self._post_messages(
+                {
+                    "model": self.config.model_name,
+                    "system": system_prompt,
+                    "messages": [{"role": "user", "content": current_user_prompt}],
+                    "max_tokens": self.config.max_tokens or 4000,
+                    "temperature": self.config.temperature,
+                    "tools": [
+                        {
+                            "name": tool_name,
+                            "description": tool_description,
+                            "input_schema": schema_model.model_json_schema(),
+                        }
+                    ],
+                    "tool_choice": {"type": "tool", "name": tool_name},
+                }
+            )
+            tool_input = self._extract_tool_input(response, tool_name=tool_name)
+            parse_result = parser.parse(tool_input, candidate_kind=candidate_kind)
+            try:
+                validated = validator(
+                    parse_result.normalized_payload or {},
+                    parse_result,
+                )
+            except ProviderPayloadValidationError as exc:
+                last_error = exc.with_attempts(attempt + 1)
+                if attempt >= _MAX_PROVIDER_REPAIR_RETRIES:
+                    raise last_error
+                continue
+
+            metadata = validated.setdefault("metadata", {})
+            metadata["elapsed_seconds"] = time.time() - started_at
+            metadata["provider_validation"] = {
+                "candidate_kind": candidate_kind,
+                "repair_attempts": attempt,
+                "total_attempts": attempt + 1,
+                "syntax_repairs": [repair.as_dict() for repair in parse_result.repairs],
             }
-        )
-        content = response.get("content")
-        if not isinstance(content, list):
-            raise ValueError("Anthropic 响应缺少 content 列表")
+            return validated
 
-        tool_input = None
-        for block in content:
-            if (
-                isinstance(block, dict)
-                and block.get("type") == "tool_use"
-                and block.get("name") == tool_name
-            ):
-                tool_input = block.get("input")
-                break
-
-        if not isinstance(tool_input, dict):
-            raise ValueError("Anthropic 响应缺少结构化 tool_use payload")
-
-        tool_input = _normalize_tool_payload(tool_input)
-        metadata = tool_input.setdefault("metadata", {})
-        metadata["elapsed_seconds"] = time.time() - started_at
-        return tool_input
+        raise ValueError(f"{candidate_kind} provider validation failed without details")
 
     def _post_messages(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
@@ -186,6 +245,9 @@ class AnthropicMessagesProvider(BaseProvider):
         return (
             "你是一个蛋白质设计规划助手。必须调用 emit_plan 工具输出单个结构化 Plan，"
             "不要输出自由文本 JSON，不要补执行结果。"
+            "steps 必须是 JSON array，不能是字符串；step id 必须是 S1/S2/...；"
+            "跨步引用只能写成 S<n>.field；严禁输出 ${...}、$...、<...>、auto、"
+            "CANDIDATES 之类裸占位符。"
         )
 
     def _build_plan_user_prompt(
@@ -196,13 +258,20 @@ class AnthropicMessagesProvider(BaseProvider):
             f"目标: {task.goal}\n"
             f"约束: {json.dumps(task.constraints, ensure_ascii=False, indent=2)}\n"
             f"可用工具:\n{self._format_tool_registry(tool_registry)}\n"
-            "请生成完整 Plan。"
+            "请生成完整 Plan。\n"
+            "要求：\n"
+            "- steps must be a JSON array, never a string\n"
+            "- all step ids must be S1/S2/... in execution order\n"
+            "- all cross-step references must be S<n>.field\n"
+            "- do not emit ${...}, $CANDIDATES, $STEP_2, <generated_sequence>, <predicted_pdb>, auto\n"
         )
 
     def _build_patch_system_prompt(self) -> str:
         return (
             "你是一个蛋白质设计恢复规划助手。必须调用 emit_patch 工具输出最小 PlanPatch，"
             "优先参数级，其次工具级，最后结构级。"
+            "operations 必须是 JSON array；所有引用只能写成 S<n>.field；"
+            "严禁输出 ${...}、$...、<...>、auto、裸占位符。"
         )
 
     def _build_patch_user_prompt(
@@ -221,13 +290,20 @@ class AnthropicMessagesProvider(BaseProvider):
             f"原始计划: {json.dumps(request.original_plan.model_dump(mode='json'), ensure_ascii=False, indent=2)}\n"
             f"失败上下文: {json.dumps(failed_payload, ensure_ascii=False, indent=2)}\n"
             f"可用工具:\n{self._format_tool_registry(tool_registry)}\n"
-            "请生成最小 PlanPatch。"
+            "请生成最小 PlanPatch。\n"
+            "要求：\n"
+            "- operations must be a JSON array\n"
+            "- replace_step must keep the same target id\n"
+            "- all references must use S<n>.field\n"
+            "- do not emit ${...}, $STEP_2, $CANDIDATES, <...>, auto\n"
         )
 
     def _build_replan_system_prompt(self) -> str:
         return (
             "你是一个蛋白质设计再规划助手。必须调用 emit_replan 工具输出完整 Plan，"
             "优先 suffix_replan，保留成功前缀。"
+            "steps 必须是 JSON array；step id 必须是 S1/S2/...；"
+            "所有跨步引用只能使用 S<n>.field；严禁 ${...}、$...、<...>、auto。"
         )
 
     def _build_replan_user_prompt(
@@ -243,7 +319,13 @@ class AnthropicMessagesProvider(BaseProvider):
             f"原始计划: {json.dumps(request.original_plan.model_dump(mode='json'), ensure_ascii=False, indent=2)}\n"
             f"再规划上下文: {json.dumps(payload, ensure_ascii=False, indent=2)}\n"
             f"可用工具:\n{self._format_tool_registry(tool_registry)}\n"
-            "请生成新的 Plan。"
+            "请生成新的 Plan。\n"
+            "要求：\n"
+            "- keep the successful prefix whenever possible\n"
+            "- steps must be a JSON array, never a string\n"
+            "- all step ids must be S1/S2/... in order\n"
+            "- all references must use S<n>.field\n"
+            "- do not emit ${...}, $..., <...>, auto, or bare placeholders\n"
         )
 
     def _format_tool_registry(self, tool_registry: List["ToolSpec"]) -> str:
@@ -259,340 +341,280 @@ class AnthropicMessagesProvider(BaseProvider):
             ]
         )
 
+    def _extract_tool_input(
+        self,
+        response: dict[str, Any],
+        *,
+        tool_name: str,
+    ) -> dict[str, Any]:
+        content = response.get("content")
+        if not isinstance(content, list):
+            raise ValueError("Anthropic 响应缺少 content 列表")
 
-def _normalize_tool_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    normalized = _normalize_json_like_value(payload)
-    if not isinstance(normalized, dict):
-        raise ValueError("Anthropic tool_use payload 归一化后不是 dict")
-    return _normalize_plan_like_payload(normalized)
+        tool_input = None
+        for block in content:
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_use"
+                and block.get("name") == tool_name
+            ):
+                tool_input = block.get("input")
+                break
 
+        if not isinstance(tool_input, dict):
+            raise ValueError("Anthropic 响应缺少结构化 tool_use payload")
+        return tool_input
 
-def _normalize_plan_like_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
-    normalized = dict(payload)
-    if isinstance(normalized.get("steps"), list):
-        normalized["steps"] = _normalize_plan_steps(normalized["steps"])
-    if isinstance(normalized.get("operations"), list):
-        normalized["operations"] = _normalize_patch_operations(normalized["operations"])
-    return normalized
-
-
-def _normalize_plan_steps(steps: list[Any]) -> list[Any]:
-    step_id_map, tool_reference_map = _build_step_reference_maps(steps)
-    normalized_steps: list[Any] = []
-    for index, raw_step in enumerate(steps, start=1):
-        if not isinstance(raw_step, dict):
-            normalized_steps.append(raw_step)
-            continue
-        step = dict(raw_step)
-        step["id"] = f"S{index}"
-        inputs = step.get("inputs")
-        if isinstance(inputs, dict):
-            step["inputs"] = {
-                key: _normalize_reference_value(
-                    value,
-                    input_key=key,
-                    step_id_map=step_id_map,
-                    tool_reference_map=tool_reference_map,
-                )
-                for key, value in inputs.items()
-            }
-        normalized_steps.append(step)
-    return normalized_steps
-
-
-def _normalize_patch_operations(operations: list[Any]) -> list[Any]:
-    pseudo_steps: list[dict[str, Any]] = []
-    for operation in operations:
-        if not isinstance(operation, dict):
-            continue
-        step = operation.get("step")
-        if not isinstance(step, dict):
-            continue
-        target = operation.get("target")
-        pseudo_step = dict(step)
-        if "id" not in pseudo_step and isinstance(target, str):
-            pseudo_step["id"] = target
-        pseudo_steps.append(pseudo_step)
-
-    step_id_map, tool_reference_map = _build_step_reference_maps(pseudo_steps)
-    normalized_operations: list[Any] = []
-    for operation in operations:
-        if not isinstance(operation, dict):
-            normalized_operations.append(operation)
-            continue
-        normalized = dict(operation)
-        target = normalized.get("target")
-        if isinstance(target, str):
-            normalized["target"] = _normalize_step_identifier(
-                target,
-                step_id_map=step_id_map,
-            )
-        step = normalized.get("step")
-        if isinstance(step, dict):
-            normalized_step = dict(step)
-            step_id = normalized_step.get("id")
-            if isinstance(step_id, str):
-                normalized_step["id"] = _normalize_step_identifier(
-                    step_id,
-                    step_id_map=step_id_map,
-                )
-            inputs = normalized_step.get("inputs")
-            if isinstance(inputs, dict):
-                normalized_step["inputs"] = {
-                    key: _normalize_reference_value(
-                        value,
-                        input_key=key,
-                        step_id_map=step_id_map,
-                        tool_reference_map=tool_reference_map,
-                    )
-                    for key, value in inputs.items()
-                }
-            normalized["step"] = normalized_step
-        normalized_operations.append(normalized)
-    return normalized_operations
-
-
-def _build_step_reference_maps(
-    steps: list[Any],
-) -> tuple[dict[str, str], dict[str, str]]:
-    step_id_map: dict[str, str] = {}
-    tool_to_step_ids: dict[str, list[str]] = {}
-    for index, raw_step in enumerate(steps, start=1):
-        if not isinstance(raw_step, dict):
-            continue
-        canonical_id = f"S{index}"
-        raw_id = raw_step.get("id")
-        if isinstance(raw_id, str):
-            step_id_map[raw_id] = canonical_id
-            compact = raw_id.strip()
-            if compact:
-                step_id_map[compact] = canonical_id
-                if compact.isdigit():
-                    step_id_map[f"step_{compact}"] = canonical_id
-        step_id_map[str(index)] = canonical_id
-        step_id_map[f"step_{index}"] = canonical_id
-
-        tool_name = raw_step.get("tool")
-        if isinstance(tool_name, str) and tool_name.strip():
-            tool_to_step_ids.setdefault(tool_name.strip(), []).append(canonical_id)
-
-    tool_reference_map = {
-        tool_name: step_ids[0]
-        for tool_name, step_ids in tool_to_step_ids.items()
-        if len(step_ids) == 1
-    }
-    return step_id_map, tool_reference_map
-
-
-def _normalize_reference_value(
-    value: Any,
-    *,
-    input_key: str | None,
-    step_id_map: dict[str, str],
-    tool_reference_map: dict[str, str],
-) -> Any:
-    if isinstance(value, list):
-        return [
-            _normalize_reference_value(
-                item,
-                input_key=input_key,
-                step_id_map=step_id_map,
-                tool_reference_map=tool_reference_map,
-            )
-            for item in value
-        ]
-    if isinstance(value, dict):
-        return {
-            key: _normalize_reference_value(
-                item,
-                input_key=key,
-                step_id_map=step_id_map,
-                tool_reference_map=tool_reference_map,
-            )
-            for key, item in value.items()
-        }
-    if not isinstance(value, str):
-        return value
-
-    normalized = _normalize_symbolic_reference(
-        value,
-        input_key=input_key,
-        step_id_map=step_id_map,
-        tool_reference_map=tool_reference_map,
-    )
-    if normalized is not None:
-        return _normalize_reference_field_for_input_key(
-            normalized,
-            input_key=input_key,
+    def _validate_plan_candidate(
+        self,
+        candidate: dict[str, Any],
+        *,
+        parse_result: ProviderPayloadParseResult,
+        task: ProteinDesignTask,
+        tool_registry: List["ToolSpec"],
+        materialize_inputs: bool,
+        constraints_override: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        candidate = dict(candidate)
+        candidate.setdefault("task_id", task.task_id)
+        candidate.setdefault("metadata", {})
+        self._raise_on_syntax_issues(
+            candidate_kind="plan" if materialize_inputs else "replan",
+            parse_result=parse_result,
         )
-    return value
-
-
-def _normalize_symbolic_reference(
-    value: str,
-    *,
-    input_key: str | None,
-    step_id_map: dict[str, str],
-    tool_reference_map: dict[str, str],
-) -> str | None:
-    placeholder = _normalize_placeholder_reference(
-        value,
-        input_key=input_key,
-        step_id_map=step_id_map,
-    )
-    if placeholder is not None:
-        return placeholder
-
-    head, sep, tail = value.partition(".")
-    if not sep or not tail:
-        return None
-
-    normalized_head = step_id_map.get(head.strip())
-    normalized_field = tail.strip()
-    if normalized_head is None and normalized_field.startswith("output."):
-        normalized_head = tool_reference_map.get(head.strip())
-        normalized_field = normalized_field.removeprefix("output.").strip()
-    if normalized_head is None:
-        return None
-    if not normalized_field:
-        return None
-    return f"{normalized_head}.{normalized_field}"
-
-
-def _normalize_placeholder_reference(
-    value: str,
-    *,
-    input_key: str | None,
-    step_id_map: dict[str, str],
-) -> str | None:
-    payload = value.strip()
-    if not (payload.startswith("<from_step_") and payload.endswith(">")):
-        return None
-    body = payload[len("<from_step_") : -1]
-    step_token, sep, suffix = body.partition("_")
-    canonical_step = step_id_map.get(step_token)
-    if canonical_step is None:
-        return None
-
-    field = suffix.strip() if sep else ""
-    if field == "output":
-        field = ""
-    if not field:
-        field = _infer_reference_field(input_key)
-    if not field:
-        return None
-    return f"{canonical_step}.{field}"
-
-
-def _infer_reference_field(input_key: str | None) -> str | None:
-    if not isinstance(input_key, str):
-        return None
-    lookup = {
-        "sequence": "sequence",
-        "pdb_path": "pdb_path",
-        "candidates": "candidates",
-        "structure_results": "structure_results",
-        "qc_metrics": "qc_metrics",
-        "score_table": "score_table",
-        "top_k": "top_k",
-    }
-    return lookup.get(input_key.strip())
-
-
-def _normalize_reference_field_for_input_key(
-    value: str,
-    *,
-    input_key: str | None,
-) -> str:
-    head, sep, tail = value.partition(".")
-    if not sep or not tail:
-        return value
-    expected_field = _infer_reference_field(input_key)
-    if expected_field is None:
-        return value
-    normalized_field = tail.strip()
-    if normalized_field == expected_field:
-        return value
-    if not _should_rewrite_reference_field(
-        input_key=input_key,
-        current_field=normalized_field,
-        expected_field=expected_field,
-    ):
-        return value
-    return f"{head.strip()}.{expected_field}"
-
-
-def _should_rewrite_reference_field(
-    *,
-    input_key: str | None,
-    current_field: str,
-    expected_field: str,
-) -> bool:
-    if not isinstance(input_key, str):
-        return False
-    normalized_key = input_key.strip()
-    if normalized_key == "sequence" and current_field in {"candidates", "sequence_candidates"}:
-        return True
-    if normalized_key == "candidates" and current_field == "sequence":
-        return True
-    if normalized_key == "pdb_path" and current_field in {"structure_pdb", "structure_path", "cif_path"}:
-        return True
-    if normalized_key == "structure_results" and current_field in {"pdb_path", "sequence", "plddt"}:
-        return True
-    return current_field == expected_field
-
-
-def _normalize_step_identifier(
-    value: str,
-    *,
-    step_id_map: dict[str, str],
-) -> str:
-    return step_id_map.get(value.strip(), value)
-
-
-def _normalize_json_like_value(value: Any) -> Any:
-    parsed = _parse_json_like_string(value)
-    if parsed is not value:
-        return _normalize_json_like_value(parsed)
-    if isinstance(value, list):
-        return [_normalize_json_like_value(item) for item in value]
-    if isinstance(value, dict):
-        return {
-            key: _normalize_json_like_value(item)
-            for key, item in value.items()
-        }
-    return value
-
-
-def _parse_json_like_string(value: Any) -> Any:
-    if not isinstance(value, str):
-        return value
-    payload = _strip_markdown_json_fence(value).strip()
-    if not payload or payload[0] not in "[{":
-        return value
-
-    candidates = [payload]
-    if '""' in payload:
-        candidates.append(payload.replace('""', '"'))
-
-    for candidate in candidates:
         try:
-            return json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-    return value
+            plan = Plan.model_validate(candidate)
+        except ValidationError as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan" if materialize_inputs else "replan",
+                failure_type="SCHEMA_INVALID",
+                issues=self._build_schema_issues(exc),
+                normalized_payload=candidate,
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
 
+        try:
+            plan = self._prepare_plan_for_validation(
+                plan,
+                task=task,
+                tool_registry=tool_registry,
+                materialize_inputs=materialize_inputs,
+                constraints_override=constraints_override,
+            )
+        except Exception as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan" if materialize_inputs else "replan",
+                failure_type="EXECUTABILITY_INVALID",
+                issues=[
+                    {
+                        "code": "PLAN_PREPARATION_INVALID",
+                        "path": "$.steps",
+                        "message": str(exc),
+                    }
+                ],
+                normalized_payload=plan.model_dump(mode="json"),
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
+        try:
+            validate_plan_executability(plan, task)
+        except CandidateExecutionValidationError as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan" if materialize_inputs else "replan",
+                failure_type="EXECUTABILITY_INVALID",
+                issues=[issue.as_dict() for issue in exc.issues],
+                normalized_payload=plan.model_dump(mode="json"),
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
+        return plan.model_dump(mode="json")
 
-def _strip_markdown_json_fence(content: str) -> str:
-    payload = content.strip()
-    if not payload.startswith("```"):
-        return payload
+    def _validate_patch_candidate(
+        self,
+        candidate: dict[str, Any],
+        *,
+        parse_result: ProviderPayloadParseResult,
+        request: PatchRequest,
+        tool_registry: List["ToolSpec"],
+    ) -> dict[str, Any]:
+        candidate = dict(candidate)
+        candidate.setdefault("task_id", request.task_id)
+        candidate.setdefault("metadata", {})
+        self._raise_on_syntax_issues(candidate_kind="patch", parse_result=parse_result)
+        try:
+            patch = PlanPatch.model_validate(candidate)
+        except ValidationError as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="patch",
+                failure_type="SCHEMA_INVALID",
+                issues=self._build_schema_issues(exc),
+                normalized_payload=candidate,
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
 
-    lines = payload.splitlines()
-    if not lines:
-        return payload
-    if lines[0].startswith("```"):
-        lines = lines[1:]
-    if lines and lines[-1].strip() == "```":
-        lines = lines[:-1]
-    return "\n".join(lines).strip()
+        from src.agents.planner import _normalize_patch_input_contract_references
+
+        patch = _normalize_patch_input_contract_references(
+            patch,
+            registry=tool_registry,
+        )
+        try:
+            patched_plan = apply_patch(request.original_plan, patch)
+            validation_task = self._build_validation_task(
+                task_id=request.task_id,
+                constraints=request.original_plan.constraints,
+            )
+            patched_plan = self._prepare_plan_for_validation(
+                patched_plan,
+                task=validation_task,
+                tool_registry=tool_registry,
+                materialize_inputs=False,
+                constraints_override=request.original_plan.constraints,
+            )
+            validate_plan_executability(patched_plan, validation_task)
+        except CandidateExecutionValidationError as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="patch",
+                failure_type="EXECUTABILITY_INVALID",
+                issues=[issue.as_dict() for issue in exc.issues],
+                normalized_payload=patch.model_dump(mode="json"),
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
+        except Exception as exc:
+            raise ProviderPayloadValidationError(
+                candidate_kind="patch",
+                failure_type="EXECUTABILITY_INVALID",
+                issues=[
+                    {
+                        "code": "PATCH_APPLICATION_INVALID",
+                        "path": "$.operations",
+                        "message": str(exc),
+                    }
+                ],
+                normalized_payload=patch.model_dump(mode="json"),
+                parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+            ) from exc
+
+        return patch.model_dump(mode="json")
+
+    def _prepare_plan_for_validation(
+        self,
+        plan: Plan,
+        *,
+        task: ProteinDesignTask,
+        tool_registry: List["ToolSpec"],
+        materialize_inputs: bool,
+        constraints_override: dict[str, Any] | None = None,
+    ) -> Plan:
+        from src.agents.planner import (
+            _ensure_plan_tools_in_registry,
+            _materialize_missing_plan_inputs,
+            _normalize_plan_input_contract_references,
+            _resolve_plan_tools,
+        )
+
+        constraints = constraints_override if isinstance(constraints_override, dict) else task.constraints
+        prepared = _normalize_plan_input_contract_references(
+            plan,
+            registry=tool_registry,
+        )
+        prepared = _resolve_plan_tools(
+            prepared,
+            tool_registry,
+            constraints,
+        )
+        if materialize_inputs:
+            prepared = _materialize_missing_plan_inputs(
+                prepared,
+                tool_registry,
+                task,
+            )
+        _ensure_plan_tools_in_registry(prepared, tool_registry)
+        return prepared
+
+    def _raise_on_syntax_issues(
+        self,
+        *,
+        candidate_kind: str,
+        parse_result: ProviderPayloadParseResult,
+    ) -> None:
+        if parse_result.is_compliant:
+            return
+        raise ProviderPayloadValidationError(
+            candidate_kind=candidate_kind,
+            failure_type="SYNTAX_INVALID",
+            issues=[issue.as_dict() for issue in parse_result.issues],
+            normalized_payload=parse_result.normalized_payload,
+            parser_repairs=[repair.as_dict() for repair in parse_result.repairs],
+        )
+
+    def _build_repair_user_prompt(
+        self,
+        *,
+        base_user_prompt: str,
+        candidate_kind: str,
+        tool_name: str,
+        error: ProviderPayloadValidationError,
+    ) -> str:
+        issue_lines = []
+        for index, issue in enumerate(error.issues[:8], start=1):
+            line = f"{index}. {issue.get('path', '$')}: {issue.get('message', error.failure_type)}"
+            observed = issue.get("observed")
+            if observed is not None:
+                line += f" | observed={json.dumps(observed, ensure_ascii=False)}"
+            repair_hint = issue.get("repair_hint")
+            if isinstance(repair_hint, str) and repair_hint:
+                line += f" | fix={repair_hint}"
+            issue_lines.append(line)
+
+        return (
+            f"{base_user_prompt}\n\n"
+            "上一次输出未通过 provider 校验，请仅修复结构、字段和引用表达，"
+            "不要改变任务意图，不要新增未请求步骤，不要填造假的执行结果。\n"
+            f"目标工具调用: {tool_name}\n"
+            f"候选类型: {candidate_kind}\n"
+            f"失败分类: {error.failure_type}\n"
+            f"修复轮次: {error.attempts}\n"
+            "错误摘要:\n"
+            + "\n".join(f"- {line}" for line in issue_lines)
+            + "\n必须遵守:\n"
+            "- 只输出一次对应工具调用\n"
+            "- steps / operations 必须是真正的 JSON array，不能是字符串\n"
+            "- 跨步引用只能使用 S<n>.field\n"
+            "- 禁止 ${...}、$...、<...>、auto、裸 token（如 CANDIDATES）\n"
+            "- 若是 patch，replace_step 必须保持 target id 不变\n"
+        )
+
+    def _build_schema_issues(self, exc: ValidationError) -> list[dict[str, Any]]:
+        issues: list[dict[str, Any]] = []
+        for error in exc.errors():
+            loc = error.get("loc") or ()
+            path = "$"
+            if isinstance(loc, tuple):
+                segments: list[str] = ["$"]
+                for item in loc:
+                    if isinstance(item, int):
+                        segments[-1] = f"{segments[-1]}[{item}]"
+                    else:
+                        segments.append(str(item))
+                path = ".".join(segments)
+            issues.append(
+                {
+                    "code": "SCHEMA_FIELD_INVALID",
+                    "path": path,
+                    "message": error.get("msg", "schema validation failed"),
+                    "observed": error.get("input"),
+                }
+            )
+        return issues
+
+    def _build_validation_task(
+        self,
+        *,
+        task_id: str,
+        constraints: dict[str, Any] | None,
+    ) -> ProteinDesignTask:
+        return ProteinDesignTask(
+            task_id=task_id,
+            goal="provider_validation_probe",
+            constraints=constraints or {},
+            metadata={},
+        )
