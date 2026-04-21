@@ -613,3 +613,188 @@ uv run python scripts/run_midterm_mechanism_benchmark.py --run-id midterm-mechan
 ### 10. 答辩时可直接说的话
 
 `这套 benchmark 不是传统意义上的公开数据集跑分，而是我把仓库里已经存在的可复现场景整理成了一套机制验证基准。它一共包含 17 个场景，覆盖 Gate、HITL and Audit、Recovery、Execution and Summary、Planner Routing 这 5 个实验家族。运行时统一通过脚本逐个执行 pytest 场景，并额外检查日志、快照、报告等证据文件是否落盘，以及 waiting chain、patching transition、recovery escalated 等关键信号是否成立。所以它验证的不是最终蛋白质设计效果，而是当前系统最核心的控制闭环、恢复闭环和审计闭环是否已经稳定成立。`
+
+## 补充说明五：后续外部模型训练如何实现
+
+### 1. 可以先给出的简短回答
+
+`后续外部模型训练的目标，不是训练一个通用聊天模型，而是训练一个 Planner 专用模型，使它更稳定地产生满足约束的 Plan、Patch 和 Replan。数据主要来自系统真实运行过程中沉淀的日志、快照、报告和事件链，方法上会先落地 SFT/QLoRA 基线，再进行训练后评估与回退验证。`
+
+### 2. 训练目标是什么
+
+根据设计文档，后续训练对象是 `Planner` 专用模型，而不是整个系统里的所有模块都重新训练。
+
+训练目标主要有四个：
+
+- 准确生成满足 ToolKG 和任务约束的工作流候选
+- 稳定输出结构化的 `Plan / PlanPatch / Replan`
+- 在失败上下文下优先给出最小修复，而不是直接重做
+- 输出仍然满足可审计、可回放和可解释要求
+
+也就是说，训练的重点不是自然语言对话能力，而是：
+
+- `结构生成`
+- `约束遵循`
+- `恢复规划`
+- `候选排序`
+
+对应设计文档：
+
+- [train-llm.md](/home/yurikon/文档/thesis-project.design/docs/algorithm-and-llm/train-llm.md)
+
+### 3. 数据集从哪里来
+
+后续训练数据的来源不是外部公开对话语料，而是系统运行过程中真实产生的结构化轨迹。主要来源包括：
+
+- `data/logs/*.jsonl`
+- `data/snapshots/*.jsonl`
+- `output/reports/*.json`
+- `output/metrics/*.json`
+- `src/kg/protein_tool_kg.json`
+
+从这些运行产物里，会回流出训练样本中的几个核心部分：
+
+- `context`
+- `candidates`
+- `selected`
+- `outcome`
+- `audit_trace`
+
+也就是说，一条训练样本不只是“输入一句话、输出一句话”，而是包含：
+
+- 任务与约束
+- 候选集合
+- 最终选择
+- 执行结果
+- 决策与状态迁移的审计链
+
+这套抽取逻辑已经有脚本支持：
+
+- [extract_training_samples.py](/home/yurikon/文档/thesis/thesis-project.dev/scripts/extract_training_samples.py)
+
+对应说明文档：
+
+- [w11-data-1-log-to-sample-extraction.md](/home/yurikon/文档/thesis/thesis-project.dev/scripts/w11-data-1-log-to-sample-extraction.md)
+
+### 4. 数据集是如何整理出来的
+
+后续训练不会直接把原始日志拿去训练，而是走一条正式的数据工程流程：
+
+1. 从日志、快照、报告中抽取训练样本。
+2. 对样本做质量门禁，过滤掉字段不完整、状态异常或关键信息缺失的数据。
+3. 补齐 Requirement-2 的关键能力覆盖，例如：
+   - `sequence_core`
+   - `quality_qc`
+   - `objective_scoring`
+4. 对数据集做冻结，形成固定版本的 `train/val/test` 切分和 manifest。
+
+这部分对应的脚本和流程包括：
+
+- 样本抽取：
+  - [extract_training_samples.py](/home/yurikon/文档/thesis/thesis-project.dev/scripts/extract_training_samples.py)
+- 覆盖补齐与发布流水线：
+  - [w11-data-3-requirement2-addons-release.md](/home/yurikon/文档/thesis/thesis-project.dev/scripts/w11-data-3-requirement2-addons-release.md)
+- 数据冻结：
+  - [freeze_sft_dataset_v1.py](/home/yurikon/文档/thesis/thesis-project.dev/scripts/freeze_sft_dataset_v1.py)
+
+冻结后的数据集会输出：
+
+- `train.jsonl`
+- `val.jsonl`
+- `test.jsonl`
+- `manifest.json`
+- `field_dictionary.json`
+- `tool_coverage_matrix.json`
+
+因此，后续训练的数据来源、数据结构和版本管理方式其实已经设计好了。
+
+### 5. 训练方法具体是什么
+
+设计上，训练方法分为四个阶段：
+
+- 阶段 A：`SFT`
+  - 先让模型学会稳定输出结构合法、约束可执行的候选
+- 阶段 B：`偏好优化`
+  - 让模型偏好成功率更高、风险更低、改动更小的候选
+- 阶段 C：`失败修复强化`
+  - 提升在失败上下文下生成 patch 和 replan 的能力
+- 阶段 D：`蒸馏与部署优化`
+  - 降低线上成本和时延
+
+但从当前项目进度看，最先真正落地的是：
+
+- `阶段 A：SFT/QLoRA 基线训练`
+
+也就是说，后续近期的实际实现重点，是先把一条可复现的 SFT/QLoRA 训练链路跑通，而不是一开始就做完整的偏好优化或强化学习。
+
+### 6. 仓库里已经具备哪些训练实现基础
+
+这一部分虽然还没有正式开始训练，但训练骨架已经存在。
+
+已有训练脚本：
+
+- [run_w12_issue148_sft_qlora.py](/home/yurikon/文档/thesis/thesis-project.dev/scripts/run_w12_issue148_sft_qlora.py)
+
+已有训练说明：
+
+- [w12-issue-148-sft-qlora-baseline.md](/home/yurikon/文档/thesis/thesis-project.dev/scripts/w12-issue-148-sft-qlora-baseline.md)
+
+已有训练配置：
+
+- [w12_issue148_sft_qlora_p0_only.json](/home/yurikon/文档/thesis/thesis-project.dev/configs/training/w12_issue148_sft_qlora_p0_only.json)
+- [w12_issue148_sft_qlora_p0_p1.json](/home/yurikon/文档/thesis/thesis-project.dev/configs/training/w12_issue148_sft_qlora_p0_p1.json)
+
+这条训练基线当前的实现方式是：
+
+- 训练方式：`LoRA / QLoRA`
+- 框架：`Transformers + PEFT + Trainer`
+- 数据集：冻结后的 `train.jsonl` 和 `val.jsonl`
+- 当前示例基座模型：`sshleifer/tiny-gpt2`
+- 当前配置中固定了：
+  - `lora_r = 16`
+  - `lora_alpha = 32`
+  - `lora_dropout = 0.05`
+  - `max_seq_length = 768`
+  - 学习率、batch size、seed 等参数
+
+要注意的是，`tiny-gpt2` 在这里更像一个可复现基线和流程验证模型，不代表后续正式训练时的最终外部模型选择。
+
+### 7. 后续外部模型训练的实际计划
+
+结合当前实现基础，后续计划可以概括成一条很清楚的链路：
+
+1. 继续完善并冻结训练数据集。
+2. 沿用现有 `SFT/QLoRA` 流水线，先完成可复现 baseline。
+3. 将当前流程验证用的小模型，替换为更合适的外部基座模型。
+4. 训练后执行统一评估：
+   - schema 合法率
+   - 可执行 plan 率
+   - patch 最小性
+   - `suffix_replan` 前缀保持率
+   - 审计链完整率
+5. 保留外部强模型回退，不会直接破坏原有 FSM、HITL 和恢复语义。
+
+所以这部分不是“未来再想怎么做”，而是：
+
+`训练目标、数据来源、数据工程、训练脚本和评估门槛都已经有雏形，后续主要是把这条链路真正跑通。`
+
+### 8. 为什么当前还没有正式启动
+
+当前没有正式启动的主要原因不是没有思路，而是中期阶段要优先保证：
+
+- 系统主链打通
+- HITL 与恢复机制稳定
+- 实验口径与 benchmark 统一
+- 数据冻结与评估标准先稳定下来
+
+因为如果在数据、门禁和评估口径没有统一之前直接训练，很容易出现：
+
+- 模型训练了，但无法稳定评估
+- 结果和系统运行契约不一致
+- 训练更新破坏现有可解释性和可审计性
+
+所以当前阶段把训练放在后续，是一种比较保守但更稳妥的工程安排。
+
+### 9. 答辩时可直接说的话
+
+`后续外部模型训练的目标，不是训练一个通用聊天模型，而是训练一个 Planner 专用模型，使它更稳定地产生满足约束的 Plan、Patch 和 Replan。数据集主要来自系统运行过程中沉淀出来的日志、快照、报告和事件链，通过样本抽取、质量门禁、能力覆盖补齐和数据冻结后形成标准训练集。方法上会先落地 SFT/QLoRA 基线训练，当前仓库里已经具备训练脚本、配置文件和数据冻结流水线。后续真正要做的，是在统一评估标准下把这条训练链路跑通，并完成训练后的离线和在线验证。`
