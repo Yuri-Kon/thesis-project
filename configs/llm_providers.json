@@ -79,16 +79,16 @@
         }
       }
     },
-    "minimax-m2.5": {
+    "minimax-m2.7": {
       "provider_type": "anthropic_messages",
-      "description": "MiniMax M2.5 via Anthropic-compatible Messages API",
-      "model_name": "MiniMax-M2.5",
+      "description": "MiniMax M2.7 via Anthropic-compatible Messages API",
+      "model_name": "MiniMax-M2.7",
       "api_key_env": "ANTHROPIC_API_KEY",
       "endpoint_env": "ANTHROPIC_BASE_URL",
       "timeout": 60,
       "max_tokens": 4000,
       "temperature": 0.2,
-      "tool_strategy": "emit_plan",
+      "tool_strategy": "two_stage_plan",
       "structured_output_mode": "tool_call",
       "anthropic_version": "2023-06-01"
     },

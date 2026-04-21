@@ -11,6 +11,7 @@ from src.adapters.registry import get_adapter
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
 from src.llm.provider_registry import create_provider, load_provider_catalog
 from src.agents.task_goal_parser import enrich_task_from_goal
 from src.models.contracts import (
@@ -501,7 +502,15 @@ class PlannerAgent:
         *,
         provider: BaseProvider,
     ) -> Plan:
-        plan_dict = provider.call_planner(task=task, tool_registry=self._tool_registry)
+        try:
+            plan_dict = provider.call_planner(task=task, tool_registry=self._tool_registry)
+        except ProviderPayloadValidationError as exc:
+            _append_provider_validation_failure_event(
+                task_id=task.task_id,
+                provider_name=_provider_name(provider),
+                error=exc,
+            )
+            raise
         plan = Plan.model_validate(plan_dict)
         plan = _normalize_plan_input_contract_references(
             plan,
@@ -808,6 +817,13 @@ class PlannerAgent:
             return []
         try:
             patch_dict = provider.call_patch(request, self._tool_registry)
+        except ProviderPayloadValidationError as exc:
+            _append_provider_validation_failure_event(
+                task_id=request.task_id,
+                provider_name=_provider_name(provider),
+                error=exc,
+            )
+            return []
         except Exception:
             return []
         if not isinstance(patch_dict, dict):
@@ -851,6 +867,13 @@ class PlannerAgent:
             return []
         try:
             plan_dict = provider.call_replan(request, self._tool_registry)
+        except ProviderPayloadValidationError as exc:
+            _append_provider_validation_failure_event(
+                task_id=request.task_id,
+                provider_name=_provider_name(provider),
+                error=exc,
+            )
+            return []
         except Exception:
             return []
         if not isinstance(plan_dict, dict):
@@ -892,6 +915,28 @@ def _provider_name(provider: BaseProvider) -> str:
     if isinstance(model_name, str) and model_name.strip():
         return model_name.strip()
     return provider.__class__.__name__
+
+
+def _append_provider_validation_failure_event(
+    *,
+    task_id: str,
+    provider_name: str,
+    error: ProviderPayloadValidationError,
+) -> None:
+    append_event(
+        task_id,
+        {
+            "event": "PROVIDER_VALIDATION_FAILED",
+            "task_id": task_id,
+            "timestamp": now_iso(),
+            "tool": provider_name,
+            "failure_code": error.failure_type,
+            "data": {
+                "provider_name": provider_name,
+                **error.as_event_payload(),
+            },
+        },
+    )
 
 
 def _normalized_planner_provider_env() -> str | None:

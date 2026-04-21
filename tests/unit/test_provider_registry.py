@@ -54,7 +54,7 @@ def test_create_provider_baseline():
 def test_create_provider_anthropic_messages():
     settings = ProviderSettings(
         provider_type="anthropic_messages",
-        model_name="MiniMax-M2.5",
+        model_name="MiniMax-M2.7",
         api_key="secret",
         endpoint="https://api.minimaxi.com/anthropic",
         anthropic_version="2023-06-01",
@@ -80,7 +80,7 @@ def test_create_provider_zai_chat():
 def test_resolve_endpoint_from_env(monkeypatch):
     settings = ProviderSettings(
         provider_type="anthropic_messages",
-        model_name="MiniMax-M2.5",
+        model_name="MiniMax-M2.7",
         endpoint_env="ANTHROPIC_BASE_URL",
     )
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
@@ -106,9 +106,10 @@ def test_load_provider_catalog_keeps_minimax_entry():
         Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
     )
 
-    assert "minimax-m2.5" in catalog.providers
-    assert catalog.providers["minimax-m2.5"].provider_type == "anthropic_messages"
-    assert catalog.providers["minimax-m2.5"].endpoint_env == "ANTHROPIC_BASE_URL"
+    assert "minimax-m2.7" in catalog.providers
+    assert catalog.providers["minimax-m2.7"].provider_type == "anthropic_messages"
+    assert catalog.providers["minimax-m2.7"].model_name == "MiniMax-M2.7"
+    assert catalog.providers["minimax-m2.7"].endpoint_env == "ANTHROPIC_BASE_URL"
 
 
 def test_load_provider_catalog_keeps_glm_entries():
