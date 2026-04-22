@@ -1,0 +1,105 @@
+{
+  "issue_id": 172,
+  "generated_at": "2026-04-22T02:58:15+00:00",
+  "run_id": "issue172-live-qwen-flash-tunnel-r1_E0_high_solubility_r02",
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E0_high_solubility_r02",
+  "group": {
+    "id": "E0",
+    "label": "ReAct-style 单轨迹",
+    "canonical_label": "ReAct-style",
+    "comparison_order": 0,
+    "baseline_family": "react_style_external",
+    "agent_style": "single_trajectory",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "runtime_policy": "static_single_candidate",
+      "plan_top_k": 1,
+      "patch_top_k": 1,
+      "replan_top_k": 1
+    },
+    "decision_policy": {
+      "max_patch_accepts": 0,
+      "max_replan_accepts": 0
+    }
+  },
+  "task": {
+    "task_key": "high_solubility",
+    "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+    "display_name": "High Solubility",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first",
+    "rationale": "Primary objective is comparatively soft and can often be filtered earlier with cheaper evidence.",
+    "constraints": {
+      "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+      "length_range": [
+        35,
+        75
+      ]
+    },
+    "metadata": {}
+  },
+  "goal": "Favor high-solubility sequence candidates under mild constraints.\n\nExternal baseline style hint: Use a ReAct-style single trajectory baseline. Keep one concise tool path and avoid branch search or verbal reflection.",
+  "constraints": {
+    "goal_type": "de_novo_design",
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "max_plan_steps": 3,
+    "max_high_cost_steps": 1,
+    "max_llm_calls": 1,
+    "max_tool_calls": 3,
+    "max_wall_clock_seconds": 180,
+    "runtime_policy": "static_single_candidate",
+    "plan_top_k": 1,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+    "length_range": [
+      35,
+      75
+    ],
+    "runtime_fallback": {
+      "enable_dual_route": false,
+      "force_external_only": true,
+      "fallback_capability": "external_horizontal_baseline"
+    }
+  },
+  "metadata": {
+    "issue": 172,
+    "experiment_track": "external_horizontal_baselines",
+    "owner": "issue172",
+    "issue_id": 172,
+    "experiment": "w12_issue172_horizontal",
+    "group_id": "E0",
+    "group_label": "ReAct-style 单轨迹",
+    "canonical_label": "ReAct-style",
+    "baseline_family": "react_style_external",
+    "agent_style": "single_trajectory",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "freeze_id": "issue199-platform-freeze-20260412",
+    "dataset_version": "issue170-remote-batch3-20260316",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first",
+    "tool_whitelist_version": "issue199-tool-whitelist-v1",
+    "budget_version": "issue199-budget-v1",
+    "decision_policy": {
+      "max_patch_accepts": 0,
+      "max_replan_accepts": 0
+    }
+  },
+  "lineage": {
+    "freeze_id": "issue199-platform-freeze-20260412",
+    "dataset_version": "issue170-remote-batch3-20260316",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "platform_freeze_config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+    "platform_freeze_config_hash": "01c206415967",
+    "task_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "task_freeze_config_hash": "04ceb6102ddc",
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}
