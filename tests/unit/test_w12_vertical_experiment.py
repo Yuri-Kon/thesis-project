@@ -150,6 +150,16 @@ def test_replay_sample_materialization_extracts_runtime_snapshot_and_shadow_fiel
     assert metrics["report_linked"] is True
     assert metrics["runtime_state_observable"] is True
     assert metrics["shadow_output_observable"] is True
+    assert metrics["canonical_group_id"] == "fixed_threshold_gate"
+    assert metrics["group_alias"] == "A3"
+    assert metrics["belief_state_p_success"] == 0.74
+    assert metrics["belief_state_p_structural_failure"] == 0.18
+    assert metrics["belief_state_expected_remaining_cost"] == 1.1
+    assert metrics["belief_state_evidence_sufficiency"] is None
+    assert metrics["belief_state_core_observed_count"] == 4
+    assert metrics["belief_state_core_completeness"] == 0.8
+    assert metrics["belief_state_core_complete"] is False
+    assert "snapshot:artifacts.runtime_state" in metrics["belief_state_sources"]
     assert metrics["replay_sample_id"] == "runtime_shadow_success_sample"
     assert metrics["replay_source_freeze_id"] == "issue209-baseline-freeze-smoke"
 
@@ -377,6 +387,8 @@ def test_extract_run_metrics_tracks_action_counts_and_shadow_agreement(
     assert metrics["shadow_action_observation_count"] == 4
     assert metrics["shadow_action_agreement_count"] == 3
     assert metrics["shadow_action_agreement_rate"] == 0.75
+    assert metrics["shadow_actual_bias_count"] == 1
+    assert metrics["shadow_actual_bias_rate"] == 0.25
 
 
 def test_aggregate_and_deltas(tmp_path: Path) -> None:
@@ -414,6 +426,18 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
             "shadow_action_agreement_count": 1 if success else 0,
             "shadow_action_observation_count": 1,
             "shadow_action_agreement_rate": 1.0 if success else 0.0,
+            "shadow_actual_bias_count": 0 if success else 1,
+            "shadow_actual_bias_rate": 0.0 if success else 1.0,
+            "belief_state_observation_count": 1 if group_id == "A1" else 0,
+            "belief_state_core_complete": group_id == "A1",
+            "belief_state_core_completeness": 1.0 if group_id == "A1" else 0.0,
+            "belief_state_derived_completeness": 0.2 if group_id == "A1" else 0.0,
+            "belief_state_p_success_observed": group_id == "A1",
+            "belief_state_p_structural_failure_observed": group_id == "A1",
+            "belief_state_recovery_margin_observed": group_id == "A1",
+            "belief_state_expected_remaining_cost_observed": group_id == "A1",
+            "belief_state_evidence_sufficiency_observed": group_id == "A1",
+            "belief_state_budget_pressure_observed": group_id == "A1",
             "layer_counter": {"parameter_level": patch_count} if patch_count else {},
             "tool_usage": {"protgpt2": 1},
             "capability_usage": {"sequence_generation": 1},
@@ -460,6 +484,19 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert summary["A0"]["action_patch_local_mean"] == 1.0
     assert summary["A0"]["action_suffix_replan_mean"] == 0.5
     assert summary["A1"]["shadow_action_agreement_rate"] == 1.0
+    assert summary["A0"]["shadow_actual_bias_rate"] == 0.5
+    assert summary["A1"]["belief_state_core_complete_rate"] == 1.0
+    assert summary["A1"]["belief_state_p_success_observable_rate"] == 1.0
+    assert summary["A1"]["belief_state_budget_pressure_observable_rate"] == 1.0
+    assert summary["A0"]["action_patch_local_rate"] == 0.5
+
+    action_rows = {row["group_id"]: row for row in aggregated["action_rows"]}
+    assert action_rows["A0"]["action_total"] == 4.0
+    assert action_rows["A0"]["shadow_actual_bias_total"] == 1
+
+    belief_rows = {row["group_id"]: row for row in aggregated["belief_state_rows"]}
+    assert belief_rows["A1"]["belief_state_core_complete_rate"] == 1.0
+    assert belief_rows["A1"]["budget_pressure_observable_rate"] == 1.0
 
     deltas = compute_increment_deltas(
         runs,
@@ -474,6 +511,68 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert row["to_group"] == "A1"
     assert row["delta"] is not None
     assert row["pairing"] == "paired"
+
+
+def test_aggregate_group_metrics_supports_canonical_group_naming() -> None:
+    runs = [
+        {
+            "run_id": "a0_r1",
+            "task_id": "task_a0",
+            "task_key": "k1",
+            "group_id": "A0",
+            "canonical_group_id": "static_top1",
+            "replicate": 1,
+            "success": True,
+            "first_pass_success": True,
+            "schema_valid": True,
+            "executable_plan": True,
+            "waiting_chain_complete": True,
+            "failure_traceable": True,
+            "snapshot_linked": False,
+            "runtime_state_observable": False,
+            "shadow_output_observable": False,
+            "belief_state_core_complete": False,
+        },
+        {
+            "run_id": "a6_r1",
+            "task_id": "task_a6",
+            "task_key": "k1",
+            "group_id": "A6",
+            "canonical_group_id": "lite_belief_state",
+            "replicate": 1,
+            "success": True,
+            "first_pass_success": False,
+            "schema_valid": True,
+            "executable_plan": True,
+            "waiting_chain_complete": True,
+            "failure_traceable": True,
+            "snapshot_linked": True,
+            "runtime_state_observable": True,
+            "shadow_output_observable": True,
+            "belief_state_core_complete": True,
+            "belief_state_core_completeness": 1.0,
+            "belief_state_derived_completeness": 0.0,
+            "belief_state_p_success_observed": True,
+            "belief_state_p_structural_failure_observed": True,
+            "belief_state_recovery_margin_observed": True,
+            "belief_state_expected_remaining_cost_observed": True,
+            "belief_state_evidence_sufficiency_observed": True,
+        },
+    ]
+
+    aggregated = aggregate_group_metrics(
+        runs,
+        group_order=["static_top1", "lite_belief_state"],
+        iterations=100,
+        seed=17,
+        thresholds={},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    summary = {row["group_id"]: row for row in aggregated["summary_rows"]}
+    assert summary["static_top1"]["group_aliases"] == ["A0"]
+    assert summary["lite_belief_state"]["group_aliases"] == ["A6"]
+    assert summary["lite_belief_state"]["belief_state_core_complete_rate"] == 1.0
 
 
 def test_requirement2_rows_include_new_similarity_and_secondary_structure_tools(
