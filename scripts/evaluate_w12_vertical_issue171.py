@@ -153,6 +153,8 @@ def main() -> int:
     summary_rows = aggregated["summary_rows"]
     patch_rows = aggregated["patch_rows"]
     high_cost_rows = aggregated["high_cost_rows"]
+    action_rows = aggregated["action_rows"]
+    belief_state_rows = aggregated["belief_state_rows"]
     requirement2_rows = aggregated["requirement2_rows"]
     abnormal_rows = aggregated["abnormal_rows"]
     gate_rows = aggregated["gate_rows"]
@@ -161,6 +163,8 @@ def main() -> int:
 
     summary_fields = [
         "group_id",
+        "canonical_group_id",
+        "group_aliases",
         "runs",
         "success_rate",
         "success_ci_low",
@@ -176,6 +180,13 @@ def main() -> int:
         "executable_ci_high",
         "waiting_chain_complete_rate",
         "failure_traceable_rate",
+        "snapshot_linked_rate",
+        "runtime_state_observable_rate",
+        "shadow_output_observable_rate",
+        "belief_state_observable_rate",
+        "belief_state_core_complete_rate",
+        "belief_state_core_completeness_mean",
+        "belief_state_derived_completeness_mean",
         "patch_events_mean",
         "patch_events_ci_low",
         "patch_events_ci_high",
@@ -196,6 +207,21 @@ def main() -> int:
         "high_cost_failure_ci_high",
         "patch_minimality_hit_rate",
         "suffix_replan_prefix_preservation_rate",
+        "action_continue_mean",
+        "action_continue_rate",
+        "action_patch_local_mean",
+        "action_patch_local_rate",
+        "action_suffix_replan_mean",
+        "action_suffix_replan_rate",
+        "action_stop_mean",
+        "action_stop_rate",
+        "shadow_action_agreement_rate",
+        "shadow_actual_bias_rate",
+        "belief_state_p_success_observable_rate",
+        "belief_state_p_structural_failure_observable_rate",
+        "belief_state_recovery_margin_observable_rate",
+        "belief_state_expected_remaining_cost_observable_rate",
+        "belief_state_evidence_sufficiency_observable_rate",
         "requirement2_sequence_core",
         "requirement2_quality_qc",
         "requirement2_objective_scoring",
@@ -225,6 +251,53 @@ def main() -> int:
         "high_cost_rule_hits",
     ]
     write_csv(output_dir / "high_cost_breakdown.csv", high_cost_rows, high_cost_fields)
+
+    action_fields = [
+        "group_id",
+        "canonical_group_id",
+        "group_aliases",
+        "action_total",
+        "action_continue_total",
+        "action_continue_rate",
+        "action_patch_local_total",
+        "action_patch_local_rate",
+        "action_suffix_replan_total",
+        "action_suffix_replan_rate",
+        "action_stop_total",
+        "action_stop_rate",
+        "shadow_action_observation_total",
+        "shadow_action_agreement_total",
+        "shadow_action_agreement_rate",
+        "shadow_actual_bias_total",
+        "shadow_actual_bias_rate",
+    ]
+    write_csv(output_dir / "action_distribution_breakdown.csv", action_rows, action_fields)
+
+    belief_state_fields = [
+        "group_id",
+        "canonical_group_id",
+        "group_aliases",
+        "runs",
+        "belief_state_observable_rate",
+        "belief_state_core_complete_rate",
+        "belief_state_core_completeness_mean",
+        "belief_state_derived_completeness_mean",
+        "p_success_observable_rate",
+        "p_structural_failure_observable_rate",
+        "recovery_margin_observable_rate",
+        "expected_remaining_cost_observable_rate",
+        "evidence_sufficiency_observable_rate",
+        "budget_pressure_observable_rate",
+        "intervention_value_observable_rate",
+        "goal_misalignment_observable_rate",
+        "local_patchability_observable_rate",
+        "prefix_preservability_observable_rate",
+    ]
+    write_csv(
+        output_dir / "belief_state_observability_breakdown.csv",
+        belief_state_rows,
+        belief_state_fields,
+    )
 
     requirement2_fields = ["group_id", "slice_type", "name", "covered", "usage_count"]
     write_csv(
@@ -269,6 +342,8 @@ def main() -> int:
             "run_id": row.get("run_id"),
             "task_id": row.get("task_id"),
             "group_id": row.get("group_id"),
+            "canonical_group_id": row.get("canonical_group_id"),
+            "group_alias": row.get("group_alias"),
             "replicate": row.get("replicate"),
             "task_key": row.get("task_key"),
             "final_status": row.get("final_status"),
@@ -283,6 +358,8 @@ def main() -> int:
         "run_id",
         "task_id",
         "group_id",
+        "canonical_group_id",
+        "group_alias",
         "replicate",
         "task_key",
         "final_status",
