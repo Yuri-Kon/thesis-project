@@ -106,6 +106,9 @@ docs/*
 !docs/algorithm-and-llm/
 docs/algorithm-and-llm/*
 !docs/algorithm-and-llm/requirement2-similarity-secondary-structure-tools.md
+!docs/evidence/
+docs/evidence/*
+!docs/evidence/issue-233-action-runtime-audit-output-evidence.md
 plan/
 shared/
 drafts/
