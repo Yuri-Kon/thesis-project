@@ -111,6 +111,8 @@ docs/evidence/*
 !docs/evidence/issue-233-action-runtime-audit-output-evidence.md
 !docs/evidence/issue-224/
 !docs/evidence/issue-224/**
+!docs/evidence/issue-225/
+!docs/evidence/issue-225/**
 plan/
 shared/
 drafts/
