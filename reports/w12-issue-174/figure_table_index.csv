@@ -1,7 +1,19 @@
 artifact_id,artifact_type,title,source_path,status,note
-table-1,table,A0-A6 纵向对比总表,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,ready,成功率、可执行率、patch/replan 与时延统一汇总。
-table-2,table,E0-E2 横向对比总表,issue #172 (deferred),deferred,E0/E1/E2 横向对比对应 issue #172。由于其依赖外部平台，当前中期窗口先显式延期，不把缺失结果伪装成已完成。
-figure-1,figure,成功率-时延平衡图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,ready,使用 A0-A6 组的 success_rate 与 duration_ms_mean 绘制。
-figure-2,figure,恢复路径分布图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/mechanism_increment_deltas.csv,ready,结合 patch/replan/suffix_replan 指标构图。
-figure-3,figure,治理雷达图,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_by_group.csv,ready,使用 waiting/replay/traceable/snapshot 四项治理指标。
-evidence-1,evidence,治理汇总 JSON,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json,ready,记录全局治理统计与输入来源。
+table-w12-vertical,table,A0-A6 纵向对比总表,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,legacy-reference,W12 中期草稿使用的历史纵向表；当前工作区未保留该批次文件，保留作附录追溯，不再作为 W16 主结果表。
+table-w12-horizontal,table,E0-E2 横向对比总表,output/experiment/w12-expr-3/issue172-horizontal/issue172-live-qwen-flash-tunnel-r1-attempt4-merged/horizontal_metrics_summary.csv,ready,#172 已关闭；该表用于外部 E0/E1/E2 对照与 lite_belief_state 对照，需与 canonical naming 文档一起引用。
+table-w16-internal-main,table,W16 内部四组主结果表,output/experiment/w16-expr-1/issue221-real-full-20260418b/matrix_metrics_summary.csv,ready,内部主比较使用 static_top1/fixed_threshold_gate/dynamic_no_belief_state/lite_belief_state 四组。
+table-w16-run-traceability,table,W16 run 级追溯表,output/experiment/w16-expr-1/issue221-real-full-20260418b/run_traceability_index.csv,ready,每个 run 回链到 run config、event log、snapshot、report 与 summary row。
+table-w16-action-distribution,table,W16 action 分布表,output/experiment/w16-expr-1/issue221-real-full-20260418b/action_distribution.csv,ready,支持 action/recovery 相关表述；缺失或空值不得写成 0。
+table-w16-rerun-case,table,W16 rerun/case 补充表,output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/matrix_metrics_summary.csv,ready,用于 #223/#224 案例视角和 WAITING/replan 相关补充证据。
+figure-w12-success-latency,figure,W12 成功率-时延平衡图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,legacy-reference,历史中期报告图位；当前工作区未保留该批次文件，仅作为 W12 附录追溯。
+figure-w12-recovery-distribution,figure,W12 恢复路径分布图,output/experiment/w12-expr-2/issue171-remote-batch3-r3/mechanism_increment_deltas.csv,legacy-reference,历史 A0-A6 机制增量证据；当前工作区未保留该批次文件，不混入 W16 主表。
+figure-w12-governance-radar,figure,W12 治理雷达图,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_by_group.csv,legacy-reference,历史治理图位；当前工作区仅保留 governance-report.md 与 replay sample。
+figure-w16-success-cost-recovery,figure,W16 success/cost/recovery 总览图,docs/evidence/issue-224/figure-table-templates.md#figure-success-cost-recovery,template-ready,按 #224 模板从 chart_summary_rows 或 W16 matrix fallback 派生。
+figure-w16-difficulty-stratified,figure,W16 难度分层图,docs/evidence/issue-224/figure-table-templates.md#figure-difficulty-stratified,template-ready,按 #224 模板消费 difficulty_stratified_metrics 或 run-level difficulty 字段。
+evidence-w12-governance,evidence,W12 治理报告,output/experiment/w12-expr-2/issue173-governance-review/governance-report.md,ready,当前工作区保留的 W12 治理复核报告。
+evidence-w12-horizontal-index,evidence,W12 横向证据索引,output/experiment/w12-expr-3/issue172-horizontal/issue172-live-qwen-flash-tunnel-r1-attempt4-merged/evidence_index.json,ready,#172 外部对照 run config/event log/snapshot/report 的索引。
+evidence-w16-internal-index,evidence,W16 内部矩阵证据索引,output/experiment/w16-expr-1/issue221-real-full-20260418b/evidence_index.json,ready,#221 内部四组 run config/event log/snapshot/report 的索引。
+evidence-w16-rerun-index,evidence,W16 rerun/case 证据索引,output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/evidence_index.json,ready,#223 案例与失败分析可优先引用该补充批次。
+template-issue224-evidence,template,#224 证据索引模板,docs/evidence/issue-224/evidence-index.json,ready,定义 W16 evidence pack 的 artifact、source_refs、traceability_chains 与 validation_rules。
+template-issue224-table-figure,template,#224 图表/表格模板,docs/evidence/issue-224/figure-table-templates.md,ready,定义 W16 主结果表、分层表、恢复高代价表与图表数据契约。
+template-issue224-report,template,#224 报告章节模板,docs/evidence/issue-224/report-template.md,ready,用于论文结果段落、案例研究与限制项写作；中期报告正文已另行完成。
