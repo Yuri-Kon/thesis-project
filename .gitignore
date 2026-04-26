@@ -109,6 +109,8 @@ docs/algorithm-and-llm/*
 !docs/evidence/
 docs/evidence/*
 !docs/evidence/issue-233-action-runtime-audit-output-evidence.md
+!docs/evidence/issue-224/
+!docs/evidence/issue-224/**
 plan/
 shared/
 drafts/

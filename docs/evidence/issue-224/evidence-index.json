@@ -1,0 +1,293 @@
+{
+  "schema_version": "w16.issue224.evidence-index.v1",
+  "issue_id": 224,
+  "title": "W16-Docs-4 evidence index, figure/table templates, and report templates",
+  "generated_at": "2026-04-26T00:00:00+08:00",
+  "execution_window": {
+    "start": "2026-04-17",
+    "end": "2026-04-20"
+  },
+  "naming_convention": {
+    "source": "../thesis-project.design/docs/experiment/algorithm-group-paper-mapping.md",
+    "paper_groups": [
+      "static_top1",
+      "fixed_threshold_gate",
+      "dynamic_no_belief_state",
+      "lite_belief_state"
+    ],
+    "external_groups": [
+      "E0",
+      "E1",
+      "E2"
+    ],
+    "historical_alias_policy": "A0-A6 only appear as appendix or traceability aliases, not as main paper rows.",
+    "display_names": {
+      "static_top1": "Static Top-1",
+      "fixed_threshold_gate": "Fixed Threshold Gate",
+      "dynamic_no_belief_state": "Dynamic Recovery (No Belief-State)",
+      "lite_belief_state": "Lite Belief-State",
+      "E0": "ReAct Baseline",
+      "E1": "ToT Baseline",
+      "E2": "Reflexion Baseline"
+    }
+  },
+  "source_roots": {
+    "w16_01_run_output": "output/experiment/w16-expr-1/issue221-real-full-20260418b",
+    "w16_02_analysis_output": "output/experiment/w16-expr-1/<analysis_run_id>",
+    "w16_03_case_output": "reports/w16-issue223/<case_pack_id>",
+    "event_logs": "data/logs",
+    "snapshots": "data/snapshots",
+    "task_reports": "output/reports",
+    "templates": "docs/evidence/issue-224"
+  },
+  "traceability_chains": {
+    "table": {
+      "required_refs": [
+        "config_path",
+        "resolved_config_snapshot_path",
+        "run_manifest_path",
+        "run_log_index_path",
+        "aggregate_source_path",
+        "metric_definition_path",
+        "template_path"
+      ],
+      "chain_rule": "config -> resolved_config_snapshot -> runs_manifest/run_log_index -> aggregate table -> metric definitions -> paper table template"
+    },
+    "figure": {
+      "required_refs": [
+        "aggregate_source_path",
+        "chart_summary_rows_path",
+        "statistical_deltas_path",
+        "template_path",
+        "rendered_artifact_path"
+      ],
+      "chain_rule": "aggregate table -> long-form chart rows/statistical deltas -> figure template -> rendered chart"
+    },
+    "case": {
+      "required_refs": [
+        "run_config_path",
+        "event_log_path",
+        "snapshot_path",
+        "run_traceability_index_path",
+        "case_template_path"
+      ],
+      "chain_rule": "run_traceability_index -> run_config -> event_log/snapshot -> case template -> report section"
+    }
+  },
+  "upstream_deliverables": [
+    {
+      "issue_id": 221,
+      "name": "Four-group experiment matrix",
+      "status": "available_locally",
+      "primary_paths": [
+        "output/experiment/w16-expr-1/issue221-real-full-20260418b/runs_manifest.json",
+        "output/experiment/w16-expr-1/issue221-real-full-20260418b/run_level_results.json",
+        "output/experiment/w16-expr-1/issue221-real-full-20260418b/matrix_metrics_summary.csv",
+        "output/experiment/w16-expr-1/issue221-real-full-20260418b/run_traceability_index.csv",
+        "output/experiment/w16-expr-1/issue221-real-full-20260418b/evidence_index.json"
+      ]
+    },
+    {
+      "issue_id": 222,
+      "name": "Aggregation and stratified analysis",
+      "status": "contract_available",
+      "producer": "src/infra/w16_issue222_integration_analysis.py",
+      "expected_paths": [
+        "overall_metrics.csv",
+        "difficulty_stratified_metrics.csv",
+        "recovery_complexity_high_cost.csv",
+        "chart_summary_rows.csv",
+        "statistical_deltas.csv",
+        "metric_definitions.csv",
+        "statistical_summary.json",
+        "issue222_analysis_report.md"
+      ]
+    },
+    {
+      "issue_id": 223,
+      "name": "Case study and failure analysis",
+      "status": "template_consumable",
+      "expected_case_types": [
+        "loss_control_success",
+        "static_vs_dynamic_contrast",
+        "failure_analysis"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "artifact_id": "table-main-internal-overall",
+      "artifact_type": "table",
+      "title": "Internal main result table",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/figure-table-templates.md#table-main-internal-overall",
+      "source_refs": {
+        "aggregate_source_path": "output/experiment/w16-expr-1/<analysis_run_id>/overall_metrics.csv",
+        "fallback_source_path": "output/experiment/w16-expr-1/issue221-real-full-20260418b/matrix_metrics_summary.csv",
+        "metric_definition_path": "output/experiment/w16-expr-1/<analysis_run_id>/metric_definitions.csv"
+      },
+      "required_columns": [
+        "group_id",
+        "runs",
+        "success_rate",
+        "first_pass_success_rate",
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean",
+        "suffix_replan_events_mean"
+      ],
+      "group_scope": [
+        "static_top1",
+        "fixed_threshold_gate",
+        "dynamic_no_belief_state",
+        "lite_belief_state"
+      ],
+      "generated_by": {
+        "source_script": "src/infra/w16_issue222_integration_analysis.py",
+        "function_template": "load_and_analyze_issue222_results(run_manifest_path=<runs_manifest.json>, output_dir=<analysis_run_dir>)"
+      },
+      "traceability_status": "all rows must join back through run_log_index.csv and metric_definitions.csv"
+    },
+    {
+      "artifact_id": "table-difficulty-stratified",
+      "artifact_type": "table",
+      "title": "Difficulty-stratified result table",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/figure-table-templates.md#table-difficulty-stratified",
+      "source_refs": {
+        "aggregate_source_path": "output/experiment/w16-expr-1/<analysis_run_id>/difficulty_stratified_metrics.csv",
+        "run_level_source_path": "output/experiment/w16-expr-1/<analysis_run_id>/run_level_results.jsonl"
+      },
+      "required_columns": [
+        "slice_type",
+        "slice_value",
+        "group_id",
+        "runs",
+        "success_rate",
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "recovery_event_mean"
+      ],
+      "traceability_status": "slice_value must derive from run-level difficulty in runs_manifest.json"
+    },
+    {
+      "artifact_id": "table-recovery-high-cost",
+      "artifact_type": "table",
+      "title": "Recovery complexity and high-cost call table",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/figure-table-templates.md#table-recovery-high-cost",
+      "source_refs": {
+        "aggregate_source_path": "output/experiment/w16-expr-1/<analysis_run_id>/recovery_complexity_high_cost.csv",
+        "action_source_path": "output/experiment/w16-expr-1/issue221-real-full-20260418b/action_distribution.csv",
+        "patch_replan_source_path": "output/experiment/w16-expr-1/issue221-real-full-20260418b/patch_replan_breakdown.csv"
+      },
+      "required_columns": [
+        "group_id",
+        "patch_events_mean",
+        "replan_events_mean",
+        "suffix_replan_events_mean",
+        "patch_minimality_hit_rate",
+        "suffix_replan_prefix_preservation_rate",
+        "high_cost_call_mean",
+        "high_cost_failure_mean"
+      ],
+      "traceability_status": "recovery metrics must link to event log rows through run_log_index.csv"
+    },
+    {
+      "artifact_id": "figure-success-cost-recovery",
+      "artifact_type": "figure",
+      "title": "Success, cost, and recovery overview",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/figure-table-templates.md#figure-success-cost-recovery",
+      "source_refs": {
+        "chart_summary_rows_path": "output/experiment/w16-expr-1/<analysis_run_id>/chart_summary_rows.csv",
+        "overall_metrics_path": "output/experiment/w16-expr-1/<analysis_run_id>/overall_metrics.csv"
+      },
+      "rendered_artifact_path": "reports/w16-issue224/figures/figure-success-cost-recovery.<ext>",
+      "traceability_status": "chart panel values must reference chart_summary_rows metric and row id"
+    },
+    {
+      "artifact_id": "figure-difficulty-stratified",
+      "artifact_type": "figure",
+      "title": "Difficulty-stratified group comparison",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/figure-table-templates.md#figure-difficulty-stratified",
+      "source_refs": {
+        "chart_summary_rows_path": "output/experiment/w16-expr-1/<analysis_run_id>/chart_summary_rows.csv",
+        "difficulty_table_path": "output/experiment/w16-expr-1/<analysis_run_id>/difficulty_stratified_metrics.csv"
+      },
+      "rendered_artifact_path": "reports/w16-issue224/figures/figure-difficulty-stratified.<ext>",
+      "traceability_status": "each facet must preserve slice_type, slice_value, group_id, and metric"
+    },
+    {
+      "artifact_id": "case-loss-control-success",
+      "artifact_type": "case",
+      "title": "Loss-control success case",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/report-template.md#case-study-template",
+      "source_refs": {
+        "run_id": "issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02",
+        "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_configs/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.json",
+        "event_log_path": "data/logs/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.jsonl",
+        "snapshot_path": "data/snapshots/issue270-rerun-waiting-replan-20260420_lite_belief_state_high_solubility_r02.jsonl",
+        "run_traceability_index_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_traceability_index.csv"
+      },
+      "required_sections": [
+        "selection_reason",
+        "action_path",
+        "evidence_chain",
+        "result_contrast",
+        "claim_boundary"
+      ]
+    },
+    {
+      "artifact_id": "case-static-vs-dynamic-contrast",
+      "artifact_type": "case",
+      "title": "Static versus dynamic contrast case",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/report-template.md#case-study-template",
+      "source_refs": {
+        "task_key": "secondary_balance",
+        "static_run_id": "issue270-rerun-waiting-replan-20260420_fixed_threshold_gate_secondary_balance_r01",
+        "dynamic_run_id": "issue270-rerun-waiting-replan-20260420_dynamic_no_belief_state_secondary_balance_r01",
+        "run_traceability_index_path": "output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/run_traceability_index.csv"
+      },
+      "required_sections": [
+        "matched_task",
+        "group_difference",
+        "action_or_waiting_difference",
+        "metric_row_refs",
+        "claim_boundary"
+      ]
+    },
+    {
+      "artifact_id": "case-failure-analysis",
+      "artifact_type": "case",
+      "title": "Failure analysis case",
+      "status": "template_ready",
+      "template_path": "docs/evidence/issue-224/report-template.md#case-study-template",
+      "source_refs": {
+        "run_id": "issue221-real-full-20260418b_fixed_threshold_gate_enzyme_like_fold_r01",
+        "run_config_path": "output/experiment/w16-expr-1/issue221-real-full-20260418b/run_configs/issue221-real-full-20260418b_fixed_threshold_gate_enzyme_like_fold_r01.json",
+        "event_log_path": "data/logs/issue221-real-full-20260418b_fixed_threshold_gate_enzyme_like_fold_r01.jsonl",
+        "snapshot_path": "data/snapshots/issue221-real-full-20260418b_fixed_threshold_gate_enzyme_like_fold_r01.jsonl",
+        "known_failure": "RuntimeError: auto decision loop exhausted before task reached terminal state"
+      },
+      "required_sections": [
+        "failure_signal",
+        "wrong_or_missing_decision",
+        "evidence_gap",
+        "risk_to_claim",
+        "follow_up"
+      ]
+    }
+  ],
+  "validation_rules": [
+    "Every figure/table/case artifact must include source_refs and generated_by or template_path.",
+    "Every paper-facing group id must use canonical names from naming_convention.paper_groups.",
+    "Every metric used in a table or figure must be definable from metric_definitions.csv or the W16-01 matrix summary fallback.",
+    "Every case must include at least one run_config_path, event_log_path or run_traceability_index_path, and snapshot_path when available.",
+    "Rendered reports must state whether they use W16-02 analysis outputs or the W16-01 fallback summary."
+  ]
+}
