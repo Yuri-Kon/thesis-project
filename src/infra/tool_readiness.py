@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 
 from src.adapters.builtins import ensure_builtin_adapters
 from src.adapters.registry import get_adapter
+from src.infra.active_tool_metadata import metadata_by_tool_id
 from src.kg.kg_client import load_tool_kg
 from src.models.contracts import now_iso
 
@@ -16,33 +17,43 @@ __all__ = [
 
 def evaluate_tool_readiness(tool_id: str) -> Dict[str, Any]:
     """评估单个工具的可用性。"""
+    profile = metadata_by_tool_id().get(tool_id)
     try:
         adapter = get_adapter(tool_id)
     except KeyError:
-        return {
+        payload = {
             "tool_id": tool_id,
             "status": "unavailable",
             "reason": "adapter not registered",
         }
+        if profile is not None:
+            payload["metadata_profile"] = profile.to_dict()
+        return payload
 
     try:
         health = adapter.healthcheck()
     except Exception as exc:  # pragma: no cover - 防御性分支
-        return {
+        payload = {
             "tool_id": tool_id,
             "status": "degraded",
             "reason": f"healthcheck failed: {exc}",
         }
+        if profile is not None:
+            payload["metadata_profile"] = profile.to_dict()
+        return payload
 
     status = str(health.get("status") or "ready")
     if status not in {"ready", "degraded", "unavailable"}:
         status = "degraded"
-    return {
+    payload = {
         "tool_id": tool_id,
         "status": status,
         "reason": str(health.get("reason") or ""),
         "details": health,
     }
+    if profile is not None:
+        payload["metadata_profile"] = profile.to_dict()
+    return payload
 
 
 def build_capability_readiness_matrix() -> List[Dict[str, Any]]:

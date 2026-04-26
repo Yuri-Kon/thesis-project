@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
 from src.adapters.registry import get_adapter
+from src.infra.active_tool_metadata import metadata_by_tool_id
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
@@ -3047,6 +3048,10 @@ def _fallback_depth_score(
 
 
 def _tool_risk_cost_score(spec: ToolSpec) -> tuple[float, float]:
+    profile = metadata_by_tool_id().get(spec.id)
+    if profile is not None:
+        return profile.step_risk, profile.step_cost
+
     adapter_risk = {
         "local": 0.22,
         "hybrid": 0.32,

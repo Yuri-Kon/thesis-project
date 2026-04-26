@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.infra.active_tool_metadata import build_high_cost_rules_from_metadata
+
 
 DEFAULT_REQUIREMENT2_CAPABILITY_MAP: dict[str, list[str]] = {
     "sequence_core": ["sequence_generation", "sequence_design"],
@@ -27,35 +29,7 @@ DEFAULT_OFFLINE_THRESHOLDS: dict[str, float] = {
     "suffix_replan_prefix_preservation_rate": 1.0,
 }
 
-DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = [
-    {
-        "rule_id": "structure_mapping",
-        "label": "结构映射",
-        "stage_ids": ["S2"],
-        "tool_ids": ["esmfold", "nim_esmfold", "openfold3"],
-        "capability_ids": ["structure_prediction"],
-        "cost_tier": "high",
-        "rationale": "结构预测调用通常消耗远程/重模型预算，是高代价主来源。",
-    },
-    {
-        "rule_id": "structure_refinement",
-        "label": "结构条件下的序列精修",
-        "stage_ids": ["S4"],
-        "tool_ids": ["protein_mpnn"],
-        "capability_ids": ["sequence_design"],
-        "cost_tier": "high",
-        "rationale": "ProteinMPNN 多轮采样与回放属于高暴露恢复环节。",
-    },
-    {
-        "rule_id": "heavy_objective_evaluation",
-        "label": "重型目标评估",
-        "stage_ids": ["S5"],
-        "tool_ids": [],
-        "capability_ids": ["objective_scoring"],
-        "cost_tier": "medium_high",
-        "rationale": "重型目标/物性评估会引入额外模型或批量打分成本。",
-    },
-]
+DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = build_high_cost_rules_from_metadata()
 
 _PATCH_EVENT_NAMES = {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}
 DEFAULT_REPLAY_SAMPLE_DIR = (
