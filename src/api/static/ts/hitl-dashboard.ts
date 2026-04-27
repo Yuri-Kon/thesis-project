@@ -92,6 +92,13 @@ interface CapabilityReadinessEntry {
   reason: string;
 }
 
+const MODEL_INVOCATION_CAPABILITIES = new Set([
+  "sequence_generation",
+  "sequence_design",
+  "structure_prediction",
+  "objective_scoring",
+]);
+
 const ALLOWED_CHOICES: Record<PendingActionType, DecisionChoice[]> = {
   plan_confirm: ["accept", "replan", "cancel"],
   patch_confirm: ["accept", "replan", "cancel"],
@@ -299,6 +306,61 @@ function renderCapabilityReadiness(items: CapabilityReadinessEntry[]): void {
       ? item.degraded_reasons.join(" | ")
       : item.reason;
     row.appendChild(reasonCell);
+
+    const recoveryCell = document.createElement("td");
+    recoveryCell.textContent = formatText(item.suggested_recovery);
+    row.appendChild(recoveryCell);
+
+    tbody.appendChild(row);
+  }
+}
+
+function renderModelInvocation(items: CapabilityReadinessEntry[]): void {
+  const tbody = byId<HTMLTableSectionElement>("model-invocation-body");
+  tbody.innerHTML = "";
+
+  const modelItems = items.filter(
+    (item) =>
+      MODEL_INVOCATION_CAPABILITIES.has(item.capability_id) ||
+      Boolean(item.primary_tool_id),
+  );
+
+  if (!modelItems.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "No model invocation readiness data.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  for (const item of modelItems) {
+    const row = document.createElement("tr");
+
+    const capabilityCell = document.createElement("td");
+    capabilityCell.textContent = item.capability_id;
+    row.appendChild(capabilityCell);
+
+    const statusCell = document.createElement("td");
+    const chip = document.createElement("span");
+    chip.className = readinessChipClass(item.status);
+    chip.textContent = item.status;
+    statusCell.appendChild(chip);
+    row.appendChild(statusCell);
+
+    const toolCell = document.createElement("td");
+    const fallback = item.fallback_tool_ids?.length
+      ? ` fallback=${item.fallback_tool_ids.join(",")}`
+      : "";
+    toolCell.textContent = `${formatText(item.primary_tool_id)}${fallback}`;
+    row.appendChild(toolCell);
+
+    const degradationCell = document.createElement("td");
+    degradationCell.textContent = item.degraded_reasons?.length
+      ? item.degraded_reasons.join(" | ")
+      : item.reason;
+    row.appendChild(degradationCell);
 
     const recoveryCell = document.createElement("td");
     recoveryCell.textContent = formatText(item.suggested_recovery);
@@ -744,6 +806,7 @@ async function refreshCapabilityReadiness(): Promise<void> {
   try {
     const records = await getJson<CapabilityReadinessEntry[]>("/capabilities/readiness");
     renderCapabilityReadiness(records);
+    renderModelInvocation(records);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setGlobalMessage(message, true);

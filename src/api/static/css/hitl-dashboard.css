@@ -140,10 +140,18 @@ button:disabled {
   font-size: 13px;
 }
 
+.model-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
 .pending-table th,
 .pending-table td,
 .readiness-table th,
-.readiness-table td {
+.readiness-table td,
+.model-table th,
+.model-table td {
   border-top: 1px solid var(--line);
   text-align: left;
   padding: 8px;
@@ -151,7 +159,8 @@ button:disabled {
 }
 
 .pending-table tr:hover,
-.readiness-table tr:hover {
+.readiness-table tr:hover,
+.model-table tr:hover {
   background: #f6faff;
 }
 
@@ -228,6 +237,11 @@ button:disabled {
   }
 
   .readiness-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .model-table {
     display: block;
     overflow-x: auto;
   }
