@@ -930,35 +930,31 @@ class TestAPIEndpoints:
     async def test_ui_routes_and_static_assets_available(
         self, client: httpx.AsyncClient
     ):
-        """前端 UI 页面和静态资源可访问。"""
+        """React 前端宿主页面和静态资源可访问。"""
         dashboard_response = await client.get("/ui")
         assert dashboard_response.status_code == 200
-        assert "HITL PendingAction Dashboard" in dashboard_response.text
-        assert "Candidate Comparison" in dashboard_response.text
-        assert "Model Invocation" in dashboard_response.text
-        assert "model-invocation-body" in dashboard_response.text
-        assert "objective-report-explorer" in dashboard_response.text
+        assert "Protein Design Operator Workspace" in dashboard_response.text
+        assert '"/static/web/assets/app.js"' in dashboard_response.text
+        assert '"view": "dashboard"' in dashboard_response.text
 
         task_view_response = await client.get("/ui/tasks/task_demo_001")
         assert task_view_response.status_code == 200
-        assert "HITL PendingAction Dashboard" in task_view_response.text
+        assert '"taskId": "task_demo_001"' in task_view_response.text
+        assert '"view": "task_detail"' in task_view_response.text
 
-        static_response = await client.get("/static/js/hitl-dashboard.js")
+        static_response = await client.get("/static/web/assets/app.js")
         assert static_response.status_code == 200
-        assert "ALLOWED_CHOICES" in static_response.text
-        assert "adapter_mode" in static_response.text
-        assert "degraded" in static_response.text
-        assert "availability_hint" in static_response.text
-        assert "renderModelInvocation" in static_response.text
-        assert "renderObjectiveReport" in static_response.text
+        assert "/pending-actions" in static_response.text
+        assert "/capabilities/readiness" in static_response.text
+        assert "Submit Decision" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200
-        assert "Task Event Timeline" in timeline_response.text
+        assert '"view": "event_timeline"' in timeline_response.text
 
-        timeline_js = await client.get("/static/js/event-timeline.js")
-        assert timeline_js.status_code == 200
-        assert "renderChainSummary" in timeline_js.text
+        style_response = await client.get("/static/web/assets/style.css")
+        assert style_response.status_code == 200
+        assert "--surface" in style_response.text
 
     async def test_get_task_events_timeline_mapping_and_order(
         self, client: httpx.AsyncClient
