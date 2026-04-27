@@ -3,6 +3,9 @@ import type {
   DecisionRequest,
   PendingActionDetail,
   PendingActionSummary,
+  TaskIntakeConfirmation,
+  TaskIntakeCreateRequest,
+  TaskIntakeSession,
   TaskRecord,
   TaskReportDetail,
   TaskTimelineEvent,
@@ -59,6 +62,18 @@ export const apiClient = {
     return requestJson<TaskRecord>(`/pending-actions/${encodeURIComponent(pendingActionId)}/decision`, {
       method: "POST",
       body: JSON.stringify(body),
+    });
+  },
+  createTaskIntake(body: TaskIntakeCreateRequest): Promise<TaskIntakeSession> {
+    return requestJson<TaskIntakeSession>("/task-intakes", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  confirmTaskIntake(intakeId: string): Promise<TaskIntakeConfirmation> {
+    return requestJson<TaskIntakeConfirmation>(`/task-intakes/${encodeURIComponent(intakeId)}/confirm`, {
+      method: "POST",
+      body: JSON.stringify({ confirmed_by: "web", acknowledged_warnings: [] }),
     });
   },
   getCapabilityReadiness(): Promise<CapabilityReadinessEntry[]> {

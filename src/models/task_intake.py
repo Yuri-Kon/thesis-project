@@ -61,6 +61,18 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "support_level": "P0",
             "audit_visibility": "public",
         },
+        "goal_summary": {
+            "group": "objective",
+            "type": "string",
+            "ui_control": "textarea",
+            "nl_aliases": ["目标摘要", "goal summary", "confirmed goal"],
+            "validators": {"min_length": 1, "max_length": 2000},
+            "options": [],
+            "default": None,
+            "maps_to": "objective.description",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
         "objective_description": {
             "group": "objective",
             "type": "string",
@@ -259,7 +271,7 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "ui_control": "segmented",
             "nl_aliases": ["运行模式", "profile", "speed"],
             "validators": {},
-            "options": ["fast_smoke", "balanced", "thorough"],
+            "options": ["fast_smoke", "balanced", "high_accuracy"],
             "default": "balanced",
             "maps_to": "constraints.run_profile",
             "support_level": "P0",
@@ -332,6 +344,7 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "required": ["task_kind", "objective_type", "length_range"],
             "optional": [
                 "objective_description",
+                "goal_summary",
                 "design_count",
                 "quality_metric",
                 "min_quality_score",
@@ -476,6 +489,13 @@ class TaskSpecDraft(BaseModel):
 
     fields: dict[str, TaskDraftField] = Field(default_factory=dict)
     unmapped_text: list[str] = Field(default_factory=list)
+    extraction_mode: Literal[
+        "none",
+        "rule_extract",
+        "llm_extract",
+        "manual_fallback",
+    ] = "none"
+    extraction_errors: list[str] = Field(default_factory=list)
 
 
 class ConfirmedTaskSpec(BaseModel):
@@ -639,20 +659,34 @@ def build_task_intake_llm_extraction_schema() -> dict[str, Any]:
 
     properties: dict[str, Any] = {}
     for name, definition in _schema_fields().items():
-        property_schema = {
+        value_schema = {
             "type": _json_schema_type_for_field(definition),
             "description": ", ".join(definition["nl_aliases"]),
         }
         if definition["type"] == "tool_id_list":
-            property_schema["items"] = {
+            value_schema["items"] = {
                 "type": "string",
                 "enum": list(definition["options"]),
             }
         elif definition["type"] == "artifact_ref_list":
-            property_schema["items"] = {"type": "object"}
+            value_schema["items"] = {"type": "object"}
         elif definition["options"]:
-            property_schema["enum"] = list(definition["options"])
-        properties[name] = property_schema
+            value_schema["enum"] = list(definition["options"])
+        properties[name] = {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["value", "confidence", "source"],
+            "properties": {
+                "value": value_schema,
+                "confidence": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                },
+                "source": {"const": TaskDraftFieldSource.LLM_EXTRACT.value},
+                "source_span": {"type": "string"},
+            },
+        }
     return {
         "type": "object",
         "additionalProperties": False,
@@ -908,65 +942,145 @@ def _cli_prompt_for_field(field_name: str, definition: dict[str, Any]) -> str:
     return f"{alias} ({field_name})"
 
 
+def extract_task_intake_fields(
+    text: str,
+    *,
+    raw_candidates: list[dict[str, Any]] | None = None,
+    max_attempts: int = 2,
+) -> TaskSpecDraft:
+    """从自然语言抽取 TaskSpecDraft，并在 schema 失败时降级手动表单。
+
+    自然语言抽取属于 Task Intake 前置层，只返回可审计草稿字段；Planner
+    只能在用户确认后消费 ConfirmedTaskSpec。
+    """
+
+    normalized_text = text.strip()
+    draft = TaskSpecDraft()
+    if not normalized_text:
+        return draft
+
+    candidates = raw_candidates or [_build_rule_extraction_payload(normalized_text)]
+    errors: list[str] = []
+    for candidate in candidates[: max(1, max_attempts)]:
+        verified = _verify_extraction_payload(candidate, raw_text=normalized_text)
+        if not verified.extraction_errors:
+            return verified
+        errors.extend(verified.extraction_errors)
+
+    draft.unmapped_text.append(normalized_text)
+    draft.extraction_mode = "manual_fallback"
+    draft.extraction_errors = list(dict.fromkeys(errors)) or [
+        "natural language extraction returned no valid schema candidate"
+    ]
+    return draft
+
+
 def _merge_extracted_text(draft: TaskSpecDraft, text: str) -> None:
-    extracted: dict[str, TaskDraftField] = {}
+    extracted_draft = extract_task_intake_fields(text)
+    draft.fields.update(extracted_draft.fields)
+    draft.unmapped_text.extend(extracted_draft.unmapped_text)
+    draft.extraction_mode = extracted_draft.extraction_mode
+    draft.extraction_errors.extend(extracted_draft.extraction_errors)
+
+
+def _build_rule_extraction_payload(text: str) -> dict[str, Any]:
+    fields: dict[str, dict[str, Any]] = {}
+    source_spans: list[str] = []
+
+    def add_field(
+        field_name: str,
+        value: Any,
+        confidence: float,
+        source_span: str | None = None,
+    ) -> None:
+        fields[field_name] = {
+            "value": value,
+            "source": TaskDraftFieldSource.LLM_EXTRACT.value,
+            "confidence": confidence,
+            "source_span": source_span,
+        }
+        if source_span:
+            source_spans.append(source_span)
+
     lowered = text.lower()
+    design_intent = any(
+        marker in lowered
+        for marker in ("design", "de novo", "de-novo", "generate", "protein")
+    ) or any(marker in text for marker in ("设计", "生成", "蛋白", "从头"))
     if "de novo" in lowered or "de-novo" in lowered or "从头" in text:
-        extracted["task_kind"] = TaskDraftField(
-            value="de_novo_design",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.86,
-            source_span="de novo",
-        )
+        add_field("task_kind", "de_novo_design", 0.86, "de novo")
     elif "评估" in text or "evaluate" in lowered:
-        extracted["task_kind"] = TaskDraftField(
-            value="sequence_evaluation",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.84,
+        add_field(
+            "task_kind",
+            "sequence_evaluation",
+            0.84,
+            _first_present_span(text, ["评估", "evaluate"]),
         )
     elif "template" in lowered or "模板" in text:
-        extracted["task_kind"] = TaskDraftField(
-            value="template_constrained_design",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.84,
+        add_field(
+            "task_kind",
+            "template_constrained_design",
+            0.84,
+            _first_present_span(text, ["模板", "template"]),
+        )
+    elif design_intent:
+        add_field(
+            "task_kind",
+            "de_novo_design",
+            0.80,
+            _first_present_span(text, ["设计", "design", "生成", "protein"]),
         )
 
     if "稳定" in text or "stability" in lowered or "stable" in lowered:
-        extracted["objective_type"] = TaskDraftField(
-            value="stability",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.88,
-            source_span="稳定",
+        add_field(
+            "objective_type",
+            "stability",
+            0.88,
+            _first_present_span(text, ["稳定", "stability", "stable"]),
         )
     elif "binding" in lowered or "结合" in text:
-        extracted["objective_type"] = TaskDraftField(
-            value="binding",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.72,
-            source_span="binding",
+        add_field(
+            "objective_type",
+            "binding",
+            0.72,
+            _first_present_span(text, ["binding", "结合"]),
+        )
+    elif "结构" in text or "structure" in lowered:
+        add_field(
+            "objective_type",
+            "structure",
+            0.78,
+            _first_present_span(text, ["结构", "structure"]),
+        )
+    elif "活性" in text or "activity" in lowered:
+        add_field(
+            "objective_type",
+            "activity",
+            0.76,
+            _first_present_span(text, ["活性", "activity"]),
         )
 
     range_match = re.search(r"(\d{2,4})\s*(?:-|~|到|至)\s*(\d{2,4})", text)
     if range_match:
-        extracted["length_range"] = TaskDraftField(
-            value=[int(range_match.group(1)), int(range_match.group(2))],
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.92,
-            source_span=range_match.group(0),
+        add_field(
+            "length_range",
+            [int(range_match.group(1)), int(range_match.group(2))],
+            0.92,
+            range_match.group(0),
         )
     else:
         approx_match = re.search(
-            r"(?:约|大约|around|about)?\s*(\d{2,4})\s*(?:aa|氨基酸)",
+            r"(?:约|大约|around|about)?\s*(\d{2,4})\s*(?:个)?\s*(?:aa|氨基酸)",
             text,
             re.IGNORECASE,
         )
         if approx_match:
             center = int(approx_match.group(1))
-            extracted["length_range"] = TaskDraftField(
-                value=[max(1, center - 20), center + 20],
-                source=TaskDraftFieldSource.LLM_EXTRACT,
-                confidence=0.91,
-                source_span=approx_match.group(0),
+            add_field(
+                "length_range",
+                [max(1, center - 20), center + 20],
+                0.91,
+                approx_match.group(0),
             )
 
     count_match = re.search(
@@ -975,48 +1089,180 @@ def _merge_extracted_text(draft: TaskSpecDraft, text: str) -> None:
         re.IGNORECASE,
     )
     if count_match:
-        extracted["design_count"] = TaskDraftField(
-            value=int(count_match.group(1)),
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.84,
-            source_span=count_match.group(0),
+        add_field(
+            "design_count",
+            int(count_match.group(1)),
+            0.84,
+            count_match.group(0),
         )
 
     if "快" in text or "fast" in lowered:
-        extracted["run_profile"] = TaskDraftField(
-            value="fast_smoke",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.82,
+        add_field(
+            "run_profile",
+            "fast_smoke",
+            0.82,
+            _first_present_span(text, ["快", "fast"]),
         )
     elif "balanced" in lowered or "均衡" in text:
-        extracted["run_profile"] = TaskDraftField(
-            value="balanced",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.86,
+        add_field(
+            "run_profile",
+            "balanced",
+            0.86,
+            _first_present_span(text, ["均衡", "balanced"]),
         )
-    elif "thorough" in lowered or "全面" in text:
-        extracted["run_profile"] = TaskDraftField(
-            value="thorough",
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.86,
+    elif (
+        "high accuracy" in lowered
+        or "high-accuracy" in lowered
+        or "thorough" in lowered
+        or "高精度" in text
+        or "全面" in text
+    ):
+        add_field(
+            "run_profile",
+            "high_accuracy",
+            0.86,
+            _first_present_span(text, ["高精度", "全面", "high accuracy", "thorough"]),
         )
 
-    if "确认计划" in text or "confirm plan" in lowered:
-        extracted["require_plan_confirm"] = TaskDraftField(
-            value=True,
-            source=TaskDraftFieldSource.LLM_EXTRACT,
-            confidence=0.95,
-            source_span="确认计划",
+    safety_match = re.search(r"\bS[0-2]\b", text, re.IGNORECASE)
+    if safety_match:
+        add_field(
+            "safety_level",
+            safety_match.group(0).upper(),
+            0.9,
+            safety_match.group(0),
+        )
+    elif "低风险" in text or "low risk" in lowered:
+        add_field("safety_level", "S1", 0.70, _first_present_span(text, ["低风险", "low risk"]))
+    elif "安全" in text or "safe" in lowered:
+        add_field("safety_level", "S1", 0.68, _first_present_span(text, ["安全", "safe"]))
+
+    if "无需确认计划" in text or "no plan confirmation" in lowered:
+        add_field(
+            "require_plan_confirm",
+            False,
+            0.92,
+            _first_present_span(text, ["无需确认计划", "no plan confirmation"]),
+        )
+    elif "确认计划" in text or "confirm plan" in lowered:
+        add_field(
+            "require_plan_confirm",
+            True,
+            0.95,
+            _first_present_span(text, ["确认计划", "confirm plan"]),
         )
 
-    for field_name, field in extracted.items():
+    tool_preferences = _extract_tool_preferences(text)
+    if tool_preferences:
+        add_field("tools_allowed", tool_preferences, 0.76, ", ".join(tool_preferences))
+
+    if fields and design_intent and "goal_summary" not in fields:
+        add_field("goal_summary", _goal_summary_from_text(text), 0.84, text.strip())
+
+    return {
+        "fields": fields,
+        "unmapped_text": [],
+        "source_spans": source_spans,
+        "mode": "rule_extract",
+    }
+
+
+def _verify_extraction_payload(
+    payload: dict[str, Any],
+    *,
+    raw_text: str,
+) -> TaskSpecDraft:
+    mode = str(payload.get("mode") or "llm_extract")
+    if mode not in {"rule_extract", "llm_extract", "manual_fallback", "none"}:
+        mode = "llm_extract"
+    draft = TaskSpecDraft(extraction_mode=mode)
+    raw_fields = payload.get("fields", payload)
+    if not isinstance(raw_fields, dict):
+        draft.extraction_errors.append("extraction payload fields must be an object")
+        return draft
+
+    registry = _registry_fields()
+    for field_name, raw_field in raw_fields.items():
+        if field_name not in registry:
+            draft.extraction_errors.append(
+                f"extraction returned unknown field: {field_name}"
+            )
+            continue
+        try:
+            value, confidence, source_span, source = _unwrap_extracted_field(raw_field)
+            if source != TaskDraftFieldSource.LLM_EXTRACT.value:
+                draft.extraction_errors.append(f"{field_name} source must be llm_extract")
+                continue
+            value = _normalize_registry_value(field_name, value)
+        except ValueError as exc:
+            draft.extraction_errors.append(f"{field_name}: {exc}")
+            continue
+
+        field = TaskDraftField(
+            value=value,
+            source=TaskDraftFieldSource.LLM_EXTRACT,
+            confidence=confidence,
+            source_span=source_span,
+            confirmed=False,
+        )
         if field.confidence < LOW_CONFIDENCE_THRESHOLD:
             draft.unmapped_text.append(str(field.source_span or field.value))
             continue
+        error = _validate_registry_value(field_name, field.value)
+        if error is not None:
+            draft.extraction_errors.append(error)
+            continue
         draft.fields[field_name] = field
 
-    if not extracted and text.strip():
-        draft.unmapped_text.append(text.strip())
+    for item in payload.get("unmapped_text") or []:
+        if isinstance(item, str) and item.strip():
+            draft.unmapped_text.append(item.strip())
+
+    if not draft.fields and raw_text.strip() and not draft.unmapped_text:
+        draft.unmapped_text.append(raw_text.strip())
+    return draft
+
+
+def _unwrap_extracted_field(raw_field: Any) -> tuple[Any, float, str | None, str]:
+    if not isinstance(raw_field, dict):
+        raise ValueError("field extraction must be an object")
+    if "value" not in raw_field:
+        raise ValueError("field extraction must include value")
+    confidence = raw_field.get("confidence")
+    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
+        raise ValueError("field extraction must include numeric confidence")
+    source = raw_field.get("source")
+    if not isinstance(source, str):
+        raise ValueError("field extraction must include source")
+    source_span = raw_field.get("source_span")
+    if source_span is not None and not isinstance(source_span, str):
+        raise ValueError("source_span must be a string when present")
+    return raw_field["value"], float(confidence), source_span, source
+
+
+def _first_present_span(text: str, needles: list[str]) -> str | None:
+    lowered = text.lower()
+    for needle in needles:
+        if not needle:
+            continue
+        if needle in text or needle.lower() in lowered:
+            return needle
+    return None
+
+
+def _goal_summary_from_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text.strip())[:2000]
+
+
+def _extract_tool_preferences(text: str) -> list[str]:
+    lowered = text.lower()
+    has_tool_cue = any(
+        marker in lowered for marker in ("use", "prefer", "allowed", "tool")
+    ) or any(marker in text for marker in ("使用", "优先", "允许", "工具"))
+    if not has_tool_cue:
+        return []
+    allowed = _allowed_tool_ids()
+    return sorted(tool_id for tool_id in allowed if tool_id.lower() in lowered)
 
 
 def _merge_structured_fields(
@@ -1341,6 +1587,9 @@ def _build_confirmed_spec(
 
 
 def _build_goal(fields: dict[str, Any]) -> str:
+    goal_summary = fields.get("goal_summary") or fields.get("objective_description")
+    if isinstance(goal_summary, str) and goal_summary.strip():
+        return goal_summary.strip()
     task_kind = fields.get("task_kind", "de_novo_design")
     objective = fields.get("objective_type", "protein design")
     length_range = fields.get("length_range")
