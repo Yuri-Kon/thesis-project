@@ -103,3 +103,101 @@ def test_report_show_json_exposes_objective_scoring(monkeypatch, capsys) -> None
     output = capsys.readouterr().out
     assert '"objective_score": 0.77' in output
     assert '"rank_reason": "cand_a ranks by objective_score=0.770"' in output
+
+
+def test_pending_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:
+    """pending show 应输出执行通道与远程失败恢复提示。"""
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/pending-actions/pa_cli"):
+            return _FakeResponse(
+                {
+                    "pending_action_id": "pa_cli",
+                    "task_id": "task_cli",
+                    "action_type": "patch_confirm",
+                    "default_suggestion": "cand_openfold_rest",
+                    "candidates": [
+                        {
+                            "candidate_id": "cand_openfold_rest",
+                            "tool": {
+                                "tool_id": "openfold",
+                                "adapter_id": "openfold",
+                                "execution_mode": "openfold3_rest",
+                                "endpoint_type": "rest",
+                                "remote_job_id": "of3_job_1",
+                                "failure_code": "REMOTE_JOB_FAILED",
+                                "recovery_hint": "Inspect OpenFold3 REST logs.",
+                                "readiness_status": "degraded",
+                            },
+                        }
+                    ],
+                }
+            )
+        if url.endswith("/capabilities/readiness"):
+            return _FakeResponse([])
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "pending",
+            "show",
+            "pa_cli",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "execution_mode=openfold3_rest" in output
+    assert "remote_job_id=of3_job_1" in output
+    assert "failure_code=REMOTE_JOB_FAILED" in output
+    assert "recovery=Inspect OpenFold3 REST logs." in output
+
+
+def test_timeline_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:
+    """timeline show 应输出 execution mode 与 endpoint 上下文。"""
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/tasks/task_cli/events"):
+            return _FakeResponse(
+                [
+                    {
+                        "event_type": "STEP_FAILED",
+                        "ts": "2026-04-27T00:00:00+00:00",
+                        "step_id": "S2",
+                        "tool_id": "openfold",
+                        "adapter_id": "openfold",
+                        "execution_mode": "openfold3_rest",
+                        "endpoint_type": "rest",
+                        "remote_job_id": "of3_job_1",
+                        "failure_code": "REMOTE_JOB_FAILED",
+                        "recovery_hint": "Inspect OpenFold3 REST logs.",
+                        "summary": "Step failed (S2)",
+                    }
+                ]
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "timeline",
+            "show",
+            "task_cli",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "tool=openfold" in output
+    assert "adapter=openfold" in output
+    assert "execution_mode=openfold3_rest" in output
+    assert "endpoint=rest" in output

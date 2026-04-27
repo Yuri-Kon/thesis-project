@@ -83,7 +83,19 @@ function renderTimeline(events) {
       </div>
       <div class="event-meta">${event.summary}</div>
       <div class="event-meta">state: ${stateInfo}</div>
-      <div class="event-meta">step: ${event.step_id ?? "-"} | tool: ${event.tool ?? "-"}</div>
+      <div class="event-meta">
+        step: ${event.step_id ?? "-"} |
+        tool: ${event.tool_id ?? event.tool ?? "-"} |
+        adapter: ${event.adapter_id ?? "-"} |
+        execution: ${event.execution_mode ?? "-"}
+      </div>
+      <div class="event-meta">
+        provider: ${event.provider ?? "-"} |
+        endpoint: ${event.endpoint_type ?? "-"} |
+        remote job: ${event.remote_job_id ?? "-"} |
+        failure: ${event.failure_code ?? "-"} |
+        recovery: ${event.recovery_hint ?? "-"}
+      </div>
     `;
         list.appendChild(item);
     }

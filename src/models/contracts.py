@@ -29,6 +29,11 @@ WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
 DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
 CAPABILITY_READINESS_METADATA_KEY = "capability_readiness"
 TOOL_READINESS_METADATA_KEY = "tool_readiness"
+ADAPTER_ID_METADATA_KEY = "adapter_id"
+EXECUTION_MODE_METADATA_KEY = "execution_mode"
+PROVIDER_METADATA_KEY = "provider"
+ENDPOINT_TYPE_METADATA_KEY = "endpoint_type"
+REMOTE_JOB_ID_METADATA_KEY = "remote_job_id"
 
 
 def _validate_runtime_state_schema_version(value: int) -> int:
@@ -132,6 +137,13 @@ class StepResult(BaseModel):
     task_id: str
     step_id: str
     tool: str
+    # additive observability fields: tool/tool_id remains the scientific identity.
+    tool_id: Optional[str] = None
+    adapter_id: Optional[str] = None
+    execution_mode: Optional[str] = None
+    provider: Optional[str] = None
+    endpoint_type: Optional[str] = None
+    remote_job_id: Optional[str] = None
     status: Literal["success", "failed", "skipped"]
     # 失败分类：对齐 FailureType 枚举的字符串值；成功时可为 None
     failure_type: Optional[str] = None
@@ -146,6 +158,64 @@ class StepResult(BaseModel):
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     logs_path: Optional[str] = None
     timestamp: str
+
+    @field_validator(
+        "tool_id",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+    )
+    @classmethod
+    def _validate_optional_invocation_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _validate_non_empty_text(value, field_name="invocation metadata")
+
+    @model_validator(mode="after")
+    def _sync_invocation_metadata(self) -> "StepResult":
+        """同步执行元数据，保持旧 metrics/error_details 消费者兼容。"""
+        metrics = dict(self.metrics or {})
+        self.metrics = metrics
+
+        self.tool_id = _sync_step_metadata_field(
+            metrics,
+            field_name="tool_id",
+            field_value=self.tool_id or self.tool,
+        )
+        self.adapter_id = _sync_step_metadata_field(
+            metrics,
+            field_name=ADAPTER_ID_METADATA_KEY,
+            field_value=self.adapter_id,
+        )
+        self.execution_mode = _sync_step_metadata_field(
+            metrics,
+            field_name=EXECUTION_MODE_METADATA_KEY,
+            field_value=self.execution_mode,
+        )
+        self.provider = _sync_step_metadata_field(
+            metrics,
+            field_name=PROVIDER_METADATA_KEY,
+            field_value=self.provider,
+        )
+        self.endpoint_type = _sync_step_metadata_field(
+            metrics,
+            field_name=ENDPOINT_TYPE_METADATA_KEY,
+            field_value=self.endpoint_type,
+        )
+        self.remote_job_id = _sync_step_metadata_field(
+            metrics,
+            field_name=REMOTE_JOB_ID_METADATA_KEY,
+            field_value=self.remote_job_id or _coerce_non_empty_text(metrics.get("job_id")),
+        )
+        if self.failure_type is not None:
+            metrics.setdefault("failure_type", self.failure_type)
+        if isinstance(self.error_details, dict):
+            failure_code = _coerce_non_empty_text(self.error_details.get("failure_code"))
+            if failure_code is not None:
+                metrics.setdefault("failure_code", failure_code)
+        return self
 
 
 class ToolReadiness(BaseModel):
@@ -731,6 +801,11 @@ class PendingActionCandidate(BaseModel):
         capability_id: 工具能力标识（与 metadata.capability_id 同步）。
         io_type: I/O 类型标识（与 metadata.io_type 同步）。
         adapter_mode: 适配器模式（local/remote/mock/hybrid/unknown）。
+        adapter_id: 代码适配器标识。
+        execution_mode: 运行通道标识（local/remote/rest/nim/openfold3_rest 等）。
+        provider: 模型或远程服务提供方。
+        endpoint_type: endpoint 类型（local/rest/nim 等）。
+        remote_job_id: 远程作业 ID（如候选已有关联作业）。
         summary: 候选摘要信息。
         metadata: 额外元数据。
             - `runtime_state_summary` 可承载候选展示所需的轻量状态摘要。
@@ -751,6 +826,11 @@ class PendingActionCandidate(BaseModel):
     capability_id: str | None = None
     io_type: str | None = None
     adapter_mode: Literal["local", "remote", "mock", "hybrid", "unknown"] | None = None
+    adapter_id: str | None = None
+    execution_mode: str | None = None
+    provider: str | None = None
+    endpoint_type: str | None = None
+    remote_job_id: str | None = None
     summary: Optional[str] = None
     metadata: Dict = Field(default_factory=dict)
 
@@ -774,7 +854,16 @@ class PendingActionCandidate(BaseModel):
             normalized[key] = float(score)
         return normalized
 
-    @field_validator("tool_id", "capability_id", "io_type")
+    @field_validator(
+        "tool_id",
+        "capability_id",
+        "io_type",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+    )
     @classmethod
     def _validate_tool_fields(cls, value: str | None) -> str | None:
         if value is None:
@@ -829,9 +918,43 @@ class PendingActionCandidate(BaseModel):
             metadata,
             field_value=self.adapter_mode,
         )
+        self.adapter_id = _sync_metadata_field(
+            metadata,
+            field_name=ADAPTER_ID_METADATA_KEY,
+            field_value=self.adapter_id,
+        )
+        self.execution_mode = _sync_metadata_field(
+            metadata,
+            field_name=EXECUTION_MODE_METADATA_KEY,
+            field_value=self.execution_mode,
+        )
+        self.provider = _sync_metadata_field(
+            metadata,
+            field_name=PROVIDER_METADATA_KEY,
+            field_value=self.provider,
+        )
+        self.endpoint_type = _sync_metadata_field(
+            metadata,
+            field_name=ENDPOINT_TYPE_METADATA_KEY,
+            field_value=self.endpoint_type,
+        )
+        self.remote_job_id = _sync_metadata_field(
+            metadata,
+            field_name=REMOTE_JOB_ID_METADATA_KEY,
+            field_value=self.remote_job_id,
+        )
 
         has_any_tooling = any(
-            value is not None for value in (self.tool_id, self.capability_id, self.io_type)
+            value is not None
+            for value in (
+                self.tool_id,
+                self.capability_id,
+                self.io_type,
+                self.adapter_id,
+                self.execution_mode,
+                self.provider,
+                self.endpoint_type,
+            )
         )
         if has_any_tooling and self.adapter_mode is None:
             self.adapter_mode = "unknown"
@@ -879,6 +1002,32 @@ def _sync_metadata_field(
     if field_value != normalized:
         raise ValueError(f"metadata.{field_name} must match {field_name}")
     metadata[field_name] = field_value
+    return field_value
+
+
+def _coerce_non_empty_text(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _sync_step_metadata_field(
+    metrics: Dict[str, Any],
+    *,
+    field_name: str,
+    field_value: str | None,
+) -> str | None:
+    metric_value = _coerce_non_empty_text(metrics.get(field_name))
+    if metric_value is None:
+        if field_value is not None:
+            metrics[field_name] = field_value
+        return field_value
+    if field_value is None:
+        return metric_value
+    if field_value != metric_value:
+        raise ValueError(f"metrics.{field_name} must match {field_name}")
+    metrics[field_name] = field_value
     return field_value
 
 

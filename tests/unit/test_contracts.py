@@ -347,16 +347,49 @@ class TestCandidateSetContracts:
             payload=sample_plan,
             metadata={
                 "tool_id": "nim_esmfold",
+                "adapter_id": "nim_esmfold",
                 "capability_id": "structure_prediction",
                 "io_type": "sequence_to_structure",
                 "adapter_mode": "remote",
+                "execution_mode": "nvidia_nim",
+                "provider": "nvidia_nim",
+                "endpoint_type": "nim",
             },
         )
 
         assert candidate.tool_id == "nim_esmfold"
+        assert candidate.adapter_id == "nim_esmfold"
         assert candidate.capability_id == "structure_prediction"
         assert candidate.io_type == "sequence_to_structure"
         assert candidate.adapter_mode == "remote"
+        assert candidate.execution_mode == "nvidia_nim"
+        assert candidate.provider == "nvidia_nim"
+        assert candidate.endpoint_type == "nim"
+
+    def test_step_result_invocation_metadata_syncs_to_metrics(self):
+        result = StepResult(
+            task_id="task_contract_step",
+            step_id="S2",
+            tool="openfold",
+            status="success",
+            inputs={},
+            outputs={"pdb_path": "x.pdb"},
+            metrics={
+                "adapter_id": "openfold",
+                "execution_mode": "openfold3_rest",
+                "provider": "openfold3_rest",
+                "endpoint_type": "rest",
+                "job_id": "of3_job_1",
+            },
+            timestamp="2026-04-27T00:00:00+00:00",
+        )
+
+        assert result.tool_id == "openfold"
+        assert result.adapter_id == "openfold"
+        assert result.execution_mode == "openfold3_rest"
+        assert result.remote_job_id == "of3_job_1"
+        assert result.metrics["tool_id"] == "openfold"
+        assert result.metrics["remote_job_id"] == "of3_job_1"
 
     def test_candidate_tool_metadata_conflict_rejected(self, sample_plan: Plan):
         with pytest.raises(ValueError, match="metadata\\.tool_id must match tool_id"):

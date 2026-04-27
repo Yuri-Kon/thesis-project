@@ -33,6 +33,9 @@ class ProtGPT2Adapter(BaseToolAdapter):
 
     tool_id = "protgpt2"
     adapter_id = "protgpt2"
+    execution_mode = "plm_rest"
+    provider = "plm_rest"
+    endpoint_type = "rest"
 
     def __init__(
         self,
@@ -142,8 +145,13 @@ class ProtGPT2Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "remote",
             "duration_ms": duration_ms,
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.execution_mode,
             "job_id": job_id,
+            "remote_job_id": job_id,
             "provider": "plm_rest",
+            "endpoint_type": self.endpoint_type,
         }
         return outputs, metrics
 

@@ -106,6 +106,71 @@ class TestAPIEndpoints:
         assert "degraded_reasons" in objective_entry
         assert "suggested_recovery" in objective_entry
 
+    async def test_pending_action_detail_exposes_execution_mode(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """PendingAction detail 应展示 tool/adapter/execution mode 边界。"""
+
+        task_id = "test_api_execution_mode"
+        pending_action = PendingAction(
+            pending_action_id="pa_execution_mode",
+            task_id=task_id,
+            action_type=PendingActionType.PLAN_CONFIRM,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="cand_openfold_rest",
+                    payload=Plan(
+                        task_id=task_id,
+                        steps=[
+                            PlanStep(
+                                id="S2",
+                                tool="openfold",
+                                inputs={"sequence": "S1.sequence"},
+                            )
+                        ],
+                    ),
+                    tool_id="openfold",
+                    adapter_id="openfold",
+                    capability_id="structure_prediction",
+                    io_type="sequence_to_structure",
+                    adapter_mode="remote",
+                    execution_mode="openfold3_rest",
+                    provider="openfold3_rest",
+                    endpoint_type="rest",
+                    remote_job_id="of3_job_1",
+                    metadata={
+                        "failure_code": "REMOTE_JOB_FAILED",
+                        "recovery_hint": "Inspect OpenFold3 REST logs.",
+                    },
+                )
+            ],
+            explanation="review execution mode",
+            default_recommendation="cand_openfold_rest",
+        )
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.WAITING_PLAN_CONFIRM,
+            internal_status=InternalStatus.WAITING_PLAN_CONFIRM,
+            goal="review",
+            pending_action=pending_action,
+        )
+
+        response = await client.get("/pending-actions/pa_execution_mode")
+
+        assert response.status_code == 200
+        data = response.json()
+        tool = data["candidates"][0]["tool"]
+        assert tool["tool_id"] == "openfold"
+        assert tool["adapter_id"] == "openfold"
+        assert tool["execution_mode"] == "openfold3_rest"
+        assert tool["provider"] == "openfold3_rest"
+        assert tool["endpoint_type"] == "rest"
+        assert tool["remote_job_id"] == "of3_job_1"
+        assert tool["failure_code"] == "REMOTE_JOB_FAILED"
+        assert tool["recovery_hint"] == "Inspect OpenFold3 REST logs."
+
     async def test_task_report_endpoint_exposes_objective_scoring(
         self,
         client: httpx.AsyncClient,

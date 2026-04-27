@@ -121,13 +121,19 @@ class TaskTimelineEvent(BaseModel):
     step_id: Optional[str] = None
     tool: Optional[str] = None
     tool_id: Optional[str] = None
+    adapter_id: Optional[str] = None
+    execution_mode: Optional[str] = None
     capability_id: Optional[str] = None
     io_type: Optional[str] = None
     adapter_mode: Optional[str] = None
+    provider: Optional[str] = None
+    endpoint_type: Optional[str] = None
+    remote_job_id: Optional[str] = None
     from_tool: Optional[str] = None
     to_tool: Optional[str] = None
     failure_type: Optional[str] = None
     failure_code: Optional[str] = None
+    recovery_hint: Optional[str] = None
     candidate_id: Optional[str] = None
     decision_source: Optional[str] = None
     recovery_layer: Optional[str] = None
@@ -144,9 +150,16 @@ class TaskTimelineEvent(BaseModel):
 
 class PendingActionToolDisplay(BaseModel):
     tool_id: Optional[str] = None
+    adapter_id: Optional[str] = None
     capability_id: Optional[str] = None
     io_type: Optional[str] = None
     adapter_mode: Optional[str] = None
+    execution_mode: Optional[str] = None
+    provider: Optional[str] = None
+    endpoint_type: Optional[str] = None
+    remote_job_id: Optional[str] = None
+    failure_code: Optional[str] = None
+    recovery_hint: Optional[str] = None
     source: str = Field(..., description="工具来源(local/remote/mock/hybrid/unknown)")
     available: bool = Field(..., description="工具信息是否可用于决策展示")
     can_fallback: bool = Field(..., description="是否可回退到备选工具")
@@ -277,6 +290,19 @@ def _build_tool_display(
     adapter_mode = candidate.adapter_mode or _normalize_text(
         metadata.get("adapter_mode")
     )
+    adapter_id = candidate.adapter_id or _normalize_text(metadata.get("adapter_id"))
+    execution_mode = candidate.execution_mode or _normalize_text(
+        metadata.get("execution_mode")
+    )
+    provider = candidate.provider or _normalize_text(metadata.get("provider"))
+    endpoint_type = candidate.endpoint_type or _normalize_text(
+        metadata.get("endpoint_type")
+    )
+    remote_job_id = candidate.remote_job_id or _normalize_text(
+        metadata.get("remote_job_id")
+    )
+    failure_code = _normalize_text(metadata.get("failure_code"))
+    recovery_hint = _normalize_text(metadata.get("recovery_hint"))
 
     source = (
         adapter_mode
@@ -293,7 +319,6 @@ def _build_tool_display(
         missing.append("io_type")
     if adapter_mode is None:
         missing.append("adapter_mode")
-
     can_fallback = any(
         metadata.get(key)
         for key in (
@@ -312,6 +337,10 @@ def _build_tool_display(
     if missing:
         availability_hint = (
             f"Tool metadata missing ({', '.join(missing)}); use degraded display."
+        )
+    elif execution_mode == "openfold3_rest":
+        availability_hint = (
+            "OpenFold3 REST execution mode configured; availability depends on remote service health."
         )
     elif source == "remote":
         availability_hint = (
@@ -351,9 +380,16 @@ def _build_tool_display(
 
     return PendingActionToolDisplay(
         tool_id=tool_id,
+        adapter_id=adapter_id,
         capability_id=capability_id,
         io_type=io_type,
         adapter_mode=adapter_mode,
+        execution_mode=execution_mode,
+        provider=provider,
+        endpoint_type=endpoint_type,
+        remote_job_id=remote_job_id,
+        failure_code=failure_code,
+        recovery_hint=recovery_hint,
         source=source,
         available=available,
         can_fallback=can_fallback,
@@ -380,6 +416,10 @@ def _build_candidate_reason(
     reason_parts.append(f"risk={candidate.risk_level or 'unknown'}")
     reason_parts.append(f"cost={candidate.cost_estimate or 'unknown'}")
     reason_parts.append(f"tool_source={tool_display.source}")
+    if tool_display.execution_mode:
+        reason_parts.append(f"execution_mode={tool_display.execution_mode}")
+    if tool_display.provider:
+        reason_parts.append(f"provider={tool_display.provider}")
     if tool_display.readiness_status:
         reason_parts.append(f"readiness={tool_display.readiness_status}")
     if tool_display.can_fallback:
@@ -560,6 +600,7 @@ def _event_matches_filters(
     tool_id: Optional[str],
     capability_id: Optional[str],
     adapter_mode: Optional[str],
+    execution_mode: Optional[str],
 ) -> bool:
     if event_type and event.get("event_type") != event_type:
         return False
@@ -581,6 +622,9 @@ def _event_matches_filters(
     if adapter_mode and event.get("adapter_mode") != adapter_mode:
         return False
 
+    if execution_mode and event.get("execution_mode") != execution_mode:
+        return False
+
     return True
 
 
@@ -591,6 +635,7 @@ async def get_task_events(
     tool_id: Optional[str] = Query(default=None),
     capability_id: Optional[str] = Query(default=None),
     adapter_mode: Optional[str] = Query(default=None),
+    execution_mode: Optional[str] = Query(default=None),
 ) -> list[TaskTimelineEvent]:
     runtime = _ensure_runtime_initialized()
     timeline = read_timeline_events(task_id, log_dir=runtime.paths.log_dir)
@@ -625,6 +670,7 @@ async def get_task_events(
             tool_id=_normalize_text(tool_id),
             capability_id=_normalize_text(capability_id),
             adapter_mode=_normalize_text(adapter_mode),
+            execution_mode=_normalize_text(execution_mode),
         )
     ]
 

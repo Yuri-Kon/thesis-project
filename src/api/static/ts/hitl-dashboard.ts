@@ -22,9 +22,16 @@ interface PendingActionLite {
 
 interface PendingActionToolDisplay {
   tool_id: string | null;
+  adapter_id?: string | null;
   capability_id: string | null;
   io_type: string | null;
   adapter_mode: string | null;
+  execution_mode?: string | null;
+  provider?: string | null;
+  endpoint_type?: string | null;
+  remote_job_id?: string | null;
+  failure_code?: string | null;
+  recovery_hint?: string | null;
   source: string;
   available: boolean;
   can_fallback: boolean;
@@ -558,6 +565,7 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
     "Risk",
     "Cost",
     "Tool",
+    "Endpoint",
     "Readiness",
     "Recovery",
     "Reason",
@@ -604,9 +612,17 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
     const toolCell = document.createElement("td");
     toolCell.textContent =
       `${formatText(candidate.tool.tool_id)} / ${formatText(candidate.tool.capability_id)} / ` +
-      `${formatText(candidate.tool.io_type)} / mode=${formatText(candidate.tool.adapter_mode)} / ` +
-      `source=${candidate.tool.source}`;
+      `${formatText(candidate.tool.io_type)} / adapter=${formatText(candidate.tool.adapter_id)} / ` +
+      `adapter_mode=${formatText(candidate.tool.adapter_mode)}`;
     row.appendChild(toolCell);
+
+    const endpointCell = document.createElement("td");
+    endpointCell.textContent =
+      `execution=${formatText(candidate.tool.execution_mode)} / ` +
+      `provider=${formatText(candidate.tool.provider)} / ` +
+      `endpoint=${formatText(candidate.tool.endpoint_type)} / ` +
+      `job=${formatText(candidate.tool.remote_job_id)}`;
+    row.appendChild(endpointCell);
 
     const readinessCell = document.createElement("td");
     const readiness = candidate.tool.readiness_status ?? (
@@ -622,7 +638,9 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
     row.appendChild(readinessCell);
 
     const recoveryCell = document.createElement("td");
-    recoveryCell.textContent = formatText(candidate.tool.suggested_recovery);
+    recoveryCell.textContent = formatText(
+      candidate.tool.recovery_hint ?? candidate.tool.suggested_recovery,
+    );
     row.appendChild(recoveryCell);
 
     const reasonCell = document.createElement("td");
@@ -643,7 +661,8 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
 function buildCandidateOptionLabel(candidate: PendingActionCandidateDisplay): string {
   const source = candidate.tool.source;
   const mode = formatText(candidate.tool.adapter_mode);
-  return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | source=${source} | mode=${mode}`;
+  const executionMode = formatText(candidate.tool.execution_mode);
+  return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | source=${source} | mode=${mode} | execution=${executionMode}`;
 }
 
 function renderDecisionForm(detail: PendingActionDetail): void {

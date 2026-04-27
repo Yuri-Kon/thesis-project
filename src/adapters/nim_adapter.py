@@ -22,6 +22,9 @@ class NIMESMFoldAdapter(BaseToolAdapter):
 
     tool_id = "nim_esmfold"
     adapter_id = "nim_esmfold"
+    execution_mode = "nvidia_nim"
+    provider = "nvidia_nim"
+    endpoint_type = "nim"
     max_sequence_length = 400
 
     def __init__(
@@ -144,7 +147,11 @@ class NIMESMFoldAdapter(BaseToolAdapter):
         metrics = {
             "exec_type": "nvidia_nim",
             "duration_ms": duration_ms,
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.execution_mode,
             "provider": "nvidia_nim",
+            "endpoint_type": self.endpoint_type,
             "model_id": self.model_id,
         }
         return outputs, metrics
