@@ -372,6 +372,33 @@ class TestAPIEndpoints:
         assert data["intake_id"] in INTAKE_STORE
         assert TASK_STORE == {}
 
+    async def test_tasks_create_rejects_mixed_creation_modes(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """正式 Task 创建入口应明确选择一种输入模式。"""
+
+        response = await client.post(
+            "/tasks",
+            json={
+                "goal": "direct legacy goal",
+                "confirmed_task_spec": {
+                    "goal": "confirmed goal",
+                    "metadata": {
+                        "intake_id": "intake_mixed",
+                        "field_registry_version": "task-intake.v1",
+                        "support_level": "P0",
+                        "confirmed_by": "tester",
+                        "input_mode": "structured_with_confirmation",
+                        "acknowledged_warnings": [],
+                    },
+                },
+            },
+        )
+
+        assert response.status_code == 422
+        assert "choose exactly one" in response.text
+
     async def test_legacy_intent_draft_maps_to_task_intake_finalize(
         self,
         client: httpx.AsyncClient,
