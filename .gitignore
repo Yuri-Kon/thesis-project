@@ -84,6 +84,7 @@ venv/
 .env
 .env.*
 *.egg-info/
+node_modules/
 
 # 11. 日志与中间数据 
 

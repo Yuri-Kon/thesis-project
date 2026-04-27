@@ -302,22 +302,20 @@ class TaskReportDetail(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-def _render_ui_html(task_id: Optional[str]) -> str:
-    template_path = TEMPLATES_DIR / "index.html"
+def _render_react_app_html(
+    *,
+    task_id: Optional[str],
+    view: str,
+) -> str:
+    template_path = TEMPLATES_DIR / "react_app.html"
     if not template_path.exists():
         raise HTTPException(status_code=500, detail="UI template not found")
     raw_html = template_path.read_text(encoding="utf-8")
-    bootstrap_payload = json.dumps({"taskId": task_id or ""}, ensure_ascii=True)
-    return raw_html.replace("__BOOTSTRAP__", bootstrap_payload)
-
-
-def _render_timeline_ui_html(task_id: str) -> str:
-    template_path = TEMPLATES_DIR / "event_timeline.html"
-    if not template_path.exists():
-        raise HTTPException(status_code=500, detail="timeline template not found")
-    raw_html = template_path.read_text(encoding="utf-8")
-    bootstrap_payload = json.dumps({"taskId": task_id}, ensure_ascii=True)
-    return raw_html.replace("__EVENT_BOOTSTRAP__", bootstrap_payload)
+    bootstrap_payload = json.dumps(
+        {"taskId": task_id or "", "view": view},
+        ensure_ascii=True,
+    )
+    return raw_html.replace("__REACT_BOOTSTRAP__", bootstrap_payload)
 
 
 def _build_pending_action_summary(pending_action: PendingAction) -> str:
@@ -684,17 +682,19 @@ def _raise_task_intake_value_error(
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 async def get_hitl_dashboard() -> HTMLResponse:
-    return HTMLResponse(_render_ui_html(task_id=None))
+    return HTMLResponse(_render_react_app_html(task_id=None, view="dashboard"))
 
 
 @app.get("/ui/tasks/{task_id}", response_class=HTMLResponse)
 async def get_task_detail_view(task_id: str) -> HTMLResponse:
-    return HTMLResponse(_render_ui_html(task_id=task_id))
+    return HTMLResponse(_render_react_app_html(task_id=task_id, view="task_detail"))
 
 
 @app.get("/ui/tasks/{task_id}/events", response_class=HTMLResponse)
 async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
-    return HTMLResponse(_render_timeline_ui_html(task_id=task_id))
+    return HTMLResponse(
+        _render_react_app_html(task_id=task_id, view="event_timeline")
+    )
 
 
 @app.get("/health")
