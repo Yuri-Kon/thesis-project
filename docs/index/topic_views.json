@@ -1,5 +1,5 @@
 {
-  "version": "1.6",
+  "version": "1.7",
   "generated_at": "2026-04-27",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
@@ -1272,16 +1272,16 @@
     },
     "web_workspace": {
       "title": "Web Operator Workspace",
-      "description": "Web 主工作台的页面架构、React UI 组织边界、全信息展示、模型调用工作区、结构可视化与交互约束",
-      "use_case": "设计或实现 FastAPI 托管的 React Web 主工作台、蛋白质结构可视化与 Pending Review 交互时需要注入的最小规范集合",
+      "description": "Web 主工作台的页面架构、React UI 组织与实现参考、全信息展示、模型调用工作区、结构可视化与交互约束",
+      "use_case": "设计或实现 FastAPI 托管的 React Web 主工作台、蛋白质结构可视化、Pending Review 交互与迁移验收时需要注入的最小规范集合",
       "specs": [
         {
-          "sid": "interface.web_workspace.overview",
-          "title": "Web 主工作台总览",
+          "sid": "interface.web_workspace.react_ui_boundary",
+          "title": "React UI 组织与实现参考",
           "doc_key": "interface_web_workspace",
           "path": "docs/design/web-operator-workspace.md",
           "priority": "critical",
-          "rationale": "定义 Web 子文档的整体范围与定位"
+          "rationale": "明确 React 只统一 UI 能力，并给出工程目录、构建托管、路由映射、API client、状态模型、组件分层、迁移顺序与验收清单"
         },
         {
           "sid": "interface.web_workspace.framework_choice",
@@ -1292,12 +1292,12 @@
           "rationale": "确认 Web 端采用 FastAPI 同仓托管，并允许 React + TypeScript 作为 UI 组织方式"
         },
         {
-          "sid": "interface.web_workspace.react_ui_boundary",
-          "title": "React UI 组织约束",
+          "sid": "interface.web_workspace.overview",
+          "title": "Web 主工作台总览",
           "doc_key": "interface_web_workspace",
           "path": "docs/design/web-operator-workspace.md",
           "priority": "critical",
-          "rationale": "明确 React 只统一 UI 能力，不复制 FSM、EventLog、PendingAction、Decision 或 Workflow 语义"
+          "rationale": "定义 Web 子文档的整体范围与定位"
         },
         {
           "sid": "interface.web_workspace.design_principles",

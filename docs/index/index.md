@@ -11,7 +11,7 @@
 
 ## 索引总览
 
-**版本**: 1.6
+**版本**: 1.7
 **生成日期**: 2026-04-27
 **总规范数**: 204
 **文档数**: 20
@@ -270,7 +270,7 @@
 | `interface.rollout.milestones` | 演进路线 | Section | interface, rollout, milestones |
 | `interface.web_workspace.overview` | Web 主工作台总览 | Section | interface, web, workspace, overview |
 | `interface.web_workspace.framework_choice` | Web 框架选择与边界 | Section | interface, web, framework, fastapi, react, typescript |
-| `interface.web_workspace.react_ui_boundary` | React UI 组织约束 | Block | interface, web, react, typescript, ui_boundary |
+| `interface.web_workspace.react_ui_boundary` | React UI 组织与实现参考 | Block | interface, web, react, typescript, ui_boundary |
 | `interface.web_workspace.design_principles` | Web 设计原则 | Section | interface, web, design, principles |
 | `interface.web_workspace.primary_layout` | Web 顶层布局 | Section | interface, web, layout, workspace |
 | `interface.web_workspace.page_topology` | Web 页面拓扑 | Block | interface, web, pages, topology |
@@ -482,6 +482,7 @@ jq ".specs[] | select(.tags | contains(["experiment"]))" index.json
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.7 | 2026-04-27 | 扩展 React UI 组织参考，补充工程目录、构建托管、路由映射、API client、状态模型、组件分层、页面数据流、样式收敛、迁移顺序与验收清单（总计 204） |
 | 1.6 | 2026-04-27 | 明确 Web 可采用 FastAPI 托管的 React + TypeScript 静态前端；新增 React UI 组织约束 SID，并强调前端不得复制 FSM、合成 EventLog 或绕过 Decision API（总计 204） |
 | 1.5 | 2026-04-05 | 新增 web-operator-workspace.md 与 cli-operator-workflow.md；细化 Web 主工作台、结构可视化、模型调用工作台与 CLI 无头工作流，并新增 web_workspace / cli_workflow topics（总计 203） |
 | 1.4 | 2026-03-29 | 新增 interaction-entry-surfaces.md，纳入 interface 域与 interaction topic，并再生索引统计（总计 173） |

@@ -1,5 +1,5 @@
 {
-  "version": "1.6",
+  "version": "1.7",
   "generated_at": "2026-04-27",
   "description": "Machine-readable specification index for thesis-project design documents",
   "total_specs": 204,
@@ -3854,7 +3854,7 @@
     },
     {
       "sid": "interface.web_workspace.react_ui_boundary",
-      "title": "React UI 组织约束",
+      "title": "React UI 组织与实现参考",
       "doc_key": "interface_web_workspace",
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
@@ -3884,7 +3884,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 41,
+        "line": 241,
         "marker": "<!-- SID:interface.web_workspace.design_principles -->"
       },
       "level": "Section",
@@ -3907,7 +3907,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 52,
+        "line": 252,
         "marker": "<!-- SID:interface.web_workspace.primary_layout -->"
       },
       "level": "Section",
@@ -3929,7 +3929,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 63,
+        "line": 263,
         "marker": "<!-- SID:interface.web_workspace.page_topology -->"
       },
       "level": "Block",
@@ -3952,7 +3952,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 76,
+        "line": 276,
         "marker": "<!-- SID:interface.web_workspace.dashboard -->"
       },
       "level": "Block",
@@ -3973,7 +3973,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 88,
+        "line": 288,
         "marker": "<!-- SID:interface.web_workspace.task_detail -->"
       },
       "level": "Block",
@@ -3995,7 +3995,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 101,
+        "line": 301,
         "marker": "<!-- SID:interface.web_workspace.pending_review -->"
       },
       "level": "Block",
@@ -4018,7 +4018,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 114,
+        "line": 314,
         "marker": "<!-- SID:interface.web_workspace.model_invocation_panel -->"
       },
       "level": "Block",
@@ -4041,7 +4041,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 129,
+        "line": 329,
         "marker": "<!-- SID:interface.web_workspace.structure_visualization -->"
       },
       "level": "Block",
@@ -4064,7 +4064,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 142,
+        "line": 342,
         "marker": "<!-- SID:interface.web_workspace.structure_metric_linking -->"
       },
       "level": "Block",
@@ -4087,7 +4087,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 153,
+        "line": 353,
         "marker": "<!-- SID:interface.web_workspace.report_explorer -->"
       },
       "level": "Block",
@@ -4110,7 +4110,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 166,
+        "line": 366,
         "marker": "<!-- SID:interface.web_workspace.interaction_patterns -->"
       },
       "level": "Section",
@@ -4133,7 +4133,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 180,
+        "line": 380,
         "marker": "<!-- SID:interface.web_workspace.state_sync -->"
       },
       "level": "Block",
@@ -4156,7 +4156,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 191,
+        "line": 391,
         "marker": "<!-- SID:interface.web_workspace.visualization_fallback -->"
       },
       "level": "Block",
@@ -4179,7 +4179,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 201,
+        "line": 401,
         "marker": "<!-- SID:interface.web_workspace.milestones -->"
       },
       "level": "Section",
