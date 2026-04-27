@@ -18,6 +18,7 @@ from src.models.contracts import (
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
+    TOOL_READINESS_METADATA_KEY,
 )
 from src.models.db import TaskRecord
 from src.models.validation import (
@@ -36,7 +37,10 @@ from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
 from src.storage.log_store import read_timeline_events
 from src.workflow.context import WorkflowContext
-from src.infra.tool_readiness import build_capability_readiness_matrix
+from src.infra.tool_readiness import (
+    build_capability_readiness_matrix,
+    build_tool_readiness_snapshot,
+)
 
 API_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = API_DIR / "templates"
@@ -147,6 +151,10 @@ class PendingActionToolDisplay(BaseModel):
     available: bool = Field(..., description="工具信息是否可用于决策展示")
     can_fallback: bool = Field(..., description="是否可回退到备选工具")
     availability_hint: str = Field(..., description="工具可用性提示")
+    readiness_status: Optional[str] = None
+    degraded_reasons: list[str] = Field(default_factory=list)
+    suggested_recovery: Optional[str] = None
+    readiness_snapshot: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PendingActionCandidateDisplay(BaseModel):
@@ -175,14 +183,37 @@ class PendingActionDetail(BaseModel):
     candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
 
 
+class ToolReadinessEntry(BaseModel):
+    tool_id: str
+    status: str
+    reason: str = ""
+    error_category: Optional[str] = None
+    capability_ids: list[str] = Field(default_factory=list)
+    cost_prior: Optional[float] = None
+    risk_prior: Optional[float] = None
+    latency_prior: Optional[float] = None
+    suggested_recovery: Optional[str] = None
+    last_checked_at: str
+    checked_at: Optional[str] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
+    metadata_profile: Optional[Dict[str, Any]] = None
+
+
 class CapabilityReadinessEntry(BaseModel):
     capability_id: str
     status: str
+    available_tools: list[ToolReadinessEntry] = Field(default_factory=list)
+    blocked_tools: list[ToolReadinessEntry] = Field(default_factory=list)
+    degraded_reasons: list[str] = Field(default_factory=list)
+    last_checked_at: str
     primary_tool_id: Optional[str] = None
     fallback_tool_ids: list[str] = Field(default_factory=list)
+    cost_prior: Optional[float] = None
+    risk_prior: Optional[float] = None
+    suggested_recovery: Optional[str] = None
     reason: str
-    checked_at: str
-    tools: list[Dict[str, Any]] = Field(default_factory=list)
+    checked_at: Optional[str] = None
+    tools: list[ToolReadinessEntry] = Field(default_factory=list)
 
 
 def _render_ui_html(task_id: Optional[str]) -> str:
@@ -290,6 +321,26 @@ def _build_tool_display(
     if can_fallback:
         availability_hint = f"{availability_hint} Fallback path is available."
 
+    readiness_snapshot: dict[str, Any] = {}
+    readiness_status: str | None = None
+    degraded_reasons: list[str] = []
+    suggested_recovery: str | None = None
+    if tool_id:
+        raw_snapshot = metadata.get(TOOL_READINESS_METADATA_KEY)
+        if isinstance(raw_snapshot, dict) and raw_snapshot.get("tool_id") == tool_id:
+            readiness_snapshot = dict(raw_snapshot)
+        else:
+            readiness_snapshot = build_tool_readiness_snapshot(tool_id)
+        readiness_status = _normalize_text(readiness_snapshot.get("status"))
+        reason = _normalize_text(readiness_snapshot.get("reason"))
+        if readiness_status and readiness_status != "ready" and reason:
+            degraded_reasons.append(reason)
+        suggested_recovery = _normalize_text(readiness_snapshot.get("suggested_recovery"))
+        if readiness_status:
+            available = available and readiness_status == "ready"
+            if readiness_status != "ready" and reason:
+                availability_hint = f"{availability_hint} Readiness: {reason}"
+
     return PendingActionToolDisplay(
         tool_id=tool_id,
         capability_id=capability_id,
@@ -299,6 +350,10 @@ def _build_tool_display(
         available=available,
         can_fallback=can_fallback,
         availability_hint=availability_hint,
+        readiness_status=readiness_status,
+        degraded_reasons=degraded_reasons,
+        suggested_recovery=suggested_recovery,
+        readiness_snapshot=readiness_snapshot,
     )
 
 
@@ -317,6 +372,8 @@ def _build_candidate_reason(
     reason_parts.append(f"risk={candidate.risk_level or 'unknown'}")
     reason_parts.append(f"cost={candidate.cost_estimate or 'unknown'}")
     reason_parts.append(f"tool_source={tool_display.source}")
+    if tool_display.readiness_status:
+        reason_parts.append(f"readiness={tool_display.readiness_status}")
     if tool_display.can_fallback:
         reason_parts.append("supports_fallback")
     return "; ".join(reason_parts)

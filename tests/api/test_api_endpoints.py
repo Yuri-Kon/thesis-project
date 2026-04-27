@@ -100,6 +100,10 @@ class TestAPIEndpoints:
             item for item in data if item["capability_id"] == "objective_scoring"
         )
         assert objective_entry["primary_tool_id"] == "objective_ranker"
+        assert "available_tools" in objective_entry
+        assert "blocked_tools" in objective_entry
+        assert "degraded_reasons" in objective_entry
+        assert "suggested_recovery" in objective_entry
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
@@ -492,6 +496,8 @@ class TestAPIEndpoints:
         assert dashboard_response.status_code == 200
         assert "HITL PendingAction Dashboard" in dashboard_response.text
         assert "Candidate Comparison" in dashboard_response.text
+        assert "Model Invocation" in dashboard_response.text
+        assert "model-invocation-body" in dashboard_response.text
 
         task_view_response = await client.get("/ui/tasks/task_demo_001")
         assert task_view_response.status_code == 200
@@ -503,6 +509,7 @@ class TestAPIEndpoints:
         assert "adapter_mode" in static_response.text
         assert "degraded" in static_response.text
         assert "availability_hint" in static_response.text
+        assert "renderModelInvocation" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200

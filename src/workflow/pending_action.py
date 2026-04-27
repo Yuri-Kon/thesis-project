@@ -11,6 +11,7 @@ from uuid import uuid4
 from src.infra.event_log_factory import make_waiting_enter
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
     PendingAction,
@@ -22,6 +23,7 @@ from src.models.contracts import (
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
@@ -235,6 +237,16 @@ def enter_waiting_state(
             "evidence_source": (
                 selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
                 if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
+                else None
+            ),
+            "tool_readiness": (
+                selected_meta.get(TOOL_READINESS_METADATA_KEY)
+                if isinstance(selected_meta.get(TOOL_READINESS_METADATA_KEY), dict)
+                else None
+            ),
+            "capability_readiness": (
+                selected_meta.get(CAPABILITY_READINESS_METADATA_KEY)
+                if isinstance(selected_meta.get(CAPABILITY_READINESS_METADATA_KEY), dict)
                 else None
             ),
             "runtime_policy": runtime_trace["runtime_policy"],

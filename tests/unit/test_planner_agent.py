@@ -8,6 +8,7 @@ from src.llm.base_llm_provider import ProviderConfig
 from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
     PatchRequest,
@@ -24,6 +25,7 @@ from src.models.contracts import (
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     StepResult,
     now_iso,
@@ -1511,6 +1513,93 @@ class TestPlannerAgent:
             assert 0.0 <= score["overall"] <= 1.0
 
         assert score_3["objective"] >= score_1["objective"]
+
+    def test_score_candidate_payload_uses_capability_readiness_matrix(
+        self,
+        monkeypatch,
+    ):
+        """unavailable capability 应让 Planner 不再隐式信任该工具链。"""
+        registry = [
+            ToolSpec(
+                id="seqgen_local",
+                capabilities=("sequence_generation",),
+                inputs=("goal",),
+                outputs=("sequence",),
+                adapter_mode="local",
+                priority="P0",
+            )
+        ]
+        planner = PlannerAgent(tool_registry=registry)
+        monkeypatch.setattr(
+            planner_module,
+            "build_capability_readiness_snapshot",
+            lambda capability_id: {
+                "capability_id": capability_id,
+                "status": "unavailable",
+                "reason": "adapter missing",
+                "degraded_reasons": ["seqgen_local: adapter_missing"],
+                "tools": [
+                    {
+                        "tool_id": "seqgen_local",
+                        "status": "unavailable",
+                        "reason": "adapter not registered",
+                    }
+                ],
+            },
+        )
+
+        score = planner.score_candidate_payload(
+            Plan(
+                task_id="capability_readiness_score",
+                steps=[
+                    PlanStep(
+                        id="S1",
+                        tool="seqgen_local",
+                        inputs={"goal": "design"},
+                        metadata={},
+                    )
+                ],
+                constraints={},
+                metadata={},
+            )
+        )
+
+        assert score["tool_readiness"] == pytest.approx(0.0)
+
+    def test_candidate_readiness_metadata_uses_capability_matrix(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            planner_module,
+            "build_capability_readiness_snapshot",
+            lambda capability_id: {
+                "capability_id": capability_id,
+                "status": "degraded",
+                "reason": "primary tool unavailable; fallback tool is ready",
+                "degraded_reasons": ["seqgen_local: adapter_missing"],
+                "suggested_recovery": "Use fallback tool.",
+                "last_checked_at": "2026-04-27T00:00:00+00:00",
+                "tools": [
+                    {
+                        "tool_id": "seqgen_local",
+                        "status": "unavailable",
+                        "reason": "adapter not registered",
+                    }
+                ],
+            },
+        )
+
+        metadata = planner_module._candidate_readiness_metadata(
+            tool_id="seqgen_local",
+            capability_id="sequence_generation",
+        )
+
+        assert metadata[TOOL_READINESS_METADATA_KEY]["tool_id"] == "seqgen_local"
+        capability = metadata[CAPABILITY_READINESS_METADATA_KEY]
+        assert capability["source"] == "capability_readiness_matrix"
+        assert capability["selected_tool_id"] == "seqgen_local"
+        assert capability["degraded_reasons"] == ["seqgen_local: adapter_missing"]
 
     def test_enrich_task_from_goal_infers_goal_type_prompt_and_length_range(self):
         task = ProteinDesignTask(
