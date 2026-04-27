@@ -117,9 +117,20 @@ def test_pending_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:
                     "task_id": "task_cli",
                     "action_type": "patch_confirm",
                     "default_suggestion": "cand_openfold_rest",
+                    "workflow_action_reason": "patch lowers failure risk",
+                    "runtime_state_summary": {"p_success": 0.58},
+                    "evidence_refs": [{"kind": "event", "ref": "WAITING_ENTER#1"}],
                     "candidates": [
                         {
                             "candidate_id": "cand_openfold_rest",
+                            "is_default": True,
+                            "summary": "Use OpenFold3 REST patch",
+                            "risk_level": "low",
+                            "cost_estimate": "medium",
+                            "expected_effect": "recover failed structure step",
+                            "affected_steps": ["S2"],
+                            "recovery_semantics": "patch_local",
+                            "score_breakdown": {"overall": 0.82},
                             "tool": {
                                 "tool_id": "openfold",
                                 "adapter_id": "openfold",
@@ -156,6 +167,16 @@ def test_pending_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:
     assert "remote_job_id=of3_job_1" in output
     assert "failure_code=REMOTE_JOB_FAILED" in output
     assert "recovery=Inspect OpenFold3 REST logs." in output
+    assert "recommendation: patch lowers failure risk" in output
+    assert "runtime_state_summary:" in output
+    assert "evidence_refs: 1" in output
+    assert "summary=Use OpenFold3 REST patch" in output
+    assert "risk=low" in output
+    assert "cost=medium" in output
+    assert "expected_effect=recover failed structure step" in output
+    assert "affected_steps=S2" in output
+    assert "recovery_semantics=patch_local" in output
+    assert "candidate_score: cand_openfold_rest" in output
 
 
 def test_timeline_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:

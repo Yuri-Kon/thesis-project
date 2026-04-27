@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import type { DecisionChoice, PendingActionDetail } from "../api/types";
 
@@ -7,7 +7,19 @@ interface DecisionFormProps {
   onSubmitted: () => void;
 }
 
-const choices: DecisionChoice[] = ["accept", "reject", "modify", "cancel", "replan"];
+const actionLabels: Record<string, string> = {
+  accept: "Approve",
+  replan: "Edit / request replan",
+  continue: "Continue original",
+  cancel: "Reject / cancel",
+};
+
+function choicesForAction(actionType?: string): DecisionChoice[] {
+  if (actionType === "replan_confirm") {
+    return ["accept", "continue", "cancel"];
+  }
+  return ["accept", "replan", "cancel"];
+}
 
 export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
   const [choice, setChoice] = useState<DecisionChoice>("accept");
@@ -16,6 +28,13 @@ export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
   const [comment, setComment] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const availableChoices = choicesForAction(detail?.action_type);
+
+  useEffect(() => {
+    if (!availableChoices.includes(choice)) {
+      setChoice(availableChoices[0]);
+    }
+  }, [availableChoices, choice]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -52,7 +71,7 @@ export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
           <label>
             Choice
             <select value={choice} onChange={(event) => setChoice(event.target.value as DecisionChoice)}>
-              {choices.map((item) => <option key={item} value={item}>{item}</option>)}
+              {availableChoices.map((item) => <option key={item} value={item}>{actionLabels[item]} ({item})</option>)}
             </select>
           </label>
           <label>
@@ -73,6 +92,9 @@ export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
             <textarea value={comment} onChange={(event) => setComment(event.target.value)} />
           </label>
           <button type="submit" disabled={submitting}>{submitting ? "Submitting" : "Submit Decision"}</button>
+          <p className="muted">
+            UI labels map to the existing Decision contract; no browser-side state transition is applied.
+          </p>
           {message ? <p className="muted">{message}</p> : null}
         </form>
       ) : null}

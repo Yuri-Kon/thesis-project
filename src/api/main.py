@@ -13,12 +13,15 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.models.contracts import (
     ProteinDesignTask,
+    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
+    RUNTIME_STATE_SUMMARY_METADATA_KEY,
     TOOL_READINESS_METADATA_KEY,
+    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
 from src.models.db import TaskRecord
 from src.models.validation import (
@@ -244,8 +247,14 @@ class PendingActionCandidateDisplay(BaseModel):
     recommendation_reason: str
     risk_level: Optional[str] = None
     cost_estimate: Optional[str] = None
+    expected_effect: Optional[str] = None
+    affected_steps: list[str] = Field(default_factory=list)
+    recovery_semantics: Optional[str] = None
     overall_score: Optional[float] = None
     score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
+    workflow_action_reason: Optional[str] = None
+    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
     tool: PendingActionToolDisplay
 
 
@@ -258,6 +267,10 @@ class PendingActionDetail(BaseModel):
     default_suggestion: Optional[str] = None
     explanation: str
     recommendation_summary: str
+    runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
+    workflow_action_reason: Optional[str] = None
+    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
     candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
 
 
@@ -490,6 +503,141 @@ def _build_candidate_reason(
     return "; ".join(reason_parts)
 
 
+def _dict_or_empty(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _list_of_dicts(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+def _message_from_reason(value: Any) -> str | None:
+    if isinstance(value, dict):
+        message = _normalize_text(value.get("message"))
+        code = _normalize_text(value.get("code"))
+        return message or code
+    return _normalize_text(value)
+
+
+def _workflow_evidence_from_pending_action(
+    pending_action: PendingAction,
+) -> dict[str, Any]:
+    evidence = pending_action.metadata.get("workflow_action_evidence")
+    return _dict_or_empty(evidence)
+
+
+def _candidate_runtime_state_summary(
+    candidate: PendingActionCandidate,
+    pending_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    return (
+        _dict_or_empty(metadata.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
+        or _dict_or_empty(pending_evidence.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
+    )
+
+
+def _candidate_workflow_action_reason(
+    candidate: PendingActionCandidate,
+    pending_evidence: dict[str, Any],
+) -> str | None:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    return (
+        _message_from_reason(metadata.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
+        or _message_from_reason(pending_evidence.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
+        or _normalize_text(metadata.get("workflow_action_reason"))
+        or _normalize_text(metadata.get("rerank_reason"))
+    )
+
+
+def _candidate_evidence_refs(
+    candidate: PendingActionCandidate,
+    pending_evidence: dict[str, Any],
+) -> list[dict[str, Any]]:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    return (
+        _list_of_dicts(metadata.get("evidence_refs"))
+        or _list_of_dicts(pending_evidence.get("evidence_refs"))
+    )
+
+
+def _candidate_affected_steps(candidate: PendingActionCandidate) -> list[str]:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    explicit = _string_list(metadata.get("affected_steps")) or _string_list(
+        metadata.get("affected_step_ids")
+    )
+    if explicit:
+        return explicit
+
+    payload = candidate.payload
+    operations = getattr(payload, "operations", None)
+    if not isinstance(operations, list):
+        return []
+
+    steps: list[str] = []
+    for operation in operations:
+        step_id = getattr(operation, "step_id", None)
+        if isinstance(step_id, str) and step_id.strip():
+            steps.append(step_id)
+    return list(dict.fromkeys(steps))
+
+
+def _candidate_expected_effect(candidate: PendingActionCandidate) -> str | None:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    return (
+        _normalize_text(metadata.get("expected_effect"))
+        or _normalize_text(metadata.get("expected_effect_summary"))
+        or _normalize_text(metadata.get("recommendation_effect"))
+    )
+
+
+def _candidate_recovery_semantics(candidate: PendingActionCandidate) -> str | None:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    return (
+        _normalize_text(metadata.get("recovery_semantics"))
+        or _normalize_text(metadata.get("recovery_action"))
+        or _normalize_text(metadata.get("recovery_layer"))
+        or _normalize_text(metadata.get("workflow_action"))
+        or _normalize_text(metadata.get("terminal_policy"))
+    )
+
+
+def _pending_runtime_state_summary(
+    pending_action: PendingAction,
+    pending_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    waiting_summary = _dict_or_empty(
+        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    )
+    return (
+        _dict_or_empty(waiting_summary.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
+        or _dict_or_empty(pending_evidence.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
+    )
+
+
+def _pending_workflow_action_reason(
+    pending_action: PendingAction,
+    pending_evidence: dict[str, Any],
+) -> str | None:
+    waiting_summary = _dict_or_empty(
+        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    )
+    return (
+        _message_from_reason(waiting_summary.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
+        or _message_from_reason(pending_evidence.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
+        or _normalize_text(pending_action.metadata.get("workflow_action_reason"))
+        or _normalize_text(pending_action.explanation)
+    )
+
+
 def _build_pending_action_detail(
     record: TaskRecord, pending_action: PendingAction
 ) -> PendingActionDetail:
@@ -497,6 +645,7 @@ def _build_pending_action_detail(
         pending_action.default_suggestion or pending_action.default_recommendation
     )
     candidates: list[PendingActionCandidateDisplay] = []
+    pending_evidence = _workflow_evidence_from_pending_action(pending_action)
 
     for index, candidate in enumerate(pending_action.candidates, start=1):
         is_default = candidate.candidate_id == default_suggestion
@@ -524,8 +673,20 @@ def _build_pending_action_detail(
                 recommendation_reason=recommendation_reason,
                 risk_level=candidate.risk_level,
                 cost_estimate=candidate.cost_estimate,
+                expected_effect=_candidate_expected_effect(candidate),
+                affected_steps=_candidate_affected_steps(candidate),
+                recovery_semantics=_candidate_recovery_semantics(candidate),
                 overall_score=overall_score,
                 score_breakdown=score_breakdown,
+                runtime_state_summary=_candidate_runtime_state_summary(
+                    candidate,
+                    pending_evidence,
+                ),
+                workflow_action_reason=_candidate_workflow_action_reason(
+                    candidate,
+                    pending_evidence,
+                ),
+                evidence_refs=_candidate_evidence_refs(candidate, pending_evidence),
                 tool=tool_display,
             )
         )
@@ -552,6 +713,21 @@ def _build_pending_action_detail(
         default_suggestion=default_suggestion,
         explanation=pending_action.explanation,
         recommendation_summary=recommendation_summary,
+        runtime_state_summary=_pending_runtime_state_summary(
+            pending_action,
+            pending_evidence,
+        ),
+        workflow_action_reason=_pending_workflow_action_reason(
+            pending_action,
+            pending_evidence,
+        ),
+        evidence_refs=_list_of_dicts(pending_evidence.get("evidence_refs")),
+        score_breakdown=(
+            next(
+                (item.score_breakdown for item in candidates if item.is_default),
+                candidates[0].score_breakdown if candidates else {},
+            )
+        ),
         candidates=candidates,
     )
 

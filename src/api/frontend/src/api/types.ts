@@ -13,7 +13,7 @@ export type ExternalStatus =
 
 export type InternalStatus = ExternalStatus | "WAITING_PATCH" | "PATCHING" | "WAITING_REPLAN" | "REPLANNING";
 
-export type DecisionChoice = "accept" | "reject" | "modify" | "cancel" | "replan";
+export type DecisionChoice = "accept" | "replan" | "continue" | "cancel";
 
 export type PendingActionStatus = "pending" | "decided" | "expired" | "cancelled";
 
@@ -73,6 +73,10 @@ export interface PendingActionDetail {
   default_suggestion?: string | null;
   explanation: string;
   recommendation_summary: string;
+  runtime_state_summary: Record<string, unknown>;
+  workflow_action_reason?: string | null;
+  evidence_refs: Record<string, unknown>[];
+  score_breakdown: Record<string, number>;
   candidates: PendingActionCandidateDisplay[];
 }
 
@@ -85,8 +89,14 @@ export interface PendingActionCandidateDisplay {
   recommendation_reason: string;
   risk_level?: string | null;
   cost_estimate?: string | null;
+  expected_effect?: string | null;
+  affected_steps: string[];
+  recovery_semantics?: string | null;
   overall_score?: number | null;
   score_breakdown: Record<string, number>;
+  runtime_state_summary: Record<string, unknown>;
+  workflow_action_reason?: string | null;
+  evidence_refs: Record<string, unknown>[];
   tool: PendingActionToolDisplay;
 }
 
