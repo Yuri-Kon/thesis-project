@@ -12,6 +12,12 @@ export function CandidateComparison({ detail }: CandidateComparisonProps) {
         <span className="counter">{detail?.candidates.length ?? 0}</span>
       </div>
       {detail ? <p className="muted">{detail.recommendation_summary}</p> : null}
+      {detail?.workflow_action_reason ? (
+        <div className="reason-strip">
+          <strong>Recommendation</strong>
+          <span>{detail.workflow_action_reason}</span>
+        </div>
+      ) : null}
       <div className="candidate-grid">
         {!detail ? <p className="muted">No pending action selected.</p> : null}
         {detail?.candidates.map((candidate) => (
@@ -26,8 +32,16 @@ export function CandidateComparison({ detail }: CandidateComparisonProps) {
               <dd>{candidate.risk_level ?? "unknown"}</dd>
               <dt>Cost</dt>
               <dd>{candidate.cost_estimate ?? "unknown"}</dd>
+              <dt>Effect</dt>
+              <dd>{candidate.expected_effect ?? "not provided"}</dd>
+              <dt>Affected steps</dt>
+              <dd>{candidate.affected_steps.length ? candidate.affected_steps.join(", ") : "none"}</dd>
+              <dt>Recovery</dt>
+              <dd>{candidate.recovery_semantics ?? "standard decision flow"}</dd>
               <dt>Tool</dt>
               <dd>{candidate.tool.tool_id ?? "unknown"}</dd>
+              <dt>Evidence</dt>
+              <dd>{candidate.evidence_refs.length ? `${candidate.evidence_refs.length} refs` : candidate.workflow_action_reason ?? "not provided"}</dd>
               <dt>Reason</dt>
               <dd>{candidate.recommendation_reason}</dd>
             </dl>

@@ -386,6 +386,12 @@ def _print_pending(payload: dict[str, Any]) -> None:
     print(f"task_id: {pending.get('task_id')}")
     print(f"action_type: {pending.get('action_type')}")
     print(f"default_suggestion: {pending.get('default_suggestion') or '-'}")
+    print(f"recommendation: {pending.get('workflow_action_reason') or pending.get('recommendation_summary') or '-'}")
+    runtime_state = pending.get("runtime_state_summary")
+    if isinstance(runtime_state, dict) and runtime_state:
+        print(f"runtime_state_summary: {json.dumps(runtime_state, ensure_ascii=False, sort_keys=True)}")
+    evidence_refs = pending.get("evidence_refs") if isinstance(pending.get("evidence_refs"), list) else []
+    print(f"evidence_refs: {len(evidence_refs)}")
     for candidate in pending.get("candidates") or []:
         if not isinstance(candidate, dict):
             continue
@@ -393,6 +399,13 @@ def _print_pending(payload: dict[str, Any]) -> None:
         print(
             "candidate: "
             f"{candidate.get('candidate_id')} "
+            f"default={candidate.get('is_default') or False} "
+            f"summary={candidate.get('summary') or '-'} "
+            f"risk={candidate.get('risk_level') or '-'} "
+            f"cost={candidate.get('cost_estimate') or '-'} "
+            f"expected_effect={candidate.get('expected_effect') or '-'} "
+            f"affected_steps={','.join(candidate.get('affected_steps') or []) or '-'} "
+            f"recovery_semantics={candidate.get('recovery_semantics') or '-'} "
             f"readiness={tool.get('readiness_status') or '-'} "
             f"tool={tool.get('tool_id') or '-'} "
             f"adapter={tool.get('adapter_id') or '-'} "
@@ -402,6 +415,13 @@ def _print_pending(payload: dict[str, Any]) -> None:
             f"failure_code={tool.get('failure_code') or '-'} "
             f"recovery={tool.get('recovery_hint') or tool.get('suggested_recovery') or '-'}"
         )
+        score_breakdown = candidate.get("score_breakdown")
+        if isinstance(score_breakdown, dict) and score_breakdown:
+            print(
+                "candidate_score: "
+                f"{candidate.get('candidate_id')} "
+                f"{json.dumps(score_breakdown, ensure_ascii=False, sort_keys=True)}"
+            )
     _print_readiness_summary(payload["readiness_summary"])
 
 

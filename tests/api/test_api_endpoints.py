@@ -927,6 +927,137 @@ class TestAPIEndpoints:
         assert "Tool metadata missing" in candidate["tool"]["availability_hint"]
         assert "tool_source=unknown" in candidate["recommendation_reason"]
 
+    @pytest.mark.parametrize(
+        ("action_type", "external_status", "internal_status"),
+        [
+            (
+                PendingActionType.PLAN_CONFIRM,
+                ExternalStatus.WAITING_PLAN_CONFIRM,
+                InternalStatus.WAITING_PLAN_CONFIRM,
+            ),
+            (
+                PendingActionType.PATCH_CONFIRM,
+                ExternalStatus.WAITING_PATCH_CONFIRM,
+                InternalStatus.WAITING_PATCH,
+            ),
+            (
+                PendingActionType.REPLAN_CONFIRM,
+                ExternalStatus.WAITING_REPLAN_CONFIRM,
+                InternalStatus.WAITING_REPLAN,
+            ),
+        ],
+    )
+    async def test_pending_action_detail_exposes_runtime_decision_context(
+        self,
+        client: httpx.AsyncClient,
+        action_type: PendingActionType,
+        external_status: ExternalStatus,
+        internal_status: InternalStatus,
+    ):
+        """Pending Review API 应暴露推荐理由、证据、运行时摘要和恢复语义。"""
+        task_id = f"task_runtime_context_{action_type.value}"
+        pending_action_id = f"pa_runtime_context_{action_type.value}"
+        step = PlanStep(id="S1", tool="esmfold", inputs={}, metadata={})
+        if action_type == PendingActionType.PATCH_CONFIRM:
+            payload = PlanPatch(
+                task_id=task_id,
+                operations=[
+                    PlanPatchOp(op="replace_step", target="S1", step=step),
+                ],
+                metadata={},
+            )
+        else:
+            payload = Plan(task_id=task_id, steps=[step], constraints={}, metadata={})
+        candidate_runtime_state = {
+            "p_success": 0.63,
+            "p_structural_failure": 0.21,
+            "recovery_margin": 0.34,
+            "expected_remaining_cost": 1.4,
+            "evidence_sufficiency": 0.72,
+        }
+        pending_runtime_state = {
+            "p_success": 0.61,
+            "p_structural_failure": 0.24,
+            "recovery_margin": 0.3,
+            "expected_remaining_cost": 1.5,
+            "evidence_sufficiency": 0.68,
+        }
+
+        pending_action = PendingAction(
+            pending_action_id=pending_action_id,
+            task_id=task_id,
+            action_type=action_type,
+            status=PendingActionStatus.PENDING,
+            candidates=[
+                PendingActionCandidate(
+                    candidate_id="cand_recommended",
+                    payload=payload,
+                    summary="recommended candidate",
+                    explanation="best runtime tradeoff",
+                    risk_level="low",
+                    cost_estimate="medium",
+                    score_breakdown={"overall": 0.91, "risk": 0.82},
+                    metadata={
+                        "expected_effect": "raise success probability",
+                        "affected_steps": ["S1"],
+                        "recovery_semantics": "preserve completed prefix",
+                        "runtime_state_summary": candidate_runtime_state,
+                        "default_recommendation_reason": {
+                            "code": "runtime_ranked_first",
+                            "message": "highest runtime-adjusted score",
+                        },
+                        "evidence_refs": [
+                            {"kind": "event", "ref": "WAITING_ENTER#1"}
+                        ],
+                    },
+                )
+            ],
+            default_recommendation="cand_recommended",
+            explanation="runtime gate requires confirmation",
+            metadata={
+                "workflow_action": "patch_local",
+                "workflow_action_evidence": {
+                    "runtime_state_summary": pending_runtime_state,
+                    "default_recommendation_reason": {
+                        "code": "runtime_gate",
+                        "message": "runtime gate selected patch_local",
+                    },
+                    "evidence_refs": [
+                        {"kind": "runtime_state", "ref": "snapshot.latest"}
+                    ],
+                },
+            },
+        )
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=external_status,
+            internal_status=internal_status,
+            goal="runtime context endpoint test",
+            constraints={},
+            metadata={},
+            plan=None,
+            design_result=None,
+            pending_action=pending_action,
+        )
+
+        response = await client.get(f"/pending-actions/{pending_action_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["default_suggestion"] == "cand_recommended"
+        assert data["runtime_state_summary"]["p_success"] == pytest.approx(0.61)
+        assert data["workflow_action_reason"] == "runtime gate selected patch_local"
+        assert data["evidence_refs"][0]["ref"] == "snapshot.latest"
+        assert data["score_breakdown"]["overall"] == pytest.approx(0.91)
+
+        candidate = data["candidates"][0]
+        assert candidate["expected_effect"] == "raise success probability"
+        assert candidate["affected_steps"] == ["S1"]
+        assert candidate["recovery_semantics"] == "preserve completed prefix"
+        assert candidate["runtime_state_summary"]["p_success"] == pytest.approx(0.63)
+        assert candidate["workflow_action_reason"] == "highest runtime-adjusted score"
+        assert candidate["evidence_refs"][0]["ref"] == "WAITING_ENTER#1"
+
     async def test_ui_routes_and_static_assets_available(
         self, client: httpx.AsyncClient
     ):
