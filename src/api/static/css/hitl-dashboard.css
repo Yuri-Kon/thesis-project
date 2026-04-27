@@ -225,6 +225,29 @@ button:disabled {
   padding: 10px;
 }
 
+.objective-report {
+  margin-top: 12px;
+}
+
+.objective-report table {
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  width: 100%;
+}
+
+.objective-report th,
+.objective-report td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 4px;
+  text-align: left;
+}
+
+.objective-report .warning-list {
+  color: #8a4b00;
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
 @media (max-width: 760px) {
   .pending-table {
     display: block;

@@ -106,6 +106,16 @@ def update_runtime_state(
             if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
                 p_success += 0.04
                 p_structural_failure -= 0.05
+            objective_signal = _extract_objective_signal(step_result)
+            if objective_signal:
+                observation_summary.update(objective_signal)
+                progress = _as_float(objective_signal.get("objective_progress"))
+                gap = _as_float(objective_signal.get("objective_gap"))
+                if progress is not None:
+                    p_success += 0.04 * _clamp_unit_interval(progress)
+                    evidence_sufficiency += 0.03 * _clamp_unit_interval(progress)
+                if gap is not None:
+                    recovery_margin += 0.02 * _clamp_unit_interval(gap)
         elif step_result.status == "failed":
             p_success -= 0.18
             p_structural_failure += 0.14
@@ -490,6 +500,35 @@ def _is_structural_step(*, stage_id: str | None, tool_id: str) -> bool:
     )
 
 
+def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
+    metrics = step_result.metrics if isinstance(step_result.metrics, dict) else {}
+    outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+    capability_id = _as_non_empty_text(outputs.get("capability_id"))
+    tool_key = step_result.tool.strip().lower()
+    if capability_id != "objective_scoring" and tool_key != "objective_ranker":
+        return {}
+
+    progress = _as_float(metrics.get("objective_progress"))
+    if progress is None:
+        progress = _as_float(outputs.get("objective_score"))
+    gap = _as_float(metrics.get("objective_gap"))
+    top_candidate_id = _as_non_empty_text(metrics.get("top_candidate_id"))
+    if top_candidate_id is None:
+        top_candidate_id = _as_non_empty_text(outputs.get("default_recommendation"))
+
+    payload: dict[str, Any] = {
+        "objective_progress": (
+            _round_metric(_clamp_unit_interval(progress))
+            if progress is not None
+            else None
+        ),
+        "objective_gap": _round_metric(max(gap, 0.0)) if gap is not None else None,
+        "objective_top_candidate_id": top_candidate_id,
+        "objective_warning_count": metrics.get("warning_count"),
+    }
+    return _drop_none_values(payload)
+
+
 def _clamp_unit_interval(value: float) -> float:
     if value < 0.0:
         return 0.0
@@ -511,6 +550,19 @@ def _as_non_empty_text(value: Any) -> str | None:
 
 def _as_bool(value: Any) -> bool:
     return bool(value)
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _drop_none_values(payload: Mapping[str, Any]) -> dict[str, Any]:

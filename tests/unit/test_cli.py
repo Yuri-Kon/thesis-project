@@ -62,3 +62,44 @@ def test_task_show_json_includes_readiness_summary(monkeypatch, capsys) -> None:
     assert '"readiness_summary"' in output
     assert '"capability_id": "structure_prediction"' in output
     assert '"suggested_recovery": "Start remote services."' in output
+
+
+def test_report_show_json_exposes_objective_scoring(monkeypatch, capsys) -> None:
+    """design report show --json 应输出 objective scoring 报告结构。"""
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/tasks/task_report/report"):
+            return _FakeResponse(
+                {
+                    "task_id": "task_report",
+                    "report_path": "output/reports/task_report.json",
+                    "scores": {"objective_score": 0.77},
+                    "objective_scoring": {
+                        "top_k": [
+                            {"candidate_id": "cand_a", "objective_score": 0.77}
+                        ],
+                        "rank_reason": "cand_a ranks by objective_score=0.770",
+                    },
+                    "metadata": {},
+                }
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "report",
+            "show",
+            "task_report",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert '"objective_score": 0.77' in output
+    assert '"rank_reason": "cand_a ranks by objective_score=0.770"' in output

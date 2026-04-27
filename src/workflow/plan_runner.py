@@ -1053,6 +1053,15 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "reject_code_counts": reject_counts if isinstance(reject_counts, dict) else {},
             "failed_samples": failed_samples,
         }
+    if outputs.get("capability_id") == "objective_scoring":
+        data["objective_scoring"] = {
+            "objective_score": outputs.get("objective_score"),
+            "objective_gap": step_result.metrics.get("objective_gap"),
+            "objective_progress": step_result.metrics.get("objective_progress"),
+            "default_recommendation": outputs.get("default_recommendation"),
+            "rank_reason": outputs.get("rank_reason"),
+            "warning_count": step_result.metrics.get("warning_count"),
+        }
     return data
 
 

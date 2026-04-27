@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "pending" and args.pending_command == "show":
             return _pending_show(base_url, args.pending_action_id, emit_json=args.json)
+        if args.command == "report" and args.report_command == "show":
+            return _report_show(base_url, args.task_id, emit_json=args.json)
     except httpx.HTTPError as exc:
         print(f"API request failed: {exc}", file=sys.stderr)
         return 2
@@ -62,6 +64,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pending_show = pending_subparsers.add_parser("show")
     pending_show.add_argument("pending_action_id")
     pending_show.add_argument("--json", action="store_true")
+
+    report_parser = subparsers.add_parser("report")
+    report_subparsers = report_parser.add_subparsers(dest="report_command")
+    report_show = report_subparsers.add_parser("show")
+    report_show.add_argument("task_id")
+    report_show.add_argument("--json", action="store_true")
     return parser
 
 
@@ -105,6 +113,15 @@ def _pending_show(base_url: str, pending_action_id: str, *, emit_json: bool) -> 
         _print_json(payload)
     else:
         _print_pending(payload)
+    return 0
+
+
+def _report_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
+    report = _get_json(base_url, f"/tasks/{task_id}/report")
+    if emit_json:
+        _print_json({"report": report})
+    else:
+        _print_report(report)
     return 0
 
 
@@ -161,6 +178,33 @@ def _print_pending(payload: dict[str, Any]) -> None:
             f"recovery={tool.get('suggested_recovery') or '-'}"
         )
     _print_readiness_summary(payload["readiness_summary"])
+
+
+def _print_report(report: dict[str, Any] | list[dict[str, Any]]) -> None:
+    if not isinstance(report, dict):
+        print("report: unavailable")
+        return
+    print(f"task_id: {report.get('task_id')}")
+    print(f"report_path: {report.get('report_path') or '-'}")
+    scores = report.get("scores") if isinstance(report.get("scores"), dict) else {}
+    print(f"objective_score: {scores.get('objective_score', '-')}")
+    objective = (
+        report.get("objective_scoring")
+        if isinstance(report.get("objective_scoring"), dict)
+        else {}
+    )
+    print(f"rank_reason: {objective.get('rank_reason') or '-'}")
+    warnings = objective.get("warnings") if isinstance(objective.get("warnings"), list) else []
+    print(f"warnings: {len(warnings)}")
+    for row in objective.get("top_k") or []:
+        if not isinstance(row, dict):
+            continue
+        print(
+            "candidate: "
+            f"{row.get('candidate_id') or row.get('id')} "
+            f"rank={row.get('top_k_rank') or '-'} "
+            f"score={row.get('objective_score', '-')}"
+        )
 
 
 def _print_readiness_summary(items: list[dict[str, Any]]) -> None:
