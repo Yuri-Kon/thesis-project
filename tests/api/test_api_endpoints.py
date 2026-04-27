@@ -605,6 +605,50 @@ class TestAPIEndpoints:
         assert patch_response.status_code == 422
         assert "tools_allowed" not in INTAKE_STORE[intake_id].draft.fields
 
+    async def test_task_intake_can_be_read_and_requires_safety_ack(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """Task Builder 可读取 intake，并在 safety warn 时要求 acknowledgement。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [100, 140],
+                    "safety_level": "S2",
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+
+        get_response = await client.get(f"/task-intakes/{intake_id}")
+        assert get_response.status_code == 200
+        data = get_response.json()
+        assert data["safety_check"]["action"] == "warn"
+        assert data["safety_check"]["risk_flags"][0]["code"] == "SAFETY_INPUT_WARN"
+
+        blocked_confirm = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+        assert blocked_confirm.status_code == 422
+        assert "SAFETY_INPUT_WARN" in blocked_confirm.json()["detail"]
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={
+                "confirmed_by": "tester",
+                "acknowledged_warnings": ["SAFETY_INPUT_WARN"],
+            },
+        )
+        assert confirm_response.status_code == 200
+        assert confirm_response.json()["status"] == ExternalStatus.CREATED.value
+
     async def test_legacy_tasks_query_converges_to_intake(
         self,
         client: httpx.AsyncClient,
@@ -1205,6 +1249,24 @@ class TestAPIEndpoints:
         style_response = await client.get("/static/web/assets/style.css")
         assert style_response.status_code == 200
         assert "--surface" in style_response.text
+
+        builder_response = await client.get("/ui/task-builder")
+        assert builder_response.status_code == 200
+        assert "Task Builder" in builder_response.text
+        assert "protein-viewer" in builder_response.text
+        assert "task-builder.js" in builder_response.text
+
+        builder_js = await client.get("/static/js/task-builder.js")
+        assert builder_js.status_code == 200
+        assert "/task-intakes/schema" in builder_js.text
+        assert "renderProteinVisualization" in builder_js.text
+        assert "safety_check" in builder_js.text
+        assert "segmented-control" in builder_js.text
+        assert "artifact-control" in builder_js.text
+
+        builder_css = await client.get("/static/css/task-builder.css")
+        assert builder_css.status_code == 200
+        assert "protein-viewer" in builder_css.text
 
     async def test_get_task_events_timeline_mapping_and_order(
         self, client: httpx.AsyncClient

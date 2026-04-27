@@ -339,6 +339,13 @@ def _render_react_app_html(
     return raw_html.replace("__REACT_BOOTSTRAP__", bootstrap_payload)
 
 
+def _render_task_builder_html() -> str:
+    template_path = TEMPLATES_DIR / "task_builder.html"
+    if not template_path.exists():
+        raise HTTPException(status_code=500, detail="task builder template not found")
+    return template_path.read_text(encoding="utf-8")
+
+
 def _build_pending_action_summary(pending_action: PendingAction) -> str:
     if not pending_action.candidates:
         return pending_action.explanation
@@ -903,6 +910,11 @@ async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
     )
 
 
+@app.get("/ui/task-builder", response_class=HTMLResponse)
+async def get_task_builder_view() -> HTMLResponse:
+    return HTMLResponse(_render_task_builder_html())
+
+
 @app.get("/health")
 async def health() -> Dict[str, Any]:
     runtime = _ensure_runtime_initialized()
@@ -952,6 +964,13 @@ async def create_task_intake(req: TaskIntakeCreateRequest) -> TaskIntakeSession:
     _raise_if_task_intake_field_validation_failed(session)
     INTAKE_STORE[intake_id] = session
     return session
+
+
+@app.get("/task-intakes/{intake_id}", response_model=TaskIntakeSession)
+async def get_task_intake(intake_id: str) -> TaskIntakeSession:
+    """读取 Task Intake 会话，供 Web Task Builder 刷新。"""
+
+    return _get_intake_or_404(intake_id)
 
 
 @app.patch("/task-intakes/{intake_id}", response_model=TaskIntakeSession)
