@@ -188,6 +188,8 @@ Web 至少应稳定承载以下能力：
 - Event timeline 页面；
 - Report / visualization 打开入口。
 
+Web 的具体 UI 组织方式可以采用组件化前端框架，例如 React + TypeScript，但该框架只能服务于页面结构、组件复用、交互状态与渲染一致性，不改变 Web 作为 API 驱动交互壳的定位。
+
 ### Web 页面信息架构
 <!-- SID:interface.web.information_architecture -->
 
@@ -212,7 +214,8 @@ Web 至少应稳定承载以下能力：
 - 将 WAITING_* 视为执行暂停的人在环路状态，而不是前端本地状态；
 - 将 PendingAction 视为唯一待确认对象，将 Decision 视为唯一确认输入；
 - 在任务进入 WAITING_* 前，依赖已持久化的快照与事件日志；
-- 不得在前端或 CLI 中自行推断、跳过或合成状态转移。
+- 不得在前端或 CLI 中自行推断、跳过或合成状态转移；
+- 即使 Web 使用 React 等组件化框架，也不得在浏览器侧复制 FSM、合成 EventLog 或直接驱动 Workflow。
 
 ### CLI 后端形态兼容性
 <!-- SID:interface.cli.backend_compatibility -->

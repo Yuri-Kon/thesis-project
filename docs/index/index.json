@@ -1,8 +1,8 @@
 {
-  "version": "1.5",
-  "generated_at": "2026-04-05",
+  "version": "1.6",
+  "generated_at": "2026-04-27",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 203,
+  "total_specs": 204,
   "documents": [
     {
       "doc_key": "arch",
@@ -3681,7 +3681,9 @@
       "tags": [
         "interface",
         "web",
-        "capabilities"
+        "capabilities",
+        "react",
+        "ui_boundary"
       ],
       "depends_on": [
         "interface.web.primary_workspace"
@@ -3695,7 +3697,7 @@
       "path": "docs/design/interaction-entry-surfaces.md",
       "locator": {
         "type": "comment",
-        "line": 192,
+        "line": 194,
         "marker": "<!-- SID:interface.web.information_architecture -->"
       },
       "level": "Block",
@@ -3716,14 +3718,16 @@
       "path": "docs/design/interaction-entry-surfaces.md",
       "locator": {
         "type": "comment",
-        "line": 205,
+        "line": 207,
         "marker": "<!-- SID:interface.constraints.contract_alignment -->"
       },
       "level": "Section",
       "tags": [
         "interface",
         "constraints",
-        "contract_alignment"
+        "contract_alignment",
+        "react",
+        "eventlog"
       ],
       "depends_on": [
         "arch.contracts.pending_action",
@@ -3739,7 +3743,7 @@
       "path": "docs/design/interaction-entry-surfaces.md",
       "locator": {
         "type": "comment",
-        "line": 218,
+        "line": 221,
         "marker": "<!-- SID:interface.cli.backend_compatibility -->"
       },
       "level": "Block",
@@ -3762,7 +3766,7 @@
       "path": "docs/design/interaction-entry-surfaces.md",
       "locator": {
         "type": "comment",
-        "line": 227,
+        "line": 230,
         "marker": "<!-- SID:interface.integration.api_boundary -->"
       },
       "level": "Block",
@@ -3785,7 +3789,7 @@
       "path": "docs/design/interaction-entry-surfaces.md",
       "locator": {
         "type": "comment",
-        "line": 241,
+        "line": 244,
         "marker": "<!-- SID:interface.rollout.milestones -->"
       },
       "level": "Section",
@@ -3838,11 +3842,38 @@
         "interface",
         "web",
         "framework",
-        "fastapi"
+        "fastapi",
+        "react",
+        "typescript"
       ],
       "depends_on": [
         "impl.techstack.overview",
         "interface.web_workspace.overview"
+      ],
+      "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.react_ui_boundary",
+      "title": "React UI 组织约束",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 28,
+        "marker": "<!-- SID:interface.web_workspace.react_ui_boundary -->"
+      },
+      "level": "Block",
+      "tags": [
+        "interface",
+        "web",
+        "react",
+        "typescript",
+        "ui_boundary"
+      ],
+      "depends_on": [
+        "interface.web_workspace.framework_choice",
+        "interface.constraints.contract_alignment",
+        "interface.integration.api_boundary"
       ],
       "stability": "stable"
     },
@@ -3853,7 +3884,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 27,
+        "line": 41,
         "marker": "<!-- SID:interface.web_workspace.design_principles -->"
       },
       "level": "Section",
@@ -3876,7 +3907,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 38,
+        "line": 52,
         "marker": "<!-- SID:interface.web_workspace.primary_layout -->"
       },
       "level": "Section",
@@ -3898,7 +3929,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 49,
+        "line": 63,
         "marker": "<!-- SID:interface.web_workspace.page_topology -->"
       },
       "level": "Block",
@@ -3921,7 +3952,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 62,
+        "line": 76,
         "marker": "<!-- SID:interface.web_workspace.dashboard -->"
       },
       "level": "Block",
@@ -3942,7 +3973,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 74,
+        "line": 88,
         "marker": "<!-- SID:interface.web_workspace.task_detail -->"
       },
       "level": "Block",
@@ -3964,7 +3995,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 87,
+        "line": 101,
         "marker": "<!-- SID:interface.web_workspace.pending_review -->"
       },
       "level": "Block",
@@ -3987,7 +4018,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 100,
+        "line": 114,
         "marker": "<!-- SID:interface.web_workspace.model_invocation_panel -->"
       },
       "level": "Block",
@@ -4010,7 +4041,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 115,
+        "line": 129,
         "marker": "<!-- SID:interface.web_workspace.structure_visualization -->"
       },
       "level": "Block",
@@ -4033,7 +4064,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 128,
+        "line": 142,
         "marker": "<!-- SID:interface.web_workspace.structure_metric_linking -->"
       },
       "level": "Block",
@@ -4056,7 +4087,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 139,
+        "line": 153,
         "marker": "<!-- SID:interface.web_workspace.report_explorer -->"
       },
       "level": "Block",
@@ -4079,7 +4110,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 152,
+        "line": 166,
         "marker": "<!-- SID:interface.web_workspace.interaction_patterns -->"
       },
       "level": "Section",
@@ -4102,7 +4133,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 166,
+        "line": 180,
         "marker": "<!-- SID:interface.web_workspace.state_sync -->"
       },
       "level": "Block",
@@ -4125,7 +4156,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 177,
+        "line": 191,
         "marker": "<!-- SID:interface.web_workspace.visualization_fallback -->"
       },
       "level": "Block",
@@ -4148,7 +4179,7 @@
       "path": "docs/design/web-operator-workspace.md",
       "locator": {
         "type": "comment",
-        "line": 187,
+        "line": 201,
         "marker": "<!-- SID:interface.web_workspace.milestones -->"
       },
       "level": "Section",

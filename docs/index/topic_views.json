@@ -1,6 +1,6 @@
 {
-  "version": "1.5",
-  "generated_at": "2026-04-05",
+  "version": "1.6",
+  "generated_at": "2026-04-27",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -1272,8 +1272,8 @@
     },
     "web_workspace": {
       "title": "Web Operator Workspace",
-      "description": "Web 主工作台的页面架构、全信息展示、模型调用工作区、结构可视化与交互约束",
-      "use_case": "设计或实现 Web 主工作台、蛋白质结构可视化与 Pending Review 交互时需要注入的最小规范集合",
+      "description": "Web 主工作台的页面架构、React UI 组织边界、全信息展示、模型调用工作区、结构可视化与交互约束",
+      "use_case": "设计或实现 FastAPI 托管的 React Web 主工作台、蛋白质结构可视化与 Pending Review 交互时需要注入的最小规范集合",
       "specs": [
         {
           "sid": "interface.web_workspace.overview",
@@ -1289,7 +1289,15 @@
           "doc_key": "interface_web_workspace",
           "path": "docs/design/web-operator-workspace.md",
           "priority": "critical",
-          "rationale": "确认 Web 端仍以 FastAPI 同仓托管为正式形态"
+          "rationale": "确认 Web 端采用 FastAPI 同仓托管，并允许 React + TypeScript 作为 UI 组织方式"
+        },
+        {
+          "sid": "interface.web_workspace.react_ui_boundary",
+          "title": "React UI 组织约束",
+          "doc_key": "interface_web_workspace",
+          "path": "docs/design/web-operator-workspace.md",
+          "priority": "critical",
+          "rationale": "明确 React 只统一 UI 能力，不复制 FSM、EventLog、PendingAction、Decision 或 Workflow 语义"
         },
         {
           "sid": "interface.web_workspace.design_principles",
@@ -1591,7 +1599,7 @@
   },
   "summary": {
     "total_topics": 14,
-    "total_unique_specs": 148,
+    "total_unique_specs": 149,
     "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
   },
   "usage_guide": {

@@ -18,10 +18,24 @@ depends_on: [interface_surfaces, impl, hitl, tools]
 Web 端应继续采用 FastAPI 托管页面、静态资源与 API 的同仓模式：
 
 - Web 框架使用 FastAPI；
-- 页面层使用模板页与轻量 TypeScript 模块；
-- 当前阶段不引入独立 SPA 工程，也不引入前后端语义分裂。
+- 页面层可以使用 React + TypeScript 组织组件、状态展示、表单与交互逻辑；
+- React 构建产物应作为静态资源由 FastAPI 托管；
+- 当前阶段不引入独立前端服务，也不引入前后端语义分裂。
 
-这样做的原因不是降低前端能力，而是保证 Web 界面与 CLI、API、事件日志和报告产物共享同一部署边界，更适合研究型工作台与远程服务器环境。
+这样做的原因不是降低前端能力，而是保证 Web 界面与 CLI、API、事件日志和报告产物共享同一部署边界，更适合研究型工作台与远程服务器环境。React 在这里是 UI 组织与组件化手段，不是新的执行入口或状态拥有者。
+
+### React UI 组织约束
+<!-- SID:interface.web_workspace.react_ui_boundary -->
+
+引入 React 的目标是解决纯手写 HTML、CSS 与 DOM TypeScript 分散、复用困难、构件反复调整成本高的问题。React 只应统一浏览器端 UI 能力：
+
+- 可以抽象 API client、共享类型、页面级 view、复用组件、表单控件与候选对比组件；
+- 可以维护组件展开状态、筛选条件、当前选中项、表单草稿和加载/错误提示；
+- 不得在 React 本地 store 中复制或重定义任务状态机；
+- 不得在浏览器侧合成 EventLog、PendingAction、Decision 或 TaskSnapshot；
+- 不得绕过正式 API 直接驱动 Workflow、FSM、Agent 或事件日志写入。
+
+因此，即使采用 React，Web 端仍然必须通过既有 API 读取任务、待办、事件和报告，并通过正式 Decision API 提交人工确认。
 
 ## 设计原则
 <!-- SID:interface.web_workspace.design_principles -->
