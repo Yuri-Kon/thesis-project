@@ -52,14 +52,16 @@ def test_task_profiles_mark_support_levels_and_capability_hints() -> None:
 
 
 def test_tool_selection_fields_defer_candidates_to_toolkg() -> None:
-    """工具选择字段只声明控件和 ToolKG 校验来源。"""
+    """工具选择字段应从 ToolKG 派生候选，避免前端硬编码。"""
 
     schema = build_task_intake_schema()
 
+    assert any(option["tool_id"] == "esmfold" for option in schema["tool_options"])
     for name in ("tools_allowed", "tools_excluded"):
         field = schema["fields"][name]
         assert field["ui_control"] == "multi_select"
-        assert field["options"] == []
+        assert "esmfold" in field["options"]
+        assert field["tool_options"][0]["tool_id"]
         assert field["validators"] == {"source": "ToolKG"}
 
 

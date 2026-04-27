@@ -269,6 +269,11 @@ class TestAPIEndpoints:
             "planner_policy",
         ]
         assert data["fields"]["task_kind"]["maps_to"] == "constraints.task_kind"
+        assert "esmfold" in data["fields"]["tools_allowed"]["options"]
+        assert any(
+            option["tool_id"] == "esmfold" and option["support_level"] == "P0"
+            for option in data["tool_options"]
+        )
         assert "de_novo_design" in data["task_profiles"]
         assert data["task_profiles"]["binding_design"]["support_level"] == "P2"
         assert data["cli_arguments"][0]["flag"].startswith("--")
@@ -353,6 +358,133 @@ class TestAPIEndpoints:
         assert task["metadata"]["confirmed_task_spec"]["metadata"][
             "planner_capability_hints"
         ] == ["sequence_generation", "structure_prediction"]
+
+        events_response = await client.get(f"/tasks/{confirmation['task_id']}/events")
+        assert events_response.status_code == 200
+        events = events_response.json()
+        assert events[0]["event_type"] == "TASK_CREATED_FROM_CONFIRMED_INTAKE"
+        assert events[0]["data"]["intake_id"] == intake_id
+
+    async def test_task_intake_confirm_missing_fields_returns_stable_error(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """缺少必填/条件必填字段时 confirm 返回稳定错误结构。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {"task_kind": "binding_design"},
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+
+        assert confirm_response.status_code == 422
+        data = confirm_response.json()
+        assert data["status"] == 422
+        assert "missing required fields" in data["detail"]
+        assert "objective_type" in data["missing_fields"]
+        assert data["context"]["intake_id"] == intake_id
+
+    @pytest.mark.parametrize(
+        ("fields", "expected_message"),
+        [
+            (
+                {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "invalid",
+                    "length_range": [90, 120],
+                },
+                "objective_type must be one of",
+            ),
+            (
+                {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [120, 90],
+                },
+                "length_range must be [min, max] integers",
+            ),
+            (
+                {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": {"min": 90, "max": 120, "unit": "nt"},
+                },
+                "length_range unit must be amino-acid based",
+            ),
+            (
+                {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [90, 120],
+                    "tools_allowed": ["not_a_tool"],
+                },
+                "tools_allowed contains unknown tool_id",
+            ),
+            (
+                {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [90, 120],
+                    "initial_artifacts": [{"kind": "template", "path": "../x.pdb"}],
+                },
+                "initial_artifacts[0].path must be a safe relative path",
+            ),
+        ],
+    )
+    async def test_task_intake_rejects_invalid_contract_inputs(
+        self,
+        client: httpx.AsyncClient,
+        fields: dict[str, object],
+        expected_message: str,
+    ):
+        """非法 enum/tool_id/artifact ref/unit/range 均返回 4xx 稳定错误。"""
+
+        response = await client.post(
+            "/task-intakes",
+            json={"structured_fields": fields, "source": "web"},
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert data["status"] == 422
+        assert expected_message in json.dumps(data, ensure_ascii=False)
+        assert "validation_errors" in data
+
+    async def test_task_intake_patch_validates_without_mutating_on_error(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """PATCH 校验失败时返回稳定错误且不污染已保存 draft。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [90, 120],
+                },
+                "source": "web",
+            },
+        )
+        intake_id = create_response.json()["intake_id"]
+
+        patch_response = await client.patch(
+            f"/task-intakes/{intake_id}",
+            json={"fields": {"tools_allowed": ["missing_tool"]}},
+        )
+
+        assert patch_response.status_code == 422
+        assert "tools_allowed" not in INTAKE_STORE[intake_id].draft.fields
 
     async def test_legacy_tasks_query_converges_to_intake(
         self,

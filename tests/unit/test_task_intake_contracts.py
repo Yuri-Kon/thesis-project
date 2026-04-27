@@ -167,3 +167,32 @@ def test_structured_fields_override_raw_text_extraction() -> None:
     assert spec.objective["objective_type"] == "stability"
     assert spec.constraints["length_range"] == [80, 120]
     assert spec.metadata["raw_query"] == "please evaluate binding protein around 300 aa"
+
+
+def test_intake_normalizes_units_and_carries_initial_artifacts() -> None:
+    """Task Intake 应归一化单位并把合法 artifact ref 投影到确认规格。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_units_artifacts",
+        text=None,
+        structured_fields={
+            "task_kind": "de_novo_design",
+            "objective_type": "stability",
+            "length_range": {"min": 90, "max": 120, "unit": "aa"},
+            "max_runtime_min": {"value": 2, "unit": "hour"},
+            "initial_artifacts": [
+                {"kind": "template", "path": "input/template.pdb"}
+            ],
+        },
+        source="api",
+    )
+
+    spec = confirm_task_intake_session(
+        session,
+        confirmed_by="tester",
+        acknowledged_warnings=[],
+    )
+
+    assert spec.constraints["length_range"] == [90, 120]
+    assert spec.constraints["max_runtime_min"] == 120
+    assert spec.initial_artifacts == [{"kind": "template", "path": "input/template.pdb"}]
