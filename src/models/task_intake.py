@@ -485,7 +485,7 @@ class TaskIntakeSession(BaseModel):
     """一次正式 Task 创建前的录入会话。"""
 
     intake_id: str
-    status: TaskIntakeStatus
+    status: TaskIntakeStatus = TaskIntakeStatus.COLLECTING
     raw_input: dict[str, Any] = Field(default_factory=dict)
     draft: TaskSpecDraft = Field(default_factory=TaskSpecDraft)
     missing_required_fields: list[str] = Field(default_factory=list)

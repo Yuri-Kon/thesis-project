@@ -110,8 +110,15 @@ class TaskCreateRequest(BaseModel):
     def _validate_creation_mode(self) -> "TaskCreateRequest":
         """确保 /tasks 请求明确选择一种兼容创建模式。"""
 
-        if self.goal is None and self.query is None and self.confirmed_task_spec is None:
+        modes = [
+            self.goal is not None,
+            self.query is not None,
+            self.confirmed_task_spec is not None,
+        ]
+        if not any(modes):
             raise ValueError("one of goal, query, or confirmed_task_spec is required")
+        if sum(modes) > 1:
+            raise ValueError("choose exactly one of goal, query, or confirmed_task_spec")
         return self
 
 

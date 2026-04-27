@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from src.models.task_intake import (
+    ConfirmedTaskSpec,
+    TaskDraftField,
+    TaskDraftFieldSource,
+    TaskIntakeSession,
+    TaskIntakeStatus,
+    TaskSpecDraft,
+    confirm_task_intake_session,
+    create_task_intake_session,
+    project_confirmed_task_spec,
+)
+
+
+def test_task_intake_session_defaults_and_status_values() -> None:
+    """TaskIntakeSession 应表达前置录入状态和审计集合默认值。"""
+
+    session = TaskIntakeSession(intake_id="intake_defaults")
+
+    assert session.status == TaskIntakeStatus.COLLECTING
+    assert set(TaskIntakeStatus) == {
+        TaskIntakeStatus.COLLECTING,
+        TaskIntakeStatus.NEEDS_CONFIRMATION,
+        TaskIntakeStatus.CONFIRMED,
+        TaskIntakeStatus.CANCELLED,
+    }
+    assert session.raw_input == {}
+    assert session.draft == TaskSpecDraft()
+    assert session.missing_required_fields == []
+    assert session.ambiguous_fields == []
+    assert session.unmapped_text == []
+    assert session.warnings == []
+
+
+def test_task_draft_field_source_and_confirmation_contract() -> None:
+    """TaskSpecDraft 字段包装应保留来源、置信度、确认和修改审计。"""
+
+    field = TaskDraftField(
+        value="stability",
+        source=TaskDraftFieldSource.USER_EXPLICIT,
+        confidence=0.9,
+        source_span="stable",
+        confirmed=True,
+        warnings=["checked"],
+        last_modified_by="tester",
+    )
+
+    assert {source.value for source in TaskDraftFieldSource} == {
+        "user_explicit",
+        "llm_extract",
+        "system_default",
+        "kg_derived",
+        "user_modified",
+    }
+    assert field.model_dump(mode="json") == {
+        "value": "stability",
+        "source": "user_explicit",
+        "confidence": 0.9,
+        "source_span": "stable",
+        "confirmed": True,
+        "warnings": ["checked"],
+        "last_modified_by": "tester",
+    }
+
+
+def test_task_intake_session_serialization_round_trip() -> None:
+    """TaskIntakeSession 应支持稳定序列化/反序列化。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_roundtrip",
+        text="design de novo stable protein around 120 aa",
+        structured_fields={},
+        source="api",
+    )
+
+    restored = TaskIntakeSession.model_validate(session.model_dump(mode="json"))
+
+    assert restored == session
+    assert restored.draft.fields["task_kind"].source == TaskDraftFieldSource.LLM_EXTRACT
+    assert restored.draft.fields["length_range"].value == [100, 140]
+
+
+def test_confirmed_task_spec_projection_to_protein_design_task_shape() -> None:
+    """ConfirmedTaskSpec 应可投影到现有 ProteinDesignTask 字段。"""
+
+    spec = ConfirmedTaskSpec(
+        goal="de_novo_design for stability",
+        objective={"objective_type": "stability"},
+        inputs={"sequence": "ACDE"},
+        constraints={"length_range": [4, 8]},
+        initial_artifacts=[{"kind": "sequence", "path": "input.fa"}],
+        metadata={
+            "intake_id": "intake_projection",
+            "field_registry_version": "task-intake.v1",
+            "support_level": "P0",
+            "confirmed_by": "tester",
+            "input_mode": "structured_with_confirmation",
+            "acknowledged_warnings": [],
+        },
+    )
+
+    goal, constraints, metadata = project_confirmed_task_spec(spec)
+
+    assert goal == "de_novo_design for stability"
+    assert constraints["length_range"] == [4, 8]
+    assert constraints["objective"] == {"objective_type": "stability"}
+    assert constraints["inputs"] == {"sequence": "ACDE"}
+    assert metadata["intake_id"] == "intake_projection"
+    assert metadata["confirmed_task_spec"]["initial_artifacts"] == [
+        {"kind": "sequence", "path": "input.fa"}
+    ]
+
+
+def test_confirmed_task_spec_metadata_contains_required_audit_keys() -> None:
+    """确认流程应保留 issue 要求的 metadata 审计键。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_confirmed",
+        text="design stable binding protein around 130 aa",
+        structured_fields={
+            "task_kind": "de_novo_design",
+            "objective_type": "stability",
+            "length_range": [120, 150],
+        },
+        source="web",
+    )
+    spec = confirm_task_intake_session(
+        session,
+        confirmed_by="tester",
+        acknowledged_warnings=["reviewed"],
+    )
+
+    assert {
+        "intake_id",
+        "field_registry_version",
+        "support_level",
+        "confirmed_by",
+        "input_mode",
+        "acknowledged_warnings",
+    } <= set(spec.metadata)
+    assert spec.metadata["acknowledged_warnings"] == ["reviewed"]
+    assert session.status == TaskIntakeStatus.CONFIRMED
+    assert all(field.confirmed for field in session.draft.fields.values())
+
+
+def test_structured_fields_override_raw_text_extraction() -> None:
+    """原始自然语言只能进入 audit，不能覆盖已确认结构化字段。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_raw_text",
+        text="please evaluate binding protein around 300 aa",
+        structured_fields={
+            "task_kind": "de_novo_design",
+            "objective_type": "stability",
+            "length_range": [80, 120],
+        },
+        source="web",
+    )
+    spec = confirm_task_intake_session(
+        session,
+        confirmed_by="tester",
+        acknowledged_warnings=[],
+    )
+
+    assert spec.constraints["task_kind"] == "de_novo_design"
+    assert spec.objective["objective_type"] == "stability"
+    assert spec.constraints["length_range"] == [80, 120]
+    assert spec.metadata["raw_query"] == "please evaluate binding protein around 300 aa"
