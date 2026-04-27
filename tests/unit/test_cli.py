@@ -201,3 +201,56 @@ def test_timeline_show_human_outputs_execution_mode(monkeypatch, capsys) -> None
     assert "adapter=openfold" in output
     assert "execution_mode=openfold3_rest" in output
     assert "endpoint=rest" in output
+
+
+def test_intake_create_json_posts_task_intake_payload(monkeypatch, capsys) -> None:
+    """design intake create 应调用 /task-intakes 并输出 intake_id。"""
+
+    seen: dict[str, Any] = {}
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        seen["url"] = url
+        seen["json"] = json
+        return _FakeResponse(
+            {
+                "intake_id": "intake_cli",
+                "status": "needs_confirmation",
+                "draft": {},
+                "missing_required_fields": [],
+                "ambiguous_fields": [],
+                "unmapped_text": [],
+                "warnings": [],
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "create",
+            "--text",
+            "design stable protein",
+            "--field",
+            "length_range=[100,140]",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    assert seen["url"] == "http://api.test/task-intakes"
+    assert seen["json"]["structured_fields"]["length_range"] == [100, 140]
+    output = capsys.readouterr().out
+    assert '"intake_id": "intake_cli"' in output
+
+
+def test_preflight_command_prompts_migration(capsys) -> None:
+    """旧 preflight CLI 入口提示迁移到 design intake。"""
+
+    code = cli.main(["preflight"])
+
+    assert code == 2
+    assert "design intake" in capsys.readouterr().err
