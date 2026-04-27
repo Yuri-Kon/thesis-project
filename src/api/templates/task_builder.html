@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Task Builder</title>
+    <link rel="stylesheet" href="/static/css/task-builder.css" />
+  </head>
+  <body>
+    <main class="builder-shell">
+      <header class="builder-header">
+        <div>
+          <p class="eyebrow">Task Intake</p>
+          <h1>Task Builder</h1>
+          <p class="lead">
+            Create a confirmed protein design task from natural language and
+            structured fields before the workflow enters CREATED.
+          </p>
+        </div>
+        <nav class="header-actions" aria-label="Task Builder navigation">
+          <a href="/ui">Pending Review</a>
+          <a href="/ui/task-builder" aria-current="page">New Task</a>
+        </nav>
+      </header>
+
+      <section class="status-strip" aria-live="polite">
+        <span id="schema-state" class="status-pill neutral">Schema loading</span>
+        <span id="intake-state" class="status-pill neutral">No intake</span>
+        <span id="confirm-state" class="status-pill neutral">Not confirmed</span>
+      </section>
+
+      <section class="builder-grid">
+        <form id="task-builder-form" class="panel intake-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Input</h2>
+              <p>Natural language and form controls write to one draft.</p>
+            </div>
+            <button id="create-intake-button" type="submit">Parse draft</button>
+          </div>
+
+          <label class="field-block" for="natural-language-input">
+            Natural language
+            <textarea
+              id="natural-language-input"
+              rows="7"
+              placeholder="Example: design a stable de novo protein around 120 aa, balanced run profile, require plan confirmation."
+            ></textarea>
+          </label>
+
+          <div class="form-toolbar">
+            <button id="update-intake-button" type="button" disabled>
+              Update draft
+            </button>
+            <button id="load-schema-button" type="button">Reload schema</button>
+          </div>
+
+          <div class="structured-section">
+            <div class="section-title">
+              <h3>Structured fields</h3>
+              <span id="field-count" class="muted">0 fields</span>
+            </div>
+            <div id="field-form" class="field-form"></div>
+          </div>
+        </form>
+
+        <aside class="panel confirmation-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Confirmation</h2>
+              <p>Missing or blocked input prevents task creation.</p>
+            </div>
+            <button id="confirm-intake-button" type="button" disabled>
+              Confirm task
+            </button>
+          </div>
+
+          <div id="safety-panel" class="safety-panel">
+            <h3>Safety precheck</h3>
+            <p class="muted">Waiting for draft.</p>
+          </div>
+
+          <label id="safety-ack-row" class="ack-row hidden">
+            <input id="safety-ack-checkbox" type="checkbox" />
+            I acknowledge the safety warning for this intake.
+          </label>
+
+          <div class="summary-stack">
+            <article>
+              <h3>Missing required</h3>
+              <ul id="missing-fields-list" class="compact-list"></ul>
+            </article>
+            <article>
+              <h3>Ambiguous fields</h3>
+              <ul id="ambiguous-fields-list" class="compact-list"></ul>
+            </article>
+            <article>
+              <h3>Unmapped text</h3>
+              <ul id="unmapped-text-list" class="compact-list"></ul>
+            </article>
+          </div>
+        </aside>
+      </section>
+
+      <section class="panel draft-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Draft Review</h2>
+            <p>Every extracted or edited field keeps source and confidence.</p>
+          </div>
+          <span id="draft-summary" class="status-pill neutral">No draft</span>
+        </div>
+        <div id="draft-fields" class="draft-fields"></div>
+      </section>
+
+      <section class="result-grid">
+        <article class="panel protein-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Protein Visualization</h2>
+              <p>Preview updates from sequence or length constraints.</p>
+            </div>
+            <span id="protein-state" class="status-pill neutral">Preview</span>
+          </div>
+          <div id="protein-viewer" class="protein-viewer" role="img"></div>
+          <div id="protein-metrics" class="metric-grid"></div>
+          <p id="structure-link" class="muted"></p>
+        </article>
+
+        <article class="panel result-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Created Task</h2>
+              <p>Confirming creates a formal task and links back to intake.</p>
+            </div>
+          </div>
+          <div id="task-result" class="task-result">
+            <p class="muted">No confirmed task yet.</p>
+          </div>
+        </article>
+      </section>
+
+      <p id="global-message" class="global-message" role="status"></p>
+    </main>
+
+    <script type="module" src="/static/js/task-builder.js"></script>
+  </body>
+</html>

@@ -71,6 +71,16 @@ class ConfirmedTaskSpec(BaseModel):
         return normalized
 
 
+class TaskIntakeSafetyPrecheck(BaseModel):
+    """Task Intake 确认前的输入安全预检查摘要。"""
+
+    action: Literal["ok", "warn", "block"] = "ok"
+    code: str = "SAFETY_INPUT_OK"
+    summary: str = "No input safety warning detected."
+    warnings: list[str] = Field(default_factory=list)
+    acknowledgement_required: bool = False
+
+
 class TaskIntakeSession(BaseModel):
     """一次正式 Task 创建前的录入会话。"""
 
@@ -82,6 +92,9 @@ class TaskIntakeSession(BaseModel):
     ambiguous_fields: list[str] = Field(default_factory=list)
     unmapped_text: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    safety_precheck: TaskIntakeSafetyPrecheck = Field(
+        default_factory=TaskIntakeSafetyPrecheck
+    )
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
     confirmed_task_spec: ConfirmedTaskSpec | None = None
@@ -206,6 +219,7 @@ def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession
         if field_name not in session.draft.fields
         or session.draft.fields[field_name].value in (None, "")
     ]
+    session.safety_precheck = _build_safety_precheck(session)
     if session.confirmed_task_spec is not None:
         session.status = TaskIntakeStatus.CONFIRMED
     elif session.missing_required_fields:
@@ -234,6 +248,16 @@ def confirm_task_intake_session(
     if session.warnings:
         warnings = ", ".join(session.warnings)
         raise ValueError(f"field validation warnings must be resolved: {warnings}")
+    if session.safety_precheck.action == "block":
+        raise ValueError(f"safety precheck blocked confirmation: {session.safety_precheck.summary}")
+    if (
+        session.safety_precheck.acknowledgement_required
+        and session.safety_precheck.code not in acknowledged_warnings
+    ):
+        raise ValueError(
+            "safety warnings require acknowledgement: "
+            f"{session.safety_precheck.code}"
+        )
 
     for field in session.draft.fields.values():
         field.confirmed = True
@@ -704,6 +728,35 @@ def _build_confirmed_spec(
         initial_artifacts=[],
         metadata=metadata,
     )
+
+
+def _build_safety_precheck(session: TaskIntakeSession) -> TaskIntakeSafetyPrecheck:
+    raw_text = str(session.raw_input.get("text") or "").lower()
+    field_values = {
+        name: field.value for name, field in session.draft.fields.items()
+    }
+    joined_values = " ".join(str(value).lower() for value in field_values.values())
+    combined = f"{raw_text} {joined_values}"
+    if any(term in combined for term in ("weapon", "bioweapon", "病原增强")):
+        return TaskIntakeSafetyPrecheck(
+            action="block",
+            code="SAFETY_INPUT_BLOCK",
+            summary="Input appears to request a blocked unsafe biological use.",
+            warnings=["blocked unsafe biological-use keyword detected"],
+            acknowledgement_required=False,
+        )
+    if (
+        field_values.get("safety_level") == "S2"
+        or any(term in combined for term in ("toxin", "pathogenic", "毒性", "病原"))
+    ):
+        return TaskIntakeSafetyPrecheck(
+            action="warn",
+            code="SAFETY_INPUT_WARN",
+            summary="Input may need additional safety review before task creation.",
+            warnings=["potential safety-sensitive context detected"],
+            acknowledgement_required=True,
+        )
+    return TaskIntakeSafetyPrecheck()
 
 
 def _build_goal(fields: dict[str, Any]) -> str:
