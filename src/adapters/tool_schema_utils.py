@@ -310,20 +310,44 @@ def build_objective_outputs(
     inputs: Dict[str, Any],
     scored_candidates: list[Dict[str, Any]],
     *,
+    top_k_candidates: list[Dict[str, Any]] | None = None,
     default_recommendation: str | None,
     explanation: str,
 ) -> Dict[str, Any]:
+    top_k_rows = top_k_candidates if top_k_candidates is not None else scored_candidates
     top_score = (
-        _to_float(scored_candidates[0].get("objective_score"))
-        if scored_candidates
+        _to_float(top_k_rows[0].get("objective_score"))
+        if top_k_rows
         else None
+    )
+    component_scores = {
+        str(row.get("candidate_id") or f"candidate_{index}"): dict(
+            row.get("component_scores") or row.get("score_breakdown") or {}
+        )
+        for index, row in enumerate(scored_candidates, start=1)
+    }
+    warnings = _unique_strings(
+        warning
+        for row in scored_candidates
+        for warning in row.get("warnings", [])
+        if isinstance(row.get("warnings"), list)
+    )
+    evidence_refs = [
+        ref
+        for row in scored_candidates
+        for ref in row.get("evidence_refs", [])
+        if isinstance(row.get("evidence_refs"), list) and isinstance(ref, dict)
+    ]
+    rank_reason = (
+        _to_str(scored_candidates[0].get("rank_reason")) if scored_candidates else None
     )
     return {
         "tool_id": tool_id,
         "capability_id": "objective_scoring",
         "io_type": "candidates_to_objective_scores_topk",
         "score_table": scored_candidates,
-        "top_k": scored_candidates,
+        "top_k": top_k_rows,
+        "component_scores": component_scores,
         "default_recommendation": default_recommendation,
         "objective_score": top_score,
         "score_breakdown": (
@@ -331,9 +355,13 @@ def build_objective_outputs(
             if scored_candidates
             else {}
         ),
+        "warnings": warnings,
+        "evidence_refs": evidence_refs,
+        "rank_reason": rank_reason,
         "objective_explanation": explanation,
         "explanation": explanation,
         "candidate_count": len(scored_candidates),
+        "top_k_count": len(top_k_rows),
         "input_candidate_count": _to_int(inputs.get("input_candidate_count")) or len(scored_candidates),
     }
 
@@ -351,6 +379,18 @@ def build_objective_metrics(
             "io_type": "candidates_to_objective_scores_topk",
         },
     }
+
+
+def _unique_strings(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = _to_str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
 
 
 def build_stability_outputs(

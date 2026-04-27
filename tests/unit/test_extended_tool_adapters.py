@@ -75,6 +75,12 @@ def test_objective_ranker_scores_candidates_with_proxy_signals() -> None:
 
     assert outputs["default_recommendation"] == "cand_a"
     assert outputs["top_k"][0]["objective_score"] >= outputs["top_k"][1]["objective_score"]
+    assert outputs["component_scores"]["cand_a"]["quality"] > 0
+    assert outputs["rank_reason"].startswith("cand_a ranks by objective_score")
+    assert outputs["evidence_refs"][0]["candidate_id"] == "cand_a"
+    assert isinstance(outputs["warnings"], list)
+    assert metrics["objective_progress"] == outputs["objective_score"]
+    assert metrics["objective_gap"] > 0
     assert metrics["requirement2"]["capability_id"] == "objective_scoring"
 
 

@@ -44,7 +44,15 @@ class ObjectiveRankerAdapter(BaseToolAdapter):
 
         t0 = perf_counter()
         weights = _resolve_weights(inputs.get("objective_weights"))
-        scored_candidates = [_score_candidate(candidate, index=index, weights=weights) for index, candidate in enumerate(candidates, start=1)]
+        shared_context = _extract_shared_context(inputs)
+        scored_candidates = [
+            _score_candidate(
+                _merge_candidate_context(candidate, shared_context),
+                index=index,
+                weights=weights,
+            )
+            for index, candidate in enumerate(candidates, start=1)
+        ]
         scored_candidates.sort(
             key=lambda item: (
                 float(item.get("objective_score", 0.0)),
@@ -69,7 +77,8 @@ class ObjectiveRankerAdapter(BaseToolAdapter):
         outputs = build_objective_outputs(
             self.tool_id,
             {**inputs, "input_candidate_count": len(candidates)},
-            selected,
+            scored_candidates,
+            top_k_candidates=selected,
             default_recommendation=default_recommendation,
             explanation=explanation,
         )
@@ -79,6 +88,11 @@ class ObjectiveRankerAdapter(BaseToolAdapter):
         )
         metrics["duration_ms"] = int((perf_counter() - t0) * 1000)
         metrics["weights"] = weights
+        metrics["objective_progress"] = outputs.get("objective_score")
+        metrics["objective_gap"] = _objective_gap(scored_candidates)
+        metrics["warning_count"] = len(outputs.get("warnings") or [])
+        if default_recommendation:
+            metrics["top_candidate_id"] = default_recommendation
         return outputs, metrics
 
 
@@ -112,6 +126,30 @@ def _resolve_top_k(raw: Any, *, default: int) -> int:
     return max(1, value)
 
 
+def _extract_shared_context(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    keys = (
+        "sequence",
+        "structure_pdb",
+        "pdb_path",
+        "qc_metrics",
+        "similarity_hits",
+        "structure_similarity_hits",
+        "secondary_structure_summary",
+        "task_constraints",
+    )
+    return {key: inputs[key] for key in keys if key in inputs}
+
+
+def _merge_candidate_context(
+    candidate: Any,
+    shared_context: Dict[str, Any],
+) -> Dict[str, Any]:
+    row = dict(candidate) if isinstance(candidate, dict) else {}
+    for key, value in shared_context.items():
+        row.setdefault(key, value)
+    return row
+
+
 def _score_candidate(
     candidate: Any,
     *,
@@ -141,17 +179,29 @@ def _score_candidate(
         sum(score_breakdown[key] * weights[key] for key in score_breakdown),
         6,
     )
+    warnings = _candidate_warnings(row)
+    evidence_refs = _candidate_evidence_refs(row, candidate_id)
+    rank_reason = _rank_reason(
+        candidate_id=candidate_id,
+        objective_score=objective_score,
+        score_breakdown=score_breakdown,
+        warnings=warnings,
+    )
 
     return {
         **row,
         "candidate_id": candidate_id,
         "objective_score": objective_score,
         "score_breakdown": score_breakdown,
+        "component_scores": score_breakdown,
         "top_k_rank": index,
         "objective_explanation": (
             f"quality={quality:.3f}, novelty={novelty:.3f}, stability={stability:.3f}, "
             f"function={function:.3f}, docking={docking:.3f}"
         ),
+        "rank_reason": rank_reason,
+        "warnings": warnings,
+        "evidence_refs": evidence_refs,
     }
 
 
@@ -160,6 +210,8 @@ def _quality_score(candidate: Dict[str, Any]) -> float:
     if plddt is None:
         plddt = _as_float(_deep_get(candidate, "metrics", "plddt_mean"))
     qc_metrics = candidate.get("qc_metrics")
+    if plddt is None and isinstance(qc_metrics, dict):
+        plddt = _as_float(qc_metrics.get("plddt_mean"))
     pass_fail = candidate.get("pass_fail")
     if pass_fail is None and isinstance(qc_metrics, dict):
         pass_fail = qc_metrics.get("pass_fail")
@@ -181,6 +233,16 @@ def _novelty_score(candidate: Dict[str, Any]) -> float:
 def _stability_score(candidate: Dict[str, Any]) -> float:
     stability_metrics = candidate.get("stability_metrics")
     if not isinstance(stability_metrics, dict):
+        secondary = candidate.get("secondary_structure_summary")
+        if isinstance(secondary, dict):
+            coil_fraction = _as_float(secondary.get("coil_fraction"))
+            if coil_fraction is None:
+                coil_fraction = _as_float(secondary.get("coil"))
+            if coil_fraction is not None:
+                return round(
+                    min(max(0.75 - min(coil_fraction, 1.0) * 0.25, 0.0), 1.0),
+                    6,
+                )
         return 0.5
     rg = _as_float(stability_metrics.get("radius_of_gyration"))
     span = _as_float(stability_metrics.get("coordinate_span"))
@@ -230,6 +292,91 @@ def _extract_similarity_value(candidate: Dict[str, Any], key: str) -> float | No
     if isinstance(structure_hits, list) and structure_hits and isinstance(structure_hits[0], dict):
         return _as_float(structure_hits[0].get(key))
     return None
+
+
+def _candidate_warnings(candidate: Dict[str, Any]) -> list[str]:
+    warnings: list[str] = []
+    qc_metrics = candidate.get("qc_metrics")
+    qc_plddt = (
+        _as_float(qc_metrics.get("plddt_mean")) if isinstance(qc_metrics, dict) else None
+    )
+    if _as_float(candidate.get("plddt")) is None and _as_float(
+        _deep_get(candidate, "metrics", "plddt_mean")
+    ) is None and qc_plddt is None:
+        warnings.append("quality uses neutral proxy because pLDDT is missing")
+    if _extract_similarity_value(candidate, "identity") is None:
+        warnings.append("novelty uses neutral proxy because similarity hits are missing")
+    if not isinstance(candidate.get("stability_metrics"), dict) and not isinstance(
+        candidate.get("secondary_structure_summary"),
+        dict,
+    ):
+        warnings.append("stability uses neutral proxy because stability metrics are missing")
+    if not isinstance(candidate.get("annotation_summary"), dict) and not isinstance(
+        candidate.get("function_terms"),
+        list,
+    ):
+        warnings.append("function uses neutral proxy because annotation evidence is missing")
+    if _as_float(candidate.get("binding_score")) is None and not isinstance(
+        candidate.get("best_pose"),
+        dict,
+    ):
+        warnings.append("docking uses neutral proxy because binding evidence is missing")
+    return warnings
+
+
+def _candidate_evidence_refs(
+    candidate: Dict[str, Any],
+    candidate_id: str,
+) -> list[Dict[str, Any]]:
+    refs: list[Dict[str, Any]] = []
+    field_groups = {
+        "quality": ("plddt", "metrics", "qc_metrics", "pass_fail"),
+        "novelty": ("similarity_hits", "structure_similarity_hits", "top_hit"),
+        "stability": ("stability_metrics", "secondary_structure_summary"),
+        "function": ("annotation_summary", "function_terms"),
+        "docking": ("binding_score", "best_pose"),
+    }
+    for component, fields in field_groups.items():
+        present_fields = [field for field in fields if candidate.get(field) is not None]
+        if present_fields:
+            refs.append(
+                {
+                    "candidate_id": candidate_id,
+                    "component": component,
+                    "fields": present_fields,
+                }
+            )
+    return refs
+
+
+def _rank_reason(
+    *,
+    candidate_id: str,
+    objective_score: float,
+    score_breakdown: Dict[str, float],
+    warnings: list[str],
+) -> str:
+    strongest = sorted(
+        score_breakdown.items(),
+        key=lambda item: item[1],
+        reverse=True,
+    )[:2]
+    strengths = ", ".join(f"{key}={value:.3f}" for key, value in strongest)
+    warning_suffix = "" if not warnings else f"; warnings={len(warnings)}"
+    return (
+        f"{candidate_id} ranks by objective_score={objective_score:.3f} "
+        f"with strongest components {strengths}{warning_suffix}"
+    )
+
+
+def _objective_gap(scored_candidates: list[Dict[str, Any]]) -> float | None:
+    if not scored_candidates:
+        return None
+    if len(scored_candidates) == 1:
+        return 0.0
+    top = _as_float(scored_candidates[0].get("objective_score")) or 0.0
+    runner_up = _as_float(scored_candidates[1].get("objective_score")) or 0.0
+    return round(top - runner_up, 6)
 
 
 def _deep_get(candidate: Dict[str, Any], *path: str) -> Any:

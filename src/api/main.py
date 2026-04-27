@@ -216,6 +216,14 @@ class CapabilityReadinessEntry(BaseModel):
     tools: list[ToolReadinessEntry] = Field(default_factory=list)
 
 
+class TaskReportDetail(BaseModel):
+    task_id: str
+    report_path: Optional[str] = None
+    scores: Dict[str, Any] = Field(default_factory=dict)
+    objective_scoring: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
 def _render_ui_html(task_id: Optional[str]) -> str:
     template_path = TEMPLATES_DIR / "index.html"
     if not template_path.exists():
@@ -520,6 +528,29 @@ async def get_task(task_id: str):
     if record is None:
         raise HTTPException(status_code=404, detail="task not found")
     return record
+
+
+@app.get("/tasks/{task_id}/report", response_model=TaskReportDetail)
+async def get_task_report(task_id: str) -> TaskReportDetail:
+    """查看任务最终报告摘要，包含 objective scoring 闭环字段。"""
+
+    record = TASK_STORE.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    design_result = record.design_result
+    if design_result is None:
+        raise HTTPException(status_code=404, detail="task report not found")
+    metadata = design_result.metadata if isinstance(design_result.metadata, dict) else {}
+    objective_scoring = metadata.get("objective_scoring")
+    if not isinstance(objective_scoring, dict):
+        objective_scoring = {}
+    return TaskReportDetail(
+        task_id=task_id,
+        report_path=design_result.report_path,
+        scores=dict(design_result.scores or {}),
+        objective_scoring=objective_scoring,
+        metadata=metadata,
+    )
 
 
 def _event_matches_filters(

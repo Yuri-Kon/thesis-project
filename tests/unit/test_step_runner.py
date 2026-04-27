@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
+from src.adapters.objective_ranker_adapter import ObjectiveRankerAdapter
 from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.agents import safety
 from src.workflow import context
@@ -688,6 +689,46 @@ def test_run_step_safety_events_added_to_context(empty_context):
     # 最后两个应该是 step 阶段的检查
     assert empty_context.safety_events[-2].phase == "step"
     assert empty_context.safety_events[-1].phase == "step"
+
+
+def test_run_step_executes_objective_ranker_contract(empty_context):
+    """objective_ranker 应进入 StepRunner 执行链并返回可报告字段。"""
+
+    register_adapter(ObjectiveRankerAdapter())
+    step = PlanStep(
+        id="S3",
+        tool="objective_ranker",
+        inputs={
+            "candidates": [
+                {
+                    "candidate_id": "cand_a",
+                    "plddt": 90.0,
+                    "similarity_hits": [{"identity": 0.2}],
+                },
+                {"candidate_id": "cand_b", "plddt": 60.0},
+            ],
+            "top_k": 1,
+        },
+        metadata={
+            "required_outputs": [
+                "score_table",
+                "top_k",
+                "component_scores",
+                "objective_score",
+                "warnings",
+                "evidence_refs",
+                "rank_reason",
+            ],
+        },
+    )
+
+    result = StepRunner().run_step(step, empty_context)
+
+    assert result.status == "success"
+    assert result.outputs["capability_id"] == "objective_scoring"
+    assert result.outputs["top_k"][0]["candidate_id"] == "cand_a"
+    assert result.outputs["component_scores"]["cand_a"]["quality"] > 0
+    assert result.metrics["objective_progress"] == result.outputs["objective_score"]
 
 
 def test_run_step_pre_safety_block_raises(empty_context):

@@ -41,6 +41,12 @@ class SuccessReport(BaseModel):
     structure_pdb_path: Optional[str] = None
     plddt_mean: Optional[float] = None
     confidence: Optional[str] = None
+    objective_score: Optional[float] = None
+    objective_top_k: List[Dict[str, Any]] = Field(default_factory=list)
+    component_scores: Dict[str, Any] = Field(default_factory=dict)
+    objective_warnings: List[str] = Field(default_factory=list)
+    evidence_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    rank_reason: Optional[str] = None
 
 
 class FailureReport(BaseModel):
@@ -154,6 +160,16 @@ class SummarizerAgent:
             scores["sequence_length"] = seq_len
         # 合并结构预测的分数
         scores.update(structure_scores)
+        objective_scoring = _extract_objective_scoring_summary(context)
+        objective_score = objective_scoring.get("objective_score")
+        if isinstance(objective_score, (int, float)):
+            scores["objective_score"] = objective_score
+        objective_gap = objective_scoring.get("objective_gap")
+        if isinstance(objective_gap, (int, float)):
+            scores["objective_gap"] = objective_gap
+        objective_progress = objective_scoring.get("objective_progress")
+        if isinstance(objective_progress, (int, float)):
+            scores["objective_progress"] = objective_progress
 
         report_dir = Path("output/reports")
         report_dir.mkdir(parents=True, exist_ok=True)
@@ -201,6 +217,7 @@ class SummarizerAgent:
                 "plan_metadata": plan_metadata,
                 "plan_version": plan_version,
                 "execution_steps": execution_steps,
+                "objective_scoring": objective_scoring,
                 **de_novo_report_paths,
             },
         )
@@ -256,6 +273,39 @@ def _select_report_path(
         return fallback_path, "visualization_fallback"
 
     return report_dir / f"{task_id}.json", "summary_json"
+
+
+def _extract_objective_scoring_summary(context: WorkflowContext) -> dict[str, Any]:
+    """从 objective_ranker StepResult 提取可复用的报告摘要。"""
+
+    selected: StepResult | None = None
+    for step_result in context.step_results.values():
+        outputs = step_result.outputs or {}
+        if (
+            step_result.tool == "objective_ranker"
+            or outputs.get("capability_id") == "objective_scoring"
+        ):
+            selected = step_result
+
+    if selected is None:
+        return {}
+
+    outputs = selected.outputs or {}
+    metrics = selected.metrics or {}
+    return {
+        "step_id": selected.step_id,
+        "tool": selected.tool,
+        "objective_score": outputs.get("objective_score"),
+        "objective_progress": metrics.get("objective_progress"),
+        "objective_gap": metrics.get("objective_gap"),
+        "score_table": outputs.get("score_table") or [],
+        "top_k": outputs.get("top_k") or [],
+        "component_scores": outputs.get("component_scores") or {},
+        "warnings": outputs.get("warnings") or [],
+        "evidence_refs": outputs.get("evidence_refs") or [],
+        "rank_reason": outputs.get("rank_reason"),
+        "default_recommendation": outputs.get("default_recommendation"),
+    }
 
 
 def _write_fallback_report(
@@ -395,6 +445,15 @@ def _build_step_summary(step_result: StepResult) -> StepSummary:
             }
         elif key == "pdb_path":
             outputs_summary[key] = value
+        elif key in {
+            "score_table",
+            "top_k",
+            "component_scores",
+            "warnings",
+            "evidence_refs",
+            "rank_reason",
+        }:
+            outputs_summary[key] = value
         elif isinstance(value, (str, int, float, bool)):
             outputs_summary[key] = value
 
@@ -453,6 +512,7 @@ def _build_success_report(context: WorkflowContext) -> SuccessReport:
     structure_pdb_path = None
     plddt_mean = None
     confidence = None
+    objective_scoring = _extract_objective_scoring_summary(context)
 
     for step_result in context.step_results.values():
         outputs = step_result.outputs or {}
@@ -478,6 +538,12 @@ def _build_success_report(context: WorkflowContext) -> SuccessReport:
         structure_pdb_path=structure_pdb_path,
         plddt_mean=plddt_mean,
         confidence=confidence,
+        objective_score=objective_scoring.get("objective_score"),
+        objective_top_k=objective_scoring.get("top_k") or [],
+        component_scores=objective_scoring.get("component_scores") or {},
+        objective_warnings=objective_scoring.get("warnings") or [],
+        evidence_refs=objective_scoring.get("evidence_refs") or [],
+        rank_reason=objective_scoring.get("rank_reason"),
     )
 
 
@@ -677,6 +743,30 @@ def _render_de_novo_markdown(report: DeNovoReport) -> str:
         if sr.confidence:
             lines.append(f"- **置信度等级**: {sr.confidence}")
         lines.append("")
+
+        if sr.objective_score is not None or sr.objective_top_k:
+            lines.append("### 目标评分")
+            lines.append("")
+            if sr.objective_score is not None:
+                lines.append(f"- **综合目标分**: {sr.objective_score:.3f}")
+            if sr.rank_reason:
+                lines.append(f"- **排序理由**: {sr.rank_reason}")
+            if sr.objective_warnings:
+                lines.append(
+                    f"- **评分警告**: {'; '.join(sr.objective_warnings)}"
+                )
+            if sr.objective_top_k:
+                lines.append("")
+                lines.append("| Rank | Candidate | Score | Reason |")
+                lines.append("| --- | --- | ---: | --- |")
+                for row in sr.objective_top_k:
+                    rank = row.get("top_k_rank") or row.get("rank") or "-"
+                    candidate_id = row.get("candidate_id") or row.get("id") or "-"
+                    score = row.get("objective_score")
+                    score_text = f"{score:.3f}" if isinstance(score, (int, float)) else "-"
+                    reason = row.get("rank_reason") or row.get("objective_explanation") or "-"
+                    lines.append(f"| {rank} | `{candidate_id}` | {score_text} | {reason} |")
+            lines.append("")
 
     if report.failure_report:
         lines.append("## 失败分析")

@@ -7,6 +7,7 @@ import httpx
 from src.api.main import app, TASK_STORE
 from src.models.contracts import (
     DecisionChoice,
+    DesignResult,
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
@@ -104,6 +105,48 @@ class TestAPIEndpoints:
         assert "blocked_tools" in objective_entry
         assert "degraded_reasons" in objective_entry
         assert "suggested_recovery" in objective_entry
+
+    async def test_task_report_endpoint_exposes_objective_scoring(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """报告接口应暴露 objective score table 与排序理由。"""
+
+        task_id = "test_api_report_objective"
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.DONE,
+            internal_status=InternalStatus.DONE,
+            goal="设计候选并排序",
+            constraints={},
+            metadata={},
+            design_result=DesignResult(
+                task_id=task_id,
+                sequence="ACDE",
+                structure_pdb_path=None,
+                scores={"objective_score": 0.81},
+                risk_flags=[],
+                report_path="output/reports/test_api_report_objective.json",
+                metadata={
+                    "objective_scoring": {
+                        "top_k": [
+                            {"candidate_id": "cand_a", "objective_score": 0.81}
+                        ],
+                        "component_scores": {"cand_a": {"quality": 0.9}},
+                        "warnings": ["proxy warning"],
+                        "rank_reason": "cand_a ranks by objective_score=0.810",
+                    }
+                },
+            ),
+        )
+
+        response = await client.get(f"/tasks/{task_id}/report")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["scores"]["objective_score"] == 0.81
+        assert data["objective_scoring"]["top_k"][0]["candidate_id"] == "cand_a"
+        assert data["objective_scoring"]["rank_reason"].startswith("cand_a ranks")
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
@@ -498,6 +541,7 @@ class TestAPIEndpoints:
         assert "Candidate Comparison" in dashboard_response.text
         assert "Model Invocation" in dashboard_response.text
         assert "model-invocation-body" in dashboard_response.text
+        assert "objective-report-explorer" in dashboard_response.text
 
         task_view_response = await client.get("/ui/tasks/task_demo_001")
         assert task_view_response.status_code == 200
@@ -510,6 +554,7 @@ class TestAPIEndpoints:
         assert "degraded" in static_response.text
         assert "availability_hint" in static_response.text
         assert "renderModelInvocation" in static_response.text
+        assert "renderObjectiveReport" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200

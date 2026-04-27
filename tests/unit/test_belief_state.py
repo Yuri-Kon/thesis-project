@@ -108,6 +108,68 @@ def test_update_runtime_state_accepts_structured_update_input() -> None:
     assert state.evidence_sufficiency == 0.5015
 
 
+def test_runtime_state_consumes_objective_signal_without_overriding_safety_block() -> None:
+    """objective gap/progress 可进入观测摘要，但安全阻断仍会降低成功概率。"""
+
+    step_result = StepResult(
+        task_id="task_belief",
+        step_id="S3",
+        tool="objective_ranker",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        inputs={},
+        outputs={
+            "capability_id": "objective_scoring",
+            "objective_score": 0.9,
+            "default_recommendation": "cand_a",
+        },
+        artifacts={},
+        metrics={
+            "objective_progress": 0.9,
+            "objective_gap": 0.2,
+            "top_candidate_id": "cand_a",
+            "warning_count": 1,
+        },
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    safety_block = SafetyResult(
+        task_id="task_belief",
+        phase="step",
+        scope="step:S3",
+        risk_flags=[
+            RiskFlag(
+                level="block",
+                code="SCHEMA_VIOLATION",
+                message="schema violation",
+                scope="step",
+                step_id="S3",
+                details={},
+            )
+        ],
+        action="block",
+        timestamp=now_iso(),
+    )
+
+    objective_only = update_runtime_state(
+        previous_state=None,
+        step_result=step_result,
+    )
+    blocked = update_runtime_state(
+        previous_state=None,
+        step_result=step_result,
+        safety_result=safety_block,
+    )
+
+    assert blocked.observation_summary["objective_progress"] == 0.9
+    assert blocked.observation_summary["objective_gap"] == 0.2
+    assert blocked.observation_summary["objective_top_candidate_id"] == "cand_a"
+    assert blocked.p_success < objective_only.p_success
+    assert blocked.observation_summary["last_safety_action"] == "block"
+
+
 def test_workflow_context_apply_runtime_state_update_is_runner_entrypoint() -> None:
     task = ProteinDesignTask(task_id="task_belief", goal="demo")
     plan = Plan(

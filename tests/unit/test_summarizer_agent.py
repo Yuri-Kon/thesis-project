@@ -111,6 +111,55 @@ class TestSummarizerAgent:
         assert result.scores == {}
         assert result.metadata["step_ids"] == []
 
+    def test_summarizer_includes_objective_scoring_report_fields(
+        self,
+        sample_workflow_context: WorkflowContext,
+    ):
+        """objective_ranker 输出应进入 DesignResult 分数与报告元数据。"""
+
+        summarizer = SummarizerAgent()
+        context = sample_workflow_context
+        context.step_results["S3"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S3",
+            tool="objective_ranker",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            inputs={},
+            outputs={
+                "capability_id": "objective_scoring",
+                "objective_score": 0.82,
+                "score_table": [{"candidate_id": "cand_a", "objective_score": 0.82}],
+                "top_k": [{"candidate_id": "cand_a", "objective_score": 0.82}],
+                "component_scores": {"cand_a": {"quality": 0.9}},
+                "warnings": ["docking uses neutral proxy because binding evidence is missing"],
+                "evidence_refs": [
+                    {
+                        "candidate_id": "cand_a",
+                        "component": "quality",
+                        "fields": ["plddt"],
+                    }
+                ],
+                "rank_reason": "cand_a ranks by objective_score=0.820",
+                "default_recommendation": "cand_a",
+            },
+            artifacts={},
+            metrics={"objective_progress": 0.82, "objective_gap": 0.12},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        result = summarizer.summarize(context)
+
+        assert result.scores["objective_score"] == 0.82
+        assert result.scores["objective_gap"] == 0.12
+        objective = result.metadata["objective_scoring"]
+        assert objective["top_k"][0]["candidate_id"] == "cand_a"
+        assert objective["component_scores"]["cand_a"]["quality"] == 0.9
+        assert objective["warnings"]
+
     def test_summarizer_preserves_sequence_from_task(
         self, sample_workflow_context: WorkflowContext, sample_step_result: StepResult, tmp_path: Path
     ):

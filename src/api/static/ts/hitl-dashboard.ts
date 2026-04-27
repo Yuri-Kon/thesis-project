@@ -64,6 +64,26 @@ interface PendingActionDetail {
 interface DesignResult {
   report_path?: string | null;
   scores?: Record<string, number>;
+  metadata?: {
+    objective_scoring?: ObjectiveScoringSummary;
+  };
+}
+
+interface ObjectiveScoringSummary {
+  objective_score?: number | null;
+  top_k?: ObjectiveScoreRow[];
+  warnings?: string[];
+  rank_reason?: string | null;
+}
+
+interface ObjectiveScoreRow {
+  candidate_id?: string;
+  id?: string;
+  top_k_rank?: number;
+  rank?: number;
+  objective_score?: number;
+  rank_reason?: string;
+  objective_explanation?: string;
 }
 
 interface TaskRecord {
@@ -381,9 +401,85 @@ function renderReservedSections(task: TaskRecord): void {
   byId<HTMLParagraphElement>("reserved-report").textContent = reportPath
     ? `Report path: ${reportPath}`
     : "No report yet. Area reserved for report preview.";
+  renderObjectiveReport(
+    byId<HTMLDivElement>("objective-report-explorer"),
+    task.design_result?.metadata?.objective_scoring,
+  );
 
   byId<HTMLParagraphElement>("reserved-steps").textContent =
     "Step timeline area reserved for future execution details.";
+}
+
+function renderObjectiveReport(
+  container: HTMLDivElement,
+  objective: ObjectiveScoringSummary | undefined,
+): void {
+  container.replaceChildren();
+  if (!objective || !objective.top_k?.length) {
+    return;
+  }
+
+  const heading = document.createElement("h4");
+  heading.textContent = "Objective Score Table";
+  container.appendChild(heading);
+
+  const scoreLine = document.createElement("p");
+  const score = objective.objective_score;
+  scoreLine.textContent =
+    typeof score === "number" ? `Top objective score: ${score.toFixed(3)}` : "Top objective score: -";
+  container.appendChild(scoreLine);
+
+  const table = document.createElement("table");
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  ["Rank", "Candidate", "Score", "Reason"].forEach((label) => {
+    const th = document.createElement("th");
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  head.appendChild(headRow);
+  table.appendChild(head);
+
+  const body = document.createElement("tbody");
+  objective.top_k.forEach((row) => {
+    const tr = document.createElement("tr");
+    const rankCell = document.createElement("td");
+    rankCell.textContent = String(row.top_k_rank ?? row.rank ?? "-");
+    tr.appendChild(rankCell);
+
+    const candidateCell = document.createElement("td");
+    candidateCell.textContent = row.candidate_id ?? row.id ?? "-";
+    tr.appendChild(candidateCell);
+
+    const scoreCell = document.createElement("td");
+    scoreCell.textContent =
+      typeof row.objective_score === "number" ? row.objective_score.toFixed(3) : "-";
+    tr.appendChild(scoreCell);
+
+    const reasonCell = document.createElement("td");
+    reasonCell.textContent = row.rank_reason ?? row.objective_explanation ?? "-";
+    tr.appendChild(reasonCell);
+    body.appendChild(tr);
+  });
+  table.appendChild(body);
+  container.appendChild(table);
+
+  if (objective.rank_reason) {
+    const reason = document.createElement("p");
+    reason.textContent = `Rank reason: ${objective.rank_reason}`;
+    container.appendChild(reason);
+  }
+
+  if (objective.warnings?.length) {
+    const warningList = document.createElement("ul");
+    warningList.className = "warning-list";
+    objective.warnings.forEach((warning) => {
+      const item = document.createElement("li");
+      item.textContent = warning;
+      warningList.appendChild(item);
+    });
+    container.appendChild(warningList);
+  }
 }
 
 function renderTaskOverview(task: TaskRecord): void {

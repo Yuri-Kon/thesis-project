@@ -1086,20 +1086,44 @@
       "io": {
         "io_type_id": "candidates_to_objective_scores_topk",
         "inputs": {
-          "candidates": "list"
+          "candidates": "list",
+          "sequence": "str",
+          "structure_pdb": "str",
+          "qc_metrics": "dict",
+          "similarity_hits": "list",
+          "secondary_structure_summary": "dict",
+          "objective_weights": "dict",
+          "task_constraints": "dict"
         },
         "outputs": {
           "score_table": "list",
           "top_k": "list",
+          "component_scores": "dict",
+          "objective_score": "float",
+          "warnings": "list",
+          "evidence_refs": "list",
+          "rank_reason": "str",
           "default_recommendation": "str",
           "explanation": "str"
         },
         "input_types": [
-          "candidates"
+          "candidates",
+          "sequence",
+          "structure_pdb",
+          "qc_metrics",
+          "similarity_hits",
+          "secondary_structure_summary",
+          "objective_weights",
+          "task_constraints"
         ],
         "output_types": [
           "score_table",
-          "top_k"
+          "top_k",
+          "component_scores",
+          "objective_score",
+          "warnings",
+          "evidence_refs",
+          "rank_reason"
         ],
         "combinable": true
       },
