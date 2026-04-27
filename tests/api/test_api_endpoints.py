@@ -257,9 +257,23 @@ class TestAPIEndpoints:
         assert response.status_code == 200
         data = response.json()
         assert data["version"] == "task-intake.v1"
+        assert data["groups"] == [
+            "objective",
+            "inputs",
+            "design_constraints",
+            "quality_constraints",
+            "structure_constraints",
+            "function_constraints",
+            "safety_constraints",
+            "execution_preferences",
+            "planner_policy",
+        ]
         assert data["fields"]["task_kind"]["maps_to"] == "constraints.task_kind"
         assert "de_novo_design" in data["task_profiles"]
         assert data["task_profiles"]["binding_design"]["support_level"] == "P2"
+        assert data["cli_arguments"][0]["flag"].startswith("--")
+        assert data["cli_questions"][0]["prompt"]
+        assert data["confirmed_task_spec_mapping"]["sequence"] == "inputs.sequence"
 
     async def test_task_intake_create_tracks_ambiguous_and_unmapped_text(
         self,
@@ -336,6 +350,9 @@ class TestAPIEndpoints:
             task["metadata"]["confirmed_task_spec"]["metadata"]["intake_id"]
             == intake_id
         )
+        assert task["metadata"]["confirmed_task_spec"]["metadata"][
+            "planner_capability_hints"
+        ] == ["sequence_generation", "structure_prediction"]
 
     async def test_legacy_tasks_query_converges_to_intake(
         self,
