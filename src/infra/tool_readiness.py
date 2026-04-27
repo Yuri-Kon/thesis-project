@@ -12,7 +12,9 @@ from src.models.contracts import CapabilityReadiness, ToolReadiness, now_iso
 
 __all__ = [
     "P0_CAPABILITY_IDS",
+    "build_capability_readiness_index",
     "build_capability_readiness_matrix",
+    "build_capability_readiness_snapshot",
     "build_tool_readiness_snapshot",
     "evaluate_tool_readiness",
 ]
@@ -223,6 +225,37 @@ def build_capability_readiness_matrix() -> List[Dict[str, Any]]:
 
         matrix.append(payload)
     return matrix
+
+
+def build_capability_readiness_index() -> Dict[str, Dict[str, Any]]:
+    """按 capability_id 返回 readiness 矩阵索引。"""
+    return {
+        str(entry["capability_id"]): entry
+        for entry in build_capability_readiness_matrix()
+        if isinstance(entry.get("capability_id"), str)
+    }
+
+
+def build_capability_readiness_snapshot(capability_id: str) -> Dict[str, Any]:
+    """返回单个 capability 的 readiness 快照。"""
+    normalized = capability_id.strip()
+    matrix = build_capability_readiness_index()
+    if normalized in matrix:
+        return matrix[normalized]
+
+    checked_at = now_iso()
+    payload = CapabilityReadiness(
+        capability_id=normalized,
+        status="unavailable",
+        degraded_reasons=["capability not found in ToolKG"],
+        last_checked_at=checked_at,
+        suggested_recovery=(
+            "Register the capability and at least one adapter-backed tool before planning."
+        ),
+        reason="capability not found in ToolKG",
+    ).model_dump(mode="json", exclude_none=True)
+    payload["checked_at"] = checked_at
+    return payload
 
 
 def build_tool_readiness_snapshot(tool_id: str) -> Dict[str, Any]:

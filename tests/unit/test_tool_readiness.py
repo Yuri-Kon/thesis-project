@@ -171,3 +171,31 @@ def test_capability_readiness_matrix_exposes_structured_reasons(
     assert matrix[0]["available_tools"][0]["tool_id"] == "mmseqs2"
     assert matrix[0]["degraded_reasons"]
     assert matrix[0]["suggested_recovery"]
+
+
+def test_capability_readiness_matrix_covers_all_p0_capabilities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """每个 P0 capability 都应返回结构化 status。"""
+
+    monkeypatch.setattr(tool_readiness, "ensure_builtin_adapters", lambda: None)
+    monkeypatch.setattr(
+        tool_readiness,
+        "load_tool_kg",
+        lambda: {
+            "capabilities": [
+                {"capability_id": capability_id}
+                for capability_id in sorted(tool_readiness.P0_CAPABILITY_IDS)
+            ],
+            "tools": [],
+        },
+    )
+
+    matrix = tool_readiness.build_capability_readiness_matrix()
+    by_capability = {item["capability_id"]: item for item in matrix}
+
+    assert set(by_capability) == tool_readiness.P0_CAPABILITY_IDS
+    for entry in by_capability.values():
+        assert entry["status"] == "unavailable"
+        assert entry["degraded_reasons"] == []
+        assert entry["reason"] == "no registered tool is ready"
