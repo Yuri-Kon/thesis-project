@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from src.kg.kg_client import ToolKGError, get_tool_nodes
 from src.models.contracts import now_iso
 
 
@@ -93,6 +94,18 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "options": [],
             "default": None,
             "maps_to": "inputs.template_pdb",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "initial_artifacts": {
+            "group": "inputs",
+            "type": "artifact_ref_list",
+            "ui_control": "artifact_picker",
+            "nl_aliases": ["初始产物", "artifacts", "artifact refs"],
+            "validators": {"ref_schemes": ["artifact", "task", "relative_path"]},
+            "options": [],
+            "default": [],
+            "maps_to": "initial_artifacts",
             "support_level": "P0",
             "audit_visibility": "public",
         },
@@ -323,6 +336,7 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
                 "quality_metric",
                 "min_quality_score",
                 "target_fold",
+                "initial_artifacts",
                 "forbidden_motifs",
                 "safety_level",
                 "run_profile",
@@ -341,6 +355,7 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "optional": [
                 "quality_metric",
                 "min_quality_score",
+                "initial_artifacts",
                 "safety_level",
                 "run_profile",
                 "tools_allowed",
@@ -361,6 +376,7 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
                 "quality_metric",
                 "min_quality_score",
                 "target_fold",
+                "initial_artifacts",
                 "safety_level",
                 "run_profile",
                 "tools_allowed",
@@ -480,6 +496,17 @@ class ConfirmedTaskSpec(BaseModel):
             raise ValueError("goal must not be empty")
         return normalized
 
+    @field_validator("initial_artifacts")
+    @classmethod
+    def _validate_initial_artifacts(
+        cls,
+        value: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        error = _validate_artifact_ref_list("initial_artifacts", value)
+        if error is not None:
+            raise ValueError(error)
+        return value
+
 
 class TaskIntakeSession(BaseModel):
     """一次正式 Task 创建前的录入会话。"""
@@ -492,6 +519,7 @@ class TaskIntakeSession(BaseModel):
     ambiguous_fields: list[str] = Field(default_factory=list)
     unmapped_text: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    human_summary: str = ""
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
     confirmed_task_spec: ConfirmedTaskSpec | None = None
@@ -532,6 +560,9 @@ def build_task_intake_schema() -> dict[str, Any]:
     """生成 Web/CLI 共享的字段注册表视图。"""
 
     registry = get_task_field_registry()
+    tool_options = build_tool_kg_options()
+    _attach_tool_options(registry["fields"], tool_options)
+    registry["tool_options"] = tool_options
     registry["web_schema"] = build_task_intake_web_schema()
     registry["cli_arguments"] = build_task_intake_cli_arguments()
     registry["cli_questions"] = build_task_intake_cli_questions()
@@ -551,7 +582,7 @@ def get_task_field_registry() -> dict[str, Any]:
 def build_task_intake_web_schema() -> dict[str, Any]:
     """从 registry 派生 Web 表单分组 schema。"""
 
-    fields = _registry_fields()
+    fields = _schema_fields()
     return {
         "groups": [
             {
@@ -581,7 +612,7 @@ def build_task_intake_cli_arguments() -> list[dict[str, Any]]:
             "required_by_profiles": required_by.get(name, []),
             "nl_aliases": list(definition["nl_aliases"]),
         }
-        for name, definition in _registry_fields().items()
+        for name, definition in _schema_fields().items()
     ]
 
 
@@ -599,7 +630,7 @@ def build_task_intake_cli_questions() -> list[dict[str, Any]]:
             "default": definition["default"],
             "required_by_profiles": required_by.get(name, []),
         }
-        for name, definition in _registry_fields().items()
+        for name, definition in _schema_fields().items()
     ]
 
 
@@ -607,12 +638,19 @@ def build_task_intake_llm_extraction_schema() -> dict[str, Any]:
     """从 registry 派生自然语言字段抽取 schema。"""
 
     properties: dict[str, Any] = {}
-    for name, definition in _registry_fields().items():
+    for name, definition in _schema_fields().items():
         property_schema = {
             "type": _json_schema_type_for_field(definition),
             "description": ", ".join(definition["nl_aliases"]),
         }
-        if definition["options"]:
+        if definition["type"] == "tool_id_list":
+            property_schema["items"] = {
+                "type": "string",
+                "enum": list(definition["options"]),
+            }
+        elif definition["type"] == "artifact_ref_list":
+            property_schema["items"] = {"type": "object"}
+        elif definition["options"]:
             property_schema["enum"] = list(definition["options"])
         properties[name] = property_schema
     return {
@@ -638,6 +676,31 @@ def build_planner_capability_hints() -> dict[str, list[str]]:
         name: list(profile["capability_hints"])
         for name, profile in _task_profiles().items()
     }
+
+
+def build_tool_kg_options() -> list[dict[str, Any]]:
+    """从 ProteinToolKG 派生 Web/CLI 可用的工具选项。"""
+
+    try:
+        tools = get_tool_nodes()
+    except ToolKGError:
+        return []
+
+    options: list[dict[str, Any]] = []
+    for tool in tools:
+        tool_id = tool.get("id") or tool.get("tool_id")
+        if not isinstance(tool_id, str) or not tool_id:
+            continue
+        options.append(
+            {
+                "tool_id": tool_id,
+                "label": tool.get("name") or tool_id,
+                "capabilities": list(tool.get("capabilities") or []),
+                "support_level": tool.get("priority"),
+                "execution": tool.get("execution"),
+            }
+        )
+    return options
 
 
 def create_task_intake_session(
@@ -709,6 +772,7 @@ def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession
             session.warnings.append(error)
         if field.confidence < HIGH_CONFIDENCE_THRESHOLD:
             session.ambiguous_fields.append(field_name)
+    session.warnings.extend(_run_safety_input_precheck(session))
 
     required = _required_fields_for(session.draft.fields)
     session.missing_required_fields = [
@@ -723,6 +787,7 @@ def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession
         session.status = TaskIntakeStatus.COLLECTING
     else:
         session.status = TaskIntakeStatus.NEEDS_CONFIRMATION
+    session.human_summary = _build_human_summary(session)
     session.updated_at = now_iso()
     return session
 
@@ -780,6 +845,23 @@ def _registry_fields() -> dict[str, dict[str, Any]]:
     return deepcopy(TASK_FIELD_REGISTRY["fields"])
 
 
+def _schema_fields() -> dict[str, dict[str, Any]]:
+    fields = _registry_fields()
+    _attach_tool_options(fields, build_tool_kg_options())
+    return fields
+
+
+def _attach_tool_options(
+    fields: dict[str, dict[str, Any]],
+    tool_options: list[dict[str, Any]],
+) -> None:
+    tool_ids = [option["tool_id"] for option in tool_options]
+    for field_name in ("tools_allowed", "tools_excluded"):
+        if field_name in fields:
+            fields[field_name]["options"] = list(tool_ids)
+            fields[field_name]["tool_options"] = deepcopy(tool_options)
+
+
 def _task_profiles() -> dict[str, dict[str, Any]]:
     return deepcopy(TASK_FIELD_REGISTRY["task_profiles"])
 
@@ -811,7 +893,12 @@ def _json_schema_type_for_field(definition: dict[str, Any]) -> str | list[str]:
         return "number"
     if field_type == "boolean":
         return "boolean"
-    if field_type in {"string_list", "residue_list", "tool_id_list"}:
+    if field_type in {
+        "string_list",
+        "residue_list",
+        "tool_id_list",
+        "artifact_ref_list",
+    }:
         return "array"
     return "string"
 
@@ -942,6 +1029,7 @@ def _merge_structured_fields(
 ) -> None:
     for field_name, raw_value in fields.items():
         value, confidence, source_span = _unwrap_field_value(raw_value)
+        value = _normalize_registry_value(field_name, value)
         if confidence < LOW_CONFIDENCE_THRESHOLD:
             draft.unmapped_text.append(f"{field_name}={value}")
             draft.fields.pop(field_name, None)
@@ -957,7 +1045,7 @@ def _merge_structured_fields(
 
 
 def _unwrap_field_value(raw_value: Any) -> tuple[Any, float, str | None]:
-    if isinstance(raw_value, dict) and "value" in raw_value:
+    if isinstance(raw_value, dict) and "value" in raw_value and "unit" not in raw_value:
         confidence = raw_value.get("confidence", 1.0)
         if not isinstance(confidence, (int, float)):
             confidence = 1.0
@@ -965,6 +1053,56 @@ def _unwrap_field_value(raw_value: Any) -> tuple[Any, float, str | None]:
         normalized_span = source_span if isinstance(source_span, str) else None
         return raw_value["value"], float(confidence), normalized_span
     return raw_value, 1.0, None
+
+
+def _normalize_registry_value(field_name: str, value: Any) -> Any:
+    registry = _registry_fields()
+    field = registry.get(field_name)
+    if field is None:
+        return value
+
+    field_type = field["type"]
+    if field_type == "integer_range" and isinstance(value, dict):
+        unit = str(value.get("unit", "aa")).strip().lower()
+        if unit not in {"aa", "amino_acid", "amino_acids", "residue", "residues"}:
+            raise ValueError(f"{field_name} unit must be amino-acid based")
+        lower = value.get("min", value.get("start"))
+        upper = value.get("max", value.get("end"))
+        if (
+            not isinstance(lower, int)
+            or isinstance(lower, bool)
+            or not isinstance(upper, int)
+            or isinstance(upper, bool)
+        ):
+            raise ValueError(f"{field_name} min/max must be integers")
+        return [lower, upper]
+
+    if field_name == "max_runtime_min" and isinstance(value, dict):
+        raw_amount = value.get("value")
+        unit = str(value.get("unit", "min")).strip().lower()
+        multipliers = {
+            "m": 1,
+            "min": 1,
+            "minute": 1,
+            "minutes": 1,
+            "h": 60,
+            "hr": 60,
+            "hour": 60,
+            "hours": 60,
+            "d": 1440,
+            "day": 1440,
+            "days": 1440,
+        }
+        if unit not in multipliers:
+            raise ValueError("max_runtime_min unit must be minutes, hours, or days")
+        if not isinstance(raw_amount, (int, float)) or isinstance(raw_amount, bool):
+            raise ValueError("max_runtime_min value must be numeric")
+        minutes = raw_amount * multipliers[unit]
+        if not float(minutes).is_integer():
+            raise ValueError("max_runtime_min must normalize to whole minutes")
+        return int(minutes)
+
+    return value
 
 
 def _required_fields_for(fields: dict[str, TaskDraftField]) -> list[str]:
@@ -1041,13 +1179,111 @@ def _validate_registry_value(field_name: str, value: Any) -> str | None:
             isinstance(item, str) and item for item in value
         ):
             return f"{field_name} must be a list of strings"
+        if field_type == "tool_id_list":
+            invalid_tool_ids = sorted(set(value) - _allowed_tool_ids())
+            if invalid_tool_ids:
+                return (
+                    f"{field_name} contains unknown tool_id(s): "
+                    f"{', '.join(invalid_tool_ids)}"
+                )
     if field_type == "residue_list":
         if not isinstance(value, list) or not all(
             isinstance(item, str) and re.match(r"^[A-Z][0-9]+$", item)
             for item in value
         ):
             return f"{field_name} must be residue ids like A42"
+    if field_type == "artifact_ref_list":
+        return _validate_artifact_ref_list(field_name, value)
     return None
+
+
+def _allowed_tool_ids() -> set[str]:
+    return {option["tool_id"] for option in build_tool_kg_options()}
+
+
+def _validate_artifact_ref_list(field_name: str, value: Any) -> str | None:
+    if not isinstance(value, list):
+        return f"{field_name} must be a list of artifact refs"
+
+    for index, artifact in enumerate(value):
+        if not isinstance(artifact, dict):
+            return f"{field_name}[{index}] must be an object"
+        kind = artifact.get("kind")
+        if not isinstance(kind, str) or not kind.strip():
+            return f"{field_name}[{index}].kind must be a non-empty string"
+
+        ref_values = [
+            artifact.get("artifact_id"),
+            artifact.get("uri"),
+            artifact.get("path"),
+            artifact.get("ref"),
+        ]
+        if not any(isinstance(item, str) and item.strip() for item in ref_values):
+            return (
+                f"{field_name}[{index}] must include artifact_id, uri, path, or ref"
+            )
+
+        artifact_id = artifact.get("artifact_id")
+        if isinstance(artifact_id, str) and not re.match(
+            r"^[A-Za-z0-9_.:-]+$",
+            artifact_id,
+        ):
+            return f"{field_name}[{index}].artifact_id is invalid"
+
+        uri = artifact.get("uri")
+        if isinstance(uri, str) and not (
+            uri.startswith("artifact://") or uri.startswith("task://")
+        ):
+            return f"{field_name}[{index}].uri must use artifact:// or task://"
+
+        path = artifact.get("path")
+        if isinstance(path, str) and (
+            path.startswith("/")
+            or path.startswith("~")
+            or ".." in path.split("/")
+            or not path.strip()
+        ):
+            return f"{field_name}[{index}].path must be a safe relative path"
+
+        ref = artifact.get("ref")
+        if isinstance(ref, str) and not re.match(
+            r"^task_[A-Za-z0-9_:-]+\.[A-Za-z][A-Za-z0-9_.-]*$",
+            ref,
+        ):
+            return f"{field_name}[{index}].ref must look like task_id.artifact_key"
+
+    return None
+
+
+def _run_safety_input_precheck(session: TaskIntakeSession) -> list[str]:
+    fields = {name: field.value for name, field in session.draft.fields.items()}
+    sequence = fields.get("sequence")
+    forbidden_motifs = fields.get("forbidden_motifs")
+    if not isinstance(sequence, str) or not isinstance(forbidden_motifs, list):
+        return []
+
+    normalized_sequence = sequence.upper()
+    warnings: list[str] = []
+    for motif in forbidden_motifs:
+        if isinstance(motif, str) and motif.upper() in normalized_sequence:
+            warnings.append(
+                f"forbidden_motifs contains motif present in sequence: {motif}"
+            )
+    return warnings
+
+
+def _build_human_summary(session: TaskIntakeSession) -> str:
+    fields = {name: field.value for name, field in session.draft.fields.items()}
+    task_kind = fields.get("task_kind", "unknown task")
+    objective = fields.get("objective_type", "unspecified objective")
+    pieces = [f"{task_kind} / {objective}", f"status={session.status.value}"]
+    if session.missing_required_fields:
+        pieces.append(f"missing={', '.join(session.missing_required_fields)}")
+    if session.ambiguous_fields:
+        pieces.append(f"ambiguous={', '.join(session.ambiguous_fields)}")
+    if session.warnings:
+        pieces.append(f"warnings={len(session.warnings)}")
+    return "; ".join(pieces)
 
 
 def _build_confirmed_spec(
@@ -1060,6 +1296,7 @@ def _build_confirmed_spec(
     objective: dict[str, Any] = {}
     inputs: dict[str, Any] = {}
     constraints: dict[str, Any] = {}
+    initial_artifacts: list[dict[str, Any]] = []
     registry = _registry_fields()
 
     for field_name, value in fields.items():
@@ -1070,6 +1307,8 @@ def _build_confirmed_spec(
             inputs[maps_to.split(".", 1)[1]] = value
         elif maps_to.startswith("constraints."):
             constraints[maps_to.split(".", 1)[1]] = value
+        elif maps_to == "initial_artifacts":
+            initial_artifacts = list(value)
 
     goal = _build_goal(fields)
     metadata = {
@@ -1096,7 +1335,7 @@ def _build_confirmed_spec(
         objective=objective,
         inputs=inputs,
         constraints=constraints,
-        initial_artifacts=[],
+        initial_artifacts=initial_artifacts,
         metadata=metadata,
     )
 

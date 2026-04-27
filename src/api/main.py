@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -67,6 +67,36 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 TASK_STORE: Dict[str, TaskRecord] = {}
 INTAKE_STORE: Dict[str, TaskIntakeSession] = {}
 RUNTIME_INIT: Optional[RuntimeInitResult] = None
+
+
+class TaskIntakeAPIError(Exception):
+    """Task Intake API 的稳定错误响应。"""
+
+    def __init__(
+        self,
+        *,
+        status_code: int,
+        detail: str,
+        missing_fields: list[str] | None = None,
+        validation_errors: list[dict[str, Any]] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        self.status_code = status_code
+        self.payload = {
+            "status": status_code,
+            "detail": detail,
+            "missing_fields": missing_fields or [],
+            "validation_errors": validation_errors or [],
+            "context": context or {},
+        }
+
+
+@app.exception_handler(TaskIntakeAPIError)
+async def _handle_task_intake_api_error(
+    _request: Request,
+    exc: TaskIntakeAPIError,
+) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content=exc.payload)
 
 
 def _path_from_env(env_key: str) -> Optional[Path]:
@@ -569,12 +599,70 @@ def _task_intake_summary(session: TaskIntakeSession) -> dict[str, Any]:
     return {
         "intake_id": session.intake_id,
         "status": session.status.value,
+        "human_summary": session.human_summary,
         "draft": session.draft.model_dump(mode="json"),
         "missing_required_fields": list(session.missing_required_fields),
         "ambiguous_fields": list(session.ambiguous_fields),
         "unmapped_text": list(session.unmapped_text),
         "warnings": list(session.warnings),
     }
+
+
+def _task_intake_validation_errors(
+    session: TaskIntakeSession,
+) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    for field_name, field in session.draft.fields.items():
+        for warning in field.warnings:
+            errors.append(
+                {
+                    "field": field_name,
+                    "message": warning,
+                    "value": field.value,
+                }
+            )
+    for warning in session.warnings:
+        if not any(error["message"] == warning for error in errors):
+            errors.append({"field": None, "message": warning, "value": None})
+    return errors
+
+
+def _raise_task_intake_error(
+    session: TaskIntakeSession,
+    *,
+    detail: str,
+    status_code: int = 422,
+) -> None:
+    raise TaskIntakeAPIError(
+        status_code=status_code,
+        detail=detail,
+        missing_fields=list(session.missing_required_fields),
+        validation_errors=_task_intake_validation_errors(session),
+        context={
+            "intake_id": session.intake_id,
+            "status": session.status.value,
+            "ambiguous_fields": list(session.ambiguous_fields),
+        },
+    )
+
+
+def _raise_task_intake_value_error(
+    *,
+    detail: str,
+    field_context: dict[str, Any] | None = None,
+) -> None:
+    raise TaskIntakeAPIError(
+        status_code=422,
+        detail=detail,
+        validation_errors=[
+            {
+                "field": field_context.get("field") if field_context else None,
+                "message": detail,
+                "value": field_context.get("value") if field_context else None,
+            }
+        ],
+        context=field_context or {},
+    )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -630,12 +718,17 @@ async def create_task_intake(req: TaskIntakeCreateRequest) -> TaskIntakeSession:
     """创建正式 Task 之前的 Task Intake 会话。"""
 
     intake_id = f"intake_{uuid4().hex[:8]}"
-    session = create_task_intake_session(
-        intake_id=intake_id,
-        text=req.text,
-        structured_fields=req.structured_fields,
-        source=req.source,
-    )
+    try:
+        session = create_task_intake_session(
+            intake_id=intake_id,
+            text=req.text,
+            structured_fields=req.structured_fields,
+            source=req.source,
+        )
+    except ValueError as exc:
+        _raise_task_intake_value_error(detail=str(exc))
+    if session.warnings:
+        _raise_task_intake_error(session, detail="task intake validation failed")
     INTAKE_STORE[intake_id] = session
     return session
 
@@ -648,14 +741,22 @@ async def update_task_intake(
     """更新 Task Intake 草稿字段。"""
 
     session = _get_intake_or_404(intake_id)
+    candidate = session.model_copy(deep=True)
     try:
-        return patch_task_intake_session(
-            session,
+        updated = patch_task_intake_session(
+            candidate,
             fields=req.fields,
             updated_by=req.updated_by,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _raise_task_intake_value_error(
+            detail=str(exc),
+            field_context={"intake_id": intake_id},
+        )
+    if updated.warnings:
+        _raise_task_intake_error(updated, detail="task intake validation failed")
+    INTAKE_STORE[intake_id] = updated
+    return updated
 
 
 @app.post("/task-intakes/{intake_id}/confirm")
@@ -673,13 +774,14 @@ async def confirm_task_intake(
             acknowledged_warnings=req.acknowledged_warnings,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        _raise_task_intake_error(session, detail=str(exc))
 
     record = _create_task_record_from_confirmed_spec(confirmed_spec)
     return {
         "intake_id": intake_id,
         "task_id": record.id,
         "status": record.status.value,
+        "human_summary": session.human_summary,
         "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
     }
 
