@@ -100,6 +100,10 @@ class TestAPIEndpoints:
             item for item in data if item["capability_id"] == "objective_scoring"
         )
         assert objective_entry["primary_tool_id"] == "objective_ranker"
+        assert "available_tools" in objective_entry
+        assert "blocked_tools" in objective_entry
+        assert "degraded_reasons" in objective_entry
+        assert "suggested_recovery" in objective_entry
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""

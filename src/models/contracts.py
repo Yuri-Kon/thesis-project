@@ -27,6 +27,8 @@ RUNTIME_ADJUSTMENT_METADATA_KEY = "runtime_adjustment"
 RERANK_REASON_METADATA_KEY = "rerank_reason"
 WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
 DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
+CAPABILITY_READINESS_METADATA_KEY = "capability_readiness"
+TOOL_READINESS_METADATA_KEY = "tool_readiness"
 
 
 def _validate_runtime_state_schema_version(value: int) -> int:
@@ -144,6 +146,45 @@ class StepResult(BaseModel):
     risk_flags: List[RiskFlag] = Field(default_factory=list)
     logs_path: Optional[str] = None
     timestamp: str
+
+
+class ToolReadiness(BaseModel):
+    """单个 adapter/tool 的健康检查摘要。"""
+
+    tool_id: str
+    status: Literal["ready", "degraded", "unavailable"]
+    reason: str = ""
+    error_category: str | None = None
+    capability_ids: List[str] = Field(default_factory=list)
+    cost_prior: float | None = None
+    risk_prior: float | None = None
+    latency_prior: float | None = None
+    suggested_recovery: str | None = None
+    last_checked_at: str
+    details: Dict[str, Any] = Field(default_factory=dict)
+    metadata_profile: Dict[str, Any] | None = None
+
+
+class CapabilityReadiness(BaseModel):
+    """Capability 级 readiness 契约。
+
+    该契约作为 Planner/API/Web/CLI 的同源视图，字段以 additive 方式扩展，
+    不改变 ToolKG、候选和 EventLog 的既有核心语义。
+    """
+
+    capability_id: str
+    status: Literal["ready", "degraded", "unavailable"]
+    available_tools: List[ToolReadiness] = Field(default_factory=list)
+    blocked_tools: List[ToolReadiness] = Field(default_factory=list)
+    degraded_reasons: List[str] = Field(default_factory=list)
+    last_checked_at: str
+    cost_prior: float | None = None
+    risk_prior: float | None = None
+    suggested_recovery: str | None = None
+    primary_tool_id: str | None = None
+    fallback_tool_ids: List[str] = Field(default_factory=list)
+    reason: str = ""
+    tools: List[ToolReadiness] = Field(default_factory=list)
 
 
 class RuntimeFailureContext(BaseModel):

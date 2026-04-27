@@ -53,6 +53,18 @@ function statusChipClass(status) {
     }
     return "chip muted";
 }
+function readinessChipClass(status) {
+    if (status === "ready") {
+        return "chip done";
+    }
+    if (status === "degraded") {
+        return "chip waiting";
+    }
+    if (status === "unavailable") {
+        return "chip error-chip";
+    }
+    return "chip muted";
+}
 function formatScore(value) {
     if (typeof value !== "number" || Number.isNaN(value)) {
         return "-";
@@ -124,6 +136,46 @@ function renderPendingActions(items) {
         const summaryCell = document.createElement("td");
         summaryCell.textContent = item.summary || item.explanation;
         row.appendChild(summaryCell);
+        tbody.appendChild(row);
+    }
+}
+function renderCapabilityReadiness(items) {
+    const tbody = byId("capability-readiness-body");
+    tbody.innerHTML = "";
+    if (!items.length) {
+        const row = document.createElement("tr");
+        const cell = document.createElement("td");
+        cell.colSpan = 5;
+        cell.textContent = "No capability readiness data.";
+        row.appendChild(cell);
+        tbody.appendChild(row);
+        return;
+    }
+    for (const item of items) {
+        const row = document.createElement("tr");
+        const capabilityCell = document.createElement("td");
+        capabilityCell.textContent = item.capability_id;
+        row.appendChild(capabilityCell);
+        const statusCell = document.createElement("td");
+        const chip = document.createElement("span");
+        chip.className = readinessChipClass(item.status);
+        chip.textContent = item.status;
+        statusCell.appendChild(chip);
+        row.appendChild(statusCell);
+        const toolCell = document.createElement("td");
+        const fallback = item.fallback_tool_ids?.length
+            ? ` fallback=${item.fallback_tool_ids.join(",")}`
+            : "";
+        toolCell.textContent = `${formatText(item.primary_tool_id)}${fallback}`;
+        row.appendChild(toolCell);
+        const reasonCell = document.createElement("td");
+        reasonCell.textContent = item.degraded_reasons?.length
+            ? item.degraded_reasons.join(" | ")
+            : item.reason;
+        row.appendChild(reasonCell);
+        const recoveryCell = document.createElement("td");
+        recoveryCell.textContent = formatText(item.suggested_recovery);
+        row.appendChild(recoveryCell);
         tbody.appendChild(row);
     }
 }
@@ -204,7 +256,8 @@ function renderCandidateComparison(detail) {
         "Risk",
         "Cost",
         "Tool",
-        "Availability",
+        "Readiness",
+        "Recovery",
         "Reason",
         "Summary",
     ]) {
@@ -245,12 +298,19 @@ function renderCandidateComparison(detail) {
                 `${formatText(candidate.tool.io_type)} / mode=${formatText(candidate.tool.adapter_mode)} / ` +
                 `source=${candidate.tool.source}`;
         row.appendChild(toolCell);
-        const availabilityCell = document.createElement("td");
-        const availability = candidate.tool.available ? "ready" : "degraded";
-        const fallbackFlag = candidate.tool.can_fallback ? " fallback" : "";
-        availabilityCell.textContent = `${availability}${fallbackFlag}`;
-        availabilityCell.title = candidate.tool.availability_hint;
-        row.appendChild(availabilityCell);
+        const readinessCell = document.createElement("td");
+        const readiness = candidate.tool.readiness_status ?? (candidate.tool.available ? "ready" : "degraded");
+        const readinessChip = document.createElement("span");
+        readinessChip.className = readinessChipClass(readiness);
+        readinessChip.textContent = readiness;
+        readinessCell.appendChild(readinessChip);
+        readinessCell.title = candidate.tool.degraded_reasons?.length
+            ? candidate.tool.degraded_reasons.join(" | ")
+            : candidate.tool.availability_hint;
+        row.appendChild(readinessCell);
+        const recoveryCell = document.createElement("td");
+        recoveryCell.textContent = formatText(candidate.tool.suggested_recovery);
+        row.appendChild(recoveryCell);
         const reasonCell = document.createElement("td");
         reasonCell.textContent = candidate.recommendation_reason;
         row.appendChild(reasonCell);
@@ -460,6 +520,7 @@ async function submitDecision() {
     setGlobalMessage("Decision submitted. Pending list and state are refreshed.");
     await Promise.all([
         refreshPendingActions(),
+        refreshCapabilityReadiness(),
         refreshLatestProgress(updatedTask.id, previousStatus, updatedTask.status),
     ]);
 }
@@ -467,6 +528,16 @@ async function refreshPendingActions() {
     try {
         const records = await getJson("/pending-actions");
         renderPendingActions(records);
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setGlobalMessage(message, true);
+    }
+}
+async function refreshCapabilityReadiness() {
+    try {
+        const records = await getJson("/capabilities/readiness");
+        renderCapabilityReadiness(records);
     }
     catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -525,6 +596,7 @@ function bindEvents() {
     });
     refreshButton.addEventListener("click", () => {
         void refreshPendingActions();
+        void refreshCapabilityReadiness();
         if (state.selectedTaskId) {
             void refreshTaskDetail();
         }
@@ -539,11 +611,13 @@ async function bootstrap() {
     }
     renderNoPendingAction();
     await refreshPendingActions();
+    await refreshCapabilityReadiness();
     if (state.selectedTaskId) {
         await refreshTaskDetail();
     }
     window.setInterval(() => {
         void refreshPendingActions();
+        void refreshCapabilityReadiness();
         if (state.selectedTaskId) {
             void refreshTaskDetail();
         }

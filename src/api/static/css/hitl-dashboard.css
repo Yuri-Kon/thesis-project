@@ -122,21 +122,36 @@ button:disabled {
   color: var(--muted);
 }
 
+.chip.error-chip {
+  color: #9b1c1c;
+  border-color: #efb0b0;
+  background: #fff0f0;
+}
+
 .pending-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
 
+.readiness-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
 .pending-table th,
-.pending-table td {
+.pending-table td,
+.readiness-table th,
+.readiness-table td {
   border-top: 1px solid var(--line);
   text-align: left;
   padding: 8px;
   vertical-align: top;
 }
 
-.pending-table tr:hover {
+.pending-table tr:hover,
+.readiness-table tr:hover {
   background: #f6faff;
 }
 
@@ -208,6 +223,11 @@ button:disabled {
   }
 
   .candidate-table {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .readiness-table {
     display: block;
     overflow-x: auto;
   }

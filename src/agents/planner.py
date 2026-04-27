@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
 
-from src.adapters.registry import get_adapter
 from src.infra.active_tool_metadata import metadata_by_tool_id
+from src.infra.tool_readiness import build_tool_readiness_snapshot
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
@@ -17,6 +17,7 @@ from src.llm.provider_registry import create_provider, load_provider_catalog
 from src.agents.task_goal_parser import enrich_task_from_goal
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
     PatchRequest,
@@ -42,6 +43,7 @@ from src.models.contracts import (
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     StepResult,
     SHADOW_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
@@ -2066,6 +2068,11 @@ def _build_top_k_result(
             STATIC_SCORE_METADATA_KEY: _build_static_score_summary(score_breakdown),
             ACTION_SCORE_METADATA_KEY: _build_action_score_summary(score_breakdown),
         }
+        readiness_metadata = _candidate_readiness_metadata(
+            tool_id=tool_id,
+            capability_id=capability_id,
+        )
+        metadata.update(readiness_metadata)
         explanation = (
             f"{candidate_kind} candidate with primary tool "
             f"{tool_id} in capability bucket {capability_id}."
@@ -2999,24 +3006,50 @@ def _tool_readiness_score(spec: ToolSpec) -> float:
     }
     base = adapter_base.get(spec.adapter_mode, 0.55)
     try:
-        adapter = get_adapter(spec.id)
-    except KeyError:
-        adapter = None
-    if adapter is not None:
-        try:
-            health = adapter.healthcheck()
-        except Exception:
-            health = {"status": "degraded"}
-        status = str(health.get("status") or "ready")
-        if status == "unavailable":
-            base -= 0.55
-        elif status == "degraded":
-            base -= 0.22
-        elif status == "ready":
-            base += 0.05
+        readiness = build_tool_readiness_snapshot(spec.id)
+    except Exception:
+        readiness = {"status": "degraded"}
+    status = str(readiness.get("status") or "ready")
+    if status == "unavailable":
+        base = min(base, 0.08)
+    elif status == "degraded":
+        base -= 0.22
+    elif status == "ready":
+        base += 0.05
     priority_bonus = 0.06 if _priority_rank(spec.priority) == 0 else 0.0
     safety_penalty = min(0.18, max(0, spec.safety_level - 1) * 0.05)
     return min(1.0, max(0.0, base + priority_bonus - safety_penalty))
+
+
+def _candidate_readiness_metadata(
+    *,
+    tool_id: str,
+    capability_id: str,
+) -> dict[str, Any]:
+    """生成候选审计用 readiness 快照。"""
+    try:
+        tool_readiness = build_tool_readiness_snapshot(tool_id)
+    except Exception:
+        return {}
+    status = str(tool_readiness.get("status") or "degraded")
+    metadata: dict[str, Any] = {
+        TOOL_READINESS_METADATA_KEY: tool_readiness,
+        CAPABILITY_READINESS_METADATA_KEY: {
+            "capability_id": capability_id,
+            "status": status,
+            "source": "primary_tool_snapshot",
+            "tool_id": tool_id,
+            "last_checked_at": tool_readiness.get("last_checked_at")
+            or tool_readiness.get("checked_at"),
+        },
+    }
+    reason = tool_readiness.get("reason")
+    if status != "ready" and isinstance(reason, str) and reason:
+        metadata[CAPABILITY_READINESS_METADATA_KEY]["degraded_reasons"] = [reason]
+    recovery = tool_readiness.get("suggested_recovery")
+    if isinstance(recovery, str) and recovery:
+        metadata[CAPABILITY_READINESS_METADATA_KEY]["suggested_recovery"] = recovery
+    return metadata
 
 
 def _tool_coverage_score(tool_ids: Sequence[str], capabilities: Set[str]) -> float:

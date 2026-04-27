@@ -29,6 +29,10 @@ interface PendingActionToolDisplay {
   available: boolean;
   can_fallback: boolean;
   availability_hint: string;
+  readiness_status?: string | null;
+  degraded_reasons?: string[];
+  suggested_recovery?: string | null;
+  readiness_snapshot?: Record<string, unknown>;
 }
 
 interface PendingActionCandidateDisplay {
@@ -76,6 +80,16 @@ interface TaskTimelineEvent {
   event_type: string;
   summary: string;
   ts?: string | null;
+}
+
+interface CapabilityReadinessEntry {
+  capability_id: string;
+  status: string;
+  primary_tool_id?: string | null;
+  fallback_tool_ids?: string[];
+  degraded_reasons?: string[];
+  suggested_recovery?: string | null;
+  reason: string;
 }
 
 const ALLOWED_CHOICES: Record<PendingActionType, DecisionChoice[]> = {
@@ -141,6 +155,19 @@ function statusChipClass(status: string): string {
   }
   if (status === "RUNNING" || status === "PLANNING" || status === "PLANNED") {
     return "chip active";
+  }
+  return "chip muted";
+}
+
+function readinessChipClass(status: string | null | undefined): string {
+  if (status === "ready") {
+    return "chip done";
+  }
+  if (status === "degraded") {
+    return "chip waiting";
+  }
+  if (status === "unavailable") {
+    return "chip error-chip";
   }
   return "chip muted";
 }
@@ -227,6 +254,55 @@ function renderPendingActions(items: PendingActionSummary[]): void {
     const summaryCell = document.createElement("td");
     summaryCell.textContent = item.summary || item.explanation;
     row.appendChild(summaryCell);
+
+    tbody.appendChild(row);
+  }
+}
+
+function renderCapabilityReadiness(items: CapabilityReadinessEntry[]): void {
+  const tbody = byId<HTMLTableSectionElement>("capability-readiness-body");
+  tbody.innerHTML = "";
+
+  if (!items.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "No capability readiness data.";
+    row.appendChild(cell);
+    tbody.appendChild(row);
+    return;
+  }
+
+  for (const item of items) {
+    const row = document.createElement("tr");
+
+    const capabilityCell = document.createElement("td");
+    capabilityCell.textContent = item.capability_id;
+    row.appendChild(capabilityCell);
+
+    const statusCell = document.createElement("td");
+    const chip = document.createElement("span");
+    chip.className = readinessChipClass(item.status);
+    chip.textContent = item.status;
+    statusCell.appendChild(chip);
+    row.appendChild(statusCell);
+
+    const toolCell = document.createElement("td");
+    const fallback = item.fallback_tool_ids?.length
+      ? ` fallback=${item.fallback_tool_ids.join(",")}`
+      : "";
+    toolCell.textContent = `${formatText(item.primary_tool_id)}${fallback}`;
+    row.appendChild(toolCell);
+
+    const reasonCell = document.createElement("td");
+    reasonCell.textContent = item.degraded_reasons?.length
+      ? item.degraded_reasons.join(" | ")
+      : item.reason;
+    row.appendChild(reasonCell);
+
+    const recoveryCell = document.createElement("td");
+    recoveryCell.textContent = formatText(item.suggested_recovery);
+    row.appendChild(recoveryCell);
 
     tbody.appendChild(row);
   }
@@ -324,7 +400,8 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
     "Risk",
     "Cost",
     "Tool",
-    "Availability",
+    "Readiness",
+    "Recovery",
     "Reason",
     "Summary",
   ]) {
@@ -373,12 +450,22 @@ function renderCandidateComparison(detail: PendingActionDetail): void {
       `source=${candidate.tool.source}`;
     row.appendChild(toolCell);
 
-    const availabilityCell = document.createElement("td");
-    const availability = candidate.tool.available ? "ready" : "degraded";
-    const fallbackFlag = candidate.tool.can_fallback ? " fallback" : "";
-    availabilityCell.textContent = `${availability}${fallbackFlag}`;
-    availabilityCell.title = candidate.tool.availability_hint;
-    row.appendChild(availabilityCell);
+    const readinessCell = document.createElement("td");
+    const readiness = candidate.tool.readiness_status ?? (
+      candidate.tool.available ? "ready" : "degraded"
+    );
+    const readinessChip = document.createElement("span");
+    readinessChip.className = readinessChipClass(readiness);
+    readinessChip.textContent = readiness;
+    readinessCell.appendChild(readinessChip);
+    readinessCell.title = candidate.tool.degraded_reasons?.length
+      ? candidate.tool.degraded_reasons.join(" | ")
+      : candidate.tool.availability_hint;
+    row.appendChild(readinessCell);
+
+    const recoveryCell = document.createElement("td");
+    recoveryCell.textContent = formatText(candidate.tool.suggested_recovery);
+    row.appendChild(recoveryCell);
 
     const reasonCell = document.createElement("td");
     reasonCell.textContent = candidate.recommendation_reason;
@@ -638,6 +725,7 @@ async function submitDecision(): Promise<void> {
   setGlobalMessage("Decision submitted. Pending list and state are refreshed.");
   await Promise.all([
     refreshPendingActions(),
+    refreshCapabilityReadiness(),
     refreshLatestProgress(updatedTask.id, previousStatus, updatedTask.status),
   ]);
 }
@@ -646,6 +734,16 @@ async function refreshPendingActions(): Promise<void> {
   try {
     const records = await getJson<PendingActionSummary[]>("/pending-actions");
     renderPendingActions(records);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    setGlobalMessage(message, true);
+  }
+}
+
+async function refreshCapabilityReadiness(): Promise<void> {
+  try {
+    const records = await getJson<CapabilityReadinessEntry[]>("/capabilities/readiness");
+    renderCapabilityReadiness(records);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     setGlobalMessage(message, true);
@@ -709,6 +807,7 @@ function bindEvents(): void {
 
   refreshButton.addEventListener("click", () => {
     void refreshPendingActions();
+    void refreshCapabilityReadiness();
     if (state.selectedTaskId) {
       void refreshTaskDetail();
     }
@@ -726,6 +825,7 @@ async function bootstrap(): Promise<void> {
 
   renderNoPendingAction();
   await refreshPendingActions();
+  await refreshCapabilityReadiness();
 
   if (state.selectedTaskId) {
     await refreshTaskDetail();
@@ -733,6 +833,7 @@ async function bootstrap(): Promise<void> {
 
   window.setInterval(() => {
     void refreshPendingActions();
+    void refreshCapabilityReadiness();
     if (state.selectedTaskId) {
       void refreshTaskDetail();
     }
