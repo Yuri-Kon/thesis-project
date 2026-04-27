@@ -9,7 +9,7 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.models.contracts import (
     ProteinDesignTask,
@@ -35,6 +35,20 @@ from src.workflow.decision_apply import (
 )
 from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
 from src.models.contracts import PendingActionType, now_iso
+from src.models.db import ExternalStatus, InternalStatus
+from src.models.task_intake import (
+    ConfirmedTaskSpec,
+    IntentDraftClarificationRequest,
+    TaskIntakeConfirmRequest,
+    TaskIntakeCreateRequest,
+    TaskIntakePatchRequest,
+    TaskIntakeSession,
+    build_task_intake_schema,
+    confirm_task_intake_session,
+    create_task_intake_session,
+    patch_task_intake_session,
+    project_confirmed_task_spec,
+)
 from src.storage.log_store import read_timeline_events
 from src.workflow.context import WorkflowContext
 from src.infra.tool_readiness import (
@@ -51,6 +65,7 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # 简单的内存存储，之后可以换成数据库或文件
 TASK_STORE: Dict[str, TaskRecord] = {}
+INTAKE_STORE: Dict[str, TaskIntakeSession] = {}
 RUNTIME_INIT: Optional[RuntimeInitResult] = None
 
 
@@ -82,9 +97,22 @@ async def _startup_init() -> None:
 
 
 class TaskCreateRequest(BaseModel):
-    goal: str = Field(..., description="蛋白质设计任务目标(自然语言)")
+    goal: Optional[str] = Field(None, description="蛋白质设计任务目标(自然语言)")
+    query: Optional[str] = Field(None, description="兼容自由文本入口；会收敛为 intake")
+    confirmed_task_spec: Optional[ConfirmedTaskSpec] = Field(
+        None,
+        description="已经确认的结构化任务输入",
+    )
     constraints: Dict[str, Any] = Field(default_factory=dict, description="结构化约束")
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_creation_mode(self) -> "TaskCreateRequest":
+        """确保 /tasks 请求明确选择一种兼容创建模式。"""
+
+        if self.goal is None and self.query is None and self.confirmed_task_spec is None:
+            raise ValueError("one of goal, query, or confirmed_task_spec is required")
+        return self
 
 
 class DecisionSubmitRequest(BaseModel):
@@ -503,6 +531,45 @@ def _find_record_by_pending_action_id(pending_action_id: str) -> Optional[TaskRe
     return None
 
 
+def _get_intake_or_404(intake_id: str) -> TaskIntakeSession:
+    session = INTAKE_STORE.get(intake_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="task intake not found")
+    return session
+
+
+def _create_task_record_from_confirmed_spec(spec: ConfirmedTaskSpec) -> TaskRecord:
+    goal, constraints, metadata = project_confirmed_task_spec(spec)
+    task_id = f"task_{uuid4().hex[:8]}"
+    record = TaskRecord(
+        id=task_id,
+        status=ExternalStatus.CREATED,
+        internal_status=InternalStatus.CREATED,
+        created_at=now_iso(),
+        updated_at=now_iso(),
+        goal=goal,
+        constraints=constraints,
+        metadata=metadata,
+        plan=None,
+        design_result=None,
+        safety_events=[],
+    )
+    TASK_STORE[task_id] = record
+    return record
+
+
+def _task_intake_summary(session: TaskIntakeSession) -> dict[str, Any]:
+    return {
+        "intake_id": session.intake_id,
+        "status": session.status.value,
+        "draft": session.draft.model_dump(mode="json"),
+        "missing_required_fields": list(session.missing_required_fields),
+        "ambiguous_fields": list(session.ambiguous_fields),
+        "unmapped_text": list(session.unmapped_text),
+        "warnings": list(session.warnings),
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/ui", response_class=HTMLResponse)
 async def get_hitl_dashboard() -> HTMLResponse:
@@ -544,9 +611,182 @@ async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
     return [CapabilityReadinessEntry(**entry) for entry in entries]
 
 
-@app.post("/tasks", response_model=TaskRecord)
+@app.get("/task-intakes/schema")
+async def get_task_intake_schema() -> dict[str, Any]:
+    """返回 Web/CLI 共享的 Task Intake 字段注册表。"""
+
+    return build_task_intake_schema()
+
+
+@app.post("/task-intakes", response_model=TaskIntakeSession)
+async def create_task_intake(req: TaskIntakeCreateRequest) -> TaskIntakeSession:
+    """创建正式 Task 之前的 Task Intake 会话。"""
+
+    intake_id = f"intake_{uuid4().hex[:8]}"
+    session = create_task_intake_session(
+        intake_id=intake_id,
+        text=req.text,
+        structured_fields=req.structured_fields,
+        source=req.source,
+    )
+    INTAKE_STORE[intake_id] = session
+    return session
+
+
+@app.patch("/task-intakes/{intake_id}", response_model=TaskIntakeSession)
+async def update_task_intake(
+    intake_id: str,
+    req: TaskIntakePatchRequest,
+) -> TaskIntakeSession:
+    """更新 Task Intake 草稿字段。"""
+
+    session = _get_intake_or_404(intake_id)
+    try:
+        return patch_task_intake_session(
+            session,
+            fields=req.fields,
+            updated_by=req.updated_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/task-intakes/{intake_id}/confirm")
+async def confirm_task_intake(
+    intake_id: str,
+    req: TaskIntakeConfirmRequest,
+) -> dict[str, Any]:
+    """确认 Task Intake 并从 ConfirmedTaskSpec 创建正式 Task。"""
+
+    session = _get_intake_or_404(intake_id)
+    try:
+        confirmed_spec = confirm_task_intake_session(
+            session,
+            confirmed_by=req.confirmed_by,
+            acknowledged_warnings=req.acknowledged_warnings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    record = _create_task_record_from_confirmed_spec(confirmed_spec)
+    return {
+        "intake_id": intake_id,
+        "task_id": record.id,
+        "status": record.status.value,
+        "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
+    }
+
+
+@app.post("/intent-drafts")
+async def create_intent_draft(req: TaskIntakeCreateRequest) -> dict[str, Any]:
+    """兼容旧 IntentDraft 创建入口，内部投影到 Task Intake。"""
+
+    intake_id = f"intake_{uuid4().hex[:8]}"
+    session = create_task_intake_session(
+        intake_id=intake_id,
+        text=req.text,
+        structured_fields=req.structured_fields,
+        source=req.source,
+    )
+    session.raw_input["intent_draft_id"] = intake_id
+    INTAKE_STORE[intake_id] = session
+    payload = _task_intake_summary(session)
+    payload["intent_draft_id"] = intake_id
+    return payload
+
+
+@app.patch("/intent-drafts/{intent_draft_id}")
+async def patch_intent_draft(
+    intent_draft_id: str,
+    req: IntentDraftClarificationRequest,
+) -> dict[str, Any]:
+    """兼容旧 IntentDraft 字段更新入口。"""
+
+    return _apply_intent_draft_clarification(intent_draft_id, req)
+
+
+@app.post("/intent-drafts/{intent_draft_id}/clarification")
+@app.post("/intent-drafts/{intent_draft_id}/clarifications")
+async def clarify_intent_draft(
+    intent_draft_id: str,
+    req: IntentDraftClarificationRequest,
+) -> dict[str, Any]:
+    """兼容旧 clarification 入口，内部更新同一个 intake draft。"""
+
+    return _apply_intent_draft_clarification(intent_draft_id, req)
+
+
+@app.post("/intent-drafts/{intent_draft_id}/finalize")
+async def finalize_intent_draft(
+    intent_draft_id: str,
+    req: TaskIntakeConfirmRequest,
+) -> dict[str, Any]:
+    """兼容旧 finalize 入口，经 ConfirmedTaskSpec 创建正式 Task。"""
+
+    session = _get_intake_or_404(intent_draft_id)
+    try:
+        confirmed_spec = confirm_task_intake_session(
+            session,
+            confirmed_by=req.confirmed_by,
+            acknowledged_warnings=req.acknowledged_warnings,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    record = _create_task_record_from_confirmed_spec(confirmed_spec)
+    return {
+        "intent_draft_id": intent_draft_id,
+        "intake_id": intent_draft_id,
+        "task_id": record.id,
+        "status": record.status.value,
+        "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
+    }
+
+
+def _apply_intent_draft_clarification(
+    intent_draft_id: str,
+    req: IntentDraftClarificationRequest,
+) -> dict[str, Any]:
+    session = _get_intake_or_404(intent_draft_id)
+    fields = dict(req.structured_fields)
+    fields.update(req.fields)
+    if req.text:
+        session.raw_input["clarification_text"] = req.text
+    try:
+        session = patch_task_intake_session(
+            session,
+            fields=fields,
+            updated_by=req.updated_by,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    payload = _task_intake_summary(session)
+    payload["intent_draft_id"] = intent_draft_id
+    return payload
+
+
+@app.post("/tasks")
 async def create_task(req: TaskCreateRequest):
-    """创建一个任务并同步执行"""
+    """创建任务；兼容 goal、query 与 confirmed_task_spec 三种入口。"""
+
+    if req.query is not None and req.confirmed_task_spec is None and req.goal is None:
+        intake_id = f"intake_{uuid4().hex[:8]}"
+        session = create_task_intake_session(
+            intake_id=intake_id,
+            text=req.query,
+            structured_fields=req.constraints,
+            source="legacy",
+        )
+        INTAKE_STORE[intake_id] = session
+        payload = _task_intake_summary(session)
+        payload["needs_confirmation"] = True
+        payload["message"] = "free-text /tasks input was converted to task intake"
+        return payload
+
+    if req.confirmed_task_spec is not None:
+        return _create_task_record_from_confirmed_spec(req.confirmed_task_spec)
+
+    if req.goal is None:
+        raise HTTPException(status_code=422, detail="goal is required")
 
     task_id = f"task_{uuid4().hex[:8]}"
     task = ProteinDesignTask(

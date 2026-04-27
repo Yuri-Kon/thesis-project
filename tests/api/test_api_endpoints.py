@@ -4,7 +4,7 @@ import json
 import pytest
 import httpx
 
-from src.api.main import app, TASK_STORE
+from src.api.main import app, INTAKE_STORE, TASK_STORE
 from src.models.contracts import (
     DecisionChoice,
     DesignResult,
@@ -54,11 +54,13 @@ class TestAPIEndpoints:
     @pytest.fixture(autouse=True)
     def clear_task_store(self):
         TASK_STORE.clear()
+        INTAKE_STORE.clear()
         if DEFAULT_LOG_DIR.exists():
             for path in DEFAULT_LOG_DIR.glob("test_api_events_*.jsonl"):
                 path.unlink()
         yield
         TASK_STORE.clear()
+        INTAKE_STORE.clear()
         if DEFAULT_LOG_DIR.exists():
             for path in DEFAULT_LOG_DIR.glob("test_api_events_*.jsonl"):
                 path.unlink()
@@ -243,6 +245,159 @@ class TestAPIEndpoints:
         data = response.json()
         assert data["constraints"]["length_range"] == [40, 60]
         assert data["metadata"]["priority"] == "high"
+
+    async def test_task_intake_schema_exposes_registry_fields(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """Task Builder 应从 /task-intakes/schema 获取字段注册表。"""
+
+        response = await client.get("/task-intakes/schema")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["version"] == "task-intake.v1"
+        assert data["fields"]["task_kind"]["maps_to"] == "constraints.task_kind"
+        assert "de_novo_design" in data["task_profiles"]
+        assert data["task_profiles"]["binding_design"]["support_level"] == "P2"
+
+    async def test_task_intake_create_tracks_ambiguous_and_unmapped_text(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """低置信度字段进入 ambiguous，未识别文本进入 unmapped_text。"""
+
+        response = await client.post(
+            "/task-intakes",
+            json={
+                "text": "unmapped legacy request",
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": {
+                        "value": "stability",
+                        "confidence": 0.65,
+                        "source_span": "maybe stable",
+                    },
+                    "length_range": [100, 140],
+                },
+                "source": "web",
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "needs_confirmation"
+        assert data["ambiguous_fields"] == ["objective_type"]
+        assert data["unmapped_text"] == ["unmapped legacy request"]
+        assert data["draft"]["fields"]["objective_type"]["source"] == "user_explicit"
+
+    async def test_task_intake_patch_and_confirm_creates_created_task_with_backlink(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """confirm 通过 ConfirmedTaskSpec 创建正式 Task 并回链 intake_id。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [100, 140],
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+
+        patch_response = await client.patch(
+            f"/task-intakes/{intake_id}",
+            json={"fields": {"run_profile": "balanced"}, "updated_by": "tester"},
+        )
+        assert patch_response.status_code == 200
+        assert patch_response.json()["draft"]["fields"]["run_profile"]["confirmed"] is True
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+        assert confirm_response.status_code == 200
+        confirmation = confirm_response.json()
+        assert confirmation["status"] == ExternalStatus.CREATED.value
+
+        task_response = await client.get(f"/tasks/{confirmation['task_id']}")
+        assert task_response.status_code == 200
+        task = task_response.json()
+        assert task["status"] == ExternalStatus.CREATED.value
+        assert task["internal_status"] == InternalStatus.CREATED.value
+        assert task["metadata"]["intake_id"] == intake_id
+        assert (
+            task["metadata"]["confirmed_task_spec"]["metadata"]["intake_id"]
+            == intake_id
+        )
+
+    async def test_legacy_tasks_query_converges_to_intake(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """旧 /tasks query 自由文本入口只返回 intake，不直接进入 Planner。"""
+
+        response = await client.post(
+            "/tasks",
+            json={"query": "please design around 120 aa stable protein"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["needs_confirmation"] is True
+        assert data["status"] in {"collecting", "needs_confirmation"}
+        assert data["intake_id"] in INTAKE_STORE
+        assert TASK_STORE == {}
+
+    async def test_legacy_intent_draft_maps_to_task_intake_finalize(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """旧 IntentDraft create/clarification/finalize 投影到 Task Intake。"""
+
+        create_response = await client.post(
+            "/intent-drafts",
+            json={
+                "text": "design de novo stable protein around 120 aa",
+                "source": "legacy",
+            },
+        )
+        assert create_response.status_code == 200
+        intent_draft_id = create_response.json()["intent_draft_id"]
+
+        clarification_response = await client.post(
+            f"/intent-drafts/{intent_draft_id}/clarification",
+            json={
+                "fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [100, 140],
+                },
+                "updated_by": "tester",
+            },
+        )
+        assert clarification_response.status_code == 200
+        assert clarification_response.json()["intake_id"] == intent_draft_id
+
+        finalize_response = await client.post(
+            f"/intent-drafts/{intent_draft_id}/finalize",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+        assert finalize_response.status_code == 200
+        data = finalize_response.json()
+        assert data["intake_id"] == intent_draft_id
+        assert data["status"] == ExternalStatus.CREATED.value
+
+        task = TASK_STORE[data["task_id"]]
+        assert task.status == ExternalStatus.CREATED
+        assert task.metadata["intake_id"] == intent_draft_id
+        assert task.metadata["intent_draft_id"] == intent_draft_id
 
     async def test_get_task_endpoint_success(self, client: httpx.AsyncClient):
         """测试获取任务端点成功"""

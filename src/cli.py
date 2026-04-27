@@ -34,6 +34,38 @@ def main(argv: list[str] | None = None) -> int:
             return _timeline_show(base_url, args.task_id, emit_json=args.json)
         if args.command == "report" and args.report_command == "show":
             return _report_show(base_url, args.task_id, emit_json=args.json)
+        if args.command == "intake" and args.intake_command == "schema":
+            return _intake_schema(base_url, emit_json=args.json)
+        if args.command == "intake" and args.intake_command == "create":
+            return _intake_create(
+                base_url,
+                text=args.text,
+                fields=_parse_field_args(args.field),
+                source=args.source,
+                emit_json=args.json,
+            )
+        if args.command == "intake" and args.intake_command == "patch":
+            return _intake_patch(
+                base_url,
+                intake_id=args.intake_id,
+                fields=_parse_field_args(args.field),
+                updated_by=args.updated_by,
+                emit_json=args.json,
+            )
+        if args.command == "intake" and args.intake_command == "confirm":
+            return _intake_confirm(
+                base_url,
+                intake_id=args.intake_id,
+                confirmed_by=args.confirmed_by,
+                acknowledged_warnings=args.acknowledge,
+                emit_json=args.json,
+            )
+        if args.command == "preflight":
+            print(
+                "preflight has moved to Task Intake; use `design intake ...`.",
+                file=sys.stderr,
+            )
+            return 2
     except httpx.HTTPError as exc:
         print(f"API request failed: {exc}", file=sys.stderr)
         return 2
@@ -78,6 +110,37 @@ def _build_parser() -> argparse.ArgumentParser:
     report_show = report_subparsers.add_parser("show")
     report_show.add_argument("task_id")
     report_show.add_argument("--json", action="store_true")
+
+    intake_parser = subparsers.add_parser("intake")
+    intake_subparsers = intake_parser.add_subparsers(dest="intake_command")
+    intake_schema = intake_subparsers.add_parser("schema")
+    intake_schema.add_argument("--json", action="store_true")
+    intake_create = intake_subparsers.add_parser("create")
+    intake_create.add_argument("--text", default=None)
+    intake_create.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        help="Structured field as key=JSON_VALUE, for example length_range='[100,140]'",
+    )
+    intake_create.add_argument(
+        "--source",
+        default="cli",
+        choices=["web", "cli", "api", "script", "legacy"],
+    )
+    intake_create.add_argument("--json", action="store_true")
+    intake_patch = intake_subparsers.add_parser("patch")
+    intake_patch.add_argument("intake_id")
+    intake_patch.add_argument("--field", action="append", default=[])
+    intake_patch.add_argument("--updated-by", default="cli")
+    intake_patch.add_argument("--json", action="store_true")
+    intake_confirm = intake_subparsers.add_parser("confirm")
+    intake_confirm.add_argument("intake_id")
+    intake_confirm.add_argument("--confirmed-by", default="cli")
+    intake_confirm.add_argument("--acknowledge", action="append", default=[])
+    intake_confirm.add_argument("--json", action="store_true")
+
+    subparsers.add_parser("preflight")
     return parser
 
 
@@ -151,6 +214,88 @@ def _timeline_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
     return 0
 
 
+def _intake_schema(base_url: str, *, emit_json: bool) -> int:
+    schema = _get_json(base_url, "/task-intakes/schema")
+    if emit_json:
+        _print_json({"schema": schema})
+    else:
+        fields = schema.get("fields", {}) if isinstance(schema, dict) else {}
+        print(f"registry_version: {schema.get('version') if isinstance(schema, dict) else '-'}")
+        for name, definition in fields.items():
+            if isinstance(definition, dict):
+                print(
+                    "field: "
+                    f"{name} group={definition.get('group')} "
+                    f"type={definition.get('type')} control={definition.get('ui_control')}"
+                )
+    return 0
+
+
+def _intake_create(
+    base_url: str,
+    *,
+    text: str | None,
+    fields: dict[str, Any],
+    source: str,
+    emit_json: bool,
+) -> int:
+    payload = _post_json(
+        base_url,
+        "/task-intakes",
+        {"text": text, "structured_fields": fields, "source": source},
+    )
+    if emit_json:
+        _print_json({"intake": payload})
+    else:
+        _print_intake(payload)
+    return 0
+
+
+def _intake_patch(
+    base_url: str,
+    *,
+    intake_id: str,
+    fields: dict[str, Any],
+    updated_by: str,
+    emit_json: bool,
+) -> int:
+    payload = _patch_json(
+        base_url,
+        f"/task-intakes/{intake_id}",
+        {"fields": fields, "updated_by": updated_by},
+    )
+    if emit_json:
+        _print_json({"intake": payload})
+    else:
+        _print_intake(payload)
+    return 0
+
+
+def _intake_confirm(
+    base_url: str,
+    *,
+    intake_id: str,
+    confirmed_by: str,
+    acknowledged_warnings: list[str],
+    emit_json: bool,
+) -> int:
+    payload = _post_json(
+        base_url,
+        f"/task-intakes/{intake_id}/confirm",
+        {
+            "confirmed_by": confirmed_by,
+            "acknowledged_warnings": acknowledged_warnings,
+        },
+    )
+    if emit_json:
+        _print_json({"confirmation": payload})
+    else:
+        print(f"intake_id: {payload.get('intake_id')}")
+        print(f"task_id: {payload.get('task_id')}")
+        print(f"status: {payload.get('status')}")
+    return 0
+
+
 def _get_json(base_url: str, path: str) -> dict[str, Any] | list[dict[str, Any]]:
     response = httpx.get(f"{base_url}{path}", timeout=10.0)
     response.raise_for_status()
@@ -158,6 +303,40 @@ def _get_json(base_url: str, path: str) -> dict[str, Any] | list[dict[str, Any]]
     if not isinstance(payload, (dict, list)):
         raise ValueError(f"API payload for {path} is not an object or list")
     return payload
+
+
+def _post_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    response = httpx.post(f"{base_url}{path}", json=payload, timeout=10.0)
+    response.raise_for_status()
+    body = response.json()
+    if not isinstance(body, dict):
+        raise ValueError(f"API payload for {path} is not an object")
+    return body
+
+
+def _patch_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
+    response = httpx.patch(f"{base_url}{path}", json=payload, timeout=10.0)
+    response.raise_for_status()
+    body = response.json()
+    if not isinstance(body, dict):
+        raise ValueError(f"API payload for {path} is not an object")
+    return body
+
+
+def _parse_field_args(items: list[str]) -> dict[str, Any]:
+    fields: dict[str, Any] = {}
+    for item in items:
+        if "=" not in item:
+            raise ValueError(f"field must use key=value syntax: {item}")
+        key, raw_value = item.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise ValueError("field key must not be empty")
+        try:
+            fields[key] = json.loads(raw_value)
+        except json.JSONDecodeError:
+            fields[key] = raw_value
+    return fields
 
 
 def _readiness_summary(readiness: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -188,6 +367,17 @@ def _print_task(payload: dict[str, Any]) -> None:
             if isinstance(candidate, dict):
                 _print_candidate_runtime_line(candidate)
     _print_readiness_summary(payload["readiness_summary"])
+
+
+def _print_intake(payload: dict[str, Any]) -> None:
+    print(f"intake_id: {payload.get('intake_id')}")
+    print(f"status: {payload.get('status')}")
+    missing = payload.get("missing_required_fields") or []
+    ambiguous = payload.get("ambiguous_fields") or []
+    unmapped = payload.get("unmapped_text") or []
+    print(f"missing_required_fields: {', '.join(missing) if missing else '-'}")
+    print(f"ambiguous_fields: {', '.join(ambiguous) if ambiguous else '-'}")
+    print(f"unmapped_text: {', '.join(unmapped) if unmapped else '-'}")
 
 
 def _print_pending(payload: dict[str, Any]) -> None:
