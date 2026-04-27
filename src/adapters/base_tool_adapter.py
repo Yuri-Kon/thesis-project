@@ -69,9 +69,15 @@ class BaseToolAdapter(ABC):
 
     def describe_capabilities(self) -> Dict[str, Any]:
         """返回适配器能力摘要。"""
+        execution_mode = getattr(self, "execution_mode", None)
+        if not isinstance(execution_mode, str) or not execution_mode.strip():
+            execution_mode = getattr(self, "default_execution_mode", None)
         return {
             "tool_id": getattr(self, "tool_id", ""),
             "adapter_id": getattr(self, "adapter_id", None),
+            "execution_mode": execution_mode,
+            "provider": getattr(self, "provider", None),
+            "endpoint_type": getattr(self, "endpoint_type", None),
         }
 
     def healthcheck(self) -> Dict[str, Any]:

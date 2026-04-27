@@ -15,6 +15,14 @@ interface TaskTimelineEvent {
   decision_id?: string | null;
   step_id?: string | null;
   tool?: string | null;
+  tool_id?: string | null;
+  adapter_id?: string | null;
+  execution_mode?: string | null;
+  provider?: string | null;
+  endpoint_type?: string | null;
+  remote_job_id?: string | null;
+  failure_code?: string | null;
+  recovery_hint?: string | null;
   status?: string | null;
   from_status?: string | null;
   to_status?: string | null;
@@ -117,7 +125,19 @@ function renderTimeline(events: TaskTimelineEvent[]): void {
       </div>
       <div class="event-meta">${event.summary}</div>
       <div class="event-meta">state: ${stateInfo}</div>
-      <div class="event-meta">step: ${event.step_id ?? "-"} | tool: ${event.tool ?? "-"}</div>
+      <div class="event-meta">
+        step: ${event.step_id ?? "-"} |
+        tool: ${event.tool_id ?? event.tool ?? "-"} |
+        adapter: ${event.adapter_id ?? "-"} |
+        execution: ${event.execution_mode ?? "-"}
+      </div>
+      <div class="event-meta">
+        provider: ${event.provider ?? "-"} |
+        endpoint: ${event.endpoint_type ?? "-"} |
+        remote job: ${event.remote_job_id ?? "-"} |
+        failure: ${event.failure_code ?? "-"} |
+        recovery: ${event.recovery_hint ?? "-"}
+      </div>
     `;
     list.appendChild(item);
   }

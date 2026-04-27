@@ -624,6 +624,11 @@ def _extract_recovery_metadata(
         "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
         "io_type": selected_candidate.io_type if selected_candidate else None,
         "adapter_mode": selected_candidate.adapter_mode if selected_candidate else None,
+        "adapter_id": selected_candidate.adapter_id if selected_candidate else None,
+        "execution_mode": selected_candidate.execution_mode if selected_candidate else None,
+        "provider": selected_candidate.provider if selected_candidate else None,
+        "endpoint_type": selected_candidate.endpoint_type if selected_candidate else None,
+        "remote_job_id": selected_candidate.remote_job_id if selected_candidate else None,
     }
     for key in (
         "runtime_state_summary",

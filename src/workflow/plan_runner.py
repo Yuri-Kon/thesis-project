@@ -970,10 +970,24 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
 
 def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
     data: dict[str, Any] = {}
+    for field_name in (
+        "tool_id",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+    ):
+        value = getattr(step_result, field_name, None)
+        if isinstance(value, str) and value:
+            data[field_name] = value
     if isinstance(step_result.error_details, dict):
         failure_code = step_result.error_details.get("failure_code")
         if isinstance(failure_code, str) and failure_code:
             data["failure_code"] = failure_code
+        remote_job_id = step_result.error_details.get("remote_job_id")
+        if isinstance(remote_job_id, str) and remote_job_id and "remote_job_id" not in data:
+            data["remote_job_id"] = remote_job_id
 
     outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
     stage_id = outputs.get("stage_id")
@@ -1006,6 +1020,20 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "candidate_id": recovery_meta.get("candidate_id"),
             "reason": recovery_meta.get("reason"),
             "upgrade_reason": recovery_meta.get("upgrade_reason"),
+        }
+
+    fallback_meta = step_result.metrics.get("fallback")
+    if isinstance(fallback_meta, dict) and fallback_meta:
+        data["fallback"] = {
+            "fallback_kind": fallback_meta.get("fallback_kind"),
+            "reason": fallback_meta.get("reason"),
+            "from_tool_id": fallback_meta.get("from_tool_id"),
+            "to_tool_id": fallback_meta.get("to_tool_id"),
+            "from_execution_mode": fallback_meta.get("from_execution_mode"),
+            "to_execution_mode": fallback_meta.get("to_execution_mode"),
+            "from_adapter_id": fallback_meta.get("from_adapter_id"),
+            "to_adapter_id": fallback_meta.get("to_adapter_id"),
+            "capability_preserved": fallback_meta.get("capability_preserved"),
         }
 
     workflow_action = step_result.metrics.get("workflow_action")

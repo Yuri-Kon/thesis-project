@@ -1,3 +1,9 @@
+const MODEL_INVOCATION_CAPABILITIES = new Set([
+    "sequence_generation",
+    "sequence_design",
+    "structure_prediction",
+    "objective_scoring",
+]);
 const ALLOWED_CHOICES = {
     plan_confirm: ["accept", "replan", "cancel"],
     patch_confirm: ["accept", "replan", "cancel"],
@@ -75,12 +81,6 @@ function formatText(value) {
     const normalized = value?.trim();
     return normalized ? normalized : "-";
 }
-const MODEL_INVOCATION_CAPABILITIES = new Set([
-    "sequence_generation",
-    "sequence_design",
-    "structure_prediction",
-    "objective_scoring",
-]);
 async function parseError(response) {
     try {
         const payload = (await response.json());
@@ -364,6 +364,7 @@ function renderCandidateComparison(detail) {
         "Risk",
         "Cost",
         "Tool",
+        "Endpoint",
         "Readiness",
         "Recovery",
         "Reason",
@@ -403,9 +404,16 @@ function renderCandidateComparison(detail) {
         const toolCell = document.createElement("td");
         toolCell.textContent =
             `${formatText(candidate.tool.tool_id)} / ${formatText(candidate.tool.capability_id)} / ` +
-                `${formatText(candidate.tool.io_type)} / mode=${formatText(candidate.tool.adapter_mode)} / ` +
-                `source=${candidate.tool.source}`;
+                `${formatText(candidate.tool.io_type)} / adapter=${formatText(candidate.tool.adapter_id)} / ` +
+                `adapter_mode=${formatText(candidate.tool.adapter_mode)}`;
         row.appendChild(toolCell);
+        const endpointCell = document.createElement("td");
+        endpointCell.textContent =
+            `execution=${formatText(candidate.tool.execution_mode)} / ` +
+                `provider=${formatText(candidate.tool.provider)} / ` +
+                `endpoint=${formatText(candidate.tool.endpoint_type)} / ` +
+                `job=${formatText(candidate.tool.remote_job_id)}`;
+        row.appendChild(endpointCell);
         const readinessCell = document.createElement("td");
         const readiness = candidate.tool.readiness_status ?? (candidate.tool.available ? "ready" : "degraded");
         const readinessChip = document.createElement("span");
@@ -417,7 +425,7 @@ function renderCandidateComparison(detail) {
             : candidate.tool.availability_hint;
         row.appendChild(readinessCell);
         const recoveryCell = document.createElement("td");
-        recoveryCell.textContent = formatText(candidate.tool.suggested_recovery);
+        recoveryCell.textContent = formatText(candidate.tool.recovery_hint ?? candidate.tool.suggested_recovery);
         row.appendChild(recoveryCell);
         const reasonCell = document.createElement("td");
         reasonCell.textContent = candidate.recommendation_reason;
@@ -433,7 +441,8 @@ function renderCandidateComparison(detail) {
 function buildCandidateOptionLabel(candidate) {
     const source = candidate.tool.source;
     const mode = formatText(candidate.tool.adapter_mode);
-    return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | source=${source} | mode=${mode}`;
+    const executionMode = formatText(candidate.tool.execution_mode);
+    return `${candidate.candidate_id} | #${candidate.rank} | risk=${formatText(candidate.risk_level)} | cost=${formatText(candidate.cost_estimate)} | source=${source} | mode=${mode} | execution=${executionMode}`;
 }
 function renderDecisionForm(detail) {
     const container = byId("decision-form-container");

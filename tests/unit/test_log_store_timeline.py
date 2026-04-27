@@ -80,6 +80,54 @@ def test_read_timeline_events_extracts_recovery_observability_fields(tmp_path: P
 
 
 @pytest.mark.unit
+def test_read_timeline_events_extracts_execution_mode_metadata(tmp_path: Path) -> None:
+    task_id = "timeline_execution_mode_001"
+    log_file = tmp_path / f"{task_id}.jsonl"
+    event = {
+        "event": "STEP_FAILED",
+        "task_id": task_id,
+        "step_id": "S2",
+        "tool": "openfold",
+        "failure_type": "tool_error",
+        "timestamp": "2026-04-27T01:00:00+00:00",
+        "data": {
+            "tool_id": "openfold",
+            "adapter_id": "openfold",
+            "execution_mode": "openfold3_rest",
+            "provider": "openfold3_rest",
+            "endpoint_type": "rest",
+            "remote_job_id": "job_of3_1",
+            "failure_code": "REMOTE_JOB_FAILED",
+            "recovery_hint": "Check OpenFold3 REST service logs and retry.",
+            "fallback": {
+                "fallback_kind": "scientific_tool",
+                "from_tool_id": "nim_esmfold",
+                "to_tool_id": "esmfold",
+                "from_execution_mode": "nvidia_nim",
+                "to_execution_mode": "nextflow",
+                "reason": "nim_unavailable",
+            },
+        },
+    }
+
+    with log_file.open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, ensure_ascii=True) + "\n")
+
+    timeline = read_timeline_events(task_id, log_dir=tmp_path)
+
+    assert len(timeline) == 1
+    row = timeline[0]
+    assert row["tool_id"] == "openfold"
+    assert row["adapter_id"] == "openfold"
+    assert row["execution_mode"] == "openfold3_rest"
+    assert row["provider"] == "openfold3_rest"
+    assert row["endpoint_type"] == "rest"
+    assert row["remote_job_id"] == "job_of3_1"
+    assert row["failure_code"] == "REMOTE_JOB_FAILED"
+    assert row["recovery_hint"] == "Check OpenFold3 REST service logs and retry."
+
+
+@pytest.mark.unit
 def test_read_timeline_events_extracts_action_runtime_audit_fields(tmp_path: Path) -> None:
     task_id = "timeline_action_runtime_001"
     log_file = tmp_path / f"{task_id}.jsonl"

@@ -182,6 +182,11 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=step.tool,
+                tool_id=step.tool,
+                adapter_id="safety_precheck",
+                execution_mode="local",
+                provider="safety_agent",
+                endpoint_type="local",
                 status="failed",
                 failure_type=FailureType.SAFETY_BLOCK,
                 error_message=f"SafetyAgent blocked step {step.id} before execution",
@@ -212,6 +217,10 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=step.tool,
+                tool_id=step.tool,
+                adapter_id="adapter_lookup",
+                execution_mode="unknown",
+                endpoint_type="unknown",
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE,
                 error_message=str(exc),
@@ -244,6 +253,14 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=resolved_tool_id,
+                tool_id=resolved_tool_id,
+                adapter_id=_string_or_none(adapter_meta.get("adapter_id")),
+                execution_mode=_string_or_none(getattr(exc, "execution_mode", None))
+                or _string_or_none(adapter_meta.get("execution_mode")),
+                provider=_string_or_none(getattr(exc, "provider", None))
+                or _string_or_none(adapter_meta.get("provider")),
+                endpoint_type=_string_or_none(getattr(exc, "endpoint_type", None))
+                or _string_or_none(adapter_meta.get("endpoint_type")),
                 status="failed",
                 failure_type=FailureType.NON_RETRYABLE,
                 error_message=str(exc),
@@ -290,6 +307,12 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=resolved_tool_id,
+                tool_id=resolved_tool_id,
+                adapter_id=_string_or_none(adapter_meta.get("adapter_id")),
+                execution_mode=_string_or_none(adapter_meta.get("execution_mode")),
+                provider=_string_or_none(adapter_meta.get("provider")),
+                endpoint_type=_string_or_none(adapter_meta.get("endpoint_type")),
+                remote_job_id=_string_or_none(getattr(exc, "remote_job_id", None)),
                 status="failed",
                 failure_type=exc.failure_type,
                 error_message=str(exc),
@@ -299,6 +322,8 @@ class StepRunner:
                     timestamp=now_iso,
                     exception_type=type(exc).__name__,
                     exception_message=str(exc),
+                    remote_job_id=_string_or_none(getattr(exc, "remote_job_id", None)),
+                    remote_endpoint=_string_or_none(getattr(exc, "remote_endpoint", None)),
                 ),
                 inputs=resolved_inputs,
                 outputs={},
@@ -319,6 +344,11 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=resolved_tool_id,
+                tool_id=resolved_tool_id,
+                adapter_id=_string_or_none(adapter_meta.get("adapter_id")),
+                execution_mode=_string_or_none(adapter_meta.get("execution_mode")),
+                provider=_string_or_none(adapter_meta.get("provider")),
+                endpoint_type=_string_or_none(adapter_meta.get("endpoint_type")),
                 status="failed",
                 failure_type=FailureType.TOOL_ERROR,
                 error_message=f"Unexpected tool exception: {exc}",
@@ -476,19 +506,48 @@ class StepRunner:
         """解析适配器，必要时回退到本地工具"""
         try:
             adapter = get_adapter(step.tool)
-            return adapter, step.tool, {}
+            return adapter, step.tool, _adapter_invocation_metadata(
+                adapter,
+                requested_tool=step.tool,
+                resolved_tool=step.tool,
+            )
         except KeyError:
             fallback_tool = self._select_fallback_tool(step)
             if not fallback_tool:
                 raise
             adapter = get_adapter(fallback_tool)
+            fallback_meta = _adapter_invocation_metadata(
+                adapter,
+                requested_tool=step.tool,
+                resolved_tool=fallback_tool,
+            )
+            fallback_meta.setdefault(
+                "execution_mode",
+                _execution_mode_from_tool_entry(self._lookup_tool_entry(fallback_tool)),
+            )
+            fallback_payload = _build_fallback_payload(
+                requested_tool=step.tool,
+                fallback_tool=fallback_tool,
+                requested_meta={
+                    "tool_id": step.tool,
+                    "execution_mode": _execution_mode_from_tool_entry(
+                        self._lookup_tool_entry(step.tool)
+                    ),
+                },
+                fallback_meta=fallback_meta,
+                requested_capabilities=self._tool_capabilities(step.tool),
+                fallback_capabilities=self._tool_capabilities(fallback_tool),
+                reason="adapter_missing",
+            )
             return (
                 adapter,
                 fallback_tool,
                 {
+                    **fallback_meta,
                     "requested_tool": step.tool,
                     "fallback_from": step.tool,
                     "fallback_reason": "adapter_missing",
+                    "fallback": fallback_payload,
                 },
             )
 
@@ -513,6 +572,30 @@ class StepRunner:
             adapter = get_adapter(fallback_tool)
         except KeyError:
             return None
+        fallback_meta = _adapter_invocation_metadata(
+            adapter,
+            requested_tool=step.tool,
+            resolved_tool=fallback_tool,
+        )
+        fallback_meta.setdefault(
+            "execution_mode",
+            _execution_mode_from_tool_entry(self._lookup_tool_entry(fallback_tool)),
+        )
+        requested_meta = {
+            "tool_id": requested_tool,
+            "execution_mode": _execution_mode_from_tool_entry(
+                self._lookup_tool_entry(requested_tool)
+            ),
+        }
+        fallback_payload = _build_fallback_payload(
+            requested_tool=requested_tool,
+            fallback_tool=fallback_tool,
+            requested_meta=requested_meta,
+            fallback_meta=fallback_meta,
+            requested_capabilities=self._tool_capabilities(requested_tool),
+            fallback_capabilities=self._tool_capabilities(fallback_tool),
+            reason="nim_unavailable",
+        )
 
         try:
             outputs_payload, adapter_metrics = adapter.run_local(resolved_inputs)
@@ -525,6 +608,11 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=fallback_tool,
+                tool_id=fallback_tool,
+                adapter_id=_string_or_none(fallback_meta.get("adapter_id")),
+                execution_mode=_string_or_none(fallback_meta.get("execution_mode")),
+                provider=_string_or_none(fallback_meta.get("provider")),
+                endpoint_type=_string_or_none(fallback_meta.get("endpoint_type")),
                 status="failed",
                 failure_type=exc.failure_type,
                 error_message=str(exc),
@@ -544,6 +632,8 @@ class StepRunner:
                     "fallback_from": requested_tool,
                     "fallback_reason": "nim_unavailable",
                     "requested_tool": step.tool,
+                    "fallback": fallback_payload,
+                    **fallback_meta,
                 },
                 risk_flags=[],
                 logs_path=None,
@@ -556,6 +646,11 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=fallback_tool,
+                tool_id=fallback_tool,
+                adapter_id=_string_or_none(fallback_meta.get("adapter_id")),
+                execution_mode=_string_or_none(fallback_meta.get("execution_mode")),
+                provider=_string_or_none(fallback_meta.get("provider")),
+                endpoint_type=_string_or_none(fallback_meta.get("endpoint_type")),
                 status="failed",
                 failure_type=FailureType.TOOL_ERROR,
                 error_message=f"Unexpected tool exception: {exc}",
@@ -575,6 +670,8 @@ class StepRunner:
                     "fallback_from": requested_tool,
                     "fallback_reason": "nim_unavailable",
                     "requested_tool": step.tool,
+                    "fallback": fallback_payload,
+                    **fallback_meta,
                 },
                 risk_flags=[],
                 logs_path=None,
@@ -593,6 +690,8 @@ class StepRunner:
                 "fallback_from": requested_tool,
                 "fallback_reason": "nim_unavailable",
                 "requested_tool": step.tool,
+                "fallback": fallback_payload,
+                **fallback_meta,
             },
         )
 
@@ -651,6 +750,15 @@ class StepRunner:
                 return tool
         return None
 
+    def _tool_capabilities(self, tool_id: str) -> set[str]:
+        tool_entry = self._lookup_tool_entry(tool_id)
+        if not isinstance(tool_entry, dict):
+            return set()
+        capabilities = tool_entry.get("capabilities")
+        if not isinstance(capabilities, list):
+            return set()
+        return {item for item in capabilities if isinstance(item, str) and item}
+
     def _iter_tools(self) -> list[dict]:
         try:
             kg = load_tool_kg()
@@ -694,7 +802,14 @@ class StepRunner:
         metrics_payload.setdefault("exec_type", "adapter_local")
         metrics_payload.setdefault("duration_ms", duration_ms)
         if metrics_extra:
-            metrics_payload.update(metrics_extra)
+            for key, value in metrics_extra.items():
+                metrics_payload.setdefault(key, value)
+        normalized_execution_mode = _normalize_execution_mode_for_trace(
+            _string_or_none(metrics_payload.get("execution_mode")),
+            raw_exec_type=_string_or_none(metrics_payload.get("exec_type")),
+        )
+        if normalized_execution_mode is not None:
+            metrics_payload["execution_mode"] = normalized_execution_mode
 
         artifacts_payload = self._extract_artifacts(outputs_payload)
 
@@ -702,6 +817,13 @@ class StepRunner:
             task_id=context.task.task_id,
             step_id=step.id,
             tool=tool_id,
+            tool_id=tool_id,
+            adapter_id=_string_or_none(metrics_payload.get("adapter_id")),
+            execution_mode=_string_or_none(metrics_payload.get("execution_mode")),
+            provider=_string_or_none(metrics_payload.get("provider")),
+            endpoint_type=_string_or_none(metrics_payload.get("endpoint_type")),
+            remote_job_id=_string_or_none(metrics_payload.get("remote_job_id"))
+            or _string_or_none(metrics_payload.get("job_id")),
             status="success",
             failure_type=None,
             error_message=None,
@@ -726,6 +848,13 @@ class StepRunner:
                 task_id=context.task.task_id,
                 step_id=step.id,
                 tool=tool_id,
+                tool_id=tool_id,
+                adapter_id=_string_or_none(metrics_payload.get("adapter_id")),
+                execution_mode=_string_or_none(metrics_payload.get("execution_mode")),
+                provider=_string_or_none(metrics_payload.get("provider")),
+                endpoint_type=_string_or_none(metrics_payload.get("endpoint_type")),
+                remote_job_id=_string_or_none(metrics_payload.get("remote_job_id"))
+                or _string_or_none(metrics_payload.get("job_id")),
                 status="failed",
                 failure_type=FailureType.SAFETY_BLOCK,
                 error_message=f"SafetyAgent blocked step {step.id} after execution",
@@ -752,6 +881,13 @@ class StepRunner:
             task_id=context.task.task_id,
             step_id=step.id,
             tool=tool_id,
+            tool_id=tool_id,
+            adapter_id=_string_or_none(metrics_payload.get("adapter_id")),
+            execution_mode=_string_or_none(metrics_payload.get("execution_mode")),
+            provider=_string_or_none(metrics_payload.get("provider")),
+            endpoint_type=_string_or_none(metrics_payload.get("endpoint_type")),
+            remote_job_id=_string_or_none(metrics_payload.get("remote_job_id"))
+            or _string_or_none(metrics_payload.get("job_id")),
             status="success",
             failure_type=None,
             error_message=None,
@@ -770,3 +906,113 @@ def _is_remote_execution(execution: Any) -> bool:
     if isinstance(execution, dict):
         return execution.get("backend") == "remote_model_service"
     return False
+
+
+def _string_or_none(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _adapter_invocation_metadata(
+    adapter: BaseToolAdapter,
+    *,
+    requested_tool: str,
+    resolved_tool: str,
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """构造 StepResult/EventLog 共享的执行通道元数据。"""
+    raw = adapter.describe_capabilities()
+    metadata: dict[str, Any] = {}
+    tool_id = _string_or_none(raw.get("tool_id")) or resolved_tool
+    adapter_id = _string_or_none(raw.get("adapter_id")) or tool_id
+    execution_mode = _normalize_execution_mode_for_trace(
+        _string_or_none(raw.get("execution_mode")),
+        raw_exec_type=None,
+    )
+    provider = _string_or_none(raw.get("provider"))
+    endpoint_type = _string_or_none(raw.get("endpoint_type"))
+
+    metadata["tool_id"] = tool_id
+    metadata["adapter_id"] = adapter_id
+    if execution_mode is not None:
+        metadata["execution_mode"] = execution_mode
+    if provider is not None:
+        metadata["provider"] = provider
+    if endpoint_type is not None:
+        metadata["endpoint_type"] = endpoint_type
+    if requested_tool != resolved_tool:
+        metadata["requested_tool"] = requested_tool
+        metadata["resolved_tool_id"] = resolved_tool
+    if extra:
+        metadata.update(extra)
+    return metadata
+
+
+def _normalize_execution_mode_for_trace(
+    value: str | None,
+    *,
+    raw_exec_type: str | None,
+) -> str | None:
+    raw = value or raw_exec_type
+    if raw is None:
+        return None
+    normalized = raw.strip().lower()
+    if not normalized:
+        return None
+    if normalized == "adapter_local":
+        return "local"
+    if normalized == "remote":
+        return "remote"
+    if normalized in {"nvidia_nim", "nim"}:
+        return "nvidia_nim"
+    return normalized
+
+
+def _execution_mode_from_tool_entry(tool_entry: dict[str, Any] | None) -> str | None:
+    if not isinstance(tool_entry, dict):
+        return None
+    execution = tool_entry.get("execution")
+    if isinstance(execution, dict):
+        provider = _string_or_none(execution.get("provider"))
+        if provider:
+            return provider
+        backend = _string_or_none(execution.get("backend"))
+        if backend:
+            return backend
+    if isinstance(execution, str):
+        return execution
+    return None
+
+
+def _build_fallback_payload(
+    *,
+    requested_tool: str,
+    fallback_tool: str,
+    requested_meta: dict[str, Any],
+    fallback_meta: dict[str, Any],
+    requested_capabilities: set[str],
+    fallback_capabilities: set[str],
+    reason: str,
+) -> dict[str, Any]:
+    requested_mode = _string_or_none(requested_meta.get("execution_mode"))
+    fallback_mode = _string_or_none(fallback_meta.get("execution_mode"))
+    shared_capability = bool(requested_capabilities.intersection(fallback_capabilities))
+    if requested_tool == fallback_tool and requested_mode != fallback_mode:
+        fallback_kind = "execution_channel"
+    elif shared_capability and requested_tool != fallback_tool:
+        fallback_kind = "scientific_tool"
+    else:
+        fallback_kind = "tool"
+    return {
+        "fallback_kind": fallback_kind,
+        "reason": reason,
+        "from_tool_id": requested_tool,
+        "to_tool_id": fallback_tool,
+        "from_execution_mode": requested_mode,
+        "to_execution_mode": fallback_mode,
+        "from_adapter_id": _string_or_none(requested_meta.get("adapter_id")),
+        "to_adapter_id": _string_or_none(fallback_meta.get("adapter_id")),
+        "capability_preserved": shared_capability,
+    }

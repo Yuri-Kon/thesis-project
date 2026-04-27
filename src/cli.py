@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "pending" and args.pending_command == "show":
             return _pending_show(base_url, args.pending_action_id, emit_json=args.json)
+        if args.command == "timeline" and args.timeline_command == "show":
+            return _timeline_show(base_url, args.task_id, emit_json=args.json)
         if args.command == "report" and args.report_command == "show":
             return _report_show(base_url, args.task_id, emit_json=args.json)
     except httpx.HTTPError as exc:
@@ -65,6 +67,12 @@ def _build_parser() -> argparse.ArgumentParser:
     pending_show.add_argument("pending_action_id")
     pending_show.add_argument("--json", action="store_true")
 
+    timeline_parser = subparsers.add_parser("timeline")
+    timeline_subparsers = timeline_parser.add_subparsers(dest="timeline_command")
+    timeline_show = timeline_subparsers.add_parser("show")
+    timeline_show.add_argument("task_id")
+    timeline_show.add_argument("--json", action="store_true")
+
     report_parser = subparsers.add_parser("report")
     report_subparsers = report_parser.add_subparsers(dest="report_command")
     report_show = report_subparsers.add_parser("show")
@@ -97,6 +105,15 @@ def _task_watch(
     while True:
         code = _task_show(base_url, task_id, emit_json=emit_json)
         task = _get_json(base_url, f"/tasks/{task_id}")
+        if isinstance(task, dict) and str(task.get("status", "")).startswith("WAITING_"):
+            pending = task.get("pending_action")
+            if isinstance(pending, dict) and not emit_json:
+                print("watch: waiting for human decision")
+                print(
+                    f"pending_action: {pending.get('pending_action_id')} "
+                    f"({pending.get('action_type')})"
+                )
+            return code
         if str(task.get("status")) in {"DONE", "FAILED", "CANCELLED"}:
             return code
         time.sleep(max(1.0, interval_s))
@@ -122,6 +139,15 @@ def _report_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
         _print_json({"report": report})
     else:
         _print_report(report)
+    return 0
+
+
+def _timeline_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
+    timeline = _get_json(base_url, f"/tasks/{task_id}/events")
+    if emit_json:
+        _print_json({"events": timeline})
+    else:
+        _print_timeline(timeline)
     return 0
 
 
@@ -158,6 +184,9 @@ def _print_task(payload: dict[str, Any]) -> None:
     pending = task.get("pending_action")
     if isinstance(pending, dict):
         print(f"pending_action: {pending.get('pending_action_id')} ({pending.get('action_type')})")
+        for candidate in pending.get("candidates") or []:
+            if isinstance(candidate, dict):
+                _print_candidate_runtime_line(candidate)
     _print_readiness_summary(payload["readiness_summary"])
 
 
@@ -175,9 +204,50 @@ def _print_pending(payload: dict[str, Any]) -> None:
             "candidate: "
             f"{candidate.get('candidate_id')} "
             f"readiness={tool.get('readiness_status') or '-'} "
-            f"recovery={tool.get('suggested_recovery') or '-'}"
+            f"tool={tool.get('tool_id') or '-'} "
+            f"adapter={tool.get('adapter_id') or '-'} "
+            f"execution_mode={tool.get('execution_mode') or '-'} "
+            f"endpoint={tool.get('endpoint_type') or '-'} "
+            f"remote_job_id={tool.get('remote_job_id') or '-'} "
+            f"failure_code={tool.get('failure_code') or '-'} "
+            f"recovery={tool.get('recovery_hint') or tool.get('suggested_recovery') or '-'}"
         )
     _print_readiness_summary(payload["readiness_summary"])
+
+
+def _print_candidate_runtime_line(candidate: dict[str, Any]) -> None:
+    print(
+        "candidate_runtime: "
+        f"{candidate.get('candidate_id') or '-'} "
+        f"tool={candidate.get('tool_id') or candidate.get('tool') or '-'} "
+        f"adapter={candidate.get('adapter_id') or '-'} "
+        f"execution_mode={candidate.get('execution_mode') or '-'} "
+        f"endpoint={candidate.get('endpoint_type') or '-'} "
+        f"remote_job_id={candidate.get('remote_job_id') or '-'}"
+    )
+
+
+def _print_timeline(timeline: dict[str, Any] | list[dict[str, Any]]) -> None:
+    if not isinstance(timeline, list):
+        print("timeline: unavailable")
+        return
+    for event in timeline:
+        if not isinstance(event, dict):
+            continue
+        print(
+            "event: "
+            f"{event.get('event_type') or '-'} "
+            f"ts={event.get('ts') or '-'} "
+            f"step={event.get('step_id') or '-'} "
+            f"tool={event.get('tool_id') or event.get('tool') or '-'} "
+            f"adapter={event.get('adapter_id') or '-'} "
+            f"execution_mode={event.get('execution_mode') or '-'} "
+            f"endpoint={event.get('endpoint_type') or '-'} "
+            f"remote_job_id={event.get('remote_job_id') or '-'} "
+            f"failure_code={event.get('failure_code') or '-'} "
+            f"recovery={event.get('recovery_hint') or event.get('recovery_reason') or '-'} "
+            f"summary={event.get('summary') or '-'}"
+        )
 
 
 def _print_report(report: dict[str, Any] | list[dict[str, Any]]) -> None:

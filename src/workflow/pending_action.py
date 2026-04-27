@@ -213,6 +213,31 @@ def enter_waiting_state(
                 if selected_candidate
                 else selected_meta.get("adapter_mode")
             ),
+            "adapter_id": (
+                selected_candidate.adapter_id
+                if selected_candidate
+                else selected_meta.get("adapter_id")
+            ),
+            "execution_mode": (
+                selected_candidate.execution_mode
+                if selected_candidate
+                else selected_meta.get("execution_mode")
+            ),
+            "provider": (
+                selected_candidate.provider
+                if selected_candidate
+                else selected_meta.get("provider")
+            ),
+            "endpoint_type": (
+                selected_candidate.endpoint_type
+                if selected_candidate
+                else selected_meta.get("endpoint_type")
+            ),
+            "remote_job_id": (
+                selected_candidate.remote_job_id
+                if selected_candidate
+                else selected_meta.get("remote_job_id")
+            ),
             "waiting_runtime_summary": (
                 pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
                 if isinstance(pending_action.metadata, dict)
@@ -357,6 +382,13 @@ def _build_waiting_runtime_summary(
         "terminal_reason",
         "replan_mode",
         "preserve_prefix_until_step_index",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+        "failure_code",
+        "recovery_hint",
     ):
         value = candidate_metadata.get(key)
         if value is not None:

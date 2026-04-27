@@ -193,13 +193,19 @@ def _normalize_timeline_event(
         "step_id": _string_field(payload, "step_id"),
         "tool": _string_field(payload, "tool"),
         "tool_id": observability["tool_id"],
+        "adapter_id": observability["adapter_id"],
+        "execution_mode": observability["execution_mode"],
         "capability_id": observability["capability_id"],
         "io_type": observability["io_type"],
         "adapter_mode": observability["adapter_mode"],
+        "provider": observability["provider"],
+        "endpoint_type": observability["endpoint_type"],
+        "remote_job_id": observability["remote_job_id"],
         "from_tool": observability["from_tool"],
         "to_tool": observability["to_tool"],
         "failure_type": observability["failure_type"],
         "failure_code": observability["failure_code"],
+        "recovery_hint": observability["recovery_hint"],
         "candidate_id": observability["candidate_id"],
         "decision_source": observability["decision_source"],
         "action_name": observability["action_name"],
@@ -325,6 +331,7 @@ def _extract_observability_fields(
 ) -> dict[str, Any]:
     recovery = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
     patch = data.get("patch") if isinstance(data.get("patch"), dict) else {}
+    fallback = data.get("fallback") if isinstance(data.get("fallback"), dict) else {}
     waiting_runtime_summary = (
         data.get("waiting_runtime_summary")
         if isinstance(data.get("waiting_runtime_summary"), dict)
@@ -360,8 +367,10 @@ def _extract_observability_fields(
         or _string_field(data, "tool")
         or _string_field(patch, "to_tool")
         or _string_field(recovery, "to_tool")
+        or _string_field(fallback, "to_tool_id")
         or _string_field(patch, "from_tool")
         or _string_field(recovery, "from_tool")
+        or _string_field(fallback, "from_tool_id")
     )
     capability_id = (
         _string_field(payload, "capability_id")
@@ -382,18 +391,53 @@ def _extract_observability_fields(
         or _string_field(patch, "adapter_mode")
         or _string_field(recovery, "adapter_mode")
     )
+    adapter_id = (
+        _string_field(payload, "adapter_id")
+        or _string_field(data, "adapter_id")
+        or _string_field(patch, "adapter_id")
+        or _string_field(recovery, "adapter_id")
+        or _string_field(fallback, "to_adapter_id")
+    )
+    execution_mode = (
+        _string_field(payload, "execution_mode")
+        or _string_field(data, "execution_mode")
+        or _string_field(patch, "execution_mode")
+        or _string_field(recovery, "execution_mode")
+        or _string_field(fallback, "to_execution_mode")
+    )
+    provider = (
+        _string_field(payload, "provider")
+        or _string_field(data, "provider")
+        or _string_field(patch, "provider")
+        or _string_field(recovery, "provider")
+    )
+    endpoint_type = (
+        _string_field(payload, "endpoint_type")
+        or _string_field(data, "endpoint_type")
+        or _string_field(patch, "endpoint_type")
+        or _string_field(recovery, "endpoint_type")
+    )
+    remote_job_id = (
+        _string_field(payload, "remote_job_id")
+        or _string_field(data, "remote_job_id")
+        or _string_field(data, "job_id")
+        or _string_field(patch, "remote_job_id")
+        or _string_field(recovery, "remote_job_id")
+    )
 
     from_tool = (
         _string_field(payload, "from_tool")
         or _string_field(data, "from_tool")
         or _string_field(recovery, "from_tool")
         or _string_field(patch, "from_tool")
+        or _string_field(fallback, "from_tool_id")
     )
     to_tool = (
         _string_field(payload, "to_tool")
         or _string_field(data, "to_tool")
         or _string_field(recovery, "to_tool")
         or _string_field(patch, "to_tool")
+        or _string_field(fallback, "to_tool_id")
     )
     failure_type = (
         _string_field(payload, "failure_type")
@@ -409,6 +453,8 @@ def _extract_observability_fields(
         error_details = payload.get("error_details")
         if isinstance(error_details, dict):
             failure_code = _string_field(error_details, "failure_code")
+            if remote_job_id is None:
+                remote_job_id = _string_field(error_details, "remote_job_id")
     if failure_code is None:
         s6 = data.get("s6")
         if isinstance(s6, dict):
@@ -436,19 +482,33 @@ def _extract_observability_fields(
     recovery_reason = (
         _string_field(recovery, "reason")
         or _string_field(recovery, "upgrade_reason")
+        or _string_field(fallback, "reason")
         or _string_field(data, "reason")
+    )
+    recovery_hint = (
+        _string_field(payload, "recovery_hint")
+        or _string_field(data, "recovery_hint")
+        or _string_field(data, "suggested_recovery")
+        or _string_field(recovery, "recovery_hint")
+        or _string_field(recovery, "suggested_recovery")
     )
     action_name = _extract_action_name(payload=payload, data=data, recovery=recovery)
 
     return {
         "tool_id": tool_id,
+        "adapter_id": adapter_id,
+        "execution_mode": execution_mode,
         "capability_id": capability_id,
         "io_type": io_type,
         "adapter_mode": adapter_mode,
+        "provider": provider,
+        "endpoint_type": endpoint_type,
+        "remote_job_id": remote_job_id,
         "from_tool": from_tool,
         "to_tool": to_tool,
         "failure_type": failure_type,
         "failure_code": failure_code,
+        "recovery_hint": recovery_hint,
         "candidate_id": candidate_id,
         "decision_source": decision_source,
         "action_name": action_name,

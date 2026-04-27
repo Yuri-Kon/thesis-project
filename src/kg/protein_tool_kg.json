@@ -650,9 +650,26 @@
       "execution": {
         "backend": "remote_model_service",
         "provider": "nvidia_nim",
+        "execution_mode": "nvidia_nim",
         "model_id": "openfold/openfold3/predict",
         "sync_mode": true,
-        "alternate_provider": "openfold3_rest"
+        "alternate_provider": "openfold3_rest",
+        "execution_modes": [
+          {
+            "execution_mode": "nvidia_nim",
+            "adapter_id": "openfold",
+            "provider": "nvidia_nim",
+            "endpoint_type": "nim",
+            "model_id": "openfold/openfold3/predict"
+          },
+          {
+            "execution_mode": "openfold3_rest",
+            "adapter_id": "openfold",
+            "provider": "openfold3_rest",
+            "endpoint_type": "rest",
+            "base_url_env": "OPENFOLD3_REST_BASE_URL"
+          }
+        ]
       },
       "cost_score": 0.75,
       "safety_level": 1,

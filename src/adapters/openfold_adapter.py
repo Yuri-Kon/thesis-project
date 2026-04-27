@@ -56,6 +56,28 @@ class OpenFold3Adapter(BaseToolAdapter):
         self.base_url = base_url
         self.output_dir = Path(output_dir or "output/pdb")
 
+    def describe_capabilities(self) -> Dict[str, Any]:
+        """返回 OpenFold3 适配器的执行通道摘要。"""
+        return {
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.execution_mode,
+            "provider": (
+                self.rest_provider_name
+                if self.execution_mode in self.rest_provider_aliases
+                else "nvidia_nim"
+                if self.execution_mode == "nvidia_nim"
+                else None
+            ),
+            "endpoint_type": (
+                "rest"
+                if self.execution_mode in self.rest_provider_aliases
+                else "nim"
+                if self.execution_mode == "nvidia_nim"
+                else None
+            ),
+        }
+
     def resolve_inputs(
         self,
         step: PlanStep,
@@ -180,7 +202,11 @@ class OpenFold3Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "nvidia_nim",
             "duration_ms": int((perf_counter() - t0) * 1000),
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": "nvidia_nim",
             "provider": "nvidia_nim",
+            "endpoint_type": "nim",
             "model_id": self.nim_model_id,
         }
         return outputs, metrics
@@ -198,11 +224,17 @@ class OpenFold3Adapter(BaseToolAdapter):
         job_id = service.submit_job(payload=payload, task_id=task_id, step_id=step_id)
         final_status = service.wait_for_completion(job_id)
         if final_status == JobStatus.FAILED:
-            raise StepRunError(
+            error = StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Remote job {job_id} failed",
                 code=FailureCode.REMOTE_JOB_FAILED.value,
             )
+            error.remote_job_id = job_id  # type: ignore[attr-defined]
+            error.remote_endpoint = getattr(service, "base_url", None)  # type: ignore[attr-defined]
+            error.execution_mode = self.rest_provider_name  # type: ignore[attr-defined]
+            error.provider = self.rest_provider_name  # type: ignore[attr-defined]
+            error.endpoint_type = "rest"  # type: ignore[attr-defined]
+            raise error
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         outputs = service.download_results(job_id=job_id, output_dir=self.output_dir)
@@ -236,8 +268,13 @@ class OpenFold3Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "remote",
             "duration_ms": int((perf_counter() - t0) * 1000),
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.rest_provider_name,
             "provider": self.rest_provider_name,
+            "endpoint_type": "rest",
             "job_id": job_id,
+            "remote_job_id": job_id,
         }
         return outputs, metrics
 

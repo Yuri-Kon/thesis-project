@@ -332,6 +332,12 @@ def test_run_step_fallbacks_to_local_tool_when_nim_missing(empty_context, monkey
     assert result.status == "success"
     assert result.tool == "esmfold"
     assert result.metrics.get("fallback_from") == "nim_esmfold"
+    assert result.metrics["fallback"]["fallback_kind"] == "scientific_tool"
+    assert result.metrics["fallback"]["from_tool_id"] == "nim_esmfold"
+    assert result.metrics["fallback"]["to_tool_id"] == "esmfold"
+    assert result.metrics["fallback"]["from_execution_mode"] == "remote_model_service"
+    assert result.metrics["fallback"]["to_execution_mode"] == "nextflow"
+    assert result.execution_mode == "nextflow"
 
 
 def test_run_step_missing_adapter_returns_failed_result(empty_context):
