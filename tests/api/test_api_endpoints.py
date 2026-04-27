@@ -359,6 +359,12 @@ class TestAPIEndpoints:
             "planner_capability_hints"
         ] == ["sequence_generation", "structure_prediction"]
 
+        events_response = await client.get(f"/tasks/{confirmation['task_id']}/events")
+        assert events_response.status_code == 200
+        events = events_response.json()
+        assert events[0]["event_type"] == "TASK_CREATED_FROM_CONFIRMED_INTAKE"
+        assert events[0]["data"]["intake_id"] == intake_id
+
     async def test_task_intake_confirm_missing_fields_returns_stable_error(
         self,
         client: httpx.AsyncClient,

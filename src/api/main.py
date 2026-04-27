@@ -49,7 +49,7 @@ from src.models.task_intake import (
     patch_task_intake_session,
     project_confirmed_task_spec,
 )
-from src.storage.log_store import read_timeline_events
+from src.storage.log_store import append_event, read_timeline_events
 from src.workflow.context import WorkflowContext
 from src.infra.tool_readiness import (
     build_capability_readiness_matrix,
@@ -578,12 +578,13 @@ def _get_intake_or_404(intake_id: str) -> TaskIntakeSession:
 def _create_task_record_from_confirmed_spec(spec: ConfirmedTaskSpec) -> TaskRecord:
     goal, constraints, metadata = project_confirmed_task_spec(spec)
     task_id = f"task_{uuid4().hex[:8]}"
+    timestamp = now_iso()
     record = TaskRecord(
         id=task_id,
         status=ExternalStatus.CREATED,
         internal_status=InternalStatus.CREATED,
-        created_at=now_iso(),
-        updated_at=now_iso(),
+        created_at=timestamp,
+        updated_at=timestamp,
         goal=goal,
         constraints=constraints,
         metadata=metadata,
@@ -592,6 +593,21 @@ def _create_task_record_from_confirmed_spec(spec: ConfirmedTaskSpec) -> TaskReco
         safety_events=[],
     )
     TASK_STORE[task_id] = record
+    append_event(
+        task_id,
+        {
+            "event": "TASK_CREATED_FROM_CONFIRMED_INTAKE",
+            "task_id": task_id,
+            "status": ExternalStatus.CREATED.value,
+            "actor_type": "api",
+            "timestamp": timestamp,
+            "data": {
+                "intake_id": metadata.get("intake_id"),
+                "support_level": metadata.get("support_level"),
+                "input_mode": metadata.get("input_mode"),
+            },
+        },
+    )
     return record
 
 
