@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import re
 from enum import Enum
 from typing import Any, Literal
@@ -12,6 +13,415 @@ from src.models.contracts import now_iso
 TASK_FIELD_REGISTRY_VERSION = "task-intake.v1"
 HIGH_CONFIDENCE_THRESHOLD = 0.80
 LOW_CONFIDENCE_THRESHOLD = 0.50
+TASK_FIELD_GROUPS: tuple[str, ...] = (
+    "objective",
+    "inputs",
+    "design_constraints",
+    "quality_constraints",
+    "structure_constraints",
+    "function_constraints",
+    "safety_constraints",
+    "execution_preferences",
+    "planner_policy",
+)
+TASK_FIELD_REGISTRY: dict[str, Any] = {
+    "version": TASK_FIELD_REGISTRY_VERSION,
+    "groups": list(TASK_FIELD_GROUPS),
+    "fields": {
+        "task_kind": {
+            "group": "objective",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": ["任务类型", "design mode", "task kind"],
+            "validators": {},
+            "options": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "stability_optimization",
+                "motif_scaffold_design",
+                "binding_design",
+                "enzyme_like_design",
+            ],
+            "default": "de_novo_design",
+            "maps_to": "constraints.task_kind",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "objective_type": {
+            "group": "objective",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": ["目标", "objective", "optimization target"],
+            "validators": {},
+            "options": ["stability", "structure", "binding", "activity"],
+            "default": None,
+            "maps_to": "objective.objective_type",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "objective_description": {
+            "group": "objective",
+            "type": "string",
+            "ui_control": "textarea",
+            "nl_aliases": ["目标描述", "goal", "description"],
+            "validators": {"min_length": 1, "max_length": 2000},
+            "options": [],
+            "default": None,
+            "maps_to": "objective.description",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "sequence": {
+            "group": "inputs",
+            "type": "protein_sequence",
+            "ui_control": "textarea",
+            "nl_aliases": ["序列", "sequence"],
+            "validators": {"alphabet": "ACDEFGHIKLMNPQRSTVWY"},
+            "options": [],
+            "default": None,
+            "maps_to": "inputs.sequence",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "template_pdb": {
+            "group": "inputs",
+            "type": "string",
+            "ui_control": "file_or_text",
+            "nl_aliases": ["模板结构", "template pdb", "template structure"],
+            "validators": {"min_length": 1, "max_length": 4096},
+            "options": [],
+            "default": None,
+            "maps_to": "inputs.template_pdb",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "target_ligand": {
+            "group": "inputs",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": ["配体", "ligand", "small molecule"],
+            "validators": {"min_length": 1, "max_length": 512},
+            "options": [],
+            "default": None,
+            "maps_to": "inputs.target_ligand",
+            "support_level": "P2",
+            "audit_visibility": "public",
+        },
+        "length_range": {
+            "group": "design_constraints",
+            "type": "integer_range",
+            "ui_control": "range",
+            "nl_aliases": ["长度", "aa", "amino acids"],
+            "validators": {"min": 1, "max": 5000},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.length_range",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "design_count": {
+            "group": "design_constraints",
+            "type": "integer",
+            "ui_control": "number",
+            "nl_aliases": ["候选数", "design count"],
+            "validators": {"min": 1, "max": 100},
+            "options": [],
+            "default": 4,
+            "maps_to": "constraints.design_count",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "quality_metric": {
+            "group": "quality_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": ["质量指标", "quality metric"],
+            "validators": {},
+            "options": ["plddt", "ptm", "sequence_similarity", "custom_score"],
+            "default": "plddt",
+            "maps_to": "constraints.quality_metric",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "min_quality_score": {
+            "group": "quality_constraints",
+            "type": "number",
+            "ui_control": "number",
+            "nl_aliases": ["最低质量", "min quality", "score threshold"],
+            "validators": {"min": 0.0, "max": 1.0},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.min_quality_score",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "target_fold": {
+            "group": "structure_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": ["目标折叠", "fold", "topology"],
+            "validators": {"min_length": 1, "max_length": 512},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.target_fold",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "secondary_structure_bias": {
+            "group": "structure_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": ["二级结构偏好", "secondary structure"],
+            "validators": {},
+            "options": ["alpha", "beta", "mixed", "none"],
+            "default": "none",
+            "maps_to": "constraints.secondary_structure_bias",
+            "support_level": "P1",
+            "audit_visibility": "public",
+        },
+        "motif_pattern": {
+            "group": "function_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": ["motif", "基序", "functional motif"],
+            "validators": {"min_length": 1, "max_length": 512},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.motif_pattern",
+            "support_level": "P1",
+            "audit_visibility": "public",
+        },
+        "binding_partner": {
+            "group": "function_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": ["结合对象", "binding partner", "target protein"],
+            "validators": {"min_length": 1, "max_length": 512},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.binding_partner",
+            "support_level": "P2",
+            "audit_visibility": "public",
+        },
+        "active_site_residues": {
+            "group": "function_constraints",
+            "type": "residue_list",
+            "ui_control": "tag_input",
+            "nl_aliases": ["活性位点", "active site residues"],
+            "validators": {"pattern": "^[A-Z][0-9]+$"},
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.active_site_residues",
+            "support_level": "P2",
+            "audit_visibility": "public",
+        },
+        "safety_level": {
+            "group": "safety_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": ["安全等级", "safety"],
+            "validators": {},
+            "options": ["S0", "S1", "S2"],
+            "default": "S1",
+            "maps_to": "constraints.safety_level",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "forbidden_motifs": {
+            "group": "safety_constraints",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "nl_aliases": ["禁用片段", "forbidden motifs"],
+            "validators": {"min_item_length": 1, "max_item_length": 128},
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.forbidden_motifs",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "run_profile": {
+            "group": "execution_preferences",
+            "type": "enum",
+            "ui_control": "segmented",
+            "nl_aliases": ["运行模式", "profile", "speed"],
+            "validators": {},
+            "options": ["fast_smoke", "balanced", "thorough"],
+            "default": "balanced",
+            "maps_to": "constraints.run_profile",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "max_runtime_min": {
+            "group": "execution_preferences",
+            "type": "integer",
+            "ui_control": "number",
+            "nl_aliases": ["最长运行时间", "max runtime", "time budget"],
+            "validators": {"min": 1, "max": 10080},
+            "options": [],
+            "default": 60,
+            "maps_to": "constraints.max_runtime_min",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "tools_allowed": {
+            "group": "execution_preferences",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "nl_aliases": ["允许工具", "allowed tools"],
+            "validators": {"source": "ToolKG"},
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.tools_allowed",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "tools_excluded": {
+            "group": "execution_preferences",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "nl_aliases": ["排除工具", "excluded tools"],
+            "validators": {"source": "ToolKG"},
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.tools_excluded",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "require_plan_confirm": {
+            "group": "planner_policy",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "nl_aliases": ["确认计划", "plan confirmation"],
+            "validators": {},
+            "options": [],
+            "default": True,
+            "maps_to": "constraints.require_plan_confirm",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "allow_replan": {
+            "group": "planner_policy",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "nl_aliases": ["允许重规划", "allow replan"],
+            "validators": {},
+            "options": [],
+            "default": True,
+            "maps_to": "constraints.allow_replan",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+    },
+    "task_profiles": {
+        "de_novo_design": {
+            "support_level": "P0",
+            "required": ["task_kind", "objective_type", "length_range"],
+            "optional": [
+                "objective_description",
+                "design_count",
+                "quality_metric",
+                "min_quality_score",
+                "target_fold",
+                "forbidden_motifs",
+                "safety_level",
+                "run_profile",
+                "max_runtime_min",
+                "require_plan_confirm",
+                "allow_replan",
+                "tools_allowed",
+                "tools_excluded",
+            ],
+            "conditional_required": [],
+            "capability_hints": ["sequence_generation", "structure_prediction"],
+        },
+        "sequence_evaluation": {
+            "support_level": "P0",
+            "required": ["task_kind", "sequence", "objective_type"],
+            "optional": [
+                "quality_metric",
+                "min_quality_score",
+                "safety_level",
+                "run_profile",
+                "tools_allowed",
+                "tools_excluded",
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "sequence_evaluation",
+                "objective_scoring",
+                "quality_qc",
+            ],
+        },
+        "template_constrained_design": {
+            "support_level": "P0",
+            "required": ["task_kind", "objective_type", "length_range", "template_pdb"],
+            "optional": [
+                "design_count",
+                "quality_metric",
+                "min_quality_score",
+                "target_fold",
+                "safety_level",
+                "run_profile",
+                "tools_allowed",
+                "tools_excluded",
+            ],
+            "conditional_required": [],
+            "capability_hints": ["sequence_design", "structure_prediction"],
+        },
+        "stability_optimization": {
+            "support_level": "P1",
+            "required": ["task_kind", "sequence"],
+            "optional": [
+                "objective_type",
+                "quality_metric",
+                "min_quality_score",
+                "secondary_structure_bias",
+                "run_profile",
+            ],
+            "conditional_required": [],
+            "capability_hints": ["objective_scoring", "stability_simulation"],
+        },
+        "motif_scaffold_design": {
+            "support_level": "P1",
+            "required": ["task_kind", "motif_pattern"],
+            "optional": [
+                "objective_type",
+                "length_range",
+                "template_pdb",
+                "secondary_structure_bias",
+            ],
+            "conditional_required": [],
+            "capability_hints": ["motif_scaffolding", "backbone_generation"],
+        },
+        "binding_design": {
+            "support_level": "P2",
+            "required": ["task_kind", "objective_type"],
+            "optional": ["length_range", "target_ligand", "run_profile"],
+            "conditional_required": [
+                {
+                    "if": {"field": "objective_type", "equals": "binding"},
+                    "required": ["binding_partner"],
+                    "reason": "binding objective needs an explicit target partner",
+                }
+            ],
+            "capability_hints": ["binding_design", "docking_scoring"],
+        },
+        "enzyme_like_design": {
+            "support_level": "P2",
+            "required": ["task_kind", "objective_type"],
+            "optional": ["length_range", "motif_pattern", "active_site_residues"],
+            "conditional_required": [
+                {
+                    "if": {"field": "objective_type", "equals": "activity"},
+                    "required": ["active_site_residues"],
+                    "reason": "enzyme-like activity needs active-site anchors",
+                }
+            ],
+            "capability_hints": ["enzyme_design", "function_annotation"],
+        },
+    },
+}
 
 
 class TaskIntakeStatus(str, Enum):
@@ -121,11 +531,112 @@ class IntentDraftClarificationRequest(BaseModel):
 def build_task_intake_schema() -> dict[str, Any]:
     """生成 Web/CLI 共享的字段注册表视图。"""
 
+    registry = get_task_field_registry()
+    registry["web_schema"] = build_task_intake_web_schema()
+    registry["cli_arguments"] = build_task_intake_cli_arguments()
+    registry["cli_questions"] = build_task_intake_cli_questions()
+    registry["llm_extraction_schema"] = build_task_intake_llm_extraction_schema()
+    registry["confirmed_task_spec_mapping"] = build_confirmed_task_spec_mapping()
+    registry["planner_capability_hints"] = build_planner_capability_hints()
+    registry["conditional_required"] = _all_conditional_required_rules()
+    return registry
+
+
+def get_task_field_registry() -> dict[str, Any]:
+    """返回版本化 TaskFieldRegistry 的独立副本。"""
+
+    return deepcopy(TASK_FIELD_REGISTRY)
+
+
+def build_task_intake_web_schema() -> dict[str, Any]:
+    """从 registry 派生 Web 表单分组 schema。"""
+
+    fields = _registry_fields()
     return {
-        "version": TASK_FIELD_REGISTRY_VERSION,
-        "fields": _registry_fields(),
-        "task_profiles": _task_profiles(),
-        "conditional_required": [],
+        "groups": [
+            {
+                "id": group,
+                "fields": [
+                    name
+                    for name, definition in fields.items()
+                    if definition["group"] == group
+                ],
+            }
+            for group in TASK_FIELD_GROUPS
+        ],
+        "fields": fields,
+    }
+
+
+def build_task_intake_cli_arguments() -> list[dict[str, Any]]:
+    """从 registry 派生 CLI 字段参数说明。"""
+
+    required_by = _field_required_profile_index()
+    return [
+        {
+            "field": name,
+            "flag": f"--{name.replace('_', '-')}",
+            "type": definition["type"],
+            "default": definition["default"],
+            "required_by_profiles": required_by.get(name, []),
+            "nl_aliases": list(definition["nl_aliases"]),
+        }
+        for name, definition in _registry_fields().items()
+    ]
+
+
+def build_task_intake_cli_questions() -> list[dict[str, Any]]:
+    """从 registry 派生 CLI 交互式问题说明。"""
+
+    required_by = _field_required_profile_index()
+    return [
+        {
+            "field": name,
+            "prompt": _cli_prompt_for_field(name, definition),
+            "type": definition["type"],
+            "ui_control": definition["ui_control"],
+            "options": list(definition["options"]),
+            "default": definition["default"],
+            "required_by_profiles": required_by.get(name, []),
+        }
+        for name, definition in _registry_fields().items()
+    ]
+
+
+def build_task_intake_llm_extraction_schema() -> dict[str, Any]:
+    """从 registry 派生自然语言字段抽取 schema。"""
+
+    properties: dict[str, Any] = {}
+    for name, definition in _registry_fields().items():
+        property_schema = {
+            "type": _json_schema_type_for_field(definition),
+            "description": ", ".join(definition["nl_aliases"]),
+        }
+        if definition["options"]:
+            property_schema["enum"] = list(definition["options"])
+        properties[name] = property_schema
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": properties,
+    }
+
+
+def build_confirmed_task_spec_mapping() -> dict[str, str]:
+    """从 registry 派生 ConfirmedTaskSpec 字段映射。"""
+
+    return {
+        name: str(definition["maps_to"])
+        for name, definition in _registry_fields().items()
+    }
+
+
+def build_planner_capability_hints() -> dict[str, list[str]]:
+    """从 profile 派生 Planner capability hints。"""
+
+    return {
+        name: list(profile["capability_hints"])
+        for name, profile in _task_profiles().items()
     }
 
 
@@ -266,197 +777,48 @@ def project_confirmed_task_spec(
 
 
 def _registry_fields() -> dict[str, dict[str, Any]]:
-    return {
-        "task_kind": {
-            "group": "objective",
-            "type": "enum",
-            "ui_control": "select",
-            "nl_aliases": ["任务类型", "design mode", "task kind"],
-            "validators": {},
-            "options": [
-                "de_novo_design",
-                "sequence_evaluation",
-                "template_constrained_design",
-                "stability_optimization",
-                "motif_scaffold_design",
-                "binding_design",
-                "enzyme_like_design",
-            ],
-            "default": "de_novo_design",
-            "maps_to": "constraints.task_kind",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "objective_type": {
-            "group": "objective",
-            "type": "enum",
-            "ui_control": "select",
-            "nl_aliases": ["目标", "objective", "optimization target"],
-            "validators": {},
-            "options": ["stability", "structure", "binding", "activity"],
-            "default": None,
-            "maps_to": "objective.objective_type",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "length_range": {
-            "group": "design_constraints",
-            "type": "integer_range",
-            "ui_control": "range",
-            "nl_aliases": ["长度", "aa", "amino acids"],
-            "validators": {"min": 1, "max": 5000},
-            "options": [],
-            "default": None,
-            "maps_to": "constraints.length_range",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "sequence": {
-            "group": "inputs",
-            "type": "protein_sequence",
-            "ui_control": "textarea",
-            "nl_aliases": ["序列", "sequence"],
-            "validators": {"alphabet": "ACDEFGHIKLMNPQRSTVWY"},
-            "options": [],
-            "default": None,
-            "maps_to": "inputs.sequence",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "design_count": {
-            "group": "execution_preferences",
-            "type": "integer",
-            "ui_control": "number",
-            "nl_aliases": ["候选数", "design count"],
-            "validators": {"min": 1, "max": 100},
-            "options": [],
-            "default": 4,
-            "maps_to": "constraints.design_count",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "safety_level": {
-            "group": "safety_constraints",
-            "type": "enum",
-            "ui_control": "select",
-            "nl_aliases": ["安全等级", "safety"],
-            "validators": {},
-            "options": ["S0", "S1", "S2"],
-            "default": "S1",
-            "maps_to": "constraints.safety_level",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "run_profile": {
-            "group": "execution_preferences",
-            "type": "enum",
-            "ui_control": "segmented",
-            "nl_aliases": ["运行模式", "profile", "speed"],
-            "validators": {},
-            "options": ["fast_smoke", "balanced", "thorough"],
-            "default": "balanced",
-            "maps_to": "constraints.run_profile",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "require_plan_confirm": {
-            "group": "planner_policy",
-            "type": "boolean",
-            "ui_control": "checkbox",
-            "nl_aliases": ["确认计划", "plan confirmation"],
-            "validators": {},
-            "options": [],
-            "default": True,
-            "maps_to": "constraints.require_plan_confirm",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "tools_allowed": {
-            "group": "execution_preferences",
-            "type": "tool_id_list",
-            "ui_control": "multi_select",
-            "nl_aliases": ["允许工具", "allowed tools"],
-            "validators": {"source": "ToolKG"},
-            "options": [],
-            "default": [],
-            "maps_to": "constraints.tools_allowed",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-        "tools_excluded": {
-            "group": "execution_preferences",
-            "type": "tool_id_list",
-            "ui_control": "multi_select",
-            "nl_aliases": ["排除工具", "excluded tools"],
-            "validators": {"source": "ToolKG"},
-            "options": [],
-            "default": [],
-            "maps_to": "constraints.tools_excluded",
-            "support_level": "P0",
-            "audit_visibility": "public",
-        },
-    }
+    return deepcopy(TASK_FIELD_REGISTRY["fields"])
 
 
 def _task_profiles() -> dict[str, dict[str, Any]]:
-    return {
-        "de_novo_design": {
-            "support_level": "P0",
-            "required": ["task_kind", "objective_type", "length_range"],
-            "optional": [
-                "design_count",
-                "safety_level",
-                "run_profile",
-                "require_plan_confirm",
-                "tools_allowed",
-                "tools_excluded",
-            ],
-            "conditional_required": [],
-            "capability_hints": ["sequence_generation", "structure_prediction"],
-        },
-        "sequence_evaluation": {
-            "support_level": "P0",
-            "required": ["task_kind", "sequence", "objective_type"],
-            "optional": ["safety_level", "run_profile"],
-            "conditional_required": [],
-            "capability_hints": ["sequence_evaluation", "objective_scoring"],
-        },
-        "template_constrained_design": {
-            "support_level": "P0",
-            "required": ["task_kind", "objective_type", "length_range"],
-            "optional": ["design_count", "safety_level", "run_profile"],
-            "conditional_required": [],
-            "capability_hints": ["structure_prediction", "sequence_design"],
-        },
-        "stability_optimization": {
-            "support_level": "P1",
-            "required": ["task_kind", "sequence"],
-            "optional": ["objective_type", "run_profile"],
-            "conditional_required": [],
-            "capability_hints": ["objective_scoring"],
-        },
-        "motif_scaffold_design": {
-            "support_level": "P1",
-            "required": ["task_kind"],
-            "optional": ["objective_type", "length_range"],
-            "conditional_required": [],
-            "capability_hints": ["motif_scaffolding"],
-        },
-        "binding_design": {
-            "support_level": "P2",
-            "required": ["task_kind", "objective_type"],
-            "optional": ["length_range", "run_profile"],
-            "conditional_required": [],
-            "capability_hints": ["binding_design"],
-        },
-        "enzyme_like_design": {
-            "support_level": "P2",
-            "required": ["task_kind", "objective_type"],
-            "optional": ["length_range", "run_profile"],
-            "conditional_required": [],
-            "capability_hints": ["enzyme_design"],
-        },
-    }
+    return deepcopy(TASK_FIELD_REGISTRY["task_profiles"])
+
+
+def _all_conditional_required_rules() -> list[dict[str, Any]]:
+    rules: list[dict[str, Any]] = []
+    for profile_name, profile in _task_profiles().items():
+        for rule in profile.get("conditional_required", []):
+            rules.append({"profile": profile_name, **dict(rule)})
+    return rules
+
+
+def _field_required_profile_index() -> dict[str, list[str]]:
+    index: dict[str, list[str]] = {}
+    for profile_name, profile in _task_profiles().items():
+        for field_name in profile["required"]:
+            index.setdefault(field_name, []).append(profile_name)
+        for rule in profile.get("conditional_required", []):
+            for field_name in rule.get("required", []):
+                index.setdefault(field_name, []).append(profile_name)
+    return index
+
+
+def _json_schema_type_for_field(definition: dict[str, Any]) -> str | list[str]:
+    field_type = definition["type"]
+    if field_type in {"integer", "integer_range"}:
+        return "integer" if field_type == "integer" else "array"
+    if field_type == "number":
+        return "number"
+    if field_type == "boolean":
+        return "boolean"
+    if field_type in {"string_list", "residue_list", "tool_id_list"}:
+        return "array"
+    return "string"
+
+
+def _cli_prompt_for_field(field_name: str, definition: dict[str, Any]) -> str:
+    alias = definition["nl_aliases"][0] if definition["nl_aliases"] else field_name
+    return f"{alias} ({field_name})"
 
 
 def _merge_extracted_text(draft: TaskSpecDraft, text: str) -> None:
@@ -610,7 +972,16 @@ def _required_fields_for(fields: dict[str, TaskDraftField]) -> list[str]:
     task_kind_value = task_kind.value if task_kind is not None else "de_novo_design"
     profiles = _task_profiles()
     profile = profiles.get(str(task_kind_value), profiles["de_novo_design"])
-    return list(profile["required"])
+    required = list(profile["required"])
+    for rule in profile.get("conditional_required", []):
+        condition = rule.get("if", {})
+        condition_field = fields.get(str(condition.get("field")))
+        if (
+            condition_field is not None
+            and condition_field.value == condition.get("equals")
+        ):
+            required.extend(str(field_name) for field_name in rule.get("required", []))
+    return list(dict.fromkeys(required))
 
 
 def _validate_registry_value(field_name: str, value: Any) -> str | None:
@@ -622,6 +993,14 @@ def _validate_registry_value(field_name: str, value: Any) -> str | None:
     field_type = field["type"]
     if field_type == "enum" and value not in set(field["options"]):
         return f"{field_name} must be one of {field['options']}"
+    if field_type == "string":
+        if not isinstance(value, str) or not value.strip():
+            return f"{field_name} must be a non-empty string"
+        validators = field.get("validators", {})
+        if len(value) < validators.get("min_length", 0):
+            return f"{field_name} is shorter than allowed"
+        if len(value) > validators.get("max_length", len(value)):
+            return f"{field_name} is longer than allowed"
     if field_type == "boolean" and not isinstance(value, bool):
         return f"{field_name} must be a boolean"
     if field_type == "integer":
@@ -630,7 +1009,14 @@ def _validate_registry_value(field_name: str, value: Any) -> str | None:
         validators = field.get("validators", {})
         if value < validators.get("min", value) or value > validators.get("max", value):
             return f"{field_name} is outside allowed range"
+    if field_type == "number":
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return f"{field_name} must be a number"
+        validators = field.get("validators", {})
+        if value < validators.get("min", value) or value > validators.get("max", value):
+            return f"{field_name} is outside allowed range"
     if field_type == "integer_range":
+        validators = field.get("validators", {})
         if (
             not isinstance(value, list)
             or len(value) != 2
@@ -639,6 +1025,8 @@ def _validate_registry_value(field_name: str, value: Any) -> str | None:
                 for item in value
             )
             or value[0] > value[1]
+            or value[0] < validators.get("min", value[0])
+            or value[1] > validators.get("max", value[1])
         ):
             return f"{field_name} must be [min, max] integers"
     if field_type == "protein_sequence":
@@ -648,11 +1036,17 @@ def _validate_registry_value(field_name: str, value: Any) -> str | None:
         invalid = set(value.upper()) - alphabet
         if invalid:
             return f"{field_name} contains invalid residues: {''.join(sorted(invalid))}"
-    if field_type == "tool_id_list":
+    if field_type in {"string_list", "tool_id_list"}:
         if not isinstance(value, list) or not all(
             isinstance(item, str) and item for item in value
         ):
-            return f"{field_name} must be a list of tool ids"
+            return f"{field_name} must be a list of strings"
+    if field_type == "residue_list":
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) and re.match(r"^[A-Z][0-9]+$", item)
+            for item in value
+        ):
+            return f"{field_name} must be residue ids like A42"
     return None
 
 
@@ -682,6 +1076,7 @@ def _build_confirmed_spec(
         "intake_id": session.intake_id,
         "field_registry_version": TASK_FIELD_REGISTRY_VERSION,
         "support_level": _support_level_for(fields),
+        "planner_capability_hints": _capability_hints_for(fields),
         "confirmed_by": confirmed_by,
         "input_mode": _input_mode(session),
         "acknowledged_warnings": list(acknowledged_warnings),
@@ -725,6 +1120,15 @@ def _support_level_for(fields: dict[str, Any]) -> str:
         _task_profiles()["de_novo_design"],
     )
     return str(profile["support_level"])
+
+
+def _capability_hints_for(fields: dict[str, Any]) -> list[str]:
+    task_kind = fields.get("task_kind", "de_novo_design")
+    profile = _task_profiles().get(
+        str(task_kind),
+        _task_profiles()["de_novo_design"],
+    )
+    return list(profile["capability_hints"])
 
 
 def _input_mode(session: TaskIntakeSession) -> str:
