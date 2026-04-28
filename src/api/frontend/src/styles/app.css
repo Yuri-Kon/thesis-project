@@ -289,6 +289,19 @@ pre {
   margin-bottom: 0;
   padding: 10px 12px;
 }
+.warning-ack {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+}
+.warning-ack + .warning-ack {
+  margin-top: 8px;
+}
+.warning-ack input {
+  margin-top: 3px;
+  min-height: auto;
+  width: auto;
+}
 
 .candidate-card dl,
 .kv {

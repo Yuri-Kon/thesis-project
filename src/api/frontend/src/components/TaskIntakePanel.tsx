@@ -19,19 +19,33 @@ function formatValue(value: unknown): string {
 export function TaskIntakePanel({ onOpenTask }: TaskIntakePanelProps) {
   const [text, setText] = useState("");
   const [intake, setIntake] = useState<TaskIntakeSession | null>(null);
+  const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const safetyWarnings = useMemo(
+    () => (intake?.safety_check.risk_flags ?? []).filter((risk) => risk.level === "warn"),
+    [intake],
+  );
+  const hasSafetyBlock = useMemo(
+    () => intake?.safety_check.action === "block",
+    [intake],
+  );
 
   const canConfirm = useMemo(() => {
     if (!intake) {
       return false;
     }
+    const allWarningsAcknowledged = safetyWarnings.every((risk) =>
+      acknowledgedWarnings.includes(risk.code),
+    );
     return (
       intake.missing_required_fields.length === 0 &&
       intake.ambiguous_fields.length === 0 &&
-      intake.warnings.length === 0
+      !hasSafetyBlock &&
+      allWarningsAcknowledged
     );
-  }, [intake]);
+  }, [acknowledgedWarnings, hasSafetyBlock, intake, safetyWarnings]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -44,6 +58,7 @@ export function TaskIntakePanel({ onOpenTask }: TaskIntakePanelProps) {
         source: "web",
       });
       setIntake(nextIntake);
+      setAcknowledgedWarnings([]);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -58,7 +73,10 @@ export function TaskIntakePanel({ onOpenTask }: TaskIntakePanelProps) {
     setBusy(true);
     setError(null);
     try {
-      const confirmation = await apiClient.confirmTaskIntake(intake.intake_id);
+      const confirmation = await apiClient.confirmTaskIntake(
+        intake.intake_id,
+        acknowledgedWarnings,
+      );
       onOpenTask(confirmation.task_id);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
@@ -69,6 +87,14 @@ export function TaskIntakePanel({ onOpenTask }: TaskIntakePanelProps) {
 
   const fields = Object.entries(intake?.draft.fields ?? {});
   const ambiguous = new Set(intake?.ambiguous_fields ?? []);
+
+  function toggleAcknowledgement(code: string) {
+    setAcknowledgedWarnings((current) =>
+      current.includes(code)
+        ? current.filter((item) => item !== code)
+        : [...current, code],
+    );
+  }
 
   return (
     <section className="panel intake-panel">
@@ -111,6 +137,23 @@ export function TaskIntakePanel({ onOpenTask }: TaskIntakePanelProps) {
           {intake.draft.extraction_errors.length ? (
             <div className="notice compact">
               {intake.draft.extraction_errors.join(" | ")}
+            </div>
+          ) : null}
+          {intake.safety_check.risk_flags.length ? (
+            <div className={hasSafetyBlock ? "notice compact error" : "notice compact"}>
+              {intake.safety_check.risk_flags.map((risk) => (
+                <label className="warning-ack" key={`${risk.level}-${risk.code}-${risk.message}`}>
+                  <input
+                    type="checkbox"
+                    checked={risk.level === "block" ? false : acknowledgedWarnings.includes(risk.code)}
+                    disabled={risk.level === "block"}
+                    onChange={() => toggleAcknowledgement(risk.code)}
+                  />
+                  <span>
+                    <strong>{risk.level}</strong> {risk.code}: {risk.message}
+                  </span>
+                </label>
+              ))}
             </div>
           ) : null}
           {fields.length ? (

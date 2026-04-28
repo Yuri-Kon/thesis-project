@@ -66,6 +66,9 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 2
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     except httpx.HTTPError as exc:
         print(f"API request failed: {exc}", file=sys.stderr)
         return 2
@@ -138,6 +141,12 @@ def _build_parser() -> argparse.ArgumentParser:
     intake_confirm.add_argument("intake_id")
     intake_confirm.add_argument("--confirmed-by", default="cli")
     intake_confirm.add_argument("--acknowledge", action="append", default=[])
+    intake_confirm.add_argument(
+        "--ack-warning",
+        dest="acknowledge",
+        action="append",
+        help="Acknowledge a Safety warning code or exact warning message",
+    )
     intake_confirm.add_argument("--json", action="store_true")
 
     subparsers.add_parser("preflight")
@@ -307,11 +316,42 @@ def _get_json(base_url: str, path: str) -> dict[str, Any] | list[dict[str, Any]]
 
 def _post_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     response = httpx.post(f"{base_url}{path}", json=payload, timeout=10.0)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        if path.endswith("/confirm"):
+            raise ValueError(_format_intake_confirm_error(response)) from exc
+        raise
     body = response.json()
     if not isinstance(body, dict):
         raise ValueError(f"API payload for {path} is not an object")
     return body
+
+
+def _format_intake_confirm_error(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"intake confirm failed with HTTP {response.status_code}"
+    if not isinstance(payload, dict):
+        return f"intake confirm failed with HTTP {response.status_code}"
+    detail = str(payload.get("detail") or f"HTTP {response.status_code}")
+    context = payload.get("context") if isinstance(payload.get("context"), dict) else {}
+    safety = context.get("safety_check") if isinstance(context, dict) else None
+    warning_codes: list[str] = []
+    if isinstance(safety, dict):
+        for risk in safety.get("risk_flags") or []:
+            if isinstance(risk, dict) and risk.get("level") == "warn":
+                code = risk.get("code")
+                if isinstance(code, str):
+                    warning_codes.append(code)
+    if warning_codes:
+        return (
+            f"intake confirm failed: {detail}\n"
+            "acknowledge warnings with: "
+            + " ".join(f"--ack-warning {code}" for code in warning_codes)
+        )
+    return f"intake confirm failed: {detail}"
 
 
 def _patch_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
@@ -382,6 +422,17 @@ def _print_intake(payload: dict[str, Any]) -> None:
     print(f"missing_required_fields: {', '.join(missing) if missing else '-'}")
     print(f"ambiguous_fields: {', '.join(ambiguous) if ambiguous else '-'}")
     print(f"unmapped_text: {', '.join(unmapped) if unmapped else '-'}")
+    safety = payload.get("safety_check") if isinstance(payload.get("safety_check"), dict) else {}
+    if safety:
+        print(f"safety_action: {safety.get('action') or '-'}")
+        for risk in safety.get("risk_flags") or []:
+            if isinstance(risk, dict):
+                print(
+                    "safety_risk: "
+                    f"{risk.get('level')} "
+                    f"{risk.get('code')} "
+                    f"{risk.get('message')}"
+                )
     if isinstance(extraction_errors, list) and extraction_errors:
         print(f"extraction_errors: {', '.join(str(item) for item in extraction_errors)}")
     fields = draft.get("fields") if isinstance(draft, dict) else {}

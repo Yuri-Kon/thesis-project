@@ -66,9 +66,35 @@ export interface TaskIntakeSession {
   ambiguous_fields: string[];
   unmapped_text: string[];
   warnings: string[];
+  safety_check: TaskIntakeSafetyCheck;
+  audit_events: TaskIntakeAuditEvent[];
   human_summary: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface TaskIntakeSafetyRisk {
+  level: "ok" | "warn" | "block";
+  code: string;
+  message: string;
+  scope: "input";
+  details: Record<string, unknown>;
+}
+
+export interface TaskIntakeSafetyCheck {
+  action: "ok" | "warn" | "block";
+  risk_flags: TaskIntakeSafetyRisk[];
+  checked_at: string;
+  input_summary: Record<string, unknown>;
+}
+
+export interface TaskIntakeAuditEvent {
+  event_type: string;
+  intake_id: string;
+  timestamp: string;
+  actor_type: string;
+  actor_id?: string | null;
+  data: Record<string, unknown>;
 }
 
 export interface TaskIntakeCreateRequest {

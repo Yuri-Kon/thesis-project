@@ -268,6 +268,51 @@ def test_intake_create_json_posts_task_intake_payload(monkeypatch, capsys) -> No
     assert '"intake_id": "intake_cli"' in output
 
 
+def test_intake_confirm_warn_error_shows_ack_warning_path(monkeypatch, capsys) -> None:
+    """CLI confirm 在 Safety warn 未确认时提示 --ack-warning。"""
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> cli.httpx.Response:
+        assert timeout == 10.0
+        assert json["acknowledged_warnings"] == []
+        request = cli.httpx.Request("POST", url)
+        return cli.httpx.Response(
+            422,
+            request=request,
+            json={
+                "status": 422,
+                "detail": "safety warnings require acknowledgement before confirm",
+                "context": {
+                    "safety_check": {
+                        "action": "warn",
+                        "risk_flags": [
+                            {
+                                "level": "warn",
+                                "code": "FORBIDDEN_MOTIF_PRESENT",
+                                "message": "motif present",
+                            }
+                        ],
+                    }
+                },
+            },
+        )
+
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "confirm",
+            "intake_warn",
+        ]
+    )
+
+    assert code == 2
+    err = capsys.readouterr().err
+    assert "--ack-warning FORBIDDEN_MOTIF_PRESENT" in err
+
+
 def test_preflight_command_prompts_migration(capsys) -> None:
     """旧 preflight CLI 入口提示迁移到 design intake。"""
 

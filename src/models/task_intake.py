@@ -14,6 +14,22 @@ from src.models.contracts import now_iso
 TASK_FIELD_REGISTRY_VERSION = "task-intake.v1"
 HIGH_CONFIDENCE_THRESHOLD = 0.80
 LOW_CONFIDENCE_THRESHOLD = 0.50
+_HIGH_RISK_FUNCTION_KEYWORDS: tuple[str, ...] = (
+    "toxin",
+    "virulence",
+    "pathogenicity",
+    "immune evasion",
+    "host range",
+    "gain of function",
+)
+TaskIntakeAuditEventName = Literal[
+    "INTAKE_CREATED",
+    "INTAKE_PARSED",
+    "INTAKE_FIELD_UPDATED",
+    "INTAKE_SAFETY_CHECKED",
+    "INTAKE_CONFIRMED",
+    "INTAKE_CANCELLED",
+]
 TASK_FIELD_GROUPS: tuple[str, ...] = (
     "objective",
     "inputs",
@@ -265,6 +281,30 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
             "support_level": "P0",
             "audit_visibility": "public",
         },
+        "forbidden_functions": {
+            "group": "safety_constraints",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "nl_aliases": ["禁用功能", "forbidden functions"],
+            "validators": {"min_item_length": 1, "max_item_length": 256},
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.forbidden_functions",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
+        "organism": {
+            "group": "safety_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": ["物种", "organism", "host organism"],
+            "validators": {"min_length": 1, "max_length": 512},
+            "options": [],
+            "default": None,
+            "maps_to": "constraints.organism",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
         "run_profile": {
             "group": "execution_preferences",
             "type": "enum",
@@ -351,6 +391,8 @@ TASK_FIELD_REGISTRY: dict[str, Any] = {
                 "target_fold",
                 "initial_artifacts",
                 "forbidden_motifs",
+                "forbidden_functions",
+                "organism",
                 "safety_level",
                 "run_profile",
                 "max_runtime_min",
@@ -484,6 +526,36 @@ class TaskDraftField(BaseModel):
     last_modified_by: str | None = None
 
 
+class TaskIntakeSafetyRisk(BaseModel):
+    """Intake 输入预检查发现的单条风险。"""
+
+    level: Literal["ok", "warn", "block"]
+    code: str
+    message: str
+    scope: Literal["input"] = "input"
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskIntakeSafetyCheck(BaseModel):
+    """正式 Task 创建前的 Safety 输入预检查结果。"""
+
+    action: Literal["ok", "warn", "block"] = "ok"
+    risk_flags: list[TaskIntakeSafetyRisk] = Field(default_factory=list)
+    checked_at: str = Field(default_factory=now_iso)
+    input_summary: dict[str, Any] = Field(default_factory=dict)
+
+
+class TaskIntakeAuditEvent(BaseModel):
+    """Task Intake 级审计事件，不替代正式 Task EventLog。"""
+
+    event_type: TaskIntakeAuditEventName
+    intake_id: str
+    timestamp: str = Field(default_factory=now_iso)
+    actor_type: Literal["api", "web", "cli", "script", "legacy", "system"] = "system"
+    actor_id: str | None = None
+    data: dict[str, Any] = Field(default_factory=dict)
+
+
 class TaskSpecDraft(BaseModel):
     """可编辑、可解释的任务草稿。"""
 
@@ -539,6 +611,8 @@ class TaskIntakeSession(BaseModel):
     ambiguous_fields: list[str] = Field(default_factory=list)
     unmapped_text: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    safety_check: TaskIntakeSafetyCheck = Field(default_factory=TaskIntakeSafetyCheck)
+    audit_events: list[TaskIntakeAuditEvent] = Field(default_factory=list)
     human_summary: str = ""
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
@@ -769,6 +843,27 @@ def create_task_intake_session(
         raw_input=raw_input,
         draft=draft,
     )
+    _append_intake_audit_event(
+        session,
+        "INTAKE_CREATED",
+        actor_type=source,
+        data={
+            "source": source,
+            "raw_input_summary": _raw_input_summary(raw_input),
+        },
+    )
+    if text or draft.fields or draft.unmapped_text or draft.extraction_errors:
+        _append_intake_audit_event(
+            session,
+            "INTAKE_PARSED",
+            actor_type="system",
+            data={
+                "extraction_mode": draft.extraction_mode,
+                "field_names": sorted(draft.fields),
+                "unmapped_text_count": len(draft.unmapped_text),
+                "extraction_error_count": len(draft.extraction_errors),
+            },
+        )
     return refresh_task_intake_session(session)
 
 
@@ -787,8 +882,35 @@ def patch_task_intake_session(
         confirmed=True,
         actor=updated_by,
     )
+    _append_intake_audit_event(
+        session,
+        "INTAKE_FIELD_UPDATED",
+        actor_type="system",
+        actor_id=updated_by,
+        data={"field_names": sorted(fields)},
+    )
     session.updated_at = now_iso()
     return refresh_task_intake_session(session)
+
+
+def cancel_task_intake_session(
+    session: TaskIntakeSession,
+    *,
+    cancelled_by: str,
+    reason: str | None = None,
+) -> TaskIntakeSession:
+    """取消 Task Intake 会话并记录 intake 级审计事件。"""
+
+    session.status = TaskIntakeStatus.CANCELLED
+    session.updated_at = now_iso()
+    _append_intake_audit_event(
+        session,
+        "INTAKE_CANCELLED",
+        actor_type="system",
+        actor_id=cancelled_by,
+        data={"reason": reason or ""},
+    )
+    return session
 
 
 def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession:
@@ -806,7 +928,24 @@ def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession
             session.warnings.append(error)
         if field.confidence < HIGH_CONFIDENCE_THRESHOLD:
             session.ambiguous_fields.append(field_name)
-    session.warnings.extend(_run_safety_input_precheck(session))
+    session.safety_check = _run_safety_input_precheck(session)
+    session.warnings.extend(
+        risk.message
+        for risk in session.safety_check.risk_flags
+        if risk.level == "warn"
+    )
+    _append_intake_audit_event(
+        session,
+        "INTAKE_SAFETY_CHECKED",
+        actor_type="system",
+        data={
+            "action": session.safety_check.action,
+            "risk_codes": [
+                risk.code for risk in session.safety_check.risk_flags
+            ],
+            "risk_count": len(session.safety_check.risk_flags),
+        },
+    )
 
     required = _required_fields_for(session.draft.fields)
     session.missing_required_fields = [
@@ -815,7 +954,9 @@ def refresh_task_intake_session(session: TaskIntakeSession) -> TaskIntakeSession
         if field_name not in session.draft.fields
         or session.draft.fields[field_name].value in (None, "")
     ]
-    if session.confirmed_task_spec is not None:
+    if session.status == TaskIntakeStatus.CANCELLED:
+        session.status = TaskIntakeStatus.CANCELLED
+    elif session.confirmed_task_spec is not None:
         session.status = TaskIntakeStatus.CONFIRMED
     elif session.missing_required_fields:
         session.status = TaskIntakeStatus.COLLECTING
@@ -834,6 +975,8 @@ def confirm_task_intake_session(
 ) -> ConfirmedTaskSpec:
     """确认草稿并生成 ConfirmedTaskSpec。"""
 
+    if session.status == TaskIntakeStatus.CANCELLED:
+        raise ValueError("cancelled intake cannot be confirmed")
     refresh_task_intake_session(session)
     if session.missing_required_fields:
         missing = ", ".join(session.missing_required_fields)
@@ -841,14 +984,43 @@ def confirm_task_intake_session(
     if session.ambiguous_fields:
         ambiguous = ", ".join(session.ambiguous_fields)
         raise ValueError(f"ambiguous fields require confirmation: {ambiguous}")
-    if session.warnings:
-        warnings = ", ".join(session.warnings)
+    field_warnings = _field_validation_warnings(session)
+    if field_warnings:
+        warnings = ", ".join(field_warnings)
         raise ValueError(f"field validation warnings must be resolved: {warnings}")
+    if session.safety_check.action == "block":
+        blocked = ", ".join(
+            risk.message
+            for risk in session.safety_check.risk_flags
+            if risk.level == "block"
+        )
+        raise ValueError(f"safety input precheck blocked confirmation: {blocked}")
+    missing_acknowledgements = _missing_acknowledged_warnings(
+        session,
+        acknowledged_warnings,
+    )
+    if missing_acknowledgements:
+        missing = ", ".join(missing_acknowledgements)
+        raise ValueError(
+            "safety warnings require acknowledgement before confirm: "
+            f"{missing}; CLI: design intake confirm "
+            f"{session.intake_id} --ack-warning <warning-code>"
+        )
 
     for field in session.draft.fields.values():
         field.confirmed = True
         field.last_modified_by = confirmed_by
 
+    _append_intake_audit_event(
+        session,
+        "INTAKE_CONFIRMED",
+        actor_type="system",
+        actor_id=confirmed_by,
+        data={
+            "acknowledged_warnings": list(acknowledged_warnings),
+            "safety_action": session.safety_check.action,
+        },
+    )
     confirmed_spec = _build_confirmed_spec(
         session,
         confirmed_by=confirmed_by,
@@ -1501,21 +1673,229 @@ def _validate_artifact_ref_list(field_name: str, value: Any) -> str | None:
     return None
 
 
-def _run_safety_input_precheck(session: TaskIntakeSession) -> list[str]:
+def _run_safety_input_precheck(session: TaskIntakeSession) -> TaskIntakeSafetyCheck:
     fields = {name: field.value for name, field in session.draft.fields.items()}
+    input_summary = _build_safety_input_summary(session, fields)
+    risk_flags: list[TaskIntakeSafetyRisk] = []
+
     sequence = fields.get("sequence")
     forbidden_motifs = fields.get("forbidden_motifs")
-    if not isinstance(sequence, str) or not isinstance(forbidden_motifs, list):
-        return []
+    if isinstance(sequence, str) and isinstance(forbidden_motifs, list):
+        normalized_sequence = sequence.upper()
+        for motif in forbidden_motifs:
+            if isinstance(motif, str) and motif.upper() in normalized_sequence:
+                risk_flags.append(
+                    TaskIntakeSafetyRisk(
+                        level="warn",
+                        code="FORBIDDEN_MOTIF_PRESENT",
+                        message=(
+                            "forbidden_motifs contains motif present in sequence: "
+                            f"{motif}"
+                        ),
+                        details={"motif": motif},
+                    )
+                )
 
-    normalized_sequence = sequence.upper()
-    warnings: list[str] = []
-    for motif in forbidden_motifs:
-        if isinstance(motif, str) and motif.upper() in normalized_sequence:
-            warnings.append(
-                f"forbidden_motifs contains motif present in sequence: {motif}"
+    for forbidden_function in _coerce_string_list(fields.get("forbidden_functions")):
+        if _text_mentions_forbidden_function(fields, session.raw_input, forbidden_function):
+            risk_flags.append(
+                TaskIntakeSafetyRisk(
+                    level="block",
+                    code="FORBIDDEN_FUNCTION_REQUESTED",
+                    message=(
+                        "input requests a function listed in forbidden_functions: "
+                        f"{forbidden_function}"
+                    ),
+                    details={"forbidden_function": forbidden_function},
+                )
             )
+
+    if _mentions_high_risk_intent(fields, session.raw_input):
+        risk_flags.append(
+            TaskIntakeSafetyRisk(
+                level="block",
+                code="HIGH_RISK_BIOFUNCTION_REQUEST",
+                message="input appears to request a high-risk biological function",
+                details={"keywords": _HIGH_RISK_FUNCTION_KEYWORDS},
+            )
+        )
+
+    action: Literal["ok", "warn", "block"] = "ok"
+    if any(risk.level == "block" for risk in risk_flags):
+        action = "block"
+    elif any(risk.level == "warn" for risk in risk_flags):
+        action = "warn"
+    return TaskIntakeSafetyCheck(
+        action=action,
+        risk_flags=risk_flags,
+        input_summary=input_summary,
+    )
+
+
+def _field_validation_warnings(session: TaskIntakeSession) -> list[str]:
+    """收集 registry 字段校验错误，避免与可确认 Safety warn 混淆。"""
+
+    warnings: list[str] = []
+    for field in session.draft.fields.values():
+        warnings.extend(field.warnings)
     return warnings
+
+
+def _missing_acknowledged_warnings(
+    session: TaskIntakeSession,
+    acknowledged_warnings: list[str],
+) -> list[str]:
+    """返回尚未确认的 Safety warn code/message。"""
+
+    acknowledged = {item.strip() for item in acknowledged_warnings if item.strip()}
+    missing: list[str] = []
+    for risk in session.safety_check.risk_flags:
+        if risk.level != "warn":
+            continue
+        if risk.code not in acknowledged and risk.message not in acknowledged:
+            missing.append(risk.code)
+    return missing
+
+
+def _append_intake_audit_event(
+    session: TaskIntakeSession,
+    event_type: TaskIntakeAuditEventName,
+    *,
+    actor_type: str = "system",
+    actor_id: str | None = None,
+    data: dict[str, Any] | None = None,
+) -> None:
+    """追加 intake 级审计事件。"""
+
+    normalized_actor = actor_type if actor_type in {
+        "api",
+        "web",
+        "cli",
+        "script",
+        "legacy",
+        "system",
+    } else "system"
+    session.audit_events.append(
+        TaskIntakeAuditEvent(
+            event_type=event_type,
+            intake_id=session.intake_id,
+            actor_type=normalized_actor,  # type: ignore[arg-type]
+            actor_id=actor_id,
+            data=data or {},
+        )
+    )
+
+
+def _raw_input_summary(raw_input: dict[str, Any]) -> dict[str, Any]:
+    text = raw_input.get("text")
+    structured = raw_input.get("structured_fields")
+    return {
+        "source": raw_input.get("source"),
+        "text_length": len(text) if isinstance(text, str) else 0,
+        "structured_field_names": (
+            sorted(structured) if isinstance(structured, dict) else []
+        ),
+    }
+
+
+def _build_safety_input_summary(
+    session: TaskIntakeSession,
+    fields: dict[str, Any],
+) -> dict[str, Any]:
+    safety_constraints = {
+        name: fields[name]
+        for name in (
+            "safety_level",
+            "forbidden_motifs",
+            "forbidden_functions",
+            "organism",
+        )
+        if name in fields
+    }
+    return {
+        "raw_input_summary": _raw_input_summary(session.raw_input),
+        "confirmed_spec_draft": _build_confirmed_spec_draft_payload(session),
+        "safety_constraints": safety_constraints,
+        "forbidden_functions": _coerce_string_list(
+            fields.get("forbidden_functions")
+        ),
+        "organism": fields.get("organism"),
+    }
+
+
+def _build_confirmed_spec_draft_payload(session: TaskIntakeSession) -> dict[str, Any]:
+    fields = {name: field.value for name, field in session.draft.fields.items()}
+    objective: dict[str, Any] = {}
+    inputs: dict[str, Any] = {}
+    constraints: dict[str, Any] = {}
+    initial_artifacts: list[dict[str, Any]] = []
+    registry = _registry_fields()
+
+    for field_name, value in fields.items():
+        maps_to = registry[field_name]["maps_to"]
+        if maps_to.startswith("objective."):
+            objective[maps_to.split(".", 1)[1]] = value
+        elif maps_to.startswith("inputs."):
+            inputs[maps_to.split(".", 1)[1]] = value
+        elif maps_to.startswith("constraints."):
+            constraints[maps_to.split(".", 1)[1]] = value
+        elif maps_to == "initial_artifacts":
+            initial_artifacts = list(value)
+
+    return {
+        "goal": _build_goal(fields),
+        "objective": objective,
+        "inputs": inputs,
+        "constraints": constraints,
+        "initial_artifacts": initial_artifacts,
+        "metadata": {
+            "intake_id": session.intake_id,
+            "field_registry_version": TASK_FIELD_REGISTRY_VERSION,
+        },
+    }
+
+
+def _coerce_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+def _text_mentions_forbidden_function(
+    fields: dict[str, Any],
+    raw_input: dict[str, Any],
+    forbidden_function: str,
+) -> bool:
+    target = forbidden_function.strip().lower()
+    if not target:
+        return False
+    return target in _safety_search_text(fields, raw_input)
+
+
+def _mentions_high_risk_intent(
+    fields: dict[str, Any],
+    raw_input: dict[str, Any],
+) -> bool:
+    haystack = _safety_search_text(fields, raw_input)
+    return any(keyword in haystack for keyword in _HIGH_RISK_FUNCTION_KEYWORDS)
+
+
+def _safety_search_text(fields: dict[str, Any], raw_input: dict[str, Any]) -> str:
+    pieces: list[str] = []
+    raw_text = raw_input.get("text")
+    if isinstance(raw_text, str):
+        pieces.append(raw_text)
+    for name in (
+        "goal_summary",
+        "objective_description",
+        "motif_pattern",
+        "binding_partner",
+        "target_ligand",
+    ):
+        value = fields.get(name)
+        if isinstance(value, str):
+            pieces.append(value)
+    return "\n".join(pieces).lower()
 
 
 def _build_human_summary(session: TaskIntakeSession) -> str:
@@ -1565,6 +1945,10 @@ def _build_confirmed_spec(
         "confirmed_by": confirmed_by,
         "input_mode": _input_mode(session),
         "acknowledged_warnings": list(acknowledged_warnings),
+        "safety_check": session.safety_check.model_dump(mode="json"),
+        "intake_audit_events": [
+            event.model_dump(mode="json") for event in session.audit_events
+        ],
         "raw_query": session.raw_input.get("text") or "",
         "unmapped_text": list(session.unmapped_text),
         "intake_summary": {

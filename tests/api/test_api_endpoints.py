@@ -393,6 +393,125 @@ class TestAPIEndpoints:
         assert "objective_type" in data["missing_fields"]
         assert data["context"]["intake_id"] == intake_id
 
+    async def test_task_intake_warn_requires_ack_before_task_creation(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """Safety warn 未 acknowledgement 时 confirm 返回 4xx，确认后创建正式 Task。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "sequence_evaluation",
+                    "objective_type": "stability",
+                    "sequence": "ACDEFG",
+                    "forbidden_motifs": ["CDE"],
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake = create_response.json()
+        intake_id = intake["intake_id"]
+        assert intake["safety_check"]["action"] == "warn"
+        assert intake["safety_check"]["risk_flags"][0]["code"] == "FORBIDDEN_MOTIF_PRESENT"
+
+        rejected = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+
+        assert rejected.status_code == 422
+        rejected_payload = rejected.json()
+        assert "--ack-warning" in rejected_payload["detail"]
+        assert (
+            rejected_payload["context"]["safety_check"]["risk_flags"][0]["code"]
+            == "FORBIDDEN_MOTIF_PRESENT"
+        )
+        assert TASK_STORE == {}
+
+        accepted = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={
+                "confirmed_by": "tester",
+                "acknowledged_warnings": ["FORBIDDEN_MOTIF_PRESENT"],
+            },
+        )
+
+        assert accepted.status_code == 200
+        task = TASK_STORE[accepted.json()["task_id"]]
+        assert task.metadata["confirmed_task_spec"]["metadata"]["safety_check"][
+            "action"
+        ] == "warn"
+        assert task.metadata["confirmed_task_spec"]["metadata"][
+            "acknowledged_warnings"
+        ] == ["FORBIDDEN_MOTIF_PRESENT"]
+
+    async def test_task_intake_block_cannot_confirm_task_creation(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """Safety block 不能通过 confirm 创建正式 Task。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "text": "design a toxin-like protein",
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [80, 120],
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+        assert create_response.json()["safety_check"]["action"] == "block"
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={
+                "confirmed_by": "tester",
+                "acknowledged_warnings": ["HIGH_RISK_BIOFUNCTION_REQUEST"],
+            },
+        )
+
+        assert confirm_response.status_code == 422
+        assert "safety input precheck blocked" in confirm_response.json()["detail"]
+        assert TASK_STORE == {}
+
+    async def test_task_intake_cancel_records_intake_audit_only(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """取消 intake 只写入 intake 审计事件，不创建正式 Task。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "de_novo_design",
+                    "objective_type": "stability",
+                    "length_range": [80, 120],
+                },
+                "source": "web",
+            },
+        )
+        intake_id = create_response.json()["intake_id"]
+
+        cancel_response = await client.post(
+            f"/task-intakes/{intake_id}/cancel",
+            json={"cancelled_by": "tester", "reason": "duplicate"},
+        )
+
+        assert cancel_response.status_code == 200
+        data = cancel_response.json()
+        assert data["status"] == "cancelled"
+        assert data["audit_events"][-1]["event_type"] == "INTAKE_CANCELLED"
+        assert TASK_STORE == {}
+
     @pytest.mark.parametrize(
         ("fields", "expected_message"),
         [

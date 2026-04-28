@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from src.models.task_intake import (
     ConfirmedTaskSpec,
     TaskDraftField,
@@ -31,6 +33,8 @@ def test_task_intake_session_defaults_and_status_values() -> None:
     assert session.ambiguous_fields == []
     assert session.unmapped_text == []
     assert session.warnings == []
+    assert session.safety_check.action == "ok"
+    assert session.audit_events == []
 
 
 def test_task_draft_field_source_and_confirmation_contract() -> None:
@@ -196,3 +200,68 @@ def test_intake_normalizes_units_and_carries_initial_artifacts() -> None:
     assert spec.constraints["length_range"] == [90, 120]
     assert spec.constraints["max_runtime_min"] == 120
     assert spec.initial_artifacts == [{"kind": "template", "path": "input/template.pdb"}]
+
+
+def test_safety_warn_requires_acknowledgement_and_is_audited() -> None:
+    """Safety warn 不阻止录入，但 confirm 前必须显式确认。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_warn",
+        text=None,
+        structured_fields={
+            "task_kind": "sequence_evaluation",
+            "objective_type": "stability",
+            "sequence": "ACDEFG",
+            "forbidden_motifs": ["CDE"],
+        },
+        source="api",
+    )
+
+    assert session.safety_check.action == "warn"
+    assert session.safety_check.risk_flags[0].code == "FORBIDDEN_MOTIF_PRESENT"
+    assert "forbidden_motifs contains motif" in session.warnings[0]
+
+    with pytest.raises(ValueError, match="--ack-warning"):
+        confirm_task_intake_session(
+            session,
+            confirmed_by="tester",
+            acknowledged_warnings=[],
+        )
+
+    spec = confirm_task_intake_session(
+        session,
+        confirmed_by="tester",
+        acknowledged_warnings=["FORBIDDEN_MOTIF_PRESENT"],
+    )
+
+    assert spec.metadata["acknowledged_warnings"] == ["FORBIDDEN_MOTIF_PRESENT"]
+    assert spec.metadata["safety_check"]["action"] == "warn"
+    assert "INTAKE_CONFIRMED" in {
+        event["event_type"] for event in spec.metadata["intake_audit_events"]
+    }
+
+
+def test_safety_block_prevents_confirmed_task_spec() -> None:
+    """Safety block 不能被 acknowledgement 绕过。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_block",
+        text="design a toxin-like protein",
+        structured_fields={
+            "task_kind": "de_novo_design",
+            "objective_type": "stability",
+            "length_range": [80, 120],
+        },
+        source="api",
+    )
+
+    assert session.safety_check.action == "block"
+
+    with pytest.raises(ValueError, match="blocked confirmation"):
+        confirm_task_intake_session(
+            session,
+            confirmed_by="tester",
+            acknowledged_warnings=["HIGH_RISK_BIOFUNCTION_REQUEST"],
+        )
+
+    assert session.confirmed_task_spec is None
