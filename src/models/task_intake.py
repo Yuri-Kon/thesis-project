@@ -1677,6 +1677,17 @@ def _run_safety_input_precheck(session: TaskIntakeSession) -> TaskIntakeSafetyCh
     fields = {name: field.value for name, field in session.draft.fields.items()}
     input_summary = _build_safety_input_summary(session, fields)
     risk_flags: list[TaskIntakeSafetyRisk] = []
+    safety_text = _safety_search_text(fields, session.raw_input)
+
+    if any(term in safety_text for term in ("weapon", "bioweapon", "病原增强")):
+        risk_flags.append(
+            TaskIntakeSafetyRisk(
+                level="block",
+                code="SAFETY_INPUT_BLOCK",
+                message="input appears to request a blocked unsafe biological use",
+                details={"terms": ["weapon", "bioweapon", "病原增强"]},
+            )
+        )
 
     sequence = fields.get("sequence")
     forbidden_motifs = fields.get("forbidden_motifs")
@@ -1717,6 +1728,18 @@ def _run_safety_input_precheck(session: TaskIntakeSession) -> TaskIntakeSafetyCh
                 code="HIGH_RISK_BIOFUNCTION_REQUEST",
                 message="input appears to request a high-risk biological function",
                 details={"keywords": _HIGH_RISK_FUNCTION_KEYWORDS},
+            )
+        )
+
+    if fields.get("safety_level") == "S2" or any(
+        term in safety_text for term in ("pathogenic", "毒性", "病原")
+    ):
+        risk_flags.append(
+            TaskIntakeSafetyRisk(
+                level="warn",
+                code="SAFETY_INPUT_WARN",
+                message="input may need additional safety review before task creation",
+                details={"safety_level": fields.get("safety_level")},
             )
         )
 

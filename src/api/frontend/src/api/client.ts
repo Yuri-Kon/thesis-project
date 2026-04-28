@@ -5,6 +5,8 @@ import type {
   PendingActionSummary,
   TaskIntakeConfirmation,
   TaskIntakeCreateRequest,
+  TaskIntakePatchRequest,
+  TaskIntakeSchema,
   TaskIntakeSession,
   TaskRecord,
   TaskReportDetail,
@@ -67,6 +69,18 @@ export const apiClient = {
   createTaskIntake(body: TaskIntakeCreateRequest): Promise<TaskIntakeSession> {
     return requestJson<TaskIntakeSession>("/task-intakes", {
       method: "POST",
+      body: JSON.stringify(body),
+    });
+  },
+  getTaskIntakeSchema(): Promise<TaskIntakeSchema> {
+    return requestJson<TaskIntakeSchema>("/task-intakes/schema");
+  },
+  getTaskIntake(intakeId: string): Promise<TaskIntakeSession> {
+    return requestJson<TaskIntakeSession>(`/task-intakes/${encodeURIComponent(intakeId)}`);
+  },
+  patchTaskIntake(intakeId: string, body: TaskIntakePatchRequest): Promise<TaskIntakeSession> {
+    return requestJson<TaskIntakeSession>(`/task-intakes/${encodeURIComponent(intakeId)}`, {
+      method: "PATCH",
       body: JSON.stringify(body),
     });
   },

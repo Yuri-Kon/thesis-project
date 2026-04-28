@@ -103,6 +103,53 @@ export interface TaskIntakeCreateRequest {
   source: "web" | "cli" | "api" | "script" | "legacy";
 }
 
+export interface TaskIntakePatchRequest {
+  fields: Record<string, unknown>;
+  updated_by: string;
+}
+
+export interface TaskIntakeFieldDefinition {
+  group: string;
+  type: string;
+  ui_control: string;
+  nl_aliases: string[];
+  validators: Record<string, unknown>;
+  options: string[];
+  default: unknown;
+  maps_to: string;
+  support_level: string;
+  audit_visibility: string;
+  tool_options?: TaskIntakeToolOption[];
+}
+
+export interface TaskIntakeToolOption {
+  tool_id: string;
+  label?: string | null;
+  capabilities?: string[];
+  support_level?: string | null;
+  execution?: unknown;
+}
+
+export interface TaskIntakeWebSchemaGroup {
+  id: string;
+  fields: string[];
+}
+
+export interface TaskIntakeSchema {
+  version: string;
+  groups: string[];
+  fields: Record<string, TaskIntakeFieldDefinition>;
+  web_schema: {
+    groups: TaskIntakeWebSchemaGroup[];
+    fields: Record<string, TaskIntakeFieldDefinition>;
+  };
+  task_profiles: Record<string, unknown>;
+  tool_options: TaskIntakeToolOption[];
+  conditional_required: Record<string, unknown>[];
+  confirmed_task_spec_mapping: Record<string, string>;
+  planner_capability_hints: Record<string, string[]>;
+}
+
 export interface TaskIntakeConfirmation {
   intake_id: string;
   task_id: string;
