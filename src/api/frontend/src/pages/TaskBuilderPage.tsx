@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../api/client";
 import type { TaskIntakeSchema, TaskIntakeSession } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
 import { FieldSourceBadge } from "../components/FieldSourceBadge";
-import { IntakeConfirmPanel } from "../components/IntakeConfirmPanel";
+import { SafetyPrecheckPanel } from "../components/SafetyPrecheckPanel";
 import { TaskDraftForm } from "../components/TaskDraftForm";
 
 interface TaskBuilderPageProps {
   onOpenTask: (taskId: string) => void;
+  onInspectorChange: (content: ReactNode) => void;
 }
 
 function formatValue(value: unknown): string {
@@ -27,7 +28,7 @@ function errorMessage(error: unknown): string {
   return String(error);
 }
 
-export function TaskBuilderPage({ onOpenTask }: TaskBuilderPageProps) {
+export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPageProps) {
   const [schema, setSchema] = useState<TaskIntakeSchema | null>(null);
   const [text, setText] = useState("");
   const [intake, setIntake] = useState<TaskIntakeSession | null>(null);
@@ -131,6 +132,45 @@ export function TaskBuilderPage({ onOpenTask }: TaskBuilderPageProps) {
   const fields = Object.entries(intake?.draft.fields ?? {});
   const ambiguousFields = new Set(intake?.ambiguous_fields ?? []);
 
+  useEffect(() => {
+    const safety = intake?.safety_check;
+    onInspectorChange(
+      <>
+        <section className="inspector-card">
+          <div className="panel-header">
+            <h2>Inspector</h2>
+            <span className="pill">{intake?.status ?? "idle"}</span>
+          </div>
+          <dl className="kv compact-kv">
+            <dt>Intake</dt>
+            <dd>{intake?.intake_id ?? "new"}</dd>
+            <dt>Missing</dt>
+            <dd>{intake?.missing_required_fields.length ?? 0}</dd>
+            <dt>Ambiguous</dt>
+            <dd>{intake?.ambiguous_fields.length ?? 0}</dd>
+            <dt>Unmapped</dt>
+            <dd>{intake?.unmapped_text.length ?? 0}</dd>
+            <dt>Confirmable</dt>
+            <dd>{canConfirm ? "yes" : "no"}</dd>
+          </dl>
+        </section>
+        <SafetyPrecheckPanel
+          action={safety?.action}
+          risks={safety?.risk_flags ?? []}
+          acknowledgedWarnings={acknowledgedWarnings}
+          onToggleWarning={toggleWarning}
+        />
+        <section className="inspector-card warning-card">
+          <h2>Action required</h2>
+          <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, ambiguous fields, or safety warnings before confirming."}</p>
+          <button type="button" className="primary-action" onClick={() => void confirmDraft()} disabled={busy || !canConfirm}>
+            Create Task
+          </button>
+        </section>
+      </>,
+    );
+  }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange]);
+
   return (
     <div className="task-builder-layout">
       <section className="builder-hero">
@@ -158,14 +198,6 @@ export function TaskBuilderPage({ onOpenTask }: TaskBuilderPageProps) {
           onCreate={(structuredFields) => void createDraft(structuredFields)}
           onPatch={(structuredFields) => void patchDraft(structuredFields)}
         />
-        <IntakeConfirmPanel
-          intake={intake}
-          acknowledgedWarnings={acknowledgedWarnings}
-          canConfirm={canConfirm}
-          busy={busy}
-          onToggleWarning={toggleWarning}
-          onConfirm={() => void confirmDraft()}
-        />
       </section>
 
       <section className="review-band">
@@ -188,17 +220,22 @@ export function TaskBuilderPage({ onOpenTask }: TaskBuilderPageProps) {
               {fields.map(([name, field]) => {
                 const isAmbiguous = ambiguousFields.has(name) || field.confidence < 0.8;
                 return (
-                  <article className={isAmbiguous ? "draft-field-card warning" : "draft-field-card"} key={name}>
-                    <div>
-                      <strong>{name.replace(/_/g, " ")}</strong>
-                      <p>{formatValue(field.value)}</p>
-                    </div>
-                    <div className="source-row">
+                  <details className={isAmbiguous ? "draft-field-card warning" : "draft-field-card"} key={name}>
+                    <summary>
+                      <span>
+                        <strong>{name.replace(/_/g, " ")}</strong>
+                        <p>{formatValue(field.value)}</p>
+                      </span>
                       <FieldSourceBadge source={field.source} confidence={field.confidence} warning={isAmbiguous} />
+                    </summary>
+                    <div className="source-row">
                       {field.confirmed ? <span className="source-chip ok">confirmed</span> : <span className="source-chip warning">review</span>}
                       {field.source_span ? <span className="source-chip">{field.source_span}</span> : null}
+                      {field.warnings.map((warning) => (
+                        <span className="source-chip warning" key={warning}>{warning}</span>
+                      ))}
                     </div>
-                  </article>
+                  </details>
                 );
               })}
             </div>

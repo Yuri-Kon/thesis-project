@@ -1,6 +1,7 @@
 import type { PendingActionDetail } from "../api/types";
 import { CandidateComparison } from "./CandidateComparison";
 import { DecisionForm } from "./DecisionForm";
+import { JsonDisclosure } from "./JsonDisclosure";
 
 interface PendingReviewWorkspaceProps {
   detail: PendingActionDetail | null;
@@ -9,7 +10,7 @@ interface PendingReviewWorkspaceProps {
 
 export function PendingReviewWorkspace({ detail, onDecisionSubmitted }: PendingReviewWorkspaceProps) {
   return (
-    <section className="workspace-band">
+    <section className="workspace-band review-workspace">
       <div className="review-main">
         <section className="panel review-context">
           <div className="panel-header">
@@ -23,9 +24,9 @@ export function PendingReviewWorkspace({ detail, onDecisionSubmitted }: PendingR
               <dt>Reason</dt>
               <dd>{detail.workflow_action_reason ?? detail.explanation}</dd>
               <dt>Runtime state</dt>
-              <dd><pre>{JSON.stringify(detail.runtime_state_summary ?? {}, null, 2)}</pre></dd>
+              <dd><JsonDisclosure title="Runtime JSON" value={detail.runtime_state_summary} /></dd>
               <dt>Score</dt>
-              <dd><pre>{JSON.stringify(detail.score_breakdown ?? {}, null, 2)}</pre></dd>
+              <dd><JsonDisclosure title="Score JSON" value={detail.score_breakdown} /></dd>
               <dt>Evidence</dt>
               <dd>{detail.evidence_refs.length ? `${detail.evidence_refs.length} refs` : "not provided"}</dd>
             </dl>

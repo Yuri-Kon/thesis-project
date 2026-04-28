@@ -20,8 +20,10 @@ export function CapabilityReadinessPanel({ readiness }: CapabilityReadinessPanel
               <strong>{entry.capability_id}</strong>
               <p>{entry.reason}</p>
             </div>
-            <StatusBadge value={entry.status} />
-            <span>{entry.primary_tool_id ?? entry.available_tools[0]?.tool_id ?? "no tool"}</span>
+            <div className="row-meta">
+              <StatusBadge value={entry.status} />
+              <span className="source-chip">{entry.primary_tool_id ?? entry.available_tools[0]?.tool_id ?? "no tool"}</span>
+            </div>
           </article>
         ))}
       </div>

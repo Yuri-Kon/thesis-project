@@ -21,9 +21,11 @@ export function PendingActionList({ pendingActions, onOpenTask }: PendingActionL
               <strong>{item.pending_action_id}</strong>
               <p>{item.summary}</p>
             </div>
-            <StatusBadge value={item.status} />
-            <span>{item.task_id}</span>
-            <span>{item.candidate_count} candidates</span>
+            <div className="row-meta">
+              <StatusBadge value={item.status} />
+              <span className="source-chip">{item.task_id}</span>
+              <span className="source-chip">{item.candidate_count} candidates</span>
+            </div>
           </button>
         ))}
       </div>

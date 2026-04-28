@@ -13,9 +13,16 @@ export function StructureViewerPanel({ task }: StructureViewerPanelProps) {
       </div>
       {pdbPath ? (
         <div className="structure-placeholder">
-          <strong>PDB artifact</strong>
-          <a href={pdbPath}>{pdbPath}</a>
-          <p className="muted">3D viewer can attach here; the PDB link remains available as fallback.</p>
+          <div className="structure-canvas">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div>
+            <strong>PDB artifact</strong>
+            <a href={pdbPath}>{pdbPath}</a>
+            <p className="muted">The artifact link remains available while the 3D viewer is attached.</p>
+          </div>
         </div>
       ) : (
         <p className="muted">No structure artifact is available for this task.</p>

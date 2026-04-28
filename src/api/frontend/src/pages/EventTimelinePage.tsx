@@ -1,4 +1,6 @@
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import type { WorkspaceState } from "../main";
+import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskSearch } from "../components/TaskSearch";
 
@@ -8,33 +10,70 @@ interface EventTimelinePageProps {
   onTaskIdChange: (taskId: string) => void;
   onLoadTask: (taskId: string) => void;
   onRefresh: () => void;
+  onInspectorChange: (content: ReactNode) => void;
 }
 
-export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh }: EventTimelinePageProps) {
+export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh, onInspectorChange }: EventTimelinePageProps) {
+  const [showAllEvents, setShowAllEvents] = useState(false);
+  const highlighted = state.events.filter((event) => event.highlight).length;
+  const latestEvent = state.events[0] ?? null;
+  const visibleEvents = useMemo(
+    () => (showAllEvents ? state.events : state.events.slice(0, 12)),
+    [showAllEvents, state.events],
+  );
+
+  useEffect(() => {
+    onInspectorChange(
+      <>
+        <section className="inspector-card">
+          <div className="panel-header">
+            <h2>Inspector</h2>
+            <StatusBadge value={state.task?.status} />
+          </div>
+          <dl className="kv compact-kv">
+            <dt>Task</dt>
+            <dd>{state.task?.id ?? (taskId || "none")}</dd>
+            <dt>Events</dt>
+            <dd>{state.events.length}</dd>
+            <dt>Highlighted</dt>
+            <dd>{highlighted}</dd>
+            <dt>Latest</dt>
+            <dd>{latestEvent?.event_type ?? "none"}</dd>
+          </dl>
+        </section>
+        <section className="inspector-card">
+          <h2>Timeline boundary</h2>
+          <p>Recent events stay in a bounded scroll area; older entries remain available through the timeline list.</p>
+        </section>
+      </>,
+    );
+  }, [highlighted, latestEvent?.event_type, onInspectorChange, state.events.length, state.task?.id, state.task?.status, taskId]);
+
   return (
-    <div className="page-grid">
-      <section className="panel intro-panel">
+    <div className="timeline-layout">
+      <section className="workspace-hero">
         <div>
           <h2>Event Timeline</h2>
           <p>Events are rendered only from the task event API response.</p>
         </div>
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onLoadTask} onRefresh={onRefresh} />
       </section>
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Task Snapshot</h2>
-          <StatusBadge value={state.task?.status} />
-        </div>
-        <p className="muted">{state.task?.goal ?? "Load a task to inspect event history."}</p>
+      <section className="metric-strip" aria-label="Timeline overview">
+        <MetricCard label="Events" value={state.events.length} detail={`${highlighted} highlighted`} tone={highlighted ? "amber" : "blue"} />
+        <MetricCard label="Task status" value={state.task?.status ?? "not loaded"} />
+        <MetricCard label="Task" value={state.task?.id ?? (taskId || "none")} detail={state.task?.goal ?? "load a task to inspect event history"} />
       </section>
       <section className="panel timeline-panel">
         <div className="panel-header">
-          <h2>Timeline</h2>
-          <span className="counter">{state.events.length}</span>
+          <div>
+            <h2>Timeline</h2>
+            <p className="muted">{state.task?.goal ?? "No task loaded."}</p>
+          </div>
+          <StatusBadge value={state.task?.status} />
         </div>
         <ol className="timeline">
           {state.events.length === 0 ? <li className="muted">No events returned by the API.</li> : null}
-          {state.events.map((event) => (
+          {visibleEvents.map((event) => (
             <li key={`${event.seq}-${event.event_type}`} className={event.highlight ? "highlight" : ""}>
               <div>
                 <strong>{event.event_type}</strong>
@@ -44,6 +83,11 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
             </li>
           ))}
         </ol>
+        {state.events.length > visibleEvents.length || showAllEvents ? (
+          <button type="button" className="secondary-action" onClick={() => setShowAllEvents((current) => !current)}>
+            {showAllEvents ? "Collapse timeline" : `Show ${state.events.length - visibleEvents.length} more`}
+          </button>
+        ) : null}
       </section>
     </div>
   );

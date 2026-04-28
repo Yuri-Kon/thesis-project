@@ -1,4 +1,5 @@
 import type { TaskRecord, TaskReportDetail } from "../api/types";
+import { JsonDisclosure } from "./JsonDisclosure";
 
 interface ReportExplorerProps {
   task: TaskRecord | null;
@@ -18,9 +19,9 @@ export function ReportExplorer({ task, report }: ReportExplorerProps) {
           <dt>Report path</dt>
           <dd>{report?.report_path ?? designResult?.report_path ?? "not available"}</dd>
           <dt>Scores</dt>
-          <dd><pre>{JSON.stringify(report?.scores ?? designResult?.scores ?? {}, null, 2)}</pre></dd>
+          <dd><JsonDisclosure title="Score JSON" value={report?.scores ?? designResult?.scores} /></dd>
           <dt>Artifacts</dt>
-          <dd><pre>{JSON.stringify(task.metadata?.confirmed_task_spec ?? task.metadata ?? {}, null, 2)}</pre></dd>
+          <dd><JsonDisclosure title="Artifact metadata" value={task.metadata?.confirmed_task_spec ?? task.metadata} /></dd>
         </dl>
       ) : null}
     </section>

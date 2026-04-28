@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { apiClient } from "./api/client";
 import type {
@@ -14,6 +14,8 @@ import { EventTimelinePage } from "./pages/EventTimelinePage";
 import { TaskBuilderPage } from "./pages/TaskBuilderPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
 import { ErrorNotice } from "./components/ErrorNotice";
+import { InspectorPanel } from "./components/InspectorPanel";
+import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import "./styles/app.css";
 
 interface BootstrapPayload {
@@ -50,6 +52,7 @@ function errorMessage(error: unknown): string {
 function App() {
   const bootstrap = useMemo(readBootstrap, []);
   const [taskId, setTaskId] = useState(bootstrap.taskId);
+  const [inspector, setInspector] = useState<ReactNode>(null);
   const [state, setState] = useState<WorkspaceState>({
     pendingActions: [],
     readiness: [],
@@ -145,31 +148,23 @@ function App() {
 
   const content =
     bootstrap.view === "event_timeline" ? (
-      <EventTimelinePage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskTimeline} onRefresh={() => loadWorkspace(taskId)} />
+      <EventTimelinePage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskTimeline} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
     ) : bootstrap.view === "task_builder" ? (
-      <TaskBuilderPage onOpenTask={openTask} />
+      <TaskBuilderPage onOpenTask={openTask} onInspectorChange={setInspector} />
     ) : bootstrap.view === "task_detail" ? (
-      <TaskDetailPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskDetail} onRefresh={() => loadWorkspace(taskId)} />
+      <TaskDetailPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskDetail} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
     ) : (
-      <DashboardPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onOpenTask={openTask} onRefresh={() => loadWorkspace(taskId)} />
+      <DashboardPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onOpenTask={openTask} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
     );
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Protein Design Workspace</p>
-          <h1>Operator Console</h1>
-        </div>
-        <nav className="topnav" aria-label="Workspace navigation">
-          <a href="/ui">Dashboard</a>
-          <a href="/ui/task-builder">New Task</a>
-          {taskId ? <a href={`/ui/tasks/${encodeURIComponent(taskId)}`}>Task Detail</a> : <span>Task Detail</span>}
-          {taskId ? <a href={`/ui/tasks/${encodeURIComponent(taskId)}/events`}>Event Timeline</a> : <span>Event Timeline</span>}
-        </nav>
-      </header>
-      {state.error ? <ErrorNotice message={state.error} /> : null}
-      {content}
+      <WorkbenchSidebar state={state} taskId={taskId} view={bootstrap.view} />
+      <section className="workbench-main">
+        {state.error ? <ErrorNotice message={state.error} /> : null}
+        <div className="workbench-main-scroll">{content}</div>
+      </section>
+      <InspectorPanel>{inspector}</InspectorPanel>
     </main>
   );
 }

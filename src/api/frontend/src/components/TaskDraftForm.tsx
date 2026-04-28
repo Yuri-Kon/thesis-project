@@ -98,6 +98,10 @@ function orderedGroups(schema: TaskIntakeSchema | null) {
   return schema?.web_schema.groups ?? [];
 }
 
+function groupStartsOpen(groupId: string): boolean {
+  return ["objective", "inputs", "design_constraints", "safety_constraints"].includes(groupId);
+}
+
 export function TaskDraftForm({
   schema,
   intake,
@@ -306,11 +310,11 @@ export function TaskDraftForm({
 
       <section className="structured-field-groups">
         {orderedGroups(schema).map((group) => (
-          <section className="panel field-group-panel" key={group.id}>
-            <div className="panel-header">
+          <details className="panel field-group-panel" key={group.id} open={groupStartsOpen(group.id)}>
+            <summary className="panel-header">
               <h2>{fieldLabel(group.id)}</h2>
               <span className="counter">{group.fields.length}</span>
-            </div>
+            </summary>
             <div className="field-card-grid">
               {group.fields.map((name) => {
                 const definition = schema?.fields[name];
@@ -329,7 +333,7 @@ export function TaskDraftForm({
                 );
               })}
             </div>
-          </section>
+          </details>
         ))}
       </section>
     </form>

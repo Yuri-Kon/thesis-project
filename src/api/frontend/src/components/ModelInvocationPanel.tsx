@@ -21,8 +21,10 @@ export function ModelInvocationPanel({ readiness, pendingActionDetail }: ModelIn
                 <strong>{tool.tool_id ?? "unknown tool"}</strong>
                 <p>{tool.availability_hint}</p>
               </div>
-              <span>{tool.adapter_mode ?? "unknown"}</span>
-              <span>{tool.execution_mode ?? tool.provider ?? "default"}</span>
+              <div className="row-meta">
+                <span className="source-chip">{tool.adapter_mode ?? "unknown"}</span>
+                <span className="source-chip">{tool.execution_mode ?? tool.provider ?? "default"}</span>
+              </div>
             </article>
           ))}
         </div>

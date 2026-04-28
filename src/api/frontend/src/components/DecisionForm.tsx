@@ -68,12 +68,21 @@ export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
       {!detail ? <p className="muted">No pending action for this task.</p> : null}
       {detail ? (
         <form className="decision-form" onSubmit={submit}>
-          <label>
-            Choice
-            <select value={choice} onChange={(event) => setChoice(event.target.value as DecisionChoice)}>
-              {availableChoices.map((item) => <option key={item} value={item}>{actionLabels[item]} ({item})</option>)}
-            </select>
-          </label>
+          <fieldset className="choice-grid">
+            <legend>Choice</legend>
+            {availableChoices.map((item) => (
+              <label key={item}>
+                <input
+                  type="radio"
+                  name="decision-choice"
+                  value={item}
+                  checked={choice === item}
+                  onChange={() => setChoice(item)}
+                />
+                <span>{actionLabels[item]}</span>
+              </label>
+            ))}
+          </fieldset>
           <label>
             Candidate
             <select value={candidateId} onChange={(event) => setCandidateId(event.target.value)}>
@@ -92,9 +101,6 @@ export function DecisionForm({ detail, onSubmitted }: DecisionFormProps) {
             <textarea value={comment} onChange={(event) => setComment(event.target.value)} />
           </label>
           <button type="submit" disabled={submitting}>{submitting ? "Submitting" : "Submit Decision"}</button>
-          <p className="muted">
-            UI labels map to the existing Decision contract; no browser-side state transition is applied.
-          </p>
           {message ? <p className="muted">{message}</p> : null}
         </form>
       ) : null}
