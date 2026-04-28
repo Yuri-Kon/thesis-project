@@ -24,6 +24,37 @@ export class ApiError extends Error {
   }
 }
 
+function detailMessage(detail: unknown): string {
+  if (typeof detail === "string") {
+    return detail;
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    if (typeof record.detail === "string") {
+      const validationErrors = Array.isArray(record.validation_errors)
+        ? ` (${record.validation_errors.join(", ")})`
+        : "";
+      return `${record.detail}${validationErrors}`;
+    }
+    if (Array.isArray(record.detail)) {
+      return record.detail
+        .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+        .join("; ");
+    }
+  }
+  return JSON.stringify(detail);
+}
+
+export function apiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return `HTTP ${error.status}: ${detailMessage(error.detail)}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     headers: {

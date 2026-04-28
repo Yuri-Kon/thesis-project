@@ -1,6 +1,6 @@
 import React, { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { apiClient } from "./api/client";
+import { apiClient, apiErrorMessage } from "./api/client";
 import type {
   CapabilityReadinessEntry,
   PendingActionDetail,
@@ -40,13 +40,6 @@ function readBootstrap(): BootstrapPayload {
     return { taskId: "", view: "dashboard" };
   }
   return JSON.parse(node.textContent) as BootstrapPayload;
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
 }
 
 function App() {
@@ -104,7 +97,7 @@ function App() {
         setState((current) => ({
           ...current,
           loading: false,
-          error: errorMessage(error),
+          error: apiErrorMessage(error),
         }));
       }
     },
