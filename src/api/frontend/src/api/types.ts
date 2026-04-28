@@ -40,6 +40,51 @@ export interface DesignResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface TaskDraftField {
+  value: unknown;
+  source: string;
+  confidence: number;
+  source_span?: string | null;
+  confirmed: boolean;
+  warnings: string[];
+  last_modified_by?: string | null;
+}
+
+export interface TaskSpecDraft {
+  fields: Record<string, TaskDraftField>;
+  unmapped_text: string[];
+  extraction_mode: "none" | "rule_extract" | "llm_extract" | "manual_fallback";
+  extraction_errors: string[];
+}
+
+export interface TaskIntakeSession {
+  intake_id: string;
+  status: "collecting" | "needs_confirmation" | "confirmed" | "cancelled";
+  raw_input: Record<string, unknown>;
+  draft: TaskSpecDraft;
+  missing_required_fields: string[];
+  ambiguous_fields: string[];
+  unmapped_text: string[];
+  warnings: string[];
+  human_summary: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskIntakeCreateRequest {
+  text?: string | null;
+  structured_fields: Record<string, unknown>;
+  source: "web" | "cli" | "api" | "script" | "legacy";
+}
+
+export interface TaskIntakeConfirmation {
+  intake_id: string;
+  task_id: string;
+  status: ExternalStatus;
+  human_summary: string;
+  confirmed_task_spec: Record<string, unknown>;
+}
+
 export interface PendingAction {
   pending_action_id: string;
   task_id: string;

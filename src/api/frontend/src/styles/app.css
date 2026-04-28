@@ -186,7 +186,9 @@ pre {
 }
 
 .task-search,
-.decision-form {
+.decision-form,
+.intake-form,
+.intake-result {
   display: grid;
   gap: 10px;
 }
@@ -241,6 +243,50 @@ pre {
   gap: 12px;
   justify-content: space-between;
   margin: 12px 0;
+  padding: 10px 12px;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.field-table {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+
+.field-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(140px, 0.8fr) minmax(220px, 1.2fr) minmax(110px, 0.6fr) minmax(90px, 0.5fr) minmax(180px, 1fr);
+  min-width: 860px;
+  padding: 10px 12px;
+}
+
+.field-row + .field-row {
+  border-top: 1px solid var(--line);
+}
+
+.field-row-head {
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.field-row.is-ambiguous {
+  background: #fff8e6;
+}
+
+.error-text {
+  color: var(--danger);
+  margin: 0;
+}
+
+.notice.compact {
+  margin-bottom: 0;
   padding: 10px 12px;
 }
 

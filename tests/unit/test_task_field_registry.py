@@ -5,6 +5,7 @@ from src.models.task_intake import (
     build_task_intake_schema,
     confirm_task_intake_session,
     create_task_intake_session,
+    extract_task_intake_fields,
 )
 
 
@@ -76,7 +77,11 @@ def test_registry_derives_cli_llm_and_confirmed_spec_mapping() -> None:
     }
     assert cli_flags["length_range"] == "--length-range"
     assert "length_range" in cli_questions["length_range"]
-    assert schema["llm_extraction_schema"]["properties"]["task_kind"]["enum"]
+    assert schema["llm_extraction_schema"]["additionalProperties"] is False
+    task_kind_schema = schema["llm_extraction_schema"]["properties"]["task_kind"]
+    assert task_kind_schema["additionalProperties"] is False
+    assert task_kind_schema["properties"]["source"]["const"] == "llm_extract"
+    assert task_kind_schema["properties"]["value"]["enum"]
     assert (
         schema["confirmed_task_spec_mapping"]["objective_type"]
         == "objective.objective_type"
@@ -124,3 +129,101 @@ def test_profile_conditional_required_fields_are_enforced() -> None:
     )
 
     assert session.missing_required_fields == ["binding_partner"]
+
+
+def test_natural_language_extraction_captures_p0_fields_with_confidence() -> None:
+    """自然语言抽取应只写入带来源和置信度的 TaskSpecDraft 字段。"""
+
+    draft = extract_task_intake_fields(
+        "帮我设计一个大约120个氨基酸、稳定性优先的小蛋白，"
+        "生成8个候选，先用快一点的模式，S1，最后需要我确认计划。"
+    )
+
+    assert draft.extraction_mode == "rule_extract"
+    assert draft.fields["task_kind"].value == "de_novo_design"
+    assert draft.fields["goal_summary"].source.value == "llm_extract"
+    assert draft.fields["objective_type"].value == "stability"
+    assert draft.fields["length_range"].value == [100, 140]
+    assert draft.fields["design_count"].value == 8
+    assert draft.fields["run_profile"].value == "fast_smoke"
+    assert draft.fields["safety_level"].value == "S1"
+    assert draft.fields["require_plan_confirm"].value is True
+    assert draft.fields["length_range"].source_span == "大约120个氨基酸"
+    assert all(field.confirmed is False for field in draft.fields.values())
+
+
+def test_extraction_confidence_thresholds_and_run_profile_values() -> None:
+    """低置信度字段应按阈值进入 ambiguous 或 unmapped。"""
+
+    session = create_task_intake_session(
+        intake_id="intake_thresholds",
+        text=None,
+        structured_fields={
+            "task_kind": "de_novo_design",
+            "objective_type": {
+                "value": "binding",
+                "confidence": 0.72,
+                "source_span": "binding",
+            },
+            "goal_summary": {
+                "value": "ignored",
+                "confidence": 0.40,
+                "source_span": "low confidence summary",
+            },
+            "length_range": [80, 120],
+            "run_profile": "high_accuracy",
+        },
+        source="api",
+    )
+
+    assert "objective_type" in session.ambiguous_fields
+    assert "goal_summary" not in session.draft.fields
+    assert "goal_summary=ignored" in session.unmapped_text
+    assert session.draft.fields["run_profile"].value == "high_accuracy"
+
+
+def test_extraction_rejects_invalid_schema_and_falls_back_to_manual_form() -> None:
+    """schema 不合法的抽取候选重试耗尽后应降级到手动表单。"""
+
+    draft = extract_task_intake_fields(
+        "design a stable protein around 120 aa",
+        raw_candidates=[
+            {
+                "fields": {
+                    "not_in_registry": {
+                        "value": "x",
+                        "source": "llm_extract",
+                        "confidence": 0.9,
+                    }
+                }
+            },
+            {
+                "fields": {
+                    "run_profile": {
+                        "value": "esmfold",
+                        "source": "llm_extract",
+                        "confidence": 0.9,
+                    }
+                }
+            },
+        ],
+        max_attempts=2,
+    )
+
+    assert draft.extraction_mode == "manual_fallback"
+    assert draft.fields == {}
+    assert draft.unmapped_text == ["design a stable protein around 120 aa"]
+    assert any("unknown field" in error for error in draft.extraction_errors)
+    assert any("run_profile must be one of" in error for error in draft.extraction_errors)
+
+
+def test_natural_language_tool_preference_is_validated_against_toolkg() -> None:
+    """自然语言工具偏好只能进入 ToolKG 校验过的工具字段。"""
+
+    draft = extract_task_intake_fields(
+        "请设计稳定蛋白，around 120 aa，prefer esmfold tool，fast mode"
+    )
+
+    assert draft.fields["run_profile"].value == "fast_smoke"
+    assert draft.fields["tools_allowed"].value == ["esmfold"]
+    assert draft.fields["tools_allowed"].confidence < 0.80

@@ -372,12 +372,33 @@ def _print_task(payload: dict[str, Any]) -> None:
 def _print_intake(payload: dict[str, Any]) -> None:
     print(f"intake_id: {payload.get('intake_id')}")
     print(f"status: {payload.get('status')}")
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    extraction_mode = draft.get("extraction_mode") if isinstance(draft, dict) else None
+    extraction_errors = draft.get("extraction_errors") if isinstance(draft, dict) else []
+    print(f"extraction_mode: {extraction_mode or '-'}")
     missing = payload.get("missing_required_fields") or []
     ambiguous = payload.get("ambiguous_fields") or []
     unmapped = payload.get("unmapped_text") or []
     print(f"missing_required_fields: {', '.join(missing) if missing else '-'}")
     print(f"ambiguous_fields: {', '.join(ambiguous) if ambiguous else '-'}")
     print(f"unmapped_text: {', '.join(unmapped) if unmapped else '-'}")
+    if isinstance(extraction_errors, list) and extraction_errors:
+        print(f"extraction_errors: {', '.join(str(item) for item in extraction_errors)}")
+    fields = draft.get("fields") if isinstance(draft, dict) else {}
+    if isinstance(fields, dict) and fields:
+        print("fields:")
+        for name, field in fields.items():
+            if not isinstance(field, dict):
+                continue
+            source_span = field.get("source_span") or "-"
+            print(
+                "  "
+                f"{name}: value={field.get('value')} "
+                f"source={field.get('source') or '-'} "
+                f"confidence={field.get('confidence')} "
+                f"span={source_span} "
+                f"confirmed={field.get('confirmed')}"
+            )
 
 
 def _print_pending(payload: dict[str, Any]) -> None:
