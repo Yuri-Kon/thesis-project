@@ -912,7 +912,7 @@ async def get_task_event_timeline_view(task_id: str) -> HTMLResponse:
 
 @app.get("/ui/task-builder", response_class=HTMLResponse)
 async def get_task_builder_view() -> HTMLResponse:
-    return HTMLResponse(_render_task_builder_html())
+    return HTMLResponse(_render_react_app_html(task_id=None, view="task_builder"))
 
 
 @app.get("/health")

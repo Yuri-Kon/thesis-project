@@ -1241,6 +1241,8 @@ class TestAPIEndpoints:
         assert "/pending-actions" in static_response.text
         assert "/capabilities/readiness" in static_response.text
         assert "Submit Decision" in static_response.text
+        assert "/task-intakes/schema" in static_response.text
+        assert "Task Builder" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200
@@ -1252,21 +1254,8 @@ class TestAPIEndpoints:
 
         builder_response = await client.get("/ui/task-builder")
         assert builder_response.status_code == 200
-        assert "Task Builder" in builder_response.text
-        assert "protein-viewer" in builder_response.text
-        assert "task-builder.js" in builder_response.text
-
-        builder_js = await client.get("/static/js/task-builder.js")
-        assert builder_js.status_code == 200
-        assert "/task-intakes/schema" in builder_js.text
-        assert "renderProteinVisualization" in builder_js.text
-        assert "safety_check" in builder_js.text
-        assert "segmented-control" in builder_js.text
-        assert "artifact-control" in builder_js.text
-
-        builder_css = await client.get("/static/css/task-builder.css")
-        assert builder_css.status_code == 200
-        assert "protein-viewer" in builder_css.text
+        assert '"view": "task_builder"' in builder_response.text
+        assert '"/static/web/assets/app.js"' in builder_response.text
 
     async def test_get_task_events_timeline_mapping_and_order(
         self, client: httpx.AsyncClient

@@ -11,13 +11,14 @@ import type {
 } from "./api/types";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EventTimelinePage } from "./pages/EventTimelinePage";
+import { TaskBuilderPage } from "./pages/TaskBuilderPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
 import { ErrorNotice } from "./components/ErrorNotice";
 import "./styles/app.css";
 
 interface BootstrapPayload {
   taskId: string;
-  view: "dashboard" | "task_detail" | "event_timeline";
+  view: "dashboard" | "task_builder" | "task_detail" | "event_timeline";
 }
 
 export interface WorkspaceState {
@@ -108,8 +109,12 @@ function App() {
   );
 
   useEffect(() => {
+    if (bootstrap.view === "task_builder") {
+      setState((current) => ({ ...current, loading: false, error: null }));
+      return;
+    }
     void loadWorkspace(bootstrap.taskId);
-  }, [bootstrap.taskId, loadWorkspace]);
+  }, [bootstrap.taskId, bootstrap.view, loadWorkspace]);
 
   const openTask = useCallback(
     (nextTaskId: string) => {
@@ -141,6 +146,8 @@ function App() {
   const content =
     bootstrap.view === "event_timeline" ? (
       <EventTimelinePage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskTimeline} onRefresh={() => loadWorkspace(taskId)} />
+    ) : bootstrap.view === "task_builder" ? (
+      <TaskBuilderPage onOpenTask={openTask} />
     ) : bootstrap.view === "task_detail" ? (
       <TaskDetailPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskDetail} onRefresh={() => loadWorkspace(taskId)} />
     ) : (
@@ -156,6 +163,7 @@ function App() {
         </div>
         <nav className="topnav" aria-label="Workspace navigation">
           <a href="/ui">Dashboard</a>
+          <a href="/ui/task-builder">New Task</a>
           {taskId ? <a href={`/ui/tasks/${encodeURIComponent(taskId)}`}>Task Detail</a> : <span>Task Detail</span>}
           {taskId ? <a href={`/ui/tasks/${encodeURIComponent(taskId)}/events`}>Event Timeline</a> : <span>Event Timeline</span>}
         </nav>

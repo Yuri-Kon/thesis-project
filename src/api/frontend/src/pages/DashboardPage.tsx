@@ -2,7 +2,6 @@ import type { WorkspaceState } from "../main";
 import { CapabilityReadinessPanel } from "../components/CapabilityReadinessPanel";
 import { ModelInvocationPanel } from "../components/ModelInvocationPanel";
 import { PendingActionList } from "../components/PendingActionList";
-import { TaskIntakePanel } from "../components/TaskIntakePanel";
 import { TaskSearch } from "../components/TaskSearch";
 
 interface DashboardPageProps {
@@ -24,7 +23,6 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onOpenTask} onRefresh={onRefresh} />
       </section>
       {state.loading ? <p className="muted">Loading workspace data...</p> : null}
-      <TaskIntakePanel onOpenTask={onOpenTask} />
       <PendingActionList pendingActions={state.pendingActions} onOpenTask={onOpenTask} />
       <CapabilityReadinessPanel readiness={state.readiness} />
       <ModelInvocationPanel readiness={state.readiness} pendingActionDetail={state.pendingActionDetail} />
