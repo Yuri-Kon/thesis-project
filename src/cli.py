@@ -5,9 +5,13 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
+
+from src.models.task_intake import ConfirmedTaskSpec
 
 DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 
@@ -15,13 +19,26 @@ DEFAULT_API_BASE_URL = "http://127.0.0.1:8000"
 def main(argv: list[str] | None = None) -> int:
     """运行 design CLI 入口。"""
     parser = _build_parser()
-    args = parser.parse_args(argv)
+    args, unknown_args = parser.parse_known_args(argv)
     base_url = str(args.api_base_url or os.getenv("DESIGN_API_BASE_URL") or DEFAULT_API_BASE_URL).rstrip("/")
 
     try:
+        if args.command == "submit":
+            _ensure_no_unknown_args(parser, unknown_args)
+            return _submit(
+                base_url,
+                interactive=args.interactive,
+                spec_path=args.spec,
+                confirmed=args.confirm,
+                text=args.text,
+                acknowledged_warnings=args.acknowledge,
+                emit_json=args.json,
+            )
         if args.command == "task" and args.task_command == "show":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _task_show(base_url, args.task_id, emit_json=args.json)
         if args.command == "task" and args.task_command == "watch":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _task_watch(
                 base_url,
                 args.task_id,
@@ -29,30 +46,42 @@ def main(argv: list[str] | None = None) -> int:
                 interval_s=args.interval,
             )
         if args.command == "pending" and args.pending_command == "show":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _pending_show(base_url, args.pending_action_id, emit_json=args.json)
         if args.command == "timeline" and args.timeline_command == "show":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _timeline_show(base_url, args.task_id, emit_json=args.json)
         if args.command == "report" and args.report_command == "show":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _report_show(base_url, args.task_id, emit_json=args.json)
         if args.command == "intake" and args.intake_command == "schema":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _intake_schema(base_url, emit_json=args.json)
-        if args.command == "intake" and args.intake_command == "create":
+        if args.command == "intake" and args.intake_command in {"create", "parse"}:
             return _intake_create(
                 base_url,
                 text=args.text,
-                fields=_parse_field_args(args.field),
+                fields=_collect_intake_fields(base_url, args.field, unknown_args),
                 source=args.source,
                 emit_json=args.json,
             )
-        if args.command == "intake" and args.intake_command == "patch":
+        if args.command == "intake" and args.intake_command == "show":
+            _ensure_no_unknown_args(parser, unknown_args)
+            return _intake_show(
+                base_url,
+                intake_id=args.intake_id,
+                emit_json=args.json,
+            )
+        if args.command == "intake" and args.intake_command in {"patch", "set"}:
             return _intake_patch(
                 base_url,
                 intake_id=args.intake_id,
-                fields=_parse_field_args(args.field),
+                fields=_collect_intake_fields(base_url, args.field, unknown_args),
                 updated_by=args.updated_by,
                 emit_json=args.json,
             )
         if args.command == "intake" and args.intake_command == "confirm":
+            _ensure_no_unknown_args(parser, unknown_args)
             return _intake_confirm(
                 base_url,
                 intake_id=args.intake_id,
@@ -61,6 +90,7 @@ def main(argv: list[str] | None = None) -> int:
                 emit_json=args.json,
             )
         if args.command == "preflight":
+            _ensure_no_unknown_args(parser, unknown_args)
             print(
                 "preflight has moved to Task Intake; use `design intake ...`.",
                 file=sys.stderr,
@@ -85,6 +115,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="API base URL; defaults to DESIGN_API_BASE_URL or http://127.0.0.1:8000",
     )
     subparsers = parser.add_subparsers(dest="command")
+
+    submit_parser = subparsers.add_parser("submit")
+    submit_mode = submit_parser.add_mutually_exclusive_group(required=True)
+    submit_mode.add_argument("--interactive", action="store_true")
+    submit_mode.add_argument("--spec", default=None)
+    submit_parser.add_argument("--text", default=None)
+    submit_parser.add_argument("--confirm", action="store_true")
+    submit_parser.add_argument("--acknowledge", action="append", default=[])
+    submit_parser.add_argument(
+        "--ack-warning",
+        dest="acknowledge",
+        action="append",
+        help="Acknowledge a Safety warning code or exact warning message",
+    )
+    submit_parser.add_argument("--json", action="store_true")
 
     task_parser = subparsers.add_parser("task")
     task_subparsers = task_parser.add_subparsers(dest="task_command")
@@ -132,11 +177,33 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=["web", "cli", "api", "script", "legacy"],
     )
     intake_create.add_argument("--json", action="store_true")
+    intake_parse = intake_subparsers.add_parser("parse")
+    intake_parse.add_argument("--text", required=True)
+    intake_parse.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        help="Structured field as key=JSON_VALUE, for example length_range='[100,140]'",
+    )
+    intake_parse.add_argument(
+        "--source",
+        default="cli",
+        choices=["web", "cli", "api", "script", "legacy"],
+    )
+    intake_parse.add_argument("--json", action="store_true")
+    intake_show = intake_subparsers.add_parser("show")
+    intake_show.add_argument("intake_id")
+    intake_show.add_argument("--json", action="store_true")
     intake_patch = intake_subparsers.add_parser("patch")
     intake_patch.add_argument("intake_id")
     intake_patch.add_argument("--field", action="append", default=[])
     intake_patch.add_argument("--updated-by", default="cli")
     intake_patch.add_argument("--json", action="store_true")
+    intake_set = intake_subparsers.add_parser("set")
+    intake_set.add_argument("intake_id")
+    intake_set.add_argument("--field", action="append", default=[])
+    intake_set.add_argument("--updated-by", default="cli")
+    intake_set.add_argument("--json", action="store_true")
     intake_confirm = intake_subparsers.add_parser("confirm")
     intake_confirm.add_argument("intake_id")
     intake_confirm.add_argument("--confirmed-by", default="cli")
@@ -151,6 +218,48 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser("preflight")
     return parser
+
+
+def _submit(
+    base_url: str,
+    *,
+    interactive: bool,
+    spec_path: str | None,
+    confirmed: bool,
+    text: str | None,
+    acknowledged_warnings: list[str],
+    emit_json: bool,
+) -> int:
+    if spec_path is not None:
+        if not confirmed:
+            raise ValueError("submit --spec requires --confirm")
+        spec = _read_confirmed_task_spec(spec_path)
+        payload = _post_json(base_url, "/tasks", {"confirmed_task_spec": spec})
+        _print_submission(payload, emit_json=emit_json)
+        return 0
+    if interactive:
+        fields = _prompt_intake_fields(base_url)
+        intake = _post_json(
+            base_url,
+            "/task-intakes",
+            {"text": text, "structured_fields": fields, "source": "cli"},
+        )
+        if confirmed:
+            confirmation = _post_json(
+                base_url,
+                f"/task-intakes/{intake.get('intake_id')}/confirm",
+                {
+                    "confirmed_by": "cli",
+                    "acknowledged_warnings": acknowledged_warnings,
+                },
+            )
+            _print_submission(confirmation, emit_json=emit_json)
+        elif emit_json:
+            _print_json({"intake": intake, "profile": _intake_profile(intake)})
+        else:
+            _print_intake(intake)
+        return 0
+    raise ValueError("submit requires --interactive or --spec")
 
 
 def _task_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
@@ -229,13 +338,22 @@ def _intake_schema(base_url: str, *, emit_json: bool) -> int:
         _print_json({"schema": schema})
     else:
         fields = schema.get("fields", {}) if isinstance(schema, dict) else {}
+        cli_args = schema.get("cli_arguments", []) if isinstance(schema, dict) else []
+        flags_by_field = {
+            str(item.get("field")): item
+            for item in cli_args
+            if isinstance(item, dict) and item.get("field")
+        }
         print(f"registry_version: {schema.get('version') if isinstance(schema, dict) else '-'}")
         for name, definition in fields.items():
             if isinstance(definition, dict):
+                cli_arg = flags_by_field.get(str(name), {})
                 print(
                     "field: "
                     f"{name} group={definition.get('group')} "
                     f"type={definition.get('type')} control={definition.get('ui_control')}"
+                    f" flag={cli_arg.get('flag') or '-'} "
+                    f"default={definition.get('default')}"
                 )
     return 0
 
@@ -254,9 +372,27 @@ def _intake_create(
         {"text": text, "structured_fields": fields, "source": source},
     )
     if emit_json:
-        _print_json({"intake": payload})
+        _print_json({"intake": payload, "profile": _intake_profile(payload)})
     else:
         _print_intake(payload)
+    return 0
+
+
+def _intake_show(base_url: str, *, intake_id: str, emit_json: bool) -> int:
+    payload = _get_json(base_url, f"/task-intakes/{intake_id}")
+    if not isinstance(payload, dict):
+        raise ValueError(f"API payload for /task-intakes/{intake_id} is not an object")
+    schema = _get_json(base_url, "/task-intakes/schema")
+    schema_payload = schema if isinstance(schema, dict) else {}
+    if emit_json:
+        _print_json(
+            {
+                "intake": payload,
+                "profile": _intake_profile(payload, schema=schema_payload),
+            }
+        )
+    else:
+        _print_intake(payload, schema=schema_payload)
     return 0
 
 
@@ -274,7 +410,7 @@ def _intake_patch(
         {"fields": fields, "updated_by": updated_by},
     )
     if emit_json:
-        _print_json({"intake": payload})
+        _print_json({"intake": payload, "profile": _intake_profile(payload)})
     else:
         _print_intake(payload)
     return 0
@@ -297,11 +433,9 @@ def _intake_confirm(
         },
     )
     if emit_json:
-        _print_json({"confirmation": payload})
+        _print_json({"confirmation": payload, "profile": _confirmation_profile(payload)})
     else:
-        print(f"intake_id: {payload.get('intake_id')}")
-        print(f"task_id: {payload.get('task_id')}")
-        print(f"status: {payload.get('status')}")
+        _print_submission(payload, emit_json=False)
     return 0
 
 
@@ -321,6 +455,8 @@ def _post_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, A
     except httpx.HTTPStatusError as exc:
         if path.endswith("/confirm"):
             raise ValueError(_format_intake_confirm_error(response)) from exc
+        if path == "/task-intakes" or path == "/tasks":
+            raise ValueError(_format_api_error(response, action=path)) from exc
         raise
     body = response.json()
     if not isinstance(body, dict):
@@ -356,11 +492,50 @@ def _format_intake_confirm_error(response: httpx.Response) -> str:
 
 def _patch_json(base_url: str, path: str, payload: dict[str, Any]) -> dict[str, Any]:
     response = httpx.patch(f"{base_url}{path}", json=payload, timeout=10.0)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise ValueError(_format_api_error(response, action=path)) from exc
     body = response.json()
     if not isinstance(body, dict):
         raise ValueError(f"API payload for {path} is not an object")
     return body
+
+
+def _format_api_error(response: httpx.Response, *, action: str) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return f"{action} failed with HTTP {response.status_code}"
+    if not isinstance(payload, dict):
+        return f"{action} failed with HTTP {response.status_code}"
+    detail = str(payload.get("detail") or f"HTTP {response.status_code}")
+    validation = payload.get("validation_errors")
+    if isinstance(validation, list) and validation:
+        messages = []
+        for item in validation:
+            if isinstance(item, dict):
+                field = item.get("field") or "-"
+                messages.append(f"{field}: {item.get('message')}")
+        if messages:
+            return f"{action} failed: {detail}; " + "; ".join(messages)
+    return f"{action} failed: {detail}"
+
+
+def _ensure_no_unknown_args(parser: argparse.ArgumentParser, unknown_args: list[str]) -> None:
+    if unknown_args:
+        parser.error(f"unrecognized arguments: {' '.join(unknown_args)}")
+
+
+def _collect_intake_fields(
+    base_url: str,
+    field_args: list[str],
+    dynamic_args: list[str],
+) -> dict[str, Any]:
+    fields = _parse_field_args(field_args)
+    if dynamic_args:
+        fields.update(_parse_schema_field_args(base_url, dynamic_args))
+    return fields
 
 
 def _parse_field_args(items: list[str]) -> dict[str, Any]:
@@ -377,6 +552,206 @@ def _parse_field_args(items: list[str]) -> dict[str, Any]:
         except json.JSONDecodeError:
             fields[key] = raw_value
     return fields
+
+
+def _parse_schema_field_args(base_url: str, items: list[str]) -> dict[str, Any]:
+    schema = _get_json(base_url, "/task-intakes/schema")
+    if not isinstance(schema, dict):
+        raise ValueError("task intake schema is not an object")
+    cli_args = schema.get("cli_arguments")
+    if not isinstance(cli_args, list):
+        raise ValueError("task intake schema does not expose cli_arguments")
+    flag_to_field = {
+        str(item.get("flag")): str(item.get("field"))
+        for item in cli_args
+        if isinstance(item, dict) and item.get("flag") and item.get("field")
+    }
+    fields: dict[str, Any] = {}
+    index = 0
+    while index < len(items):
+        token = items[index]
+        value_token: str
+        if "=" in token:
+            flag, value_token = token.split("=", 1)
+        else:
+            flag = token
+            index += 1
+            if index >= len(items):
+                raise ValueError(f"schema field flag requires a value: {flag}")
+            value_token = items[index]
+        field_name = flag_to_field.get(flag)
+        if field_name is None:
+            raise ValueError(f"unknown intake field flag from schema: {flag}")
+        fields[field_name] = _parse_jsonish_value(value_token)
+        index += 1
+    return fields
+
+
+def _parse_jsonish_value(raw_value: str) -> Any:
+    try:
+        return json.loads(raw_value)
+    except json.JSONDecodeError:
+        return raw_value
+
+
+def _read_confirmed_task_spec(spec_path: str) -> dict[str, Any]:
+    path = Path(spec_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"cannot read task spec: {spec_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"task spec must be valid JSON: {exc.msg}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError("task spec must be a JSON object")
+    try:
+        return ConfirmedTaskSpec.model_validate(payload).model_dump(mode="json")
+    except ValidationError as exc:
+        messages = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: {error['msg']}"
+            for error in exc.errors()
+        )
+        raise ValueError(
+            f"task spec must comply with ConfirmedTaskSpec schema: {messages}"
+        ) from exc
+
+
+def _prompt_intake_fields(base_url: str) -> dict[str, Any]:
+    schema = _get_json(base_url, "/task-intakes/schema")
+    if not isinstance(schema, dict):
+        raise ValueError("task intake schema is not an object")
+    questions = schema.get("cli_questions")
+    if not isinstance(questions, list):
+        raise ValueError("task intake schema does not expose cli_questions")
+    fields: dict[str, Any] = {}
+    for question in questions:
+        if not isinstance(question, dict):
+            continue
+        field_name = question.get("field")
+        prompt = question.get("prompt") or field_name
+        if not isinstance(field_name, str) or not field_name:
+            continue
+        raw_value = input(f"{prompt}: ").strip()
+        if not raw_value:
+            continue
+        fields[field_name] = _parse_jsonish_value(raw_value)
+    return fields
+
+
+def _intake_profile(
+    payload: dict[str, Any],
+    *,
+    schema: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    fields = draft.get("fields") if isinstance(draft, dict) else {}
+    normalized_fields: dict[str, dict[str, Any]] = {}
+    confirmed_fields: list[str] = []
+    low_confidence_fields: list[str] = []
+    if isinstance(fields, dict):
+        for name, field in fields.items():
+            if not isinstance(field, dict):
+                continue
+            confirmed = bool(field.get("confirmed"))
+            confidence = field.get("confidence")
+            normalized_fields[name] = {
+                "value": field.get("value"),
+                "source": field.get("source"),
+                "confirmed": confirmed,
+                "confidence": confidence,
+                "source_span": field.get("source_span"),
+                "warnings": field.get("warnings") or [],
+            }
+            if confirmed:
+                confirmed_fields.append(name)
+            if isinstance(confidence, (int, float)) and confidence < 0.8:
+                low_confidence_fields.append(name)
+    pending_fields = [
+        str(item)
+        for item in payload.get("missing_required_fields") or []
+    ]
+    low_confidence_fields = list(
+        dict.fromkeys(
+            [
+                str(item)
+                for item in payload.get("ambiguous_fields") or []
+            ]
+            + low_confidence_fields
+        )
+    )
+    safety = payload.get("safety_check") if isinstance(payload.get("safety_check"), dict) else {}
+    return {
+        "intake_id": payload.get("intake_id"),
+        "status": payload.get("status"),
+        "task_id": payload.get("task_id"),
+        "extraction_mode": draft.get("extraction_mode") if isinstance(draft, dict) else None,
+        "confirmed_fields": sorted(confirmed_fields),
+        "pending_fields": pending_fields,
+        "low_confidence_fields": low_confidence_fields,
+        "default_fields": _default_field_profile(payload, schema or {}),
+        "warnings": payload.get("warnings") or [],
+        "safety_action": safety.get("action") if isinstance(safety, dict) else None,
+        "safety_warnings": _safety_warning_profile(safety),
+        "unmapped_text": payload.get("unmapped_text") or [],
+        "fields": normalized_fields,
+        "next_action": _intake_next_action(payload),
+    }
+
+
+def _default_field_profile(payload: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+    draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
+    fields = draft.get("fields") if isinstance(draft, dict) else {}
+    present = set(fields) if isinstance(fields, dict) else set()
+    registry_fields = schema.get("fields") if isinstance(schema.get("fields"), dict) else {}
+    defaults: dict[str, Any] = {}
+    for name, definition in registry_fields.items():
+        if name in present or not isinstance(definition, dict):
+            continue
+        if "default" not in definition:
+            continue
+        default_value = definition.get("default")
+        if default_value is not None and default_value != []:
+            defaults[str(name)] = default_value
+    return defaults
+
+
+def _safety_warning_profile(safety: Any) -> list[dict[str, Any]]:
+    if not isinstance(safety, dict):
+        return []
+    warnings: list[dict[str, Any]] = []
+    for risk in safety.get("risk_flags") or []:
+        if isinstance(risk, dict) and risk.get("level") == "warn":
+            warnings.append(
+                {
+                    "code": risk.get("code"),
+                    "message": risk.get("message"),
+                }
+            )
+    return warnings
+
+
+def _intake_next_action(payload: dict[str, Any]) -> str:
+    if payload.get("missing_required_fields"):
+        return "set_missing_fields"
+    if payload.get("ambiguous_fields"):
+        return "resolve_low_confidence_fields"
+    safety = payload.get("safety_check") if isinstance(payload.get("safety_check"), dict) else {}
+    if isinstance(safety, dict) and safety.get("action") == "warn":
+        return "confirm_with_warning_acknowledgement"
+    if isinstance(safety, dict) and safety.get("action") == "block":
+        return "revise_blocked_input"
+    if payload.get("status") == "confirmed":
+        return "task_created"
+    return "confirm"
+
+
+def _confirmation_profile(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "intake_id": payload.get("intake_id"),
+        "task_id": payload.get("task_id") or payload.get("id"),
+        "status": payload.get("status"),
+        "next_action": "task_show",
+    }
 
 
 def _readiness_summary(readiness: dict[str, Any] | list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -409,19 +784,20 @@ def _print_task(payload: dict[str, Any]) -> None:
     _print_readiness_summary(payload["readiness_summary"])
 
 
-def _print_intake(payload: dict[str, Any]) -> None:
-    print(f"intake_id: {payload.get('intake_id')}")
-    print(f"status: {payload.get('status')}")
+def _print_intake(payload: dict[str, Any], *, schema: dict[str, Any] | None = None) -> None:
+    profile = _intake_profile(payload, schema=schema)
+    print(f"intake_id: {profile.get('intake_id')}")
+    print(f"status: {profile.get('status')}")
     draft = payload.get("draft") if isinstance(payload.get("draft"), dict) else {}
-    extraction_mode = draft.get("extraction_mode") if isinstance(draft, dict) else None
     extraction_errors = draft.get("extraction_errors") if isinstance(draft, dict) else []
-    print(f"extraction_mode: {extraction_mode or '-'}")
-    missing = payload.get("missing_required_fields") or []
-    ambiguous = payload.get("ambiguous_fields") or []
-    unmapped = payload.get("unmapped_text") or []
-    print(f"missing_required_fields: {', '.join(missing) if missing else '-'}")
-    print(f"ambiguous_fields: {', '.join(ambiguous) if ambiguous else '-'}")
-    print(f"unmapped_text: {', '.join(unmapped) if unmapped else '-'}")
+    print(f"extraction_mode: {profile.get('extraction_mode') or '-'}")
+    print(f"confirmed_fields: {_format_list(profile['confirmed_fields'])}")
+    print(f"pending_fields: {_format_list(profile['pending_fields'])}")
+    print(f"low_confidence_fields: {_format_list(profile['low_confidence_fields'])}")
+    print(f"default_fields: {_format_mapping(profile['default_fields'])}")
+    print(f"warnings: {_format_list(profile['warnings'])}")
+    print(f"unmapped_text: {_format_list(profile['unmapped_text'])}")
+    print(f"next_action: {profile.get('next_action')}")
     safety = payload.get("safety_check") if isinstance(payload.get("safety_check"), dict) else {}
     if safety:
         print(f"safety_action: {safety.get('action') or '-'}")
@@ -450,6 +826,28 @@ def _print_intake(payload: dict[str, Any]) -> None:
                 f"span={source_span} "
                 f"confirmed={field.get('confirmed')}"
             )
+
+
+def _print_submission(payload: dict[str, Any], *, emit_json: bool) -> None:
+    profile = _confirmation_profile(payload)
+    if emit_json:
+        _print_json({"confirmation": payload, "profile": profile})
+        return
+    print(f"intake_id: {profile.get('intake_id') or '-'}")
+    print(f"task_id: {profile.get('task_id')}")
+    print(f"status: {profile.get('status')}")
+
+
+def _format_list(items: Any) -> str:
+    if not isinstance(items, list) or not items:
+        return "-"
+    return ", ".join(str(item) for item in items)
+
+
+def _format_mapping(items: Any) -> str:
+    if not isinstance(items, dict) or not items:
+        return "-"
+    return json.dumps(items, ensure_ascii=False, sort_keys=True)
 
 
 def _print_pending(payload: dict[str, Any]) -> None:

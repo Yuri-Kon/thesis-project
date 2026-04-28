@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import builtins
+import json
 from typing import Any
 
 import src.cli as cli
@@ -268,6 +270,232 @@ def test_intake_create_json_posts_task_intake_payload(monkeypatch, capsys) -> No
     assert '"intake_id": "intake_cli"' in output
 
 
+def test_intake_parse_json_outputs_profile(monkeypatch, capsys) -> None:
+    """design intake parse --json 应输出 intake 与同字段 profile。"""
+
+    seen: dict[str, Any] = {}
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        seen["url"] = url
+        seen["json"] = json
+        return _FakeResponse(
+            {
+                "intake_id": "intake_parse",
+                "status": "collecting",
+                "draft": {
+                    "extraction_mode": "rule_extract",
+                    "fields": {
+                        "objective_type": {
+                            "value": "binding",
+                            "source": "llm_extract",
+                            "confidence": 0.72,
+                            "source_span": "binding",
+                            "confirmed": False,
+                            "warnings": [],
+                        }
+                    },
+                    "extraction_errors": [],
+                },
+                "missing_required_fields": ["goal_summary"],
+                "ambiguous_fields": ["objective_type"],
+                "unmapped_text": ["extra phrase"],
+                "warnings": [],
+                "safety_check": {"action": "ok", "risk_flags": []},
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "parse",
+            "--text",
+            "design binding protein",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    assert seen["url"] == "http://api.test/task-intakes"
+    assert seen["json"]["text"] == "design binding protein"
+    output = capsys.readouterr().out
+    assert '"intake_id": "intake_parse"' in output
+    assert '"pending_fields": [' in output
+    assert '"low_confidence_fields": [' in output
+
+
+def test_intake_show_human_outputs_defaults_and_safety(monkeypatch, capsys) -> None:
+    """design intake show 应展示字段、默认值、warning 与 unmapped_text。"""
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/task-intakes/intake_show"):
+            return _FakeResponse(
+                {
+                    "intake_id": "intake_show",
+                    "status": "needs_confirmation",
+                    "draft": {
+                        "extraction_mode": "rule_extract",
+                        "fields": {
+                            "goal_summary": {
+                                "value": "design stable protein",
+                                "source": "user_explicit",
+                                "confidence": 1.0,
+                                "source_span": None,
+                                "confirmed": True,
+                                "warnings": [],
+                            }
+                        },
+                        "extraction_errors": [],
+                    },
+                    "missing_required_fields": [],
+                    "ambiguous_fields": [],
+                    "unmapped_text": ["leftover"],
+                    "warnings": ["motif present"],
+                    "safety_check": {
+                        "action": "warn",
+                        "risk_flags": [
+                            {
+                                "level": "warn",
+                                "code": "FORBIDDEN_MOTIF_PRESENT",
+                                "message": "motif present",
+                            }
+                        ],
+                    },
+                }
+            )
+        if url.endswith("/task-intakes/schema"):
+            return _FakeResponse(
+                {
+                    "fields": {
+                        "task_kind": {"default": "de_novo_design"},
+                        "goal_summary": {"default": None},
+                    }
+                }
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "show",
+            "intake_show",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "confirmed_fields: goal_summary" in output
+    assert 'default_fields: {"task_kind": "de_novo_design"}' in output
+    assert "warnings: motif present" in output
+    assert "unmapped_text: leftover" in output
+    assert "safety_risk: warn FORBIDDEN_MOTIF_PRESENT motif present" in output
+
+
+def test_intake_set_accepts_schema_derived_field_flags(monkeypatch, capsys) -> None:
+    """design intake set 可按 /task-intakes/schema 暴露的 CLI flag 更新字段。"""
+
+    seen: dict[str, Any] = {}
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/task-intakes/schema"):
+            return _FakeResponse(
+                {
+                    "cli_arguments": [
+                        {"field": "objective_type", "flag": "--objective-type"},
+                        {"field": "length_range", "flag": "--length-range"},
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    def fake_patch(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        seen["url"] = url
+        seen["json"] = json
+        return _FakeResponse(
+            {
+                "intake_id": "intake_set",
+                "status": "needs_confirmation",
+                "draft": {"fields": {}, "extraction_errors": []},
+                "missing_required_fields": [],
+                "ambiguous_fields": [],
+                "unmapped_text": [],
+                "warnings": [],
+                "safety_check": {"action": "ok", "risk_flags": []},
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+    monkeypatch.setattr(cli.httpx, "patch", fake_patch)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "set",
+            "intake_set",
+            "--objective-type",
+            "stability",
+            "--length-range=[100,140]",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    assert seen["url"] == "http://api.test/task-intakes/intake_set"
+    assert seen["json"]["fields"] == {
+        "objective_type": "stability",
+        "length_range": [100, 140],
+    }
+    assert '"next_action": "confirm"' in capsys.readouterr().out
+
+
+def test_intake_confirm_success_outputs_task_id_and_created(monkeypatch, capsys) -> None:
+    """design intake confirm 成功后输出 task_id 与 CREATED 状态。"""
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        assert json["acknowledged_warnings"] == ["WARN_1"]
+        return _FakeResponse(
+            {
+                "intake_id": "intake_done",
+                "task_id": "task_done",
+                "status": "CREATED",
+                "confirmed_task_spec": {"goal": "design"},
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "intake",
+            "confirm",
+            "intake_done",
+            "--ack-warning",
+            "WARN_1",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "task_id: task_done" in output
+    assert "status: CREATED" in output
+
+
 def test_intake_confirm_warn_error_shows_ack_warning_path(monkeypatch, capsys) -> None:
     """CLI confirm 在 Safety warn 未确认时提示 --ack-warning。"""
 
@@ -311,6 +539,141 @@ def test_intake_confirm_warn_error_shows_ack_warning_path(monkeypatch, capsys) -
     assert code == 2
     err = capsys.readouterr().err
     assert "--ack-warning FORBIDDEN_MOTIF_PRESENT" in err
+
+
+def test_submit_spec_confirm_posts_confirmed_task_spec(monkeypatch, capsys, tmp_path) -> None:
+    """design submit --spec task_spec.json --confirm 应创建 CREATED task。"""
+
+    spec_path = tmp_path / "task_spec.json"
+    spec_path.write_text(
+        json.dumps(
+            {
+                "goal": "design stable protein",
+                "objective": {"objective_type": "stability"},
+                "inputs": {},
+                "constraints": {},
+                "initial_artifacts": [],
+                "metadata": {"intake_id": "intake_spec"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen: dict[str, Any] = {}
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        seen["url"] = url
+        seen["json"] = json
+        return _FakeResponse(
+            {
+                "id": "task_spec",
+                "status": "CREATED",
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "submit",
+            "--spec",
+            str(spec_path),
+            "--confirm",
+            "--json",
+        ]
+    )
+
+    assert code == 0
+    assert seen["url"] == "http://api.test/tasks"
+    assert seen["json"]["confirmed_task_spec"]["goal"] == "design stable protein"
+    output = capsys.readouterr().out
+    assert '"task_id": "task_spec"' in output
+    assert '"status": "CREATED"' in output
+
+
+def test_submit_spec_requires_confirm(tmp_path, capsys) -> None:
+    """--spec 路径必须显式 --confirm。"""
+
+    spec_path = tmp_path / "task_spec.json"
+    spec_path.write_text('{"goal": "design"}', encoding="utf-8")
+
+    code = cli.main(["submit", "--spec", str(spec_path)])
+
+    assert code == 2
+    assert "submit --spec requires --confirm" in capsys.readouterr().err
+
+
+def test_submit_spec_rejects_invalid_confirmed_task_spec(tmp_path, capsys) -> None:
+    """--spec 文件必须符合 ConfirmedTaskSpec schema。"""
+
+    spec_path = tmp_path / "task_spec.json"
+    spec_path.write_text('{"goal": "design", "initial_artifacts": {}}', encoding="utf-8")
+
+    code = cli.main(["submit", "--spec", str(spec_path), "--confirm"])
+
+    assert code == 2
+    assert "ConfirmedTaskSpec schema" in capsys.readouterr().err
+
+
+def test_submit_interactive_uses_schema_questions(monkeypatch, capsys) -> None:
+    """design submit --interactive 从 /task-intakes/schema 派生问题并创建 intake。"""
+
+    answers = iter(["design stable protein", "stability", ""])
+    seen: dict[str, Any] = {}
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/task-intakes/schema"):
+            return _FakeResponse(
+                {
+                    "cli_questions": [
+                        {"field": "goal_summary", "prompt": "Goal"},
+                        {"field": "objective_type", "prompt": "Objective"},
+                        {"field": "sequence", "prompt": "Sequence"},
+                    ]
+                }
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    def fake_post(url: str, json: dict[str, Any], timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        seen["url"] = url
+        seen["json"] = json
+        return _FakeResponse(
+            {
+                "intake_id": "intake_interactive",
+                "status": "needs_confirmation",
+                "draft": {"fields": {}, "extraction_errors": []},
+                "missing_required_fields": [],
+                "ambiguous_fields": [],
+                "unmapped_text": [],
+                "warnings": [],
+                "safety_check": {"action": "ok", "risk_flags": []},
+            }
+        )
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+    monkeypatch.setattr(cli.httpx, "post", fake_post)
+    monkeypatch.setattr(builtins, "input", lambda _prompt: next(answers))
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "submit",
+            "--interactive",
+        ]
+    )
+
+    assert code == 0
+    assert seen["url"] == "http://api.test/task-intakes"
+    assert seen["json"]["structured_fields"] == {
+        "goal_summary": "design stable protein",
+        "objective_type": "stability",
+    }
+    assert "intake_id: intake_interactive" in capsys.readouterr().out
 
 
 def test_preflight_command_prompts_migration(capsys) -> None:
