@@ -70,10 +70,10 @@ export const apiClient = {
       body: JSON.stringify(body),
     });
   },
-  confirmTaskIntake(intakeId: string): Promise<TaskIntakeConfirmation> {
+  confirmTaskIntake(intakeId: string, acknowledgedWarnings: string[] = []): Promise<TaskIntakeConfirmation> {
     return requestJson<TaskIntakeConfirmation>(`/task-intakes/${encodeURIComponent(intakeId)}/confirm`, {
       method: "POST",
-      body: JSON.stringify({ confirmed_by: "web", acknowledged_warnings: [] }),
+      body: JSON.stringify({ confirmed_by: "web", acknowledged_warnings: acknowledgedWarnings }),
     });
   },
   getCapabilityReadiness(): Promise<CapabilityReadinessEntry[]> {

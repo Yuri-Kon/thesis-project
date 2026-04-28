@@ -47,6 +47,7 @@ from src.models.task_intake import (
     TaskIntakePatchRequest,
     TaskIntakeSession,
     build_task_intake_schema,
+    cancel_task_intake_session,
     confirm_task_intake_session,
     create_task_intake_session,
     patch_task_intake_session,
@@ -153,6 +154,13 @@ class TaskCreateRequest(BaseModel):
         if sum(modes) > 1:
             raise ValueError("choose exactly one of goal, query, or confirmed_task_spec")
         return self
+
+
+class TaskIntakeCancelAPIRequest(BaseModel):
+    """取消 Task Intake 的 API 请求。"""
+
+    cancelled_by: str = "api"
+    reason: str | None = None
 
 
 class DecisionSubmitRequest(BaseModel):
@@ -795,6 +803,10 @@ def _task_intake_summary(session: TaskIntakeSession) -> dict[str, Any]:
         "ambiguous_fields": list(session.ambiguous_fields),
         "unmapped_text": list(session.unmapped_text),
         "warnings": list(session.warnings),
+        "safety_check": session.safety_check.model_dump(mode="json"),
+        "audit_events": [
+            event.model_dump(mode="json") for event in session.audit_events
+        ],
     }
 
 
@@ -817,6 +829,23 @@ def _task_intake_validation_errors(
     return errors
 
 
+def _task_intake_field_validation_messages(
+    session: TaskIntakeSession,
+) -> list[str]:
+    return [
+        warning
+        for field in session.draft.fields.values()
+        for warning in field.warnings
+    ]
+
+
+def _raise_if_task_intake_field_validation_failed(
+    session: TaskIntakeSession,
+) -> None:
+    if _task_intake_field_validation_messages(session):
+        _raise_task_intake_error(session, detail="task intake validation failed")
+
+
 def _raise_task_intake_error(
     session: TaskIntakeSession,
     *,
@@ -832,6 +861,7 @@ def _raise_task_intake_error(
             "intake_id": session.intake_id,
             "status": session.status.value,
             "ambiguous_fields": list(session.ambiguous_fields),
+            "safety_check": session.safety_check.model_dump(mode="json"),
         },
     )
 
@@ -919,8 +949,7 @@ async def create_task_intake(req: TaskIntakeCreateRequest) -> TaskIntakeSession:
         )
     except ValueError as exc:
         _raise_task_intake_value_error(detail=str(exc))
-    if session.warnings:
-        _raise_task_intake_error(session, detail="task intake validation failed")
+    _raise_if_task_intake_field_validation_failed(session)
     INTAKE_STORE[intake_id] = session
     return session
 
@@ -945,8 +974,7 @@ async def update_task_intake(
             detail=str(exc),
             field_context={"intake_id": intake_id},
         )
-    if updated.warnings:
-        _raise_task_intake_error(updated, detail="task intake validation failed")
+    _raise_if_task_intake_field_validation_failed(updated)
     INTAKE_STORE[intake_id] = updated
     return updated
 
@@ -976,6 +1004,23 @@ async def confirm_task_intake(
         "human_summary": session.human_summary,
         "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
     }
+
+
+@app.post("/task-intakes/{intake_id}/cancel", response_model=TaskIntakeSession)
+async def cancel_task_intake(
+    intake_id: str,
+    req: TaskIntakeCancelAPIRequest,
+) -> TaskIntakeSession:
+    """取消 Task Intake，会话级审计不进入正式 Task EventLog。"""
+
+    session = _get_intake_or_404(intake_id)
+    updated = cancel_task_intake_session(
+        session,
+        cancelled_by=req.cancelled_by,
+        reason=req.reason,
+    )
+    INTAKE_STORE[intake_id] = updated
+    return updated
 
 
 @app.post("/intent-drafts")
