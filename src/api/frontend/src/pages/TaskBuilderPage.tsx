@@ -1,7 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { apiClient } from "../api/client";
-import type { TaskIntakeSchema, TaskIntakeSession } from "../api/types";
+import { apiClient, apiErrorMessage } from "../api/client";
+import type { TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
+import { ErrorNotice } from "../components/ErrorNotice";
 import { FieldSourceBadge } from "../components/FieldSourceBadge";
 import { SafetyPrecheckPanel } from "../components/SafetyPrecheckPanel";
 import { TaskDraftForm } from "../components/TaskDraftForm";
@@ -21,11 +22,41 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
+function supportLabel(supportLevel?: string): string {
+  if (supportLevel === "P0") {
+    return "P0 supported";
   }
-  return String(error);
+  if (supportLevel === "P1") {
+    return "P1 experimental";
+  }
+  if (supportLevel === "P2") {
+    return "P2 unsupported";
+  }
+  return supportLevel ?? "unknown";
+}
+
+function selectedTaskKind(intake: TaskIntakeSession | null): string | null {
+  const value = intake?.draft.fields.task_kind?.value;
+  return typeof value === "string" ? value : null;
+}
+
+function draftHasFieldWarnings(intake: TaskIntakeSession | null): boolean {
+  return Object.values(intake?.draft.fields ?? {}).some((field) => field.warnings.length > 0);
+}
+
+function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile?: TaskIntakeTaskProfile }) {
+  if (!taskKind || !profile || profile.support_level === "P0") {
+    return null;
+  }
+  const tone = profile.support_level === "P1" ? "warning" : "danger";
+  return (
+    <section className={`notice compact support-notice ${tone}`}>
+      <strong>{supportLabel(profile.support_level)}</strong>
+      <span>
+        {taskKind.replace(/_/g, " ")} is visible for planning and review, but the first React Task Builder pass does not promise automatic execution for this profile.
+      </span>
+    </section>
+  );
 }
 
 export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPageProps) {
@@ -42,7 +73,7 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
     try {
       setSchema(await apiClient.getTaskIntakeSchema());
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      setError(apiErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -56,6 +87,9 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
     () => (intake?.safety_check.risk_flags ?? []).filter((risk) => risk.level === "warn").map((risk) => risk.code),
     [intake],
   );
+  const taskKind = selectedTaskKind(intake);
+  const taskProfile = taskKind ? schema?.task_profiles[taskKind] : undefined;
+  const hasFieldWarnings = draftHasFieldWarnings(intake);
 
   const canConfirm = useMemo(() => {
     if (!intake) {
@@ -65,10 +99,11 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
     return (
       intake.missing_required_fields.length === 0 &&
       intake.ambiguous_fields.length === 0 &&
+      !hasFieldWarnings &&
       intake.safety_check.action !== "block" &&
       allWarningsAcknowledged
     );
-  }, [acknowledgedWarnings, intake, warningCodes]);
+  }, [acknowledgedWarnings, hasFieldWarnings, intake, warningCodes]);
 
   async function createDraft(structuredFields: Record<string, unknown>) {
     setBusy(true);
@@ -82,7 +117,7 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
       setIntake(nextIntake);
       setAcknowledgedWarnings([]);
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      setError(apiErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -101,7 +136,7 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
       });
       setIntake(nextIntake);
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      setError(apiErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -117,7 +152,7 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
       const confirmation = await apiClient.confirmTaskIntake(intake.intake_id, acknowledgedWarnings);
       onOpenTask(confirmation.task_id);
     } catch (nextError) {
-      setError(errorMessage(nextError));
+      setError(apiErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -150,6 +185,8 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
             <dd>{intake?.ambiguous_fields.length ?? 0}</dd>
             <dt>Unmapped</dt>
             <dd>{intake?.unmapped_text.length ?? 0}</dd>
+            <dt>Profile</dt>
+            <dd>{taskKind ? `${taskKind} · ${supportLabel(taskProfile?.support_level)}` : "not selected"}</dd>
             <dt>Confirmable</dt>
             <dd>{canConfirm ? "yes" : "no"}</dd>
           </dl>
@@ -162,14 +199,14 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
         />
         <section className="inspector-card warning-card">
           <h2>Action required</h2>
-          <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, ambiguous fields, or safety warnings before confirming."}</p>
+          <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, field validation warnings, ambiguous fields, or safety warnings before confirming."}</p>
           <button type="button" className="primary-action" onClick={() => void confirmDraft()} disabled={busy || !canConfirm}>
             Create Task
           </button>
         </section>
       </>,
     );
-  }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange]);
+  }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange, taskKind, taskProfile]);
 
   return (
     <div className="task-builder-layout">
@@ -186,7 +223,8 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
         </div>
       </section>
 
-      {error ? <p className="error-text">{error}</p> : null}
+      {error ? <ErrorNotice message={error} /> : null}
+      <ProfileNotice taskKind={taskKind} profile={taskProfile} />
 
       <section className="task-builder-grid">
         <TaskDraftForm

@@ -108,6 +108,24 @@ export interface TaskIntakePatchRequest {
   updated_by: string;
 }
 
+export interface TaskIntakeConditionalRequiredRule {
+  profile?: string;
+  if?: {
+    field: string;
+    equals?: unknown;
+  };
+  required: string[];
+  reason?: string;
+}
+
+export interface TaskIntakeTaskProfile {
+  support_level: string;
+  required: string[];
+  optional: string[];
+  conditional_required: TaskIntakeConditionalRequiredRule[];
+  capability_hints: string[];
+}
+
 export interface TaskIntakeFieldDefinition {
   group: string;
   type: string;
@@ -143,9 +161,9 @@ export interface TaskIntakeSchema {
     groups: TaskIntakeWebSchemaGroup[];
     fields: Record<string, TaskIntakeFieldDefinition>;
   };
-  task_profiles: Record<string, unknown>;
+  task_profiles: Record<string, TaskIntakeTaskProfile>;
   tool_options: TaskIntakeToolOption[];
-  conditional_required: Record<string, unknown>[];
+  conditional_required: TaskIntakeConditionalRequiredRule[];
   confirmed_task_spec_mapping: Record<string, string>;
   planner_capability_hints: Record<string, string[]>;
 }

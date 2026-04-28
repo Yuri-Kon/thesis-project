@@ -276,6 +276,14 @@ class TestAPIEndpoints:
         )
         assert "de_novo_design" in data["task_profiles"]
         assert data["task_profiles"]["binding_design"]["support_level"] == "P2"
+        assert data["task_profiles"]["binding_design"]["conditional_required"][0][
+            "required"
+        ] == ["binding_partner"]
+        assert any(
+            rule["profile"] == "binding_design"
+            and rule["required"] == ["binding_partner"]
+            for rule in data["conditional_required"]
+        )
         assert data["cli_arguments"][0]["flag"].startswith("--")
         assert data["cli_questions"][0]["prompt"]
         assert data["confirmed_task_spec_mapping"]["sequence"] == "inputs.sequence"
@@ -1243,6 +1251,9 @@ class TestAPIEndpoints:
         assert "Submit Decision" in static_response.text
         assert "/task-intakes/schema" in static_response.text
         assert "Task Builder" in static_response.text
+        assert "experimental" in static_response.text
+        assert "unsupported" in static_response.text
+        assert "No schema options are currently available" in static_response.text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200

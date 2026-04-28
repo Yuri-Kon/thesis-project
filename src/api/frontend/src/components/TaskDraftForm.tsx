@@ -1,5 +1,12 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import type { TaskIntakeFieldDefinition, TaskIntakeSchema, TaskIntakeSession } from "../api/types";
+import type {
+  TaskIntakeConditionalRequiredRule,
+  TaskIntakeFieldDefinition,
+  TaskIntakeSchema,
+  TaskIntakeSession,
+  TaskIntakeTaskProfile,
+  TaskIntakeToolOption,
+} from "../api/types";
 
 interface TaskDraftFormProps {
   schema: TaskIntakeSchema | null;
@@ -17,6 +24,29 @@ const LIST_TYPES = new Set(["string_list", "residue_list", "tool_id_list", "arti
 
 function fieldLabel(name: string): string {
   return name.replace(/_/g, " ");
+}
+
+function supportLabel(supportLevel: string): string {
+  if (supportLevel === "P0") {
+    return "supported";
+  }
+  if (supportLevel === "P1") {
+    return "experimental";
+  }
+  if (supportLevel === "P2") {
+    return "unsupported";
+  }
+  return supportLevel;
+}
+
+function formatDefault(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "none";
+  }
+  if (Array.isArray(value)) {
+    return value.length ? value.join(", ") : "empty";
+  }
+  return String(value);
 }
 
 function defaultValue(definition: TaskIntakeFieldDefinition): FieldValue {
@@ -45,6 +75,20 @@ function defaultValue(definition: TaskIntakeFieldDefinition): FieldValue {
 }
 
 function normalizeDraftValue(definition: TaskIntakeFieldDefinition, value: unknown): FieldValue {
+  if (definition.type === "artifact_ref_list" && Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (item && typeof item === "object") {
+          const artifact = item as Record<string, unknown>;
+          return String(artifact.artifact_id ?? artifact.uri ?? artifact.path ?? artifact.ref ?? "");
+        }
+        return "";
+      })
+      .filter(Boolean);
+  }
   if (definition.type === "integer_range" && Array.isArray(value)) {
     return [String(value[0] ?? ""), String(value[1] ?? "")];
   }
@@ -61,6 +105,18 @@ function normalizeDraftValue(definition: TaskIntakeFieldDefinition, value: unkno
 }
 
 function collectValue(definition: TaskIntakeFieldDefinition, value: FieldValue): unknown {
+  if (definition.type === "artifact_ref_list") {
+    const items = Array.isArray(value)
+      ? value.map(String)
+      : String(value ?? "")
+          .split(/[\n,]/)
+          .map((item) => item.trim());
+    return items.filter(Boolean).map((item) => ({
+      kind: item.startsWith("artifact://") || item.startsWith("task://") ? "uri" : "file",
+      path: item.startsWith("artifact://") || item.startsWith("task://") ? undefined : item,
+      uri: item.startsWith("artifact://") || item.startsWith("task://") ? item : undefined,
+    }));
+  }
   if (definition.type === "integer_range") {
     const [min, max] = Array.isArray(value) ? value : ["", ""];
     if (min === "" || max === "") {
@@ -100,6 +156,29 @@ function orderedGroups(schema: TaskIntakeSchema | null) {
 
 function groupStartsOpen(groupId: string): boolean {
   return ["objective", "inputs", "design_constraints", "safety_constraints"].includes(groupId);
+}
+
+function currentTaskKind(schema: TaskIntakeSchema | null, fieldValues: Record<string, FieldValue>): string {
+  const rawValue = fieldValues.task_kind;
+  const value = typeof rawValue === "string" && rawValue ? rawValue : "de_novo_design";
+  return schema?.task_profiles[value] ? value : Object.keys(schema?.task_profiles ?? {})[0] ?? value;
+}
+
+function isRuleActive(
+  rule: TaskIntakeConditionalRequiredRule,
+  schema: TaskIntakeSchema,
+  fieldValues: Record<string, FieldValue>,
+): boolean {
+  if (!rule.if?.field) {
+    return true;
+  }
+  const definition = schema.fields[rule.if.field];
+  const currentValue = definition ? collectValue(definition, fieldValues[rule.if.field] ?? defaultValue(definition)) : fieldValues[rule.if.field];
+  return currentValue === rule.if.equals;
+}
+
+function profileForTaskKind(schema: TaskIntakeSchema | null, taskKind: string): TaskIntakeTaskProfile | null {
+  return schema?.task_profiles[taskKind] ?? null;
 }
 
 export function TaskDraftForm({
@@ -153,9 +232,36 @@ export function TaskDraftForm({
     }
     return fields;
   }, [fieldValues, schema]);
+  const taskKind = useMemo(() => currentTaskKind(schema, fieldValues), [fieldValues, schema]);
+  const activeProfile = useMemo(() => profileForTaskKind(schema, taskKind), [schema, taskKind]);
+  const activeConditionalRules = useMemo(() => {
+    if (!schema || !activeProfile) {
+      return [];
+    }
+    return activeProfile.conditional_required.filter((rule) => isRuleActive(rule, schema, fieldValues));
+  }, [activeProfile, fieldValues, schema]);
+  const requiredFields = useMemo(() => new Set(activeProfile?.required ?? []), [activeProfile]);
+  const optionalFields = useMemo(() => new Set(activeProfile?.optional ?? []), [activeProfile]);
+  const conditionalFields = useMemo(
+    () => new Set(activeConditionalRules.flatMap((rule) => rule.required)),
+    [activeConditionalRules],
+  );
 
   function setFieldValue(name: string, value: FieldValue) {
     setFieldValues((current) => ({ ...current, [name]: value }));
+  }
+
+  function fieldRole(name: string): "required" | "conditional" | "optional" | "advanced" {
+    if (requiredFields.has(name)) {
+      return "required";
+    }
+    if (conditionalFields.has(name)) {
+      return "conditional";
+    }
+    if (optionalFields.has(name) || name === "task_kind") {
+      return "optional";
+    }
+    return "advanced";
   }
 
   function toggleListValue(name: string, option: string, checked: boolean) {
@@ -166,6 +272,27 @@ export function TaskDraftForm({
         [name]: checked ? [...existing, option] : existing.filter((item) => item !== option),
       };
     });
+  }
+
+  function renderToolOption(name: string, option: TaskIntakeToolOption, selected: string[]) {
+    const optionId = option.tool_id;
+    return (
+      <label className="tool-option-card" key={optionId}>
+        <input
+          type="checkbox"
+          checked={selected.includes(optionId)}
+          onChange={(event) => toggleListValue(name, optionId, event.target.checked)}
+        />
+        <span>
+          <strong>{option.label ?? optionId}</strong>
+          <small>
+            {optionId}
+            {option.support_level ? ` · ${supportLabel(option.support_level)}` : ""}
+          </small>
+          {option.capabilities?.length ? <em>{option.capabilities.join(", ")}</em> : null}
+        </span>
+      </label>
+    );
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -180,16 +307,15 @@ export function TaskDraftForm({
       return (
         <div className="segmented-control" role="radiogroup" aria-label={fieldLabel(name)}>
           {definition.options.map((option) => (
-            <label key={option}>
-              <input
-                type="radio"
-                name={name}
-                value={option}
-                checked={String(value) === option}
-                onChange={() => setFieldValue(name, option)}
-              />
-              <span>{option}</span>
-            </label>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={String(value) === option}
+              key={option}
+              onClick={() => setFieldValue(name, option)}
+            >
+              {option}
+            </button>
           ))}
         </div>
       );
@@ -214,12 +340,16 @@ export function TaskDraftForm({
         <div className="range-control">
           <input
             type="number"
+            min={typeof definition.validators.min === "number" ? definition.validators.min : undefined}
+            max={typeof definition.validators.max === "number" ? definition.validators.max : undefined}
             value={String(min ?? "")}
             placeholder="min"
             onChange={(event) => setFieldValue(name, [event.target.value, max as string])}
           />
           <input
             type="number"
+            min={typeof definition.validators.min === "number" ? definition.validators.min : undefined}
+            max={typeof definition.validators.max === "number" ? definition.validators.max : undefined}
             value={String(max ?? "")}
             placeholder="max"
             onChange={(event) => setFieldValue(name, [min as string, event.target.value])}
@@ -228,8 +358,20 @@ export function TaskDraftForm({
       );
     }
 
+    if (definition.type === "tool_id_list" && definition.tool_options?.length) {
+      const selected = Array.isArray(value) ? value.map(String) : [];
+      return (
+        <div className="tool-option-grid" aria-label={fieldLabel(name)}>
+          {definition.tool_options.map((option) => renderToolOption(name, option, selected))}
+        </div>
+      );
+    }
+
     if (definition.ui_control === "multi_select" || definition.type === "tool_id_list") {
       const selected = Array.isArray(value) ? value.map(String) : [];
+      if (!definition.options.length) {
+        return <p className="muted">No schema options are currently available.</p>;
+      }
       return (
         <div className="checkbox-grid">
           {definition.options.map((option) => (
@@ -250,7 +392,12 @@ export function TaskDraftForm({
       const textValue = Array.isArray(value) ? value.join(", ") : String(value ?? "");
       return (
         <div className="artifact-control">
-          <input value={textValue} onChange={(event) => setFieldValue(name, event.target.value)} />
+          <textarea
+            value={textValue}
+            rows={2}
+            placeholder="artifact://, task://, or path"
+            onChange={(event) => setFieldValue(name, event.target.value)}
+          />
           <input
             type="file"
             onChange={(event) => {
@@ -277,6 +424,8 @@ export function TaskDraftForm({
     return (
       <input
         type={definition.type === "integer" || definition.type === "number" ? "number" : "text"}
+        min={typeof definition.validators.min === "number" ? definition.validators.min : undefined}
+        max={typeof definition.validators.max === "number" ? definition.validators.max : undefined}
         value={String(value ?? "")}
         onChange={(event) => setFieldValue(name, event.target.value)}
       />
@@ -306,6 +455,34 @@ export function TaskDraftForm({
             Update Draft
           </button>
         </div>
+        {activeProfile ? (
+          <div className={`profile-summary support-${activeProfile.support_level.toLowerCase()}`}>
+            <div className="profile-summary-head">
+              <span className="source-chip">{taskKind.replace(/_/g, " ")}</span>
+              <span className="source-chip">{supportLabel(activeProfile.support_level)}</span>
+            </div>
+            <div className="profile-summary-grid">
+              <div>
+                <strong>Required</strong>
+                <span>{activeProfile.required.map(fieldLabel).join(", ")}</span>
+              </div>
+              <div>
+                <strong>Conditional</strong>
+                <span>
+                {activeProfile.conditional_required.length
+                  ? activeProfile.conditional_required
+                      .map((rule) => `${rule.required.map(fieldLabel).join(", ")} when ${rule.if?.field ?? "condition"}=${String(rule.if?.equals ?? "true")}`)
+                      .join("; ")
+                  : "none"}
+                </span>
+              </div>
+              <div>
+                <strong>Capabilities</strong>
+                <span>{activeProfile.capability_hints.join(", ") || "none"}</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="structured-field-groups">
@@ -321,14 +498,32 @@ export function TaskDraftForm({
                 if (!definition) {
                   return null;
                 }
+                const role = fieldRole(name);
+                const isConditional = conditionalFields.has(name);
+                const defaultLabel = definition.default !== null && definition.default !== undefined
+                  ? `default: ${formatDefault(definition.default)}`
+                  : null;
                 return (
-                  <label className="schema-field-card" key={name}>
+                  <label
+                    className={`schema-field-card field-role-${role} support-${definition.support_level.toLowerCase()}`}
+                    key={name}
+                  >
                     <span className="field-card-head">
                       <strong>{fieldLabel(name)}</strong>
-                      <span className="source-chip">{definition.support_level}</span>
+                      <span className="field-badge-row">
+                        <span className={`source-chip support-chip support-${definition.support_level.toLowerCase()}`}>
+                          {supportLabel(definition.support_level)}
+                        </span>
+                        <span className={role === "required" || isConditional ? "source-chip warning" : "source-chip"}>
+                          {role}
+                        </span>
+                      </span>
                     </span>
                     {renderControl(name, definition)}
-                    <span className="field-meta">{definition.maps_to}</span>
+                    <span className="field-meta">
+                      {definition.maps_to}
+                      {defaultLabel ? ` · ${defaultLabel}` : ""}
+                    </span>
                   </label>
                 );
               })}
