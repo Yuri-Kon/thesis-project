@@ -25,6 +25,7 @@ STATIC_SCORE_METADATA_KEY = "static_score"
 FINAL_SCORE_METADATA_KEY = "final_score"
 RUNTIME_ADJUSTMENT_METADATA_KEY = "runtime_adjustment"
 RERANK_REASON_METADATA_KEY = "rerank_reason"
+ACTION_UTILITY_METADATA_KEY = "action_utility"
 WAITING_RUNTIME_SUMMARY_METADATA_KEY = "waiting_runtime_summary"
 DECISION_SUMMARY_ARTIFACT_KEY = "decision_summary"
 CAPABILITY_READINESS_METADATA_KEY = "capability_readiness"
@@ -1100,6 +1101,18 @@ def _normalize_rerank_reason(reason_payload: Any) -> Dict[str, Any]:
     raise ValueError(f"metadata.{RERANK_REASON_METADATA_KEY} must be a mapping")
 
 
+def _normalize_action_utility(utility_payload: Any) -> Dict[str, Any]:
+    from src.models.runtime_schemas import ActionUtility
+
+    if isinstance(utility_payload, ActionUtility):
+        return utility_payload.model_dump(exclude_none=True)
+    if isinstance(utility_payload, dict):
+        return ActionUtility.model_validate(utility_payload).model_dump(
+            exclude_none=True
+        )
+    raise ValueError(f"metadata.{ACTION_UTILITY_METADATA_KEY} must be a mapping")
+
+
 def _normalize_score_summary(score_payload: Any, *, field_name: str) -> Dict[str, Any]:
     if isinstance(score_payload, ScoreSummary):
         return score_payload.model_dump()
@@ -1160,6 +1173,12 @@ def _normalize_candidate_runtime_contracts(
     if rerank_reason_payload is not None:
         metadata[RERANK_REASON_METADATA_KEY] = _normalize_rerank_reason(
             rerank_reason_payload
+        )
+
+    action_utility_payload = metadata.get(ACTION_UTILITY_METADATA_KEY)
+    if action_utility_payload is not None:
+        metadata[ACTION_UTILITY_METADATA_KEY] = _normalize_action_utility(
+            action_utility_payload
         )
 
 
