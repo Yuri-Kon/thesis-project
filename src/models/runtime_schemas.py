@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import json
 import math
-from typing import Any, Literal
+from typing import ClassVar, Literal, TypeGuard, cast
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_STATE_CORE_FIELDS = (
@@ -23,6 +23,11 @@ OBSERVATION_SOURCE_TYPES = (
     "budget",
     "hitl_decision",
 )
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 __all__ = [
     "ActionUtility",
@@ -58,24 +63,48 @@ def _validate_finite_float(value: float, *, field_name: str) -> float:
     return normalized
 
 
-def _validate_json_mapping(value: dict[str, Any], *, field_name: str) -> dict[str, Any]:
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(dict[object, object], value).items()
+        )
+    return False
+
+
+def _validate_json_mapping(value: object, *, field_name: str) -> JsonObject:
     if not isinstance(value, dict):
         raise ValueError(f"{field_name} must be a mapping")
+    normalized: JsonObject = {}
+    for key, item in cast(dict[object, object], value).items():
+        if not isinstance(key, str):
+            raise ValueError(f"{field_name} keys must be strings")
+        if not _is_json_value(item):
+            raise ValueError(f"{field_name} must be JSON-serializable")
+        normalized[key] = item
     try:
-        json.dumps(value, ensure_ascii=True)
+        _ = json.dumps(normalized, ensure_ascii=True)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"{field_name} must be JSON-serializable") from exc
-    return value
+    return normalized
 
 
 def _weighted_sum(weights: dict[str, float], values: dict[str, float]) -> float:
     return sum(weights[name] * values[name] for name in weights)
 
 
+def _validation_field_name(info: ValidationInfo) -> str:
+    return info.field_name or "value"
+
+
 class RuntimeContractBase(BaseModel):
     """运行时契约模型的公共基类。"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     schema_version: int = Field(default=RUNTIME_SCHEMA_VERSION)
 
@@ -107,17 +136,22 @@ class CostSchema(RuntimeContractBase):
         "human_cost",
     )
     @classmethod
-    def _validate_cost_component(cls, value: float, info) -> float:
-        return _validate_unit_interval(value, field_name=info.field_name)
+    def _validate_cost_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
 
     @field_validator("remaining_cost_prior", "expected_remaining_cost")
     @classmethod
-    def _validate_optional_non_negative(cls, value: float | None, info) -> float | None:
+    def _validate_optional_non_negative(
+        cls,
+        value: float | None,
+        info: ValidationInfo,
+    ) -> float | None:
         if value is None:
             return None
-        normalized = _validate_finite_float(value, field_name=info.field_name)
+        field_name = _validation_field_name(info)
+        normalized = _validate_finite_float(value, field_name=field_name)
         if normalized < 0.0:
-            raise ValueError(f"{info.field_name} must be >= 0")
+            raise ValueError(f"{field_name} must be >= 0")
         return normalized
 
     def weighted_cost(self) -> float:
@@ -132,7 +166,13 @@ class CostSchema(RuntimeContractBase):
                     "recovery_cost": 0.15,
                     "human_cost": 0.05,
                 },
-                self.model_dump(),
+                {
+                    "compute_cost": self.compute_cost,
+                    "latency_cost": self.latency_cost,
+                    "opportunity_cost": self.opportunity_cost,
+                    "recovery_cost": self.recovery_cost,
+                    "human_cost": self.human_cost,
+                },
             ),
             6,
         )
@@ -156,8 +196,8 @@ class RiskSchema(RuntimeContractBase):
         "coupling_risk",
     )
     @classmethod
-    def _validate_risk_component(cls, value: float, info) -> float:
-        return _validate_unit_interval(value, field_name=info.field_name)
+    def _validate_risk_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
 
     def weighted_risk(self) -> float:
         """返回设计文档定义的加权风险分。"""
@@ -172,7 +212,12 @@ class RiskSchema(RuntimeContractBase):
                     "safety_risk": 0.20,
                     "coupling_risk": 0.10,
                 },
-                self.model_dump(),
+                {
+                    "structural_risk": self.structural_risk,
+                    "execution_risk": self.execution_risk,
+                    "safety_risk": self.safety_risk,
+                    "coupling_risk": self.coupling_risk,
+                },
             ),
             6,
         )
@@ -195,8 +240,8 @@ class RecoverySchema(RuntimeContractBase):
         "evidence_reusability",
     )
     @classmethod
-    def _validate_recovery_component(cls, value: float, info) -> float:
-        return _validate_unit_interval(value, field_name=info.field_name)
+    def _validate_recovery_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
 
     @field_validator("recovery_margin")
     @classmethod
@@ -216,7 +261,12 @@ class RecoverySchema(RuntimeContractBase):
                     "prefix_preservability": 0.25,
                     "evidence_reusability": 0.15,
                 },
-                self.model_dump(),
+                {
+                    "retry_budget_ratio": self.retry_budget_ratio,
+                    "local_patchability": self.local_patchability,
+                    "prefix_preservability": self.prefix_preservability,
+                    "evidence_reusability": self.evidence_reusability,
+                },
             ),
             6,
         )
@@ -236,12 +286,12 @@ class RuntimeStateSchema(RuntimeContractBase):
     expected_remaining_cost: float = 1.0
     evidence_sufficiency: float = 0.5
     last_update_source: str = "runtime_bootstrap"
-    observation_summary: dict[str, Any] = Field(default_factory=dict)
+    observation_summary: JsonObject = Field(default_factory=dict)
 
     @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
     @classmethod
-    def _validate_probability(cls, value: float, info) -> float:
-        return _validate_unit_interval(value, field_name=info.field_name)
+    def _validate_probability(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
 
     @field_validator("recovery_margin")
     @classmethod
@@ -266,23 +316,24 @@ class RuntimeStateSchema(RuntimeContractBase):
 
     @field_validator("observation_summary")
     @classmethod
-    def _validate_observation_summary(cls, value: dict[str, Any]) -> dict[str, Any]:
+    def _validate_observation_summary(cls, value: object) -> JsonObject:
         return _validate_json_mapping(value, field_name="observation_summary")
 
     @classmethod
-    def from_snapshot_payload(cls, payload: dict[str, Any]) -> "RuntimeStateSchema":
+    def from_snapshot_payload(cls, payload: object) -> "RuntimeStateSchema":
         """从新旧 snapshot.artifacts.runtime_state 载荷恢复状态契约。"""
 
         if not isinstance(payload, dict):
             raise ValueError("runtime_state snapshot payload must be a mapping")
-        return cls.model_validate(dict(payload))
+        payload_dict = cast(dict[object, object], payload)
+        return cls.model_validate(payload_dict)
 
-    def to_snapshot_payload(self) -> dict[str, Any]:
+    def to_snapshot_payload(self) -> JsonObject:
         """输出 snapshot.artifacts.runtime_state 的稳定字段。"""
 
-        return self.model_dump(exclude={"observation_summary"})
+        return cast(JsonObject, self.model_dump(exclude={"observation_summary"}))
 
-    def to_summary_payload(self) -> dict[str, Any]:
+    def to_summary_payload(self) -> JsonObject:
         """输出 UI/CLI/Planner/EventLog 共用的轻量状态摘要。"""
 
         return {
@@ -294,7 +345,7 @@ class RuntimeStateSchema(RuntimeContractBase):
 class ObservationSource(BaseModel):
     """运行时观测来源引用，只允许来自设计文档指定来源。"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     source_type: Literal[
         "step_result",
@@ -319,12 +370,12 @@ class ObservationSource(BaseModel):
 class ObservationSchema(RuntimeContractBase):
     """运行时观测契约，承载状态更新可消费的标准化观测。"""
 
-    quality_obs: dict[str, Any] = Field(default_factory=dict)
-    failure_obs: dict[str, Any] = Field(default_factory=dict)
-    safety_obs: dict[str, Any] = Field(default_factory=dict)
-    budget_obs: dict[str, Any] = Field(default_factory=dict)
-    agreement_obs: dict[str, Any] = Field(default_factory=dict)
-    progress_obs: dict[str, Any] = Field(default_factory=dict)
+    quality_obs: JsonObject = Field(default_factory=dict)
+    failure_obs: JsonObject = Field(default_factory=dict)
+    safety_obs: JsonObject = Field(default_factory=dict)
+    budget_obs: JsonObject = Field(default_factory=dict)
+    agreement_obs: JsonObject = Field(default_factory=dict)
+    progress_obs: JsonObject = Field(default_factory=dict)
     source_refs: list[ObservationSource] = Field(default_factory=list)
 
     @field_validator(
@@ -338,10 +389,10 @@ class ObservationSchema(RuntimeContractBase):
     @classmethod
     def _validate_observation_mapping(
         cls,
-        value: dict[str, Any],
-        info,
-    ) -> dict[str, Any]:
-        return _validate_json_mapping(value, field_name=info.field_name)
+        value: object,
+        info: ValidationInfo,
+    ) -> JsonObject:
+        return _validate_json_mapping(value, field_name=_validation_field_name(info))
 
 
 class ActionUtility(RuntimeContractBase):
@@ -355,7 +406,7 @@ class ActionUtility(RuntimeContractBase):
     budget_pressure: float = 0.0
     terminal_reason: str | None = None
     source_refs: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    metadata: JsonObject = Field(default_factory=dict)
 
     @field_validator("utility")
     @classmethod
@@ -364,25 +415,28 @@ class ActionUtility(RuntimeContractBase):
 
     @field_validator("intervention_value", "budget_pressure")
     @classmethod
-    def _validate_unit_value(cls, value: float, info) -> float:
-        return _validate_unit_interval(value, field_name=info.field_name)
+    def _validate_unit_value(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
 
     @field_validator("hard_constraints", "source_refs")
     @classmethod
-    def _validate_string_list(cls, value: list[str], info) -> list[str]:
+    def _validate_string_list(cls, value: list[str], info: ValidationInfo) -> list[str]:
         normalized: list[str] = []
+        field_name = _validation_field_name(info)
         for item in value:
-            if not isinstance(item, str):
-                raise ValueError(f"{info.field_name} items must be strings")
             text = item.strip()
             if not text:
-                raise ValueError(f"{info.field_name} items must not be empty")
+                raise ValueError(f"{field_name} items must not be empty")
             normalized.append(text)
         return normalized
 
     @field_validator("tie_break_reason", "terminal_reason")
     @classmethod
-    def _validate_optional_text(cls, value: str | None, info) -> str | None:
+    def _validate_optional_text(
+        cls,
+        value: str | None,
+        info: ValidationInfo,
+    ) -> str | None:
         if value is None:
             return None
         normalized = value.strip()
@@ -392,14 +446,14 @@ class ActionUtility(RuntimeContractBase):
 
     @field_validator("metadata")
     @classmethod
-    def _validate_metadata(cls, value: dict[str, Any]) -> dict[str, Any]:
+    def _validate_metadata(cls, value: object) -> JsonObject:
         return _validate_json_mapping(value, field_name="metadata")
 
 
 class RuntimeSchemaFieldMapping(BaseModel):
     """运行时契约字段到各消费面的稳定映射。"""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     schema_name: str
     snapshot_fields: list[str] = Field(default_factory=list)
@@ -531,11 +585,11 @@ RUNTIME_SCHEMA_FIELD_MAPPINGS: dict[str, RuntimeSchemaFieldMapping] = {
 }
 
 
-def runtime_schema_field_mappings() -> dict[str, dict[str, Any]]:
+def runtime_schema_field_mappings() -> dict[str, JsonObject]:
     """返回 snapshot/event/planner/UI/CLI 的运行时契约字段映射。"""
 
     return {
-        name: mapping.model_dump()
+        name: cast(JsonObject, mapping.model_dump())
         for name, mapping in RUNTIME_SCHEMA_FIELD_MAPPINGS.items()
     }
 
