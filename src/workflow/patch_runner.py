@@ -186,19 +186,29 @@ class PatchRunner:
                 task_constraints=context.task.constraints,
             )
         except Exception as exc:
+            recovery_meta = _extract_recovery_metadata(
+                plan_patch=None,
+                selected_candidate=selected_candidate,
+                source_step=step,
+            )
+            _attach_recovery_upgrade_meta(
+                result,
+                recovery_meta,
+                upgrade_reason="patch_failed",
+            )
             _emit_recovery_escalation_event(
                 context,
                 step_id=step.id,
                 reason="patch_failed",
                 detail=f"patch candidate generation failed: {exc}",
-                recovery=_extract_recovery_metadata(
-                    plan_patch=None,
-                    selected_candidate=selected_candidate,
-                    source_step=step,
-                ),
+                recovery=recovery_meta,
             )
             _enter_replan_waiting(context, record, reason="patch_failed")
-            raise
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[result],
+                next_step_index=step_index + 1,
+            )
 
         if gate.requires_hitl:
             recovery_meta = _extract_recovery_metadata(
