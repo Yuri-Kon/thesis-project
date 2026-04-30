@@ -1063,7 +1063,7 @@ class TestPlannerAgent:
 
         assert topk.candidates
         first = topk.candidates[0]
-        assert first.metadata.get("recovery_layer") == "tool_level"
+        assert first.metadata.get("recovery_layer") == "parameter_level"
         assert first.metadata.get("capability_id") == "structure_prediction"
 
         tool_level = [

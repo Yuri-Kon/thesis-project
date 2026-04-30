@@ -156,7 +156,7 @@ def test_patch_prefers_parameter_level_retry_before_tool_swap(monkeypatch):
     assert patch.metadata["reason"] == "parameter_tweak"
 
 
-def test_patch_raises_when_no_compatible_tool(monkeypatch):
+def test_patch_keeps_parameter_level_when_no_compatible_tool(monkeypatch):
     # registry 中的候选需要额外输入，无法满足
     registry = [
         ToolSpec(
@@ -184,5 +184,10 @@ def test_patch_raises_when_no_compatible_tool(monkeypatch):
     agent = PlannerAgent(tool_registry=registry)
     request = _build_request()
 
-    with pytest.raises(ValueError):
-        agent.patch(request)
+    patch = agent.patch(request)
+
+    assert isinstance(patch, PlanPatch)
+    op = patch.operations[0]
+    assert op.step.tool == "t_fail"
+    assert patch.metadata["recovery_layer"] == "parameter_level"
+    assert patch.metadata["reason"] == "parameter_tweak"

@@ -287,11 +287,12 @@ class PlanRunner:
                         else None,
                     )
                     if step_result.status == "failed":
-                        blocked_by_safety = self._add_failed_step_safety_event(
-                            step_result,
-                            plan,
-                            context,
-                        )
+                        if not _has_recovery_upgrade(step_result):
+                            blocked_by_safety = self._add_failed_step_safety_event(
+                                step_result,
+                                plan,
+                                context,
+                            )
                         failed_result = step_result
 
                 if failed_result is not None:
@@ -966,6 +967,14 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
             "ADAPTIVE_STOP_REQUESTED",
         }
     )
+
+
+def _has_recovery_upgrade(step_result: StepResult) -> bool:
+    recovery = step_result.metrics.get("recovery")
+    if not isinstance(recovery, dict):
+        return False
+    upgrade_reason = recovery.get("upgrade_reason")
+    return isinstance(upgrade_reason, str) and bool(upgrade_reason)
 
 
 def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:

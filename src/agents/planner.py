@@ -1713,6 +1713,8 @@ def _build_parameter_level_patch(
     if failed_result is None and not _reason_supports_parameter_patch(request.reason):
         return None
     param_updates = _derive_param_updates(failed_result, target_step)
+    if not param_updates and _reason_supports_parameter_patch(request.reason):
+        param_updates["retry_profile"] = "conservative"
     if not param_updates:
         return None
 
@@ -1751,8 +1753,10 @@ def _derive_param_updates(
     target_step: PlanStep,
 ) -> dict:
     updates: dict[str, object] = {}
-    failure_type = failed_result.failure_type if failed_result is not None else None
-    if failure_type in {"RETRYABLE", "TOOL_ERROR"}:
+    failure_type = _normalize_failure_type_value(
+        failed_result.failure_type if failed_result is not None else None
+    )
+    if failure_type in {"retryable", "tool_error"}:
         updates["retry_profile"] = "conservative"
     error_message = (failed_result.error_message or "").lower() if failed_result else ""
     if "timeout" in error_message:
@@ -1768,6 +1772,18 @@ def _derive_param_updates(
         except (TypeError, ValueError):
             pass
     return updates
+
+
+def _normalize_failure_type_value(value: object) -> str | None:
+    if value is None:
+        return None
+    raw = getattr(value, "value", value)
+    if not isinstance(raw, str):
+        return None
+    normalized = raw.strip().lower()
+    if not normalized:
+        return None
+    return normalized
 
 
 def _reason_supports_parameter_patch(reason: object) -> bool:
