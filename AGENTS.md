@@ -76,12 +76,47 @@ Rule of thumb:
 - Keep structured logging aligned with task state transitions.
 - Never log secrets or credentials.
 
+## 3.1 Static Typing Expectations
+
+Use the repository's `basedpyright` configuration as the typing baseline.
+Python changes should be written to pass strict basedpyright checks, including
+the configured `reportAny`, `reportExplicitAny`, and `reportUnknown*` rules.
+
+Required:
+
+- Avoid introducing new `Any`, bare generic types, or untyped containers.
+- Prefer precise domain types: dataclasses, Pydantic models, `TypedDict`,
+  `Protocol`, `TypeAlias`, and parameterized generics.
+- Use `object` for genuinely opaque values, then narrow with validation,
+  pattern matching, `isinstance`, or dedicated parser functions before use.
+- Represent dynamic JSON-like payloads with explicit aliases such as
+  `JsonValue` / `JsonObject`, not `dict[str, Any]`.
+- Keep casts close to the validation boundary and make them narrow,
+  justified, and local.
+- Preserve public contract compatibility when tightening types; do not rename,
+  remove, or reinterpret schema fields only to satisfy the type checker.
+
+Prohibited:
+
+- Silencing basedpyright by adding broad ignores, broad casts, or `Any`.
+- Using `# type: ignore` without a specific rule code and a short reason.
+- Allowing third-party or LLM/provider payloads to spread through runtime code
+  as `Unknown` or `Any`; normalize them at the adapter boundary.
+- Weakening `pyproject.toml` basedpyright settings to make local changes pass
+  unless the user explicitly asks for that policy change.
+
+If legacy code already violates these rules, keep the requested change focused:
+do not perform broad unrelated typing refactors, but do not add new violations.
+When touching a function with existing `Any` / `Unknown` leakage, narrow the
+types necessary for the changed behavior.
+
 ## 4. Tooling
 
 - Use `uv` for execution and tests.
 - Use Python 3.12 (`.python-version`).
 - Typical commands:
   - `uv run pytest ...`
+  - `uv run basedpyright ...`
   - `uv run python ...`
 
 ## 4.1 Remote Server Baseline
@@ -149,6 +184,7 @@ When behavior changes:
 
 - add/update tests,
 - run relevant existing tests,
+- run focused `basedpyright` checks for touched Python modules when practical,
 - prefer focused suites first, then broader suites for cross-cutting changes.
 
 Minimum validation targets (as applicable):
