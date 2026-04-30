@@ -5,6 +5,7 @@ from typing import Any, Sequence
 from src.agents.candidate_generator.builder import CandidateBuilder
 from src.agents.candidate_generator.filters import (
     candidate_difference_explanation,
+    cost_level_exceeds,
     parse_safety_level,
     payload_io_closed,
     payload_tool_ids,
@@ -183,6 +184,11 @@ class CandidateGenerator:
                 spec = registry_map.get(tool_id)
                 if spec is not None and int(getattr(spec, "safety_level", 1)) > max_safety_level:
                     return "safety_level_exceeded"
+        max_cost_level = constraints.get("max_cost_level") or constraints.get(
+            "max_cost_estimate"
+        )
+        if cost_level_exceeds(candidate.cost_estimate, max_cost_level):
+            return "cost_level_exceeded"
         if not payload_io_closed(
             payload,
             registry_map,

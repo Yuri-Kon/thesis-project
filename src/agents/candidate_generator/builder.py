@@ -200,6 +200,15 @@ class CandidateBuilder:
             adjusted["budget_fit"] = 0.0
         elif budget_cap is not None:
             adjusted["budget_fit"] = 1.0
+        policy_mode = str(request.policy_mode or "balanced").strip().lower()
+        policy_adjustment = 0.0
+        if policy_mode in {"conservative", "safe", "low_risk"}:
+            policy_adjustment = 0.02 * adjusted.get("risk", 0.0)
+        elif policy_mode in {"low_cost", "budget", "cheap"}:
+            policy_adjustment = 0.02 * adjusted.get("cost", 0.0)
+        elif policy_mode in {"exploratory", "aggressive"}:
+            policy_adjustment = 0.02 * adjusted.get("objective", 0.0)
+        adjusted["policy_mode_fit"] = round(policy_adjustment, 6)
         adjusted["overall"] = round(
             min(
                 1.0,
@@ -207,7 +216,8 @@ class CandidateBuilder:
                     0.0,
                     adjusted.get("overall", 0.0)
                     + 0.03 * adjusted.get("capability_hint_match", 0.0)
-                    + 0.02 * adjusted.get("budget_fit", 0.0),
+                    + 0.02 * adjusted.get("budget_fit", 0.0)
+                    + policy_adjustment,
                 ),
             ),
             6,

@@ -134,3 +134,33 @@ def test_plan_top_k_filters_blocked_tools_before_default_selection(monkeypatch):
     assert all(candidate.tool_id != "seqgen_a" for candidate in topk.candidates)
     assert topk.default_recommendation == topk.candidates[0].candidate_id
     assert "Filtered candidates before ranking" in topk.explanation
+
+
+def test_plan_top_k_applies_policy_mode_and_cost_filter(monkeypatch):
+    monkeypatch.setenv("PLANNER_LLM_PROVIDER", "none")
+    monkeypatch.setattr(planner_module, "load_tool_kg", _kg)
+    monkeypatch.setattr(
+        planner_module,
+        "build_capability_readiness_snapshot",
+        _ready_capability,
+    )
+    planner = PlannerAgent(tool_registry=_registry())
+    task = ProteinDesignTask(
+        task_id="candidate_generator_policy_cost",
+        goal="design stable peptide",
+        constraints={
+            "goal_type": "sequence_evaluation",
+            "policy_mode": "low_cost",
+            "max_cost_level": "medium",
+        },
+        metadata={},
+    )
+
+    topk = planner.plan_top_k(task, k=3)
+
+    assert topk.candidates
+    assert all(candidate.cost_estimate != "high" for candidate in topk.candidates)
+    assert all(
+        "policy_mode_fit" in candidate.score_breakdown
+        for candidate in topk.candidates
+    )

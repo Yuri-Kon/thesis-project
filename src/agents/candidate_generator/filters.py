@@ -105,3 +105,14 @@ def safe_float(value: Any) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def cost_level_exceeds(candidate_level: str | None, max_level: str | None) -> bool:
+    if max_level is None:
+        return False
+    rank = {"low": 0, "medium": 1, "high": 2}
+    normalized_candidate = str(candidate_level or "medium").strip().lower()
+    normalized_max = str(max_level).strip().lower()
+    if normalized_max not in rank:
+        return False
+    return rank.get(normalized_candidate, 1) > rank[normalized_max]
