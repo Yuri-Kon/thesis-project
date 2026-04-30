@@ -35,3 +35,8 @@ design = "src.cli:main"
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+    "basedpyright>=1.39.3",
+]

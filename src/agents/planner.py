@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, Tuple
+from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, cast
 
 from src.infra.active_tool_metadata import metadata_by_tool_id
 from src.infra.tool_readiness import (
@@ -18,6 +18,13 @@ from src.llm.baseline_provider import BaselineProvider
 from src.llm.provider_payload_parser import ProviderPayloadValidationError
 from src.llm.provider_registry import create_provider, load_provider_catalog
 from src.agents.task_goal_parser import enrich_task_from_goal
+from src.agents.candidate_generator import (
+    CandidateGenerationInput,
+    CandidateGenerator,
+    CandidateGeneratorHooks,
+    CandidatePayload,
+    TopKResult,
+)
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     CAPABILITY_READINESS_METADATA_KEY,
@@ -83,15 +90,6 @@ class ToolSpec:
 
 
 @dataclass(frozen=True)
-class TopKResult:
-    """Planner Top-K 候选输出（CandidateSetOutput v1 对齐）。"""
-
-    candidates: List[PendingActionCandidate]
-    default_recommendation: str | None
-    explanation: str
-
-
-@dataclass(frozen=True)
 class CandidateGateDecision:
     """候选门控决策结果。"""
 
@@ -100,6 +98,9 @@ class CandidateGateDecision:
     selected_candidate_id: str | None
     confidence: float
     overall: float
+
+
+_CandidatePayload = CandidatePayload
 
 
 @dataclass(frozen=True)
@@ -111,16 +112,6 @@ class _RuntimeShadowDecision:
     shadow_action: str
     shadow_reason: str
     explanation_fragment: str
-
-
-@dataclass(frozen=True)
-class _CandidatePayload:
-    payload: Plan | PlanPatch
-    primary_tool_id: str
-    capability_bucket: str
-    note: str
-    recovery_layer: str | None = None
-    recovery_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -296,7 +287,10 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="plan",
             top_k=k,
-            task_constraints=task.constraints,
+            task_constraints=_candidate_generation_constraints(
+                constraints=task.constraints,
+                metadata=task.metadata,
+            ),
             runtime_state=runtime_state,
         )
 
@@ -309,7 +303,7 @@ class PlannerAgent:
     ) -> TopKResult:
         """生成 Patch Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_task_match(request)
-        payloads: list[_CandidatePayload] = []
+        payloads: list[CandidatePayload] = []
         payloads.extend(
             self._build_provider_patch_candidates(
                 request=request,
@@ -328,7 +322,11 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="patch",
             top_k=_normalize_top_k(k),
-            task_constraints=request.original_plan.constraints,
+            task_constraints=_candidate_generation_constraints(
+                constraints=request.original_plan.constraints,
+                metadata=request.original_plan.metadata,
+            ),
+            completed_step_results=request.context_step_results,
             runtime_state=runtime_state,
         )
 
@@ -341,7 +339,7 @@ class PlannerAgent:
     ) -> TopKResult:
         """生成 Replan Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_replan_task_match(request)
-        payloads: list[_CandidatePayload] = []
+        payloads: list[CandidatePayload] = []
         payloads.extend(
             self._build_provider_replan_candidates(
                 request=request,
@@ -360,7 +358,10 @@ class PlannerAgent:
             registry=self._tool_registry,
             candidate_kind="replan",
             top_k=_normalize_top_k(k),
-            task_constraints=request.original_plan.constraints,
+            task_constraints=_candidate_generation_constraints(
+                constraints=request.original_plan.constraints,
+                metadata=request.original_plan.metadata,
+            ),
             runtime_state=runtime_state,
         )
 
@@ -817,7 +818,7 @@ class PlannerAgent:
         *,
         request: PatchRequest,
         top_k: int,
-    ) -> list[_CandidatePayload]:
+    ) -> list[CandidatePayload]:
         provider = self._llm_provider
         if provider is None:
             return []
@@ -852,7 +853,7 @@ class PlannerAgent:
         )
         patch = _attach_provider_metadata_to_patch(patch, provider_name=route_name)
         return [
-            _CandidatePayload(
+            CandidatePayload(
                 payload=patch,
                 primary_tool_id=primary_tool_id,
                 capability_bucket=capability_bucket,
@@ -867,7 +868,7 @@ class PlannerAgent:
         *,
         request: ReplanRequest,
         top_k: int,
-    ) -> list[_CandidatePayload]:
+    ) -> list[CandidatePayload]:
         provider = self._llm_provider
         if provider is None:
             return []
@@ -903,7 +904,7 @@ class PlannerAgent:
         primary_tool = plan.steps[-1].tool if plan.steps else request.original_plan.steps[-1].tool
         primary_spec = _find_tool_spec(self._tool_registry, primary_tool)
         return [
-            _CandidatePayload(
+            CandidatePayload(
                 payload=plan,
                 primary_tool_id=primary_tool,
                 capability_bucket=_primary_capability(primary_spec),
@@ -1444,7 +1445,7 @@ def _build_plan_candidate_payloads(
     base_plan: Plan,
     registry: Sequence[ToolSpec],
     top_k: int,
-) -> List[_CandidatePayload]:
+) -> List[CandidatePayload]:
     if not base_plan.steps:
         raise ValueError("Plan is empty; cannot build Top-K candidates")
 
@@ -1456,8 +1457,8 @@ def _build_plan_candidate_payloads(
         registry=registry,
     )
     primary_s1_tool_id = _extract_primary_s1_tool_id(base_plan)
-    payloads: List[_CandidatePayload] = [
-        _CandidatePayload(
+    payloads: List[CandidatePayload] = [
+        CandidatePayload(
             payload=base_plan,
             primary_tool_id=base_plan.steps[0].tool,
             capability_bucket=(
@@ -1545,7 +1546,7 @@ def _build_plan_candidate_payloads(
             )
             candidate_plan = _attach_kg_explanation(candidate_plan)
             payloads.append(
-                _CandidatePayload(
+                CandidatePayload(
                     payload=candidate_plan,
                     primary_tool_id=alternative.id,
                     capability_bucket=_primary_capability(alternative),
@@ -1564,7 +1565,7 @@ def _build_patch_candidate_payloads(
     request: PatchRequest,
     registry: Sequence[ToolSpec],
     top_k: int,
-) -> List[_CandidatePayload]:
+) -> List[CandidatePayload]:
     target_step = _locate_target_step(request)
     target_spec = _find_tool_spec(registry, target_step.tool)
     capability = _primary_capability(target_spec)
@@ -1597,7 +1598,7 @@ def _build_patch_candidate_payloads(
         current_tool=target_step.tool,
     )
 
-    payloads: List[_CandidatePayload] = []
+    payloads: List[CandidatePayload] = []
     parameter_patch = _build_parameter_level_patch(
         request=request,
         target_step=target_step,
@@ -1606,7 +1607,7 @@ def _build_patch_candidate_payloads(
     )
     if parameter_patch is not None:
         payloads.append(
-            _CandidatePayload(
+            CandidatePayload(
                 payload=parameter_patch,
                 primary_tool_id=target_step.tool,
                 capability_bucket=capability,
@@ -1657,7 +1658,7 @@ def _build_patch_candidate_payloads(
             [patched_step]
         )
         payloads.append(
-            _CandidatePayload(
+            CandidatePayload(
                 payload=patch,
                 primary_tool_id=alternative.id,
                 capability_bucket=_primary_capability(alternative),
@@ -1675,7 +1676,7 @@ def _build_patch_candidate_payloads(
     )
     if structure_patch is not None:
         payloads.append(
-            _CandidatePayload(
+            CandidatePayload(
                 payload=structure_patch,
                 primary_tool_id=target_step.tool,
                 capability_bucket=capability,
@@ -1949,7 +1950,7 @@ def _build_replan_candidate_payloads(
     request: ReplanRequest,
     registry: Sequence[ToolSpec],
     top_k: int,
-) -> List[_CandidatePayload]:
+) -> List[CandidatePayload]:
     if not request.original_plan.steps:
         raise ValueError("Original plan is empty, cannot replan")
 
@@ -1989,7 +1990,7 @@ def _build_replan_candidate_payloads(
     )
     prefix_index = target_index - 1
 
-    payloads: List[_CandidatePayload] = []
+    payloads: List[CandidatePayload] = []
     max_candidates = max(1, top_k * 2)
     for alternative in alternatives[:max_candidates]:
         replanned_step = target_step.model_copy(
@@ -2016,7 +2017,7 @@ def _build_replan_candidate_payloads(
             },
         )
         payloads.append(
-            _CandidatePayload(
+            CandidatePayload(
                 payload=_attach_kg_explanation(replanned),
                 primary_tool_id=alternative.id,
                 capability_bucket=_primary_capability(alternative),
@@ -2028,229 +2029,123 @@ def _build_replan_candidate_payloads(
 
 def _build_top_k_result(
     *,
-    payloads: Sequence[_CandidatePayload],
+    payloads: Sequence[CandidatePayload],
     registry: Sequence[ToolSpec],
     candidate_kind: str,
     top_k: int,
     task_constraints: dict[str, Any] | None = None,
+    completed_step_results: Sequence[StepResult] = (),
     runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
 ) -> TopKResult:
-    if not payloads:
-        raise ValueError(f"No payload candidates generated for {candidate_kind}")
-
-    registry_map = {spec.id: spec for spec in registry}
-    unique_payloads: List[_CandidatePayload] = []
-    seen_fingerprints: Set[str] = set()
-    for payload in payloads:
-        fingerprint = _canonical_payload_fingerprint(
-            payload.payload,
-            payload.primary_tool_id,
-            payload.capability_bucket,
-        )
-        if fingerprint in seen_fingerprints:
-            continue
-        seen_fingerprints.add(fingerprint)
-        unique_payloads.append(payload)
-
-    score_weights = _resolve_score_weights(task_constraints or {})
-    runtime_state_summary = _normalize_runtime_state_summary_input(runtime_state)
-    static_ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
-    effective_ranked_rows: List[Tuple[PendingActionCandidate, Tuple, str]] = []
-    for payload in unique_payloads:
-        score_breakdown = _score_payload(
-            payload.payload,
-            registry,
-            score_weights=score_weights,
-        )
-        primary_tool = registry_map.get(payload.primary_tool_id)
-        capability_id = payload.capability_bucket or _primary_capability(primary_tool)
-        tool_id = payload.primary_tool_id
-        io_type = primary_tool.io_type if primary_tool and primary_tool.io_type else "unknown"
-        adapter_mode = primary_tool.adapter_mode if primary_tool else "unknown"
-        cost_estimate = _derive_cost_estimate(payload.payload, registry)
-        risk_level = _derive_risk_level(payload.payload, registry)
-        candidate_id = _stable_candidate_id(
-            candidate_kind,
-            payload.payload,
-            payload.primary_tool_id,
-            payload.capability_bucket,
-        )
-        metadata = {
-            "candidate_kind": candidate_kind,
-            "capability_bucket": capability_id,
-            "tool_id": tool_id,
-            "capability_id": capability_id,
-            "io_type": io_type,
-            "adapter_mode": adapter_mode,
-            "generation_note": payload.note,
-            "s5_contract": _build_s5_scoring_contract(score_weights),
-            STATIC_SCORE_METADATA_KEY: _build_static_score_summary(score_breakdown),
-            ACTION_SCORE_METADATA_KEY: _build_action_score_summary(score_breakdown),
-        }
-        readiness_metadata = _candidate_readiness_metadata(
-            tool_id=tool_id,
-            capability_id=capability_id,
-        )
-        metadata.update(readiness_metadata)
-        explanation = (
-            f"{candidate_kind} candidate with primary tool "
-            f"{tool_id} in capability bucket {capability_id}."
-        )
-        payload_metadata = payload.payload.metadata if isinstance(payload.payload.metadata, dict) else {}
-        planner_route = payload_metadata.get("planner_route")
-        if isinstance(planner_route, dict):
-            metadata["planner_route"] = dict(planner_route)
-        if payload.recovery_layer:
-            metadata["recovery_layer"] = payload.recovery_layer
-        if payload.recovery_reason:
-            metadata["recovery_reason"] = payload.recovery_reason
-        if isinstance(payload.payload, PlanPatch):
-            patch_meta = _extract_patch_candidate_metadata(payload.payload)
-            if patch_meta:
-                metadata.update(patch_meta)
-        if isinstance(payload.payload, Plan):
-            s1_metadata = _extract_s1_candidate_metadata(payload.payload)
-            if s1_metadata:
-                metadata.update(s1_metadata)
-                metadata["sequence_confidence"] = score_breakdown.get("confidence")
-        if runtime_state_summary is None:
-            shadow = _build_shadow_passthrough_decision(score_breakdown)
-        else:
-            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = dict(runtime_state_summary)
-            shadow = _build_runtime_shadow_decision(
-                candidate_kind=candidate_kind,
-                payload=payload.payload,
-                score_breakdown=score_breakdown,
-                runtime_state_summary=runtime_state_summary,
-            )
-            metadata["shadow_action"] = shadow.shadow_action
-            metadata["shadow_action_reason"] = shadow.shadow_reason
-            explanation = f"{explanation} {shadow.explanation_fragment}"
-        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = shadow.runtime_adjustment
-        metadata[FINAL_SCORE_METADATA_KEY] = shadow.final_score
-        metadata[RERANK_REASON_METADATA_KEY] = shadow.rerank_reason
-        metadata[SHADOW_SCORE_METADATA_KEY] = shadow.shadow_score
-        candidate = PendingActionCandidate(
-            candidate_id=candidate_id,
-            structured_payload=payload.payload,
-            score_breakdown=score_breakdown,
-            risk_level=risk_level,
-            cost_estimate=cost_estimate,
-            explanation=explanation,
-            summary=_build_candidate_summary(payload.payload),
-            tool_id=tool_id,
-            capability_id=capability_id,
-            io_type=io_type,
-            adapter_mode=adapter_mode,
-            metadata=metadata,
-        )
-        priority_rank = _priority_rank(primary_tool.priority if primary_tool else None)
-        patch_layer_rank = _patch_layer_rank(payload.payload)
-        static_score_value = _extract_score_value(candidate, STATIC_SCORE_METADATA_KEY)
-        final_score_value = _extract_score_value(candidate, FINAL_SCORE_METADATA_KEY)
-        if candidate_kind == "patch":
-            static_sort_key = (
-                patch_layer_rank,
-                -static_score_value,
-                priority_rank,
-                capability_id,
-                tool_id,
-                candidate_id,
-            )
-            effective_sort_key = (
-                patch_layer_rank,
-                -final_score_value,
-                priority_rank,
-                capability_id,
-                tool_id,
-                candidate_id,
-            )
-        else:
-            static_sort_key = (
-                -static_score_value,
-                priority_rank,
-                capability_id,
-                tool_id,
-                candidate_id,
-            )
-            effective_sort_key = (
-                -final_score_value,
-                priority_rank,
-                capability_id,
-                tool_id,
-                candidate_id,
-            )
-        static_ranked_rows.append((candidate, static_sort_key, capability_id))
-        effective_ranked_rows.append((candidate, effective_sort_key, capability_id))
-
-    static_ranked_rows.sort(key=lambda row: row[1])
-    static_selected_rows = _select_diverse_top_k(
-        ranked_rows=static_ranked_rows,
-        top_k=top_k,
-    )
-    static_selected_rows = sorted(static_selected_rows, key=lambda row: row[1])
-    selected_rows = static_selected_rows
-    if runtime_state_summary is not None:
-        effective_ranked_rows.sort(key=lambda row: row[1])
-        selected_rows = _select_diverse_top_k(
-            ranked_rows=effective_ranked_rows,
+    constraints = task_constraints or {}
+    generator = CandidateGenerator(_candidate_generator_hooks())
+    return generator.generate(
+        CandidateGenerationInput(
+            candidate_kind=cast(Literal["plan", "patch", "replan"], candidate_kind),
+            payloads=payloads,
+            registry=registry,
             top_k=top_k,
+            task_constraints=constraints,
+            confirmed_task_spec=_extract_confirmed_task_spec(constraints),
+            capability_hints=_extract_capability_hints(constraints),
+            readiness=_extract_readiness_context(constraints),
+            completed_step_results=completed_step_results,
+            runtime_state=runtime_state,
+            budget=_extract_budget_context(constraints),
+            policy_mode=_extract_policy_mode(constraints),
         )
-        selected_rows = sorted(selected_rows, key=lambda row: row[1])
-    candidates = [row[0] for row in selected_rows]
-    static_candidates = [row[0] for row in static_selected_rows]
-    default_candidate = candidates[0] if candidates else None
-    static_default_candidate = static_candidates[0] if static_candidates else None
-    default_recommendation = default_candidate.candidate_id if default_candidate else None
-    if candidates:
-        default_candidate.metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
-            _build_default_recommendation_reason(
-                candidate_kind=candidate_kind,
-                candidate_id=default_candidate.candidate_id,
-                default_candidate=default_candidate,
-                static_candidate=static_default_candidate,
-                rerank_applied=runtime_state_summary is not None,
-            )
-        )
-    explanation = (
-        f"{candidate_kind} Top-K generated with deterministic sort "
-        f"(requested={top_k}, returned={len(candidates)}). "
-        "Ranking uses overall score desc + stable tie-break; "
-        "selection uses capability-bucket round-robin."
     )
-    if candidates and runtime_state_summary is not None and default_candidate is not None:
-        shadow_action = str(default_candidate.metadata.get("shadow_action") or "continue")
-        rerank_summary = _summarize_rerank_reason(default_candidate)
-        explanation = (
-            f"{candidate_kind} Top-K generated with deterministic sort "
-            f"(requested={top_k}, returned={len(candidates)}). "
-            "Ranking uses final_score desc + stable tie-break; "
-            "selection uses capability-bucket round-robin."
-        )
-        if (
-            static_default_candidate is not None
-            and static_default_candidate.candidate_id != default_candidate.candidate_id
-        ):
-            explanation = (
-                f"{explanation} Runtime rerank updated default recommendation "
-                f"from {static_default_candidate.candidate_id} to {default_candidate.candidate_id}. "
-                f"{rerank_summary} action={shadow_action}."
-            )
-        else:
-            explanation = (
-                f"{explanation} Runtime rerank kept default recommendation "
-                f"at {default_candidate.candidate_id}. {rerank_summary} action={shadow_action}."
-            )
-    if len(candidates) < top_k:
-        explanation = (
-            f"{explanation} Degraded to available candidates because "
-            "registry constraints did not produce enough unique options."
-        )
-    return TopKResult(
-        candidates=candidates,
-        default_recommendation=default_recommendation,
-        explanation=explanation,
+
+
+def _candidate_generator_hooks() -> CandidateGeneratorHooks:
+    return CandidateGeneratorHooks(
+        canonical_payload_fingerprint=_canonical_payload_fingerprint,
+        resolve_score_weights=_resolve_score_weights,
+        score_payload=_score_payload,
+        primary_capability=_primary_capability,
+        derive_cost_estimate=_derive_cost_estimate,
+        derive_risk_level=_derive_risk_level,
+        stable_candidate_id=_stable_candidate_id,
+        build_s5_scoring_contract=_build_s5_scoring_contract,
+        build_static_score_summary=_build_static_score_summary,
+        build_action_score_summary=_build_action_score_summary,
+        candidate_readiness_metadata=_candidate_readiness_metadata,
+        build_candidate_summary=_build_candidate_summary,
+        extract_patch_candidate_metadata=_extract_patch_candidate_metadata,
+        extract_plan_candidate_metadata=_extract_s1_candidate_metadata,
+        normalize_runtime_state_summary_input=_normalize_runtime_state_summary_input,
+        build_shadow_passthrough_decision=_build_shadow_passthrough_decision,
+        build_runtime_shadow_decision=_build_runtime_shadow_decision,
+        priority_rank=_priority_rank,
+        patch_layer_rank=_patch_layer_rank,
+        extract_score_value=_extract_score_value,
+        build_default_recommendation_reason=_build_default_recommendation_reason,
+        summarize_rerank_reason=_summarize_rerank_reason,
     )
+
+
+def _extract_confirmed_task_spec(constraints: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = constraints.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("confirmed_task_spec"), dict):
+        return dict(metadata["confirmed_task_spec"])
+    confirmed = constraints.get("confirmed_task_spec")
+    return dict(confirmed) if isinstance(confirmed, dict) else None
+
+
+def _candidate_generation_constraints(
+    *,
+    constraints: dict[str, Any],
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    generation_constraints = dict(constraints)
+    if isinstance(metadata, dict) and metadata:
+        generation_constraints["metadata"] = dict(metadata)
+        confirmed = metadata.get("confirmed_task_spec")
+        if isinstance(confirmed, dict):
+            generation_constraints.setdefault("confirmed_task_spec", dict(confirmed))
+        hints = metadata.get("planner_capability_hints")
+        if isinstance(hints, (list, tuple, set)):
+            generation_constraints.setdefault("capability_hints", list(hints))
+    return generation_constraints
+
+
+def _extract_capability_hints(constraints: dict[str, Any]) -> tuple[str, ...]:
+    raw_hints: Any = constraints.get("capability_hints")
+    metadata = constraints.get("metadata")
+    if raw_hints is None and isinstance(metadata, dict):
+        raw_hints = metadata.get("planner_capability_hints")
+    if raw_hints is None:
+        confirmed = constraints.get("confirmed_task_spec")
+        if isinstance(confirmed, dict):
+            confirmed_metadata = confirmed.get("metadata")
+            if isinstance(confirmed_metadata, dict):
+                raw_hints = confirmed_metadata.get("planner_capability_hints")
+    if isinstance(raw_hints, str):
+        return (raw_hints,)
+    if isinstance(raw_hints, (list, tuple, set)):
+        return tuple(str(item) for item in raw_hints if str(item))
+    return ()
+
+
+def _extract_readiness_context(constraints: dict[str, Any]) -> dict[str, Any] | None:
+    readiness = constraints.get("readiness")
+    return dict(readiness) if isinstance(readiness, dict) else None
+
+
+def _extract_budget_context(constraints: dict[str, Any]) -> dict[str, Any]:
+    budget = constraints.get("budget")
+    if isinstance(budget, dict):
+        return dict(budget)
+    extracted: dict[str, Any] = {}
+    for key in ("budget_cap", "cost_cap", "max_runtime_min"):
+        if key in constraints:
+            extracted[key] = constraints[key]
+    return extracted
+
+
+def _extract_policy_mode(constraints: dict[str, Any]) -> str:
+    raw_mode = constraints.get("policy_mode") or constraints.get("run_profile")
+    return str(raw_mode) if raw_mode is not None else "balanced"
 
 
 def _build_action_score_summary(score_breakdown: dict[str, float]) -> dict[str, Any]:
@@ -2748,36 +2643,6 @@ def _build_pending_action_runtime_metadata(
     return metadata
 
 
-def _select_diverse_top_k(
-    *,
-    ranked_rows: Sequence[Tuple[PendingActionCandidate, Tuple, str]],
-    top_k: int,
-) -> List[Tuple[PendingActionCandidate, Tuple, str]]:
-    bucket_rows: dict[str, List[Tuple[PendingActionCandidate, Tuple, str]]] = {}
-    bucket_order: List[str] = []
-    for row in ranked_rows:
-        bucket = row[2] or "unknown"
-        if bucket not in bucket_rows:
-            bucket_rows[bucket] = []
-            bucket_order.append(bucket)
-        bucket_rows[bucket].append(row)
-
-    selected: List[Tuple[PendingActionCandidate, Tuple, str]] = []
-    while len(selected) < top_k:
-        progressed = False
-        for bucket in bucket_order:
-            rows = bucket_rows[bucket]
-            if not rows:
-                continue
-            selected.append(rows.pop(0))
-            progressed = True
-            if len(selected) >= top_k:
-                break
-        if not progressed:
-            break
-    return selected
-
-
 def _build_candidate_summary(payload: Plan | PlanPatch) -> str:
     if isinstance(payload, Plan):
         tools = [step.tool for step in payload.steps]
@@ -2862,6 +2727,7 @@ def _score_payload(
     )
     tool_coverage = _tool_coverage_score(tool_ids, capabilities)
     fallback_depth = _fallback_depth_score(tool_ids, registry_map, registry)
+    recovery_complexity = max(0.0, min(1.0, 1.0 - fallback_depth))
 
     feasibility = min(1.0, max(0.0, 0.5 + 0.25 * tool_coverage + 0.25 * fallback_depth))
     objective = min(
@@ -2899,6 +2765,7 @@ def _score_payload(
         "tool_readiness": round(tool_readiness, 6),
         "tool_coverage": round(tool_coverage, 6),
         "fallback_depth": round(fallback_depth, 6),
+        "recovery_complexity": round(recovery_complexity, 6),
         "overall": round(overall, 6),
     }
 
@@ -2921,6 +2788,7 @@ def _build_s5_scoring_contract(
             "score_breakdown": "dict[str,float]",
             "top_k": "list[PendingActionCandidate]",
             "default_recommendation": "str",
+            "default_suggestion": "str",
             "explanation": "str",
         },
         "weights": dict(score_weights),
