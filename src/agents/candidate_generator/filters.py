@@ -1,8 +1,43 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Iterable, Mapping, Sequence
+from typing import cast
 
+from src.agents.candidate_generator.models import (
+    AdapterMode,
+    Level,
+    Metadata,
+    ToolSpecLike,
+)
 from src.models.contracts import PendingActionCandidate, Plan, PlanPatch
+
+
+def object_mapping(value: object) -> Metadata:
+    """将动态 mapping 收敛为字符串键元数据。"""
+    if not isinstance(value, Mapping):
+        return {}
+    mapping = cast(Mapping[object, object], value)
+    return {str(key): item for key, item in mapping.items()}
+
+
+def normalize_level(value: object) -> Level | None:
+    """归一化候选风险/成本等级。"""
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"low", "medium", "high"}:
+        return cast(Level, normalized)
+    return None
+
+
+def normalize_adapter_mode(value: object) -> AdapterMode:
+    """归一化候选 adapter_mode。"""
+    if not isinstance(value, str):
+        return "unknown"
+    normalized = value.strip().lower()
+    if normalized in {"local", "remote", "mock", "hybrid", "unknown"}:
+        return cast(AdapterMode, normalized)
+    return "unknown"
 
 
 def candidate_difference_explanation(
@@ -26,42 +61,31 @@ def candidate_difference_explanation(
 def payload_tool_ids(payload: Plan | PlanPatch) -> list[str]:
     if isinstance(payload, Plan):
         return [step.tool for step in payload.steps]
-    return [
-        operation.step.tool
-        for operation in payload.operations
-        if operation.step is not None
-    ]
+    return [operation.step.tool for operation in payload.operations]
 
 
 def payload_io_closed(
     payload: Plan | PlanPatch,
-    registry_map: dict[str, Any],
-    completed_step_results: Sequence[Any],
-    constraints: dict[str, Any],
+    registry_map: Mapping[str, ToolSpecLike],
+    completed_step_results: Sequence[object],
+    constraints: Mapping[str, object],
 ) -> bool:
     available = set(constraints.keys())
     available.add("goal")
-    inputs = constraints.get("inputs")
-    if isinstance(inputs, dict):
-        available.update(inputs.keys())
+    available.update(object_mapping(constraints.get("inputs")).keys())
     for result in completed_step_results:
         outputs = getattr(result, "outputs", None)
-        if isinstance(outputs, dict):
-            available.update(outputs.keys())
+        available.update(object_mapping(outputs).keys())
 
     steps = (
         payload.steps
         if isinstance(payload, Plan)
-        else [
-            operation.step
-            for operation in payload.operations
-            if operation.step is not None
-        ]
+        else [operation.step for operation in payload.operations]
     )
     for step in steps:
         spec = registry_map.get(step.tool)
-        required_inputs = set(getattr(spec, "inputs", ()) or ())
-        step_inputs = step.inputs if isinstance(step.inputs, dict) else {}
+        required_inputs = set(spec.inputs if spec is not None else ())
+        step_inputs = object_mapping(cast(object, step.inputs))
         for required in required_inputs:
             if required in step_inputs:
                 continue
@@ -73,20 +97,21 @@ def payload_io_closed(
                 _head, field = value.split(".", 1)
                 if field not in available:
                     return False
-        outputs = getattr(spec, "outputs", ()) if spec is not None else ()
-        available.update(outputs)
+        if spec is not None:
+            available.update(spec.outputs)
     return True
 
 
-def string_set(value: Any) -> set[str]:
+def string_set(value: object) -> set[str]:
     if isinstance(value, str):
         return {value}
     if isinstance(value, (list, tuple, set)):
-        return {str(item) for item in value if str(item)}
+        items = cast(Iterable[object], value)
+        return {str(item) for item in items if str(item)}
     return set()
 
 
-def parse_safety_level(value: Any) -> int | None:
+def parse_safety_level(value: object) -> int | None:
     if value is None:
         return None
     if isinstance(value, int):
@@ -100,7 +125,9 @@ def parse_safety_level(value: Any) -> int | None:
     return None
 
 
-def safe_float(value: Any) -> float | None:
+def safe_float(value: object) -> float | None:
+    if not isinstance(value, (str, int, float)):
+        return None
     try:
         return float(value)
     except (TypeError, ValueError):

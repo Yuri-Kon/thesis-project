@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Sequence
+from collections.abc import Mapping, Sequence
+from typing import cast
 
 from src.agents.candidate_generator.builder import CandidateBuilder
 from src.agents.candidate_generator.filters import (
     candidate_difference_explanation,
     cost_level_exceeds,
+    object_mapping,
     parse_safety_level,
     payload_io_closed,
     payload_tool_ids,
@@ -15,6 +17,9 @@ from src.agents.candidate_generator.models import (
     CandidateGenerationInput,
     CandidateGeneratorHooks,
     CandidatePayload,
+    Metadata,
+    SortKey,
+    ToolSpecLike,
     TopKResult,
 )
 from src.models.contracts import (
@@ -28,6 +33,9 @@ from src.models.contracts import (
     TOOL_READINESS_METADATA_KEY,
 )
 
+ScoredRow = tuple[PendingActionCandidate, SortKey, SortKey, str]
+RankedRow = tuple[PendingActionCandidate, SortKey, str]
+
 
 class CandidateGenerator:
     """统一生成 Plan/Patch/Replan Top-K 候选。
@@ -37,19 +45,21 @@ class CandidateGenerator:
     """
 
     def __init__(self, hooks: CandidateGeneratorHooks) -> None:
-        self._hooks = hooks
-        self._builder = CandidateBuilder(hooks)
+        self._hooks: CandidateGeneratorHooks = hooks
+        self._builder: CandidateBuilder = CandidateBuilder(hooks)
 
     def generate(self, request: CandidateGenerationInput) -> TopKResult:
         """生成稳定 Top-K、default_suggestion 和候选差异解释。"""
         if not request.payloads:
             raise ValueError(f"No payload candidates generated for {request.candidate_kind}")
 
-        registry_map = {spec.id: spec for spec in request.registry}
+        registry_map: dict[str, ToolSpecLike] = {
+            spec.id: spec for spec in request.registry
+        }
         unique_payloads = self._dedupe_payloads(request.payloads)
-        scored_rows: list[tuple[PendingActionCandidate, tuple, tuple, str]] = []
-        filtered_rows: list[tuple[PendingActionCandidate, tuple, tuple, str]] = []
-        soft_filtered_rows: list[tuple[PendingActionCandidate, tuple, tuple, str]] = []
+        scored_rows: list[ScoredRow] = []
+        filtered_rows: list[ScoredRow] = []
+        soft_filtered_rows: list[ScoredRow] = []
         filter_reasons: list[str] = []
 
         score_weights = self._hooks.resolve_score_weights(request.task_constraints or {})
@@ -101,7 +111,9 @@ class CandidateGenerator:
             top_k=request.top_k,
         )
         if not available_rows:
-            raise ValueError(f"No feasible payload candidates generated for {request.candidate_kind}")
+            raise ValueError(
+                f"No feasible payload candidates generated for {request.candidate_kind}"
+            )
 
         static_rows = sorted(
             [(row[0], row[1], row[3]) for row in available_rows],
@@ -132,7 +144,8 @@ class CandidateGenerator:
             default_candidate.candidate_id if default_candidate is not None else None
         )
         if default_candidate is not None:
-            default_candidate.metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
+            default_metadata = cast(Metadata, default_candidate.metadata)
+            default_metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
                 self._hooks.build_default_recommendation_reason(
                     candidate_kind=request.candidate_kind,
                     candidate_id=default_candidate.candidate_id,
@@ -161,7 +174,7 @@ class CandidateGenerator:
         candidate: PendingActionCandidate,
         payload: Plan | PlanPatch,
         request: CandidateGenerationInput,
-        registry_map: dict[str, Any],
+        registry_map: Mapping[str, ToolSpecLike],
     ) -> str | None:
         constraints = request.task_constraints or {}
         tool_ids = payload_tool_ids(payload)
@@ -182,12 +195,15 @@ class CandidateGenerator:
         if max_safety_level is not None:
             for tool_id in tool_ids:
                 spec = registry_map.get(tool_id)
-                if spec is not None and int(getattr(spec, "safety_level", 1)) > max_safety_level:
+                if spec is not None and spec.safety_level > max_safety_level:
                     return "safety_level_exceeded"
         max_cost_level = constraints.get("max_cost_level") or constraints.get(
             "max_cost_estimate"
         )
-        if cost_level_exceeds(candidate.cost_estimate, max_cost_level):
+        normalized_max_cost_level = (
+            max_cost_level.strip() if isinstance(max_cost_level, str) else None
+        )
+        if cost_level_exceeds(candidate.cost_estimate, normalized_max_cost_level):
             return "cost_level_exceeded"
         if not payload_io_closed(
             payload,
@@ -201,11 +217,12 @@ class CandidateGenerator:
         return None
 
     def _candidate_unavailable(self, candidate: PendingActionCandidate) -> bool:
-        metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+        metadata = object_mapping(cast(object, candidate.metadata))
         tool_readiness = metadata.get(TOOL_READINESS_METADATA_KEY)
         capability_readiness = metadata.get(CAPABILITY_READINESS_METADATA_KEY)
         for item in (tool_readiness, capability_readiness):
-            if isinstance(item, dict) and item.get("status") == "unavailable":
+            readiness = object_mapping(item)
+            if readiness.get("status") == "unavailable":
                 return True
         return False
 
@@ -213,11 +230,13 @@ class CandidateGenerator:
         self,
         candidate_kind: str,
         candidate: PendingActionCandidate,
-        primary_tool: Any | None,
+        primary_tool: ToolSpecLike | None,
         payload: Plan | PlanPatch,
         score_metadata_key: str,
-    ) -> tuple:
-        priority_rank = self._hooks.priority_rank(primary_tool.priority if primary_tool else None)
+    ) -> SortKey:
+        priority_rank = self._hooks.priority_rank(
+            primary_tool.priority if primary_tool else None
+        )
         patch_layer_rank = self._hooks.patch_layer_rank(payload)
         score_value = self._hooks.extract_score_value(candidate, score_metadata_key)
         capability_id = candidate.capability_id or "unknown"
@@ -260,11 +279,11 @@ class CandidateGenerator:
     def _available_rows(
         self,
         *,
-        filtered_rows: Sequence[tuple[PendingActionCandidate, tuple, tuple, str]],
-        soft_filtered_rows: Sequence[tuple[PendingActionCandidate, tuple, tuple, str]],
-        scored_rows: Sequence[tuple[PendingActionCandidate, tuple, tuple, str]],
+        filtered_rows: Sequence[ScoredRow],
+        soft_filtered_rows: Sequence[ScoredRow],
+        scored_rows: Sequence[ScoredRow],
         top_k: int,
-    ) -> list[tuple[PendingActionCandidate, tuple, tuple, str]]:
+    ) -> list[ScoredRow]:
         available_rows = list(filtered_rows)
         if len(available_rows) < top_k:
             seen_ids = {row[0].candidate_id for row in available_rows}
@@ -284,10 +303,10 @@ class CandidateGenerator:
     def _select_diverse_top_k(
         self,
         *,
-        ranked_rows: Sequence[tuple[PendingActionCandidate, tuple, str]],
+        ranked_rows: Sequence[RankedRow],
         top_k: int,
-    ) -> list[tuple[PendingActionCandidate, tuple, str]]:
-        bucket_rows: dict[str, list[tuple[PendingActionCandidate, tuple, str]]] = {}
+    ) -> list[RankedRow]:
+        bucket_rows: dict[str, list[RankedRow]] = {}
         bucket_order: list[str] = []
         for row in ranked_rows:
             bucket = row[2] or "unknown"
@@ -296,7 +315,7 @@ class CandidateGenerator:
                 bucket_order.append(bucket)
             bucket_rows[bucket].append(row)
 
-        selected: list[tuple[PendingActionCandidate, tuple, str]] = []
+        selected: list[RankedRow] = []
         while len(selected) < top_k:
             progressed = False
             for bucket in bucket_order:
@@ -320,9 +339,11 @@ class CandidateGenerator:
         static_default_candidate: PendingActionCandidate | None,
         filter_reasons: Sequence[str],
         used_filtered_rows: bool,
-        runtime_state_summary: dict[str, Any] | None,
+        runtime_state_summary: Metadata | None,
     ) -> str:
-        ranking_basis = "final_score" if runtime_state_summary is not None else "static_score"
+        ranking_basis = (
+            "final_score" if runtime_state_summary is not None else "static_score"
+        )
         explanation = (
             f"{request.candidate_kind} Top-K generated by CandidateGenerator "
             f"(requested={request.top_k}, returned={len(candidates)}). "
