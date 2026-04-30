@@ -6,9 +6,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Dict, List
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, TypeGuard, cast, override
 
-from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.base_llm_provider import BaseProvider, JsonObject, JsonValue, ProviderConfig
 from src.models.contracts import ProteinDesignTask
 
 if TYPE_CHECKING:
@@ -29,19 +30,20 @@ class BaselineProvider(BaseProvider):
     - LLM providers 不可用时的回退
     """
 
-    def __init__(self, config: ProviderConfig | None = None):
+    def __init__(self, config: ProviderConfig | None = None) -> None:
         """初始化基线 provider
 
         Args:
             config: Provider 配置（基线版本未使用，为接口兼容性保留）
         """
-        self.config = config or ProviderConfig(model_name="baseline")
+        self.config: ProviderConfig = config or ProviderConfig(model_name="baseline")
 
+    @override
     def call_planner(
         self,
         task: ProteinDesignTask,
-        tool_registry: List["ToolSpec"]
-    ) -> Dict:
+        tool_registry: list["ToolSpec"],
+    ) -> JsonObject:
         """生成简单的单步计划
 
         策略:
@@ -63,27 +65,52 @@ class BaselineProvider(BaseProvider):
         tool_id = tool_registry[0].id
 
         # 从任务约束中提取 sequence 或使用默认值
-        sequence = task.constraints.get(
+        constraints = cast(dict[str, object], task.constraints)
+        sequence_value = constraints.get(
             "sequence",
-            "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"
+            "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR",
         )
+        sequence = sequence_value if isinstance(sequence_value, str) else str(sequence_value)
 
         # 构建单步计划
-        step = {
+        step: JsonObject = {
             "id": "S1",
             "tool": tool_id,
             "inputs": {"sequence": sequence},
-            "metadata": {"provider": "baseline", "strategy": "single_step"}
+            "metadata": {"provider": "baseline", "strategy": "single_step"},
         }
 
-        plan_dict = {
+        plan_dict: JsonObject = {
             "task_id": task.task_id,
             "steps": [step],
-            "constraints": task.constraints,
+            "constraints": _json_object_from_mapping(constraints),
             "metadata": {
                 "provider": "baseline",
-                "model": self.config.model_name
-            }
+                "model": self.config.model_name,
+            },
         }
 
         return plan_dict
+
+
+def _json_object_from_mapping(mapping: dict[str, object]) -> JsonObject:
+    result: JsonObject = {}
+    for key, value in mapping.items():
+        if _is_json_value(value):
+            result[key] = value
+        else:
+            result[key] = str(value)
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False
