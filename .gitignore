@@ -104,6 +104,11 @@ nf/.nextflow/
 docs/
 !docs/
 docs/*
+!docs/assets/
+docs/assets/*
+!docs/assets/readme/
+docs/assets/readme/*
+!docs/assets/readme/*.svg
 !docs/algorithm-and-llm/
 docs/algorithm-and-llm/*
 !docs/algorithm-and-llm/requirement2-similarity-secondary-structure-tools.md

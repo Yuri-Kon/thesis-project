@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="820" viewBox="0 0 1500 820" role="img" aria-labelledby="title desc">
+  <title id="title">前端工作台：决策上下文同屏</title>
+  <desc id="desc">展示 Web workspace 如何通过正式 API 呈现任务、待办、候选、事件和报告。</desc>
+  <defs>
+    <pattern id="dots-green" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.05" fill="#a7d486" opacity="0.72"/>
+    </pattern>
+    <pattern id="dots-gray" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.0" fill="#b9bec6" opacity="0.62"/>
+    </pattern>
+    <pattern id="dots-blue" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="2.3" cy="2.3" r="1.0" fill="#8ab5e8" opacity="0.36"/>
+    </pattern>
+    <marker id="arrow-green" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6fb23f"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c838d"/>
+    </marker>
+    <style>
+      .h1 { font: 800 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
+      .h2 { font: 800 19px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
+      .h3 { font: 750 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
+      .body { font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #252c35; }
+      .small { font: 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #606873; }
+      .mono { font: 14px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #111111; }
+      .mono-green { font: 15px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #275f13; }
+      .mono-small { font: 12px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #404852; }
+      .lane { font: 800 13px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #111111; }
+      .tag { font: 800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #606873; letter-spacing: .8px; }
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1500" height="820" fill="#ffffff"/>
+<text x="52" y="66" class="h1" text-anchor="start">Workbench view: API-backed task review, not a second workflow engine</text>
+<text x="54" y="100" class="small" text-anchor="start">The browser never mutates FSM directly; it reads server state and submits Decision requests.</text>
+<rect x="112" y="174" width="1276" height="270" rx="42" fill="#f7f8fa" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="112" y="174" width="1276" height="270" rx="42" fill="url(#dots-gray)" opacity="0.2"/>
+<rect x="158" y="238" width="198" height="120" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="158" y="238" width="198" height="120" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="176" y="268" class="h3" text-anchor="start">Task Builder</text>
+<text x="176" y="296" class="small" text-anchor="start">field registry /</text>
+<text x="176" y="316" class="small" text-anchor="start">extraction / precheck</text>
+<rect x="412" y="238" width="198" height="120" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="412" y="238" width="198" height="120" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="430" y="268" class="h3" text-anchor="start">Dashboard</text>
+<text x="430" y="296" class="small" text-anchor="start">task scan / pending entry</text>
+<text x="430" y="316" class="small" text-anchor="start">/ readiness</text>
+<rect x="666" y="238" width="198" height="120" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="666" y="238" width="198" height="120" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="684" y="268" class="h3" text-anchor="start">Task Detail</text>
+<text x="684" y="296" class="small" text-anchor="start">status / artifacts /</text>
+<text x="684" y="316" class="small" text-anchor="start">runtime summary</text>
+<rect x="920" y="238" width="198" height="120" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="920" y="238" width="198" height="120" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="938" y="268" class="h3" text-anchor="start">Pending Review</text>
+<text x="938" y="296" class="small" text-anchor="start">candidate comparison /</text>
+<text x="938" y="316" class="small" text-anchor="start">DecisionForm</text>
+<rect x="1174" y="238" width="198" height="120" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="1174" y="238" width="198" height="120" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="1192" y="268" class="h3" text-anchor="start">Timeline</text>
+<text x="1192" y="296" class="small" text-anchor="start">EventLog / recovery trace</text>
+<text x="1192" y="316" class="small" text-anchor="start">/ reports</text>
+<path d="M356,298 L412,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<rect x="344" y="264" width="80" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
+<text x="384" y="284" class="small" text-anchor="middle">open</text>
+<path d="M610,298 L666,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<rect x="598" y="264" width="80" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
+<text x="638" y="284" class="small" text-anchor="middle">inspect</text>
+<path d="M864,298 L920,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<rect x="852" y="264" width="80" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
+<text x="892" y="284" class="small" text-anchor="middle">decide</text>
+<path d="M1118,298 L1174,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<rect x="1106" y="264" width="80" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
+<text x="1146" y="284" class="small" text-anchor="middle">audit</text>
+<rect x="206" y="544" width="1088" height="176" rx="36" fill="#fbfff7" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="206" y="544" width="1088" height="176" rx="36" fill="url(#dots-green)" opacity="0.28"/>
+<rect x="252" y="590" width="206" height="84" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="252" y="590" width="206" height="84" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="270" y="620" class="mono-small" text-anchor="start">GET /tasks/{id}</text>
+<text x="270" y="648" class="small" text-anchor="start">TaskRecord, status, steps</text>
+<rect x="514" y="590" width="206" height="84" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="514" y="590" width="206" height="84" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="532" y="620" class="mono-small" text-anchor="start">GET /pending-actions</text>
+<text x="532" y="648" class="small" text-anchor="start">PendingAction candidates</text>
+<rect x="776" y="590" width="206" height="84" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="776" y="590" width="206" height="84" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="794" y="620" class="mono-small" text-anchor="start">POST Decision</text>
+<text x="794" y="648" class="small" text-anchor="start">selected candidate,</text>
+<text x="794" y="668" class="small" text-anchor="start">comment</text>
+<rect x="1038" y="590" width="206" height="84" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="1038" y="590" width="206" height="84" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="1056" y="620" class="mono-small" text-anchor="start">GET /events</text>
+<text x="1056" y="648" class="small" text-anchor="start">EventLog + report</text>
+<text x="1056" y="668" class="small" text-anchor="start">metadata</text>
+<path d="M756,544 L1010,444" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+<rect x="813" y="472" width="230" height="48" rx="12" fill="#ffffff" opacity="0.96"/>
+<text x="928" y="492" class="mono-green" text-anchor="middle">server refresh after</text>
+<text x="928" y="508" class="mono-green" text-anchor="middle">Decision</text>
+<text x="750" y="754" class="mono-small" text-anchor="middle">Web state is derived from API responses; it does not synthesize PendingAction, Decision, EventLog, or TaskSnapshot.</text>
+</svg>
