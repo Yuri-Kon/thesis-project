@@ -1,12 +1,21 @@
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import cast
 
-from src.agents.candidate_generator.filters import safe_float
+from src.agents.candidate_generator.filters import (
+    normalize_adapter_mode,
+    normalize_level,
+    object_mapping,
+    safe_float,
+)
 from src.agents.candidate_generator.models import (
     CandidateGenerationInput,
     CandidateGeneratorHooks,
     CandidatePayload,
+    Metadata,
+    RuntimeShadowDecisionLike,
+    ToolSpecLike,
 )
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
@@ -26,24 +35,30 @@ class CandidateBuilder:
     """构造 PendingActionCandidate 及其审计 metadata。"""
 
     def __init__(self, hooks: CandidateGeneratorHooks) -> None:
-        self._hooks = hooks
+        self._hooks: CandidateGeneratorHooks = hooks
 
     def build(
         self,
         *,
         payload: CandidatePayload,
         request: CandidateGenerationInput,
-        registry_map: dict[str, Any],
+        registry_map: Mapping[str, ToolSpecLike],
         score_weights: dict[str, float],
-        runtime_state_summary: dict[str, Any] | None,
+        runtime_state_summary: Metadata | None,
     ) -> PendingActionCandidate:
         primary_tool = registry_map.get(payload.primary_tool_id)
         capability_id = payload.capability_bucket or self._hooks.primary_capability(
             primary_tool
         )
         tool_id = payload.primary_tool_id
-        io_type = primary_tool.io_type if primary_tool and primary_tool.io_type else "unknown"
-        adapter_mode = primary_tool.adapter_mode if primary_tool else "unknown"
+        io_type = (
+            primary_tool.io_type
+            if primary_tool is not None and primary_tool.io_type
+            else "unknown"
+        )
+        adapter_mode = normalize_adapter_mode(
+            primary_tool.adapter_mode if primary_tool is not None else "unknown"
+        )
         score_breakdown = self._hooks.score_payload(
             payload.payload,
             request.registry,
@@ -86,8 +101,12 @@ class CandidateBuilder:
             ),
             structured_payload=payload.payload,
             score_breakdown=score_breakdown,
-            risk_level=self._hooks.derive_risk_level(payload.payload, request.registry),
-            cost_estimate=self._hooks.derive_cost_estimate(payload.payload, request.registry),
+            risk_level=normalize_level(
+                self._hooks.derive_risk_level(payload.payload, request.registry)
+            ),
+            cost_estimate=normalize_level(
+                self._hooks.derive_cost_estimate(payload.payload, request.registry)
+            ),
             explanation=explanation,
             summary=self._hooks.build_candidate_summary(payload.payload),
             tool_id=tool_id,
@@ -108,8 +127,8 @@ class CandidateBuilder:
         adapter_mode: str,
         score_breakdown: dict[str, float],
         score_weights: dict[str, float],
-    ) -> dict[str, Any]:
-        metadata: dict[str, Any] = {
+    ) -> Metadata:
+        metadata: Metadata = {
             "candidate_kind": request.candidate_kind,
             "capability_bucket": capability_id,
             "tool_id": tool_id,
@@ -121,7 +140,7 @@ class CandidateBuilder:
                 "module": "src.agents.candidate_generator",
                 "policy_mode": request.policy_mode,
                 "capability_hints": list(request.capability_hints),
-                "budget": dict(request.budget or {}),
+                "budget": object_mapping(request.budget),
                 "readiness_context_present": request.readiness is not None,
                 "completed_step_count": len(request.completed_step_results),
                 "confirmed_task_spec_present": request.confirmed_task_spec is not None,
@@ -136,11 +155,10 @@ class CandidateBuilder:
                 capability_id=capability_id,
             )
         )
-        payload_metadata = (
-            payload.payload.metadata if isinstance(payload.payload.metadata, dict) else {}
-        )
-        if isinstance(payload_metadata.get("planner_route"), dict):
-            metadata["planner_route"] = dict(payload_metadata["planner_route"])
+        payload_metadata = object_mapping(cast(object, payload.payload.metadata))
+        planner_route = payload_metadata.get("planner_route")
+        if isinstance(planner_route, dict):
+            metadata["planner_route"] = object_mapping(cast(object, planner_route))
         if payload.recovery_layer:
             metadata["recovery_layer"] = payload.recovery_layer
         if payload.recovery_reason:
@@ -159,14 +177,16 @@ class CandidateBuilder:
         *,
         payload: CandidatePayload,
         request: CandidateGenerationInput,
-        metadata: dict[str, Any],
+        metadata: Metadata,
         score_breakdown: dict[str, float],
-        runtime_state_summary: dict[str, Any] | None,
-    ) -> Any:
+        runtime_state_summary: Metadata | None,
+    ) -> RuntimeShadowDecisionLike:
         if runtime_state_summary is None:
             shadow = self._hooks.build_shadow_passthrough_decision(score_breakdown)
         else:
-            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = dict(runtime_state_summary)
+            metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY] = object_mapping(
+                runtime_state_summary
+            )
             shadow = self._hooks.build_runtime_shadow_decision(
                 candidate_kind=request.candidate_kind,
                 payload=payload.payload,
@@ -225,5 +245,4 @@ class CandidateBuilder:
         return {
             key: round(value, 6)
             for key, value in adjusted.items()
-            if isinstance(value, (int, float))
         }
