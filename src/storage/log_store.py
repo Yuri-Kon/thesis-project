@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeGuard, cast
 
 if TYPE_CHECKING:
     from src.models.event_log import EventLog
@@ -584,20 +584,20 @@ def _as_json_object(value: object) -> JsonObject | None:
     if not isinstance(value, dict):
         return None
     result: JsonObject = {}
-    for key, item in value.items():
+    for key, item in cast(Mapping[object, object], value).items():
         if isinstance(key, str) and _is_json_value(item):
             result[key] = item
     return result
 
 
-def _is_json_value(value: object) -> bool:
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
     if value is None or isinstance(value, str | int | float | bool):
         return True
     if isinstance(value, list):
-        return all(_is_json_value(item) for item in value)
+        return all(_is_json_value(item) for item in cast(Sequence[object], value))
     if isinstance(value, dict):
         return all(
             isinstance(key, str) and _is_json_value(item)
-            for key, item in value.items()
+            for key, item in cast(Mapping[object, object], value).items()
         )
     return False
