@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Mapping
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, Mapping
+from typing import TypeGuard, cast, override
 
 import httpx
 
@@ -30,6 +31,11 @@ __all__ = [
     "RemoteModelInvocationService",
     "RESTModelInvocationService",
 ]
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 
 class JobStatus(str, Enum):
@@ -51,7 +57,7 @@ class RemoteModelInvocationService(ABC):
     @abstractmethod
     def submit_job(
         self,
-        payload: Dict[str, Any],
+        payload: Mapping[str, JsonValue],
         task_id: str,
         step_id: str,
     ) -> str:
@@ -91,7 +97,7 @@ class RemoteModelInvocationService(ABC):
         self,
         job_id: str,
         output_dir: Path,
-    ) -> Dict[str, Any]:
+    ) -> JsonObject:
         """下载作业结果
 
         Args:
@@ -133,21 +139,22 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             max_poll_attempts: 最大轮询次数
             headers: 可选的默认请求头（例如 Authorization）
         """
-        self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
-        self.poll_interval = poll_interval
-        self.max_poll_attempts = max_poll_attempts
-        self.default_headers = dict(headers) if headers else None
-        self.client = httpx.Client(timeout=timeout)
+        self.base_url: str = base_url.rstrip("/")
+        self.timeout: float = timeout
+        self.poll_interval: float = poll_interval
+        self.max_poll_attempts: int = max_poll_attempts
+        self.default_headers: dict[str, str] | None = dict(headers) if headers else None
+        self.client: httpx.Client = httpx.Client(timeout=timeout)
 
     def __del__(self) -> None:
         """清理 HTTP 客户端"""
         if hasattr(self, "client"):
             self.client.close()
 
+    @override
     def submit_job(
         self,
-        payload: Dict[str, Any],
+        payload: Mapping[str, JsonValue],
         task_id: str,
         step_id: str,
     ) -> str:
@@ -165,28 +172,36 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         """
         endpoint = f"{self.base_url}/predict"
 
-        request_data = {
+        request_data: JsonObject = {
             "task_id": task_id,
             "step_id": step_id,
-            "inputs": payload,
+            "inputs": dict(payload),
         }
 
         try:
-            request_kwargs: dict[str, Any] = {"json": request_data}
             if self.default_headers:
-                request_kwargs["headers"] = self.default_headers
-            response = self.client.post(endpoint, **request_kwargs)
-            response.raise_for_status()
-            data = response.json()
+                response = self.client.post(
+                    endpoint,
+                    json=request_data,
+                    headers=self.default_headers,
+                )
+            else:
+                response = self.client.post(endpoint, json=request_data)
+            _ = response.raise_for_status()
+            data = _response_json_object(
+                response,
+                invalid_code=FailureCode.REMOTE_SUBMIT_INVALID_RESPONSE.value,
+            )
 
-            if "job_id" not in data:
+            job_id = data.get("job_id")
+            if not isinstance(job_id, str) or not job_id:
                 raise StepRunError(
                     failure_type=FailureType.TOOL_ERROR,
                     message="Remote service response missing 'job_id'",
                     code=FailureCode.REMOTE_SUBMIT_INVALID_RESPONSE.value,
                 )
 
-            return data["job_id"]
+            return job_id
 
         except httpx.HTTPStatusError as exc:
             # 根据 HTTP 状态码选择失败码
@@ -220,6 +235,7 @@ class RESTModelInvocationService(RemoteModelInvocationService):
                 code=FailureCode.REMOTE_SUBMIT_UNEXPECTED_ERROR.value,
             ) from exc
 
+    @override
     def poll_status(
         self,
         job_id: str,
@@ -235,14 +251,18 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         endpoint = f"{self.base_url}/job/{job_id}"
 
         try:
-            request_kwargs: dict[str, Any] = {}
             if self.default_headers:
-                request_kwargs["headers"] = self.default_headers
-            response = self.client.get(endpoint, **request_kwargs)
-            response.raise_for_status()
-            data = response.json()
+                response = self.client.get(endpoint, headers=self.default_headers)
+            else:
+                response = self.client.get(endpoint)
+            _ = response.raise_for_status()
+            data = _response_json_object(
+                response,
+                invalid_code=FailureCode.REMOTE_POLL_UNEXPECTED_ERROR.value,
+            )
 
-            status_str = data.get("status", "unknown").lower()
+            status_value = data.get("status")
+            status_str = status_value.lower() if isinstance(status_value, str) else "unknown"
             try:
                 return JobStatus(status_str)
             except ValueError:
@@ -282,11 +302,12 @@ class RESTModelInvocationService(RemoteModelInvocationService):
                 code=FailureCode.REMOTE_POLL_UNEXPECTED_ERROR.value,
             ) from exc
 
+    @override
     def download_results(
         self,
         job_id: str,
         output_dir: Path,
-    ) -> Dict[str, Any]:
+    ) -> JsonObject:
         """下载作业结果
 
         GET {base_url}/results/{job_id}
@@ -302,29 +323,32 @@ class RESTModelInvocationService(RemoteModelInvocationService):
         endpoint = f"{self.base_url}/results/{job_id}"
 
         try:
-            request_kwargs: dict[str, Any] = {}
             if self.default_headers:
-                request_kwargs["headers"] = self.default_headers
-            response = self.client.get(endpoint, **request_kwargs)
-            response.raise_for_status()
-            data = response.json()
+                response = self.client.get(endpoint, headers=self.default_headers)
+            else:
+                response = self.client.get(endpoint)
+            _ = response.raise_for_status()
+            data = _response_json_object(
+                response,
+                invalid_code=FailureCode.REMOTE_DOWNLOAD_UNEXPECTED_ERROR.value,
+            )
 
-            outputs: Dict[str, Any] = data.get("outputs", {})
-            artifacts = data.get("artifacts", [])
+            outputs = _json_object_field(data, "outputs")
+            artifacts = _json_object_list_field(data, "artifacts")
 
             # 确保输出目录存在
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
 
             # 下载产物文件并映射路径
-            downloaded_artifacts = []
-            artifact_name_to_path = {}
+            downloaded_artifacts: JsonArray = []
+            artifact_name_to_path: dict[str, str] = {}
 
             for artifact in artifacts:
                 artifact_name = artifact.get("name")
                 artifact_url = artifact.get("url")
 
-                if not artifact_name or not artifact_url:
+                if not isinstance(artifact_name, str) or not isinstance(artifact_url, str):
                     continue
 
                 # 下载文件
@@ -394,14 +418,19 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             httpx.HTTPStatusError: HTTP 错误
             httpx.RequestError: 网络错误
         """
-        request_kwargs: dict[str, Any] = {}
         if self.default_headers:
-            request_kwargs["headers"] = self.default_headers
-        with self.client.stream("GET", url, **request_kwargs) as response:
-            response.raise_for_status()
+            stream_context = self.client.stream(
+                "GET",
+                url,
+                headers=self.default_headers,
+            )
+        else:
+            stream_context = self.client.stream("GET", url)
+        with stream_context as response:
+            _ = response.raise_for_status()
             with open(path, "wb") as f:
                 for chunk in response.iter_bytes(chunk_size=8192):
-                    f.write(chunk)
+                    _ = f.write(chunk)
 
     def wait_for_completion(
         self,
@@ -439,3 +468,52 @@ class RESTModelInvocationService(RemoteModelInvocationService):
             message=f"Job {job_id} polling timeout after {self.max_poll_attempts} attempts",
             code=FailureCode.REMOTE_POLL_TIMEOUT.value,
         )
+
+
+def _response_json_object(response: httpx.Response, *, invalid_code: str) -> JsonObject:
+    payload = cast(object, response.json())
+    parsed = _as_json_object(payload)
+    if parsed is None:
+        raise StepRunError(
+            failure_type=FailureType.TOOL_ERROR,
+            message="Remote service response payload is not a JSON object",
+            code=invalid_code,
+        )
+    return parsed
+
+
+def _json_object_field(payload: JsonObject, key: str) -> JsonObject:
+    value = payload.get(key)
+    if isinstance(value, dict):
+        return dict(value)
+    return {}
+
+
+def _json_object_list_field(payload: JsonObject, key: str) -> list[JsonObject]:
+    value = payload.get(key)
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, dict)]
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    result: JsonObject = {}
+    for key, item in cast(Mapping[object, object], value).items():
+        if isinstance(key, str) and _is_json_value(item):
+            result[key] = item
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False

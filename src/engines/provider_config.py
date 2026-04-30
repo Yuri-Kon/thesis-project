@@ -2,13 +2,19 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict
+from typing import TypeGuard, cast
 
 DEFAULT_PROVIDER_CONFIG_PATH = (
     Path(__file__).resolve().parents[2] / "configs" / "model_providers.json"
 )
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 
 @dataclass
@@ -19,7 +25,7 @@ class ProviderConfig:
     api_key_env: str = ""
     timeout: float = 60.0
     max_retries: int = 3
-    extra: Dict[str, Any] = field(default_factory=dict)
+    extra: JsonObject = field(default_factory=dict)
 
     def get_api_key(self) -> str:
         """Fetch API key from the configured environment variable."""
@@ -28,7 +34,7 @@ class ProviderConfig:
         return os.getenv(self.api_key_env, "")
 
 
-def _default_provider_configs() -> Dict[str, ProviderConfig]:
+def _default_provider_configs() -> dict[str, ProviderConfig]:
     return {
         "nvidia_nim": ProviderConfig(
             provider_type="nvidia_nim",
@@ -79,44 +85,38 @@ def _default_provider_configs() -> Dict[str, ProviderConfig]:
 
 def load_provider_config(
     path: Path | None = None,
-) -> Dict[str, ProviderConfig]:
+) -> dict[str, ProviderConfig]:
     """Load provider config from JSON; fallback to defaults if missing."""
     config_path = path or DEFAULT_PROVIDER_CONFIG_PATH
     if not config_path.exists():
         return _default_provider_configs()
 
-    data = json.loads(config_path.read_text(encoding="utf-8"))
+    data = _load_json_object(config_path)
     providers = data.get("providers", {})
     if not isinstance(providers, dict):
         raise ValueError("Provider config 'providers' must be a dict")
 
-    configs: Dict[str, ProviderConfig] = {}
-    for name, payload in providers.items():
+    configs: dict[str, ProviderConfig] = {}
+    for name, raw_payload in providers.items():
+        payload = _as_json_object(raw_payload)
         if not isinstance(payload, dict):
             raise ValueError(f"Provider config for '{name}' must be a dict")
 
         extra = payload.get("extra", {})
         if extra is None:
             extra = {}
-        if not isinstance(extra, dict):
+        extra_payload = _as_json_object(extra)
+        if extra_payload is None:
             raise ValueError(f"Provider config extra for '{name}' must be a dict")
 
-        timeout = payload.get("timeout", 60.0)
-        if timeout is None:
-            timeout = 60.0
-
-        max_retries = payload.get("max_retries", 3)
-        if max_retries is None:
-            max_retries = 3
-
         configs[name] = ProviderConfig(
-            provider_type=payload.get("provider_type", name),
-            description=payload.get("description", ""),
-            base_url=payload.get("base_url", ""),
-            api_key_env=payload.get("api_key_env", ""),
-            timeout=float(timeout),
-            max_retries=int(max_retries),
-            extra=extra,
+            provider_type=_string_field(payload, "provider_type", name),
+            description=_string_field(payload, "description", ""),
+            base_url=_string_field(payload, "base_url", ""),
+            api_key_env=_string_field(payload, "api_key_env", ""),
+            timeout=_float_field(payload, "timeout", 60.0),
+            max_retries=_int_field(payload, "max_retries", 3),
+            extra=extra_payload,
         )
 
     return configs
@@ -129,3 +129,61 @@ def get_provider_config(provider: str) -> ProviderConfig:
         return configs[provider]
     except KeyError as exc:
         raise KeyError(f"Provider config not found: {provider}") from exc
+
+
+def _load_json_object(path: Path) -> JsonObject:
+    payload = cast(object, json.loads(path.read_text(encoding="utf-8")))
+    parsed = _as_json_object(payload)
+    if parsed is None:
+        raise ValueError("Provider config root must be a dict")
+    return parsed
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    result: JsonObject = {}
+    for key, item in cast(Mapping[object, object], value).items():
+        if isinstance(key, str) and _is_json_value(item):
+            result[key] = item
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False
+
+
+def _string_field(payload: JsonObject, key: str, default: str) -> str:
+    value = payload.get(key)
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value
+    raise ValueError(f"Provider config '{key}' must be a string")
+
+
+def _float_field(payload: JsonObject, key: str, default: float) -> float:
+    value = payload.get(key)
+    if value is None:
+        return default
+    if isinstance(value, int | float):
+        return float(value)
+    raise ValueError(f"Provider config '{key}' must be a number")
+
+
+def _int_field(payload: JsonObject, key: str, default: int) -> int:
+    value = payload.get(key)
+    if value is None:
+        return default
+    if isinstance(value, int):
+        return value
+    raise ValueError(f"Provider config '{key}' must be an integer")
