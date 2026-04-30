@@ -243,7 +243,7 @@ def arrow(
     label_cls: str = "mono-green",
     bend: Point | None = None,
 ) -> str:
-    """创建箭头，标签使用白底以避免与线条重叠。"""
+    """创建箭头，标签通过坐标避让线条。"""
 
     dash = ' stroke-dasharray="7 7"' if dashed else ""
     if bend:
@@ -257,12 +257,8 @@ def arrow(
         p = label_pos or default_label
         label_chars = max(10, label_width // 8)
         label_lines = wrap(label, width=label_chars, break_long_words=False, break_on_hyphens=False)
-        label_h = 16 + len(label_lines) * 16
-        label_y = p.y - label_h + 10
-        lines = [
-            f'<rect x="{p.x - label_width // 2}" y="{label_y}" width="{label_width}" height="{label_h}" rx="12" fill="#ffffff" opacity="0.96"/>'
-        ]
-        first_baseline = label_y + 20
+        lines = []
+        first_baseline = p.y
         for idx, line in enumerate(label_lines):
             lines.append(text(p.x, first_baseline + idx * 16, line, label_cls, "middle"))
         label_markup = "\n".join(lines)
@@ -315,18 +311,20 @@ def render_system_architecture() -> None:
     svg.add(card(396, 566, 220, 112, "RuntimeState", ("p_success", "p_structural_failure", "recovery_margin", "cost / evidence"), fill="#ffffff"))
     svg.add(card(660, 566, 220, 112, "HITL gate", ("PendingAction", "Decision", "WAITING_* pause"), fill="#ffffff"))
     svg.add(card(924, 566, 220, 112, "Audit store", ("TaskSnapshot", "EventLog", "artifacts / reports"), fill="#ffffff"))
-    svg.add(arrow(Point(760, 516), Point(760, 566), color=GRAY_DARK, marker="arrow-gray", label="pause before decision", label_pos=Point(760, 548), label_cls="small", label_width=170))
-    svg.add(arrow(Point(616, 622), Point(660, 622), color=GRAY_DARK, marker="arrow-gray", label="context", label_cls="small", label_width=100))
-    svg.add(arrow(Point(880, 622), Point(924, 622), color=GRAY_DARK, marker="arrow-gray", label="write-ahead", label_cls="small", label_width=120))
+    svg.add(arrow(Point(760, 516), Point(760, 566), color=GRAY_DARK, marker="arrow-gray", label="pause before decision", label_pos=Point(866, 546), label_cls="small", label_width=170))
+    svg.add(text(638, 646, "context", "small", "middle"))
+    svg.add(arrow(Point(616, 622), Point(660, 622), color=GRAY_DARK, marker="arrow-gray"))
+    svg.add(text(902, 646, "write-ahead", "small", "middle"))
+    svg.add(arrow(Point(880, 622), Point(924, 622), color=GRAY_DARK, marker="arrow-gray"))
 
     svg.add(rect(180, 780, 1140, 74, fill="#fbfff7", stroke=GREEN, rx=34, pattern="dots-green", opacity=0.36))
     svg.add(text(750, 812, "Recovery and observability rail", "h3", "middle"))
     svg.add(text(750, 838, "retry -> patch -> replan;  PendingAction -> Decision -> EventLog -> TaskSnapshot", "mono-small", "middle"))
-    svg.add(arrow(Point(1204, 780), Point(880, 678), color=GREEN, marker="arrow-green", dashed=True, label="recover from latest snapshot", label_pos=Point(1120, 720), label_width=220))
-    svg.add(arrow(Point(660, 780), Point(616, 678), color=GREEN, marker="arrow-green", dashed=True, label="runtime summary", label_pos=Point(610, 740), label_width=150))
+    svg.add(arrow(Point(1204, 780), Point(880, 678), color=GREEN, marker="arrow-green", dashed=True, label="recover from latest snapshot", label_pos=Point(1194, 700), label_width=220))
+    svg.add(arrow(Point(660, 780), Point(616, 678), color=GREEN, marker="arrow-green", dashed=True, label="runtime summary", label_pos=Point(540, 758), label_width=150))
 
     svg.add(text(134, 246, "Design source: architecture.md / system-implementation-design.md", "mono-small"))
-    svg.add(text(1020, 246, "Control-flow SSOT stays in Workflow/FSM; Nextflow is only a PlanStep backend.", "mono-small"))
+    svg.add(text(980, 246, "Workflow/FSM owns state; backends only run PlanSteps.", "mono-small"))
 
     (OUT_DIR / "system-architecture.svg").write_text(svg.render(), encoding="utf-8")
 
@@ -407,13 +405,13 @@ def render_workflow_swimlane() -> None:
     for start, end in flow_points:
         svg.add(arrow(start, end, color=GREEN, marker="arrow-green", dashed=True, label=None))
 
-    svg.add(arrow(Point(942, 542), Point(1016, 369), color=GRAY_DARK, marker="arrow-gray", label="failure or block", label_pos=Point(1030, 520), label_width=150, label_cls="small", dashed=True))
-    svg.add(arrow(Point(1104, 434), Point(1104, 218), color=GREEN, marker="arrow-green", label="Decision required", label_pos=Point(1162, 318), label_width=150, label_cls="small"))
-    svg.add(arrow(Point(1010, 455), Point(940, 369), color=GREEN, marker="arrow-green", dashed=True, label="resume RUNNING", label_pos=Point(968, 436), label_width=150, label_cls="small"))
+    svg.add(arrow(Point(942, 542), Point(1016, 369), color=GRAY_DARK, marker="arrow-gray", label="failure or block", label_pos=Point(1058, 520), label_width=150, label_cls="small", dashed=True))
+    svg.add(arrow(Point(1104, 434), Point(1104, 218), color=GREEN, marker="arrow-green", label="Decision required", label_pos=Point(1172, 316), label_width=150, label_cls="small"))
+    svg.add(arrow(Point(1010, 455), Point(940, 369), color=GREEN, marker="arrow-green", dashed=True, label="resume RUNNING", label_pos=Point(932, 438), label_width=150, label_cls="small"))
 
-    svg.add(rect(930, 790, 404, 86, fill="#fbfff7", stroke=GREEN, rx=28, pattern="dots-green", opacity=0.28))
-    svg.add(text(1132, 824, "Invariant highlighted by design docs", "h3", "middle"))
-    svg.add(text(1132, 850, "Planner suggests; Workflow mutates state; Executor runs tools; Human approves.", "mono-small", "middle"))
+    svg.add(rect(780, 790, 620, 86, fill="#fbfff7", stroke=GREEN, rx=28, pattern="dots-green", opacity=0.28))
+    svg.add(text(1090, 824, "Invariant highlighted by design docs", "h3", "middle"))
+    svg.add(text(1090, 850, "Planner suggests; Workflow mutates state; Executor runs tools; Human approves.", "mono-small", "middle"))
 
     (OUT_DIR / "workflow-swimlane.svg").write_text(svg.render(), encoding="utf-8")
 
@@ -423,7 +421,7 @@ def render_runtime_sequence() -> None:
 
     svg = Svg(
         1500,
-        1120,
+        1260,
         "时序图：端到端执行与恢复闭环",
         "展示 User、TaskAPI、Workflow、Planner、ToolKG、Executor、ToolAdapter、Safety、Storage 之间的端到端消息。",
     )
@@ -444,8 +442,8 @@ def render_runtime_sequence() -> None:
         stroke = GREEN if label in {"USER", "WORKFLOW"} else GRAY_DARK
         pattern = "dots-green" if label in {"USER", "WORKFLOW"} else "dots-gray"
         svg.add(pill(x - 72, 148, 144, 58, label, stroke=stroke, pattern=pattern, cls="mono-small"))
-        svg.add(f'<path d="M{x},{206} L{x},{1036}" stroke="{GRAY}" stroke-width="1.7"/>')
-        svg.add(pill(x - 72, 1042, 144, 50, label, stroke=stroke, pattern=pattern, cls="mono-small"))
+        svg.add(f'<path d="M{x},{206} L{x},{1126}" stroke="{GRAY}" stroke-width="1.7"/>')
+        svg.add(pill(x - 72, 1192, 144, 50, label, stroke=stroke, pattern=pattern, cls="mono-small"))
 
     messages = [
         (246, 118, 282, "natural-language goal"),
@@ -469,17 +467,17 @@ def render_runtime_sequence() -> None:
         cls = "mono-green" if color == GREEN else "mono-small"
         start = Point(x1 + 18 if x2 > x1 else x1 - 18, y)
         end = Point(x2 - 18 if x2 > x1 else x2 + 18, y)
-        svg.add(arrow(start, end, color=color, marker=marker, label=label, label_pos=Point((x1 + x2) // 2, y - 12), label_width=230, label_cls=cls))
+        svg.add(arrow(start, end, color=color, marker=marker, label=label, label_pos=Point((x1 + x2) // 2, y - 30), label_width=230, label_cls=cls))
 
-    svg.add(rect(420, 876, 952, 136, fill="#fbfff7", stroke=GREEN, rx=14, pattern="dots-green", opacity=0.22))
-    svg.add(rect(420, 876, 98, 36, fill="#ffffff", stroke=GREEN, rx=10))
-    svg.add(text(469, 900, "LOOP", "lane", "middle"))
-    svg.add(text(1084, 904, "retry -> patch -> replan", "mono-small", "middle"))
-    svg.add(text(1084, 928, "until RUNNING resumes or recovery is exhausted", "mono-small", "middle"))
-    svg.add(arrow(Point(640, 986), Point(456, 986), color=GREEN, marker="arrow-green", label="Decision applied returns control", label_pos=Point(548, 976), label_width=220))
+    svg.add(rect(420, 982, 952, 136, fill="#fbfff7", stroke=GREEN, rx=14, pattern="dots-green", opacity=0.22))
+    svg.add(rect(420, 982, 98, 36, fill="#ffffff", stroke=GREEN, rx=10))
+    svg.add(text(469, 1006, "LOOP", "lane", "middle"))
+    svg.add(text(1084, 1010, "retry -> patch -> replan", "mono-small", "middle"))
+    svg.add(text(1084, 1034, "until RUNNING resumes or recovery is exhausted", "mono-small", "middle"))
+    svg.add(arrow(Point(640, 1092), Point(456, 1092), color=GREEN, marker="arrow-green", label="Decision applied returns control", label_pos=Point(548, 1062), label_width=220))
 
-    svg.add(text(86, 1010, "WAITING_* gates are persisted before the user sees the decision.", "mono-small"))
-    svg.add(text(816, 1010, "Safety block maps to WAITING_REPLAN_CONFIRM, not hidden execution.", "mono-small"))
+    svg.add(text(86, 1146, "WAITING_* gates are persisted before the user sees the decision.", "mono-small"))
+    svg.add(text(816, 1146, "Safety block maps to WAITING_REPLAN_CONFIRM, not hidden execution.", "mono-small"))
 
     (OUT_DIR / "runtime-sequence.svg").write_text(svg.render(), encoding="utf-8")
 
@@ -518,7 +516,7 @@ def render_frontend_flow() -> None:
     ]
     for x, title, body in api_cards:
         svg.add(card(x, 590, 206, 84, title, tuple(wrap(body, width=25)), fill="#ffffff", title_cls="mono-small"))
-    svg.add(arrow(Point(756, 544), Point(1010, 444), color=GREEN, marker="arrow-green", dashed=True, label="server refresh after Decision", label_pos=Point(928, 510), label_width=230))
+    svg.add(arrow(Point(756, 544), Point(1010, 444), color=GREEN, marker="arrow-green", dashed=True, label="server refresh after Decision", label_pos=Point(936, 492), label_width=230))
     svg.add(text(750, 754, "Web state is derived from API responses; it does not synthesize PendingAction, Decision, EventLog, or TaskSnapshot.", "mono-small", "middle"))
 
     (OUT_DIR / "frontend-workbench.svg").write_text(svg.render(), encoding="utf-8")

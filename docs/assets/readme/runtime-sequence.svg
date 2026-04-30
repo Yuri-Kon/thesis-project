@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1260" viewBox="0 0 1500 1260" role="img" aria-labelledby="title desc">
+  <title id="title">时序图：端到端执行与恢复闭环</title>
+  <desc id="desc">展示 User、TaskAPI、Workflow、Planner、ToolKG、Executor、ToolAdapter、Safety、Storage 之间的端到端消息。</desc>
+  <defs>
+    <pattern id="dots-green" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.05" fill="#a7d486" opacity="0.72"/>
+    </pattern>
+    <pattern id="dots-gray" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.0" fill="#b9bec6" opacity="0.62"/>
+    </pattern>
+    <pattern id="dots-blue" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="2.3" cy="2.3" r="1.0" fill="#8ab5e8" opacity="0.36"/>
+    </pattern>
+    <marker id="arrow-green" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6fb23f"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c838d"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1500" height="1260" fill="#ffffff"/>
+<text x="52" y="66" style="font-family:Arial, Helvetica, sans-serif;font-size:34px;font-weight:800;fill:#111111" text-anchor="start">Sequence: end-to-end planning, execution, and recovery loop</text>
+<text x="54" y="100" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">Labels are placed away from lifelines and arrows to avoid overlap while preserving the architecture.md flow.</text>
+<rect x="46" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="46" y="148" width="144" height="58" rx="29" fill="url(#dots-green)" opacity="0.65"/>
+<text x="118" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">USER</text>
+<path d="M118,206 L118,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="46" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="46" y="1192" width="144" height="50" rx="25" fill="url(#dots-green)" opacity="0.65"/>
+<text x="118" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">USER</text>
+<rect x="210" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="210" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="282" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TASK API</text>
+<path d="M282,206 L282,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="210" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="210" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="282" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TASK API</text>
+<rect x="384" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="384" y="148" width="144" height="58" rx="29" fill="url(#dots-green)" opacity="0.65"/>
+<text x="456" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">WORKFLOW</text>
+<path d="M456,206 L456,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="384" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="384" y="1192" width="144" height="50" rx="25" fill="url(#dots-green)" opacity="0.65"/>
+<text x="456" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">WORKFLOW</text>
+<rect x="568" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="568" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="640" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">PLANNER</text>
+<path d="M640,206 L640,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="568" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="568" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="640" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">PLANNER</text>
+<rect x="744" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="744" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="816" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TOOL KG</text>
+<path d="M816,206 L816,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="744" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="744" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="816" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TOOL KG</text>
+<rect x="922" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="922" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="994" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">EXECUTOR</text>
+<path d="M994,206 L994,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="922" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="922" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="994" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">EXECUTOR</text>
+<rect x="1102" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="1102" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="1174" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TOOL ADAPTER</text>
+<path d="M1174,206 L1174,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="1102" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="1102" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="1174" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">TOOL ADAPTER</text>
+<rect x="1268" y="148" width="144" height="58" rx="29" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="1268" y="148" width="144" height="58" rx="29" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="1340" y="182" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">SAFETY / STORE</text>
+<path d="M1340,206 L1340,1126" stroke="#c9cdd3" stroke-width="1.7"/>
+<rect x="1268" y="1192" width="144" height="50" rx="25" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="1268" y="1192" width="144" height="50" rx="25" fill="url(#dots-gray)" opacity="0.65"/>
+<text x="1340" y="1222" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">SAFETY / STORE</text>
+<path d="M136,246 L264,246" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="200" y="216" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">natural-language goal</text>
+<path d="M300,300 L438,300" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="369" y="270" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">create ProteinDesignTask</text>
+<path d="M474,354 L622,354" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="548" y="324" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">request Top-K candidates</text>
+<path d="M658,408 L798,408" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="728" y="378" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">query ToolKG constraints</text>
+<path d="M798,462 L658,462" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+<text x="728" y="432" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">tool schemas / cost / risk</text>
+<path d="M622,516 L474,516" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+<text x="548" y="486" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">CandidateSet + default</text>
+<path d="M474,570 L1322,570" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="898" y="540" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">write PendingAction or</text>
+<text x="898" y="556" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">PlanSnapshot</text>
+<path d="M474,624 L976,624" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="725" y="594" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">run confirmed Plan</text>
+<path d="M1012,678 L1156,678" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="1084" y="648" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">execute PlanStep</text>
+<path d="M1156,732 L1012,732" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+<text x="1084" y="702" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">StepResult</text>
+<path d="M1012,786 L1322,786" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="1167" y="756" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">persist StepResult + metrics</text>
+<path d="M1012,840 L1322,840" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="1167" y="810" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">pre/post safety check</text>
+<path d="M1322,894 L474,894" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+<text x="898" y="864" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">ok / warn / block</text>
+<path d="M474,948 L622,948" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="548" y="918" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">patch or suffix replan</text>
+<text x="548" y="934" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">request</text>
+<rect x="420" y="982" width="952" height="136" rx="14" fill="#fbfff7" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="420" y="982" width="952" height="136" rx="14" fill="url(#dots-green)" opacity="0.22"/>
+<rect x="420" y="982" width="98" height="36" rx="10" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+
+<text x="469" y="1006" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:13px;font-weight:800;fill:#111111" text-anchor="middle">LOOP</text>
+<text x="1084" y="1010" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">retry -&gt; patch -&gt; replan</text>
+<text x="1084" y="1034" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">until RUNNING resumes or recovery is exhausted</text>
+<path d="M640,1092 L456,1092" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+<text x="548" y="1062" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">Decision applied returns</text>
+<text x="548" y="1078" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">control</text>
+<text x="86" y="1146" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="start">WAITING_* gates are persisted before the user sees the decision.</text>
+<text x="816" y="1146" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="start">Safety block maps to WAITING_REPLAN_CONFIRM, not hidden execution.</text>
+</svg>
