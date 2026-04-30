@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="980" viewBox="0 0 1500 980" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="920" viewBox="0 0 1500 920" role="img" aria-labelledby="title desc">
   <title id="title">泳道图：任务生命周期与组件职责</title>
   <desc id="desc">展示 API、Workflow/FSM、Planner、Executor、Safety、Storage、Human 在任务阶段中的职责边界。</desc>
   <defs>
@@ -18,125 +18,138 @@
       <path d="M0,0 L10,5 L0,10 z" fill="#7c838d"/>
     </marker>
     <style>
-      .h1 { font: 800 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
-      .h2 { font: 800 19px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
-      .h3 { font: 750 15px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #111111; }
-      .body { font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #252c35; }
-      .small { font: 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #606873; }
-      .mono { font: 14px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #111111; }
-      .mono-green { font: 15px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #275f13; }
-      .mono-small { font: 12px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #404852; }
-      .lane { font: 800 13px "SFMono-Regular", Consolas, "Liberation Mono", monospace; fill: #111111; }
-      .tag { font: 800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #606873; letter-spacing: .8px; }
+      .h1 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 32px; font-weight: 800; fill: #111111; }
+      .h2 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 18px; font-weight: 800; fill: #111111; }
+      .h3 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; font-weight: 750; fill: #111111; }
+      .body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; fill: #252c35; }
+      .small { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 12.5px; fill: #606873; }
+      .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 13px; fill: #111111; paint-order: stroke fill; stroke: #ffffff; stroke-width: 2.6px; stroke-linejoin: round; }
+      .mono-green { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12.5px; fill: #275f13; paint-order: stroke fill; stroke: #ffffff; stroke-width: 2.6px; stroke-linejoin: round; }
+      .mono-small { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 11.5px; fill: #404852; paint-order: stroke fill; stroke: #ffffff; stroke-width: 2.2px; stroke-linejoin: round; }
+      .lane { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: 12.5px; font-weight: 800; fill: #111111; paint-order: stroke fill; stroke: #ffffff; stroke-width: 2.3px; stroke-linejoin: round; }
+      .tag { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 11px; font-weight: 800; fill: #606873; letter-spacing: .8px; paint-order: stroke fill; stroke: #ffffff; stroke-width: 2px; stroke-linejoin: round; }
     </style>
   </defs>
-  <rect x="0" y="0" width="1500" height="980" fill="#ffffff"/>
-<text x="52" y="66" class="h1" text-anchor="start">Swimlane: task lifecycle, agent boundaries, and HITL checkpoints</text>
-<text x="54" y="100" class="small" text-anchor="start">Rows show ownership; columns show lifecycle stages. WAITING_* rows stop execution until a Decision arrives.</text>
-<rect x="62" y="106" width="1376" height="56" rx="20" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
-<rect x="62" y="106" width="1376" height="56" rx="20" fill="url(#dots-gray)" opacity="0.18"/>
-<text x="295" y="140" class="tag" text-anchor="middle">INTAKE</text>
-<path d="M210,106 L210,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<text x="475" y="140" class="tag" text-anchor="middle">PLAN</text>
-<path d="M380,106 L380,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<text x="675" y="140" class="tag" text-anchor="middle">EXECUTE</text>
-<path d="M570,106 L570,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<text x="915" y="140" class="tag" text-anchor="middle">RECOVER</text>
-<path d="M780,106 L780,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<text x="1140" y="140" class="tag" text-anchor="middle">SUMMARIZE</text>
-<path d="M1050,106 L1050,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<text x="1335" y="140" class="tag" text-anchor="middle">AUDIT</text>
-<path d="M1230,106 L1230,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<path d="M1440,106 L1440,762" stroke="#c9cdd3" stroke-width="1.2"/>
-<rect x="62" y="160" width="1376" height="86" rx="0" fill="#fbfff7" stroke="#c9cdd3" stroke-width="1.45"/>
-<rect x="62" y="160" width="1376" height="86" rx="0" fill="url(#dots-green)" opacity="0.12"/>
-<text x="90" y="212" class="lane" text-anchor="start">Human / UI</text>
-<rect x="62" y="246" width="1376" height="86" rx="0" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
+  <rect x="0" y="0" width="1500" height="920" fill="#ffffff"/>
 
-<text x="90" y="298" class="lane" text-anchor="start">TaskAPI</text>
-<rect x="62" y="332" width="1376" height="86" rx="0" fill="#fbfff7" stroke="#c9cdd3" stroke-width="1.45"/>
-<rect x="62" y="332" width="1376" height="86" rx="0" fill="url(#dots-green)" opacity="0.12"/>
-<text x="90" y="384" class="lane" text-anchor="start">Workflow / FSM</text>
-<rect x="62" y="418" width="1376" height="86" rx="0" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
+  <text x="52" y="62" class="h1">Swimlane: task lifecycle, agent boundaries, and HITL checkpoints</text>
+  <text x="54" y="92" class="small">Rows show ownership; columns show lifecycle stages. WAITING_* rows stop execution until a Decision arrives.</text>
 
-<text x="90" y="470" class="lane" text-anchor="start">PlannerAgent</text>
-<rect x="62" y="504" width="1376" height="86" rx="0" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
+  <rect x="92" y="118" width="1316" height="52" rx="18" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="118" width="1316" height="52" rx="18" fill="url(#dots-gray)" opacity="0.18"/>
+  <text x="282" y="150" class="tag" text-anchor="middle">INTAKE</text>
+  <text x="494" y="150" class="tag" text-anchor="middle">PLAN</text>
+  <text x="706" y="150" class="tag" text-anchor="middle">EXECUTE</text>
+  <text x="918" y="150" class="tag" text-anchor="middle">RECOVER</text>
+  <text x="1130" y="150" class="tag" text-anchor="middle">SUMMARIZE</text>
+  <text x="1342" y="150" class="tag" text-anchor="middle">AUDIT</text>
 
-<text x="90" y="556" class="lane" text-anchor="start">Executor / Tools</text>
-<rect x="62" y="590" width="1376" height="86" rx="0" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
+  <path d="M281,118 L281,740" stroke="#c9cdd3" stroke-width="1.1"/>
+  <path d="M493,118 L493,740" stroke="#c9cdd3" stroke-width="1.1"/>
+  <path d="M705,118 L705,740" stroke="#c9cdd3" stroke-width="1.1"/>
+  <path d="M917,118 L917,740" stroke="#c9cdd3" stroke-width="1.1"/>
+  <path d="M1129,118 L1129,740" stroke="#c9cdd3" stroke-width="1.1"/>
+  <path d="M1341,118 L1341,740" stroke="#c9cdd3" stroke-width="1.1"/>
 
-<text x="90" y="642" class="lane" text-anchor="start">SafetyAgent</text>
-<rect x="62" y="676" width="1376" height="86" rx="0" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.45"/>
+  <rect x="92" y="170" width="1316" height="86" fill="#fbfff7" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="170" width="1316" height="86" fill="url(#dots-green)" opacity="0.12"/>
+  <rect x="92" y="256" width="1316" height="86" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="342" width="1316" height="86" fill="#fbfff7" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="342" width="1316" height="86" fill="url(#dots-green)" opacity="0.12"/>
+  <rect x="92" y="428" width="1316" height="86" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="514" width="1316" height="86" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="600" width="1316" height="86" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
+  <rect x="92" y="686" width="1316" height="86" fill="#ffffff" stroke="#c9cdd3" stroke-width="1.4"/>
 
-<text x="90" y="728" class="lane" text-anchor="start">Storage / Log</text>
-<rect x="224" y="176" width="142" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="224" y="176" width="142" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="295" y="202" class="mono-small" text-anchor="middle">submit goal</text>
-<rect x="228" y="262" width="136" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="228" y="262" width="136" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="296" y="288" class="mono-small" text-anchor="middle">create task</text>
-<rect x="422" y="348" width="150" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="422" y="348" width="150" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="497" y="374" class="mono-small" text-anchor="middle">CREATED -&gt; PLANNING</text>
-<rect x="424" y="434" width="150" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="424" y="434" width="150" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="499" y="460" class="mono-small" text-anchor="middle">Top-K candidates</text>
-<rect x="610" y="348" width="156" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="610" y="348" width="156" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="688" y="374" class="mono-small" text-anchor="middle">WAITING_PLAN_CONFIRM</text>
-<rect x="608" y="176" width="154" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="608" y="176" width="154" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="685" y="202" class="mono-small" text-anchor="middle">review plan</text>
-<rect x="800" y="348" width="140" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="800" y="348" width="140" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="870" y="374" class="mono-small" text-anchor="middle">RUNNING</text>
-<rect x="800" y="520" width="142" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="800" y="520" width="142" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="871" y="546" class="mono-small" text-anchor="middle">run PlanStep</text>
-<rect x="812" y="606" width="120" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="812" y="606" width="120" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="872" y="632" class="mono-small" text-anchor="middle">check step</text>
-<rect x="1016" y="348" width="176" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="1016" y="348" width="176" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="1104" y="374" class="mono-small" text-anchor="middle">WAITING_PATCH / REPLAN</text>
-<rect x="1010" y="434" width="188" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="1010" y="434" width="188" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="1104" y="460" class="mono-small" text-anchor="middle">patch / suffix replan</text>
-<rect x="1014" y="176" width="182" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="1014" y="176" width="182" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="1105" y="202" class="mono-small" text-anchor="middle">approve Decision</text>
-<rect x="1218" y="348" width="150" height="42" rx="18" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="1218" y="348" width="150" height="42" rx="18" fill="url(#dots-green)" opacity="0.26"/>
-<text x="1293" y="374" class="mono-small" text-anchor="middle">SUMMARIZING</text>
-<rect x="1216" y="606" width="154" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="1216" y="606" width="154" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="1293" y="632" class="mono-small" text-anchor="middle">final safety</text>
-<rect x="1220" y="692" width="150" height="42" rx="18" fill="#ffffff" stroke="#7c838d" stroke-width="1.45"/>
-<rect x="1220" y="692" width="150" height="42" rx="18" fill="url(#dots-gray)" opacity="0.26"/>
-<text x="1295" y="718" class="mono-small" text-anchor="middle">EventLog + Snapshot</text>
-<path d="M366,197 L424,455" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <text x="118" y="222" class="lane">Human / UI</text>
+  <text x="118" y="308" class="lane">TaskAPI</text>
+  <text x="118" y="394" class="lane">Workflow / FSM</text>
+  <text x="118" y="480" class="lane">PlannerAgent</text>
+  <text x="118" y="566" class="lane">Executor / Tools</text>
+  <text x="118" y="652" class="lane">SafetyAgent</text>
+  <text x="118" y="738" class="lane">Storage / Log</text>
 
-<path d="M574,455 L610,369" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <rect x="212" y="192" width="150" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="212" y="192" width="150" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="287" y="217" class="mono-small" text-anchor="middle">submit goal</text>
 
-<path d="M685,348 L685,218" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <rect x="424" y="278" width="150" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="424" y="278" width="150" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="499" y="303" class="mono-small" text-anchor="middle">create task</text>
 
-<path d="M762,197 L800,369" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <rect x="424" y="364" width="170" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="424" y="364" width="170" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="509" y="389" class="mono-small" text-anchor="middle">CREATED -&gt; PLANNING</text>
 
-<path d="M940,369 L1016,369" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <rect x="636" y="364" width="170" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="636" y="364" width="170" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="721" y="389" class="mono-small" text-anchor="middle">WAITING_PLAN_CONFIRM</text>
 
-<path d="M1192,369 L1218,369" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <rect x="636" y="450" width="170" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="636" y="450" width="170" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="721" y="475" class="mono-small" text-anchor="middle">Top-K candidates</text>
 
-<path d="M942,542 L1016,369" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)" stroke-dasharray="7 7"/>
-<rect x="955" y="498" width="150" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
-<text x="1030" y="518" class="small" text-anchor="middle">failure or block</text>
-<path d="M1104,434 L1104,218" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
-<rect x="1087" y="296" width="150" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
-<text x="1162" y="316" class="small" text-anchor="middle">Decision required</text>
-<path d="M1010,455 L940,369" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
-<rect x="893" y="414" width="150" height="32" rx="12" fill="#ffffff" opacity="0.96"/>
-<text x="968" y="434" class="small" text-anchor="middle">resume RUNNING</text>
-<rect x="930" y="790" width="404" height="86" rx="28" fill="#fbfff7" stroke="#6fb23f" stroke-width="1.45"/>
-<rect x="930" y="790" width="404" height="86" rx="28" fill="url(#dots-green)" opacity="0.28"/>
-<text x="1132" y="824" class="h3" text-anchor="middle">Invariant highlighted by design docs</text>
-<text x="1132" y="850" class="mono-small" text-anchor="middle">Planner suggests; Workflow mutates state; Executor runs tools; Human approves.</text>
+  <rect x="636" y="278" width="150" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="636" y="278" width="150" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="711" y="303" class="mono-small" text-anchor="middle">review plan</text>
+
+  <rect x="848" y="364" width="140" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="848" y="364" width="140" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="918" y="389" class="mono-small" text-anchor="middle">RUNNING</text>
+
+  <rect x="848" y="450" width="160" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="848" y="450" width="160" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="928" y="475" class="mono-small" text-anchor="middle">patch / replan</text>
+
+  <rect x="848" y="278" width="150" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="848" y="278" width="150" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="923" y="303" class="mono-small" text-anchor="middle">run PlanStep</text>
+
+  <rect x="1060" y="364" width="156" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="1060" y="364" width="156" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="1138" y="389" class="mono-small" text-anchor="middle">SUMMARIZING</text>
+
+  <rect x="1060" y="278" width="170" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="1060" y="278" width="170" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="1145" y="303" class="mono-small" text-anchor="middle">final safety check</text>
+
+  <rect x="1272" y="364" width="110" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="1272" y="364" width="110" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="1327" y="389" class="mono-small" text-anchor="middle">EventLog</text>
+
+  <rect x="1272" y="450" width="110" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="1272" y="450" width="110" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="1327" y="475" class="mono-small" text-anchor="middle">Snapshot</text>
+
+  <rect x="212" y="720" width="150" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="212" y="720" width="150" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="287" y="745" class="mono-small" text-anchor="middle">read summary</text>
+
+  <rect x="424" y="720" width="190" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="424" y="720" width="190" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="519" y="745" class="mono-small" text-anchor="middle">TaskSnapshot / EventLog</text>
+
+  <rect x="636" y="720" width="170" height="40" rx="16" fill="#ffffff" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="636" y="720" width="170" height="40" rx="16" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="721" y="745" class="mono-small" text-anchor="middle">Decision approval</text>
+
+  <rect x="848" y="720" width="170" height="40" rx="16" fill="#ffffff" stroke="#7c838d" stroke-width="1.4"/>
+  <rect x="848" y="720" width="170" height="40" rx="16" fill="url(#dots-gray)" opacity="0.22"/>
+  <text x="933" y="745" class="mono-small" text-anchor="middle">write snapshot</text>
+
+  <path d="M362,212 L424,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+  <path d="M574,298 L636,298" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+  <path d="M806,389 L848,389" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+  <path d="M996,389 L1060,389" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+  <path d="M1210,389 L1272,389" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+  <path d="M1210,475 L1272,475" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+  <path d="M996,475 L1060,303" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)" stroke-dasharray="7 7"/>
+  <path d="M806,475 L848,389" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+  <path d="M996,303 L1060,303" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+
+  <rect x="92" y="790" width="1316" height="82" rx="20" fill="#fbfff7" stroke="#6fb23f" stroke-width="1.4"/>
+  <rect x="92" y="790" width="1316" height="82" rx="20" fill="url(#dots-green)" opacity="0.22"/>
+  <text x="118" y="822" class="h3">Invariant highlighted by design docs</text>
+  <text x="118" y="846" class="mono-small">Planner suggests; Workflow mutates state; Executor runs tools; Human approves.</text>
+  <text x="118" y="866" class="mono-small">WAITING_* gates are persisted before the user sees the decision.</text>
 </svg>
