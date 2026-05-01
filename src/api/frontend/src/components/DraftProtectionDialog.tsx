@@ -62,7 +62,7 @@ export function DraftProtectionDialog({
           <button type="button" className="secondary-button" onClick={onDiscardAndNew}>
             Discard &amp; New
           </button>
-          <button ref={continueRef} onClick={onContinueEditing}>
+          <button type="button" ref={continueRef} onClick={onContinueEditing}>
             Continue Editing
           </button>
         </div>
