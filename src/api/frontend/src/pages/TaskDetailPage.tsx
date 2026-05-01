@@ -10,7 +10,6 @@ import { StatusBadge } from "../components/StatusBadge";
 import { StructureViewerPanel } from "../components/StructureViewerPanel";
 import { TaskDetailSkeleton } from "../components/SkeletonCard";
 import { TaskSearch } from "../components/TaskSearch";
-import { TaskDetailSkeleton } from "../components/SkeletonCard";
 
 interface TaskDetailPageProps {
   state: WorkspaceState;
