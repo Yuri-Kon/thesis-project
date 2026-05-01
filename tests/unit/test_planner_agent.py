@@ -470,6 +470,175 @@ class TestPlannerAgent:
         assert plan.explanation
         assert "ProteinToolKG" in plan.explanation
 
+    def test_confirmed_task_spec_blocks_unconfirmed_goal_inference(self, monkeypatch):
+        """确认后的结构化字段优先于自由文本 goal。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Evaluate the confirmed input sequence",
+            "inputs": {"sequence": "MKTAYIAKQRQISFVKSHFSRQ"},
+            "constraints": {
+                "task_kind": "sequence_evaluation",
+                "run_profile": "fast_smoke",
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_sequence",
+                "planner_capability_hints": [
+                    "sequence_evaluation",
+                    "quality_qc",
+                ],
+                "intake_summary": {"field_count": 3},
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_confirmed_sequence",
+            goal="Design a de novo protein, length 200-300 aa, with not_in_kg_tool",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        plan = planner.plan(task)
+
+        assert plan.constraints["task_kind"] == "sequence_evaluation"
+        assert plan.constraints["sequence"] == "MKTAYIAKQRQISFVKSHFSRQ"
+        assert "length_range" not in plan.constraints
+        assert "prompt" not in plan.constraints
+        assert "goal_type" not in plan.constraints
+        assert all(step.tool != "not_in_kg_tool" for step in plan.steps)
+        assert plan.steps[0].inputs["sequence"] == "MKTAYIAKQRQISFVKSHFSRQ"
+
+    @pytest.mark.parametrize(
+        ("task_kind", "spec_inputs", "spec_constraints", "expected_tools"),
+        [
+            (
+                "de_novo_design",
+                {},
+                {"length_range": [40, 60]},
+                {"seqgen_local", "protgpt2", "esmfold", "nim_esmfold", "protein_mpnn"},
+            ),
+            (
+                "sequence_evaluation",
+                {"sequence": "MKTAYIAKQRQISFVKSHFSRQ"},
+                {},
+                {"esmfold", "nim_esmfold", "biopython_qc"},
+            ),
+            (
+                "template_constrained_design",
+                {"template_pdb": "data/template.pdb"},
+                {"length_range": [80, 120]},
+                {"protein_mpnn", "esmfold", "nim_esmfold", "biopython_qc"},
+            ),
+        ],
+    )
+    def test_confirmed_task_spec_p0_task_kinds_plan_from_toolkg(
+        self,
+        monkeypatch,
+        task_kind,
+        spec_inputs,
+        spec_constraints,
+        expected_tools,
+    ):
+        """P0 场景从 ConfirmedTaskSpec 路由，且工具来自 ToolKG。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": f"Confirmed {task_kind}",
+            "inputs": spec_inputs,
+            "constraints": {
+                "task_kind": task_kind,
+                "run_profile": "balanced",
+                **spec_constraints,
+            },
+            "metadata": {
+                "intake_id": f"intake_issue283_{task_kind}",
+                "planner_capability_hints": ["structure_prediction"],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id=f"issue283_{task_kind}",
+            goal="Free text should not select tools",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        plan = planner.plan(task)
+
+        assert plan.constraints["task_kind"] == task_kind
+        assert {step.tool for step in plan.steps}.issubset(expected_tools)
+        assert all(step.tool in {spec.id for spec in _topk_registry()} for step in plan.steps)
+
+    def test_tool_policy_is_validated_against_toolkg(self, monkeypatch):
+        """tools_allowed / tools_excluded 必须是 ToolKG 中的 tool_id。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Confirmed de novo task",
+            "constraints": {
+                "task_kind": "de_novo_design",
+                "length_range": [40, 60],
+                "tools_allowed": ["missing_tool"],
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_policy",
+                "planner_capability_hints": ["sequence_generation"],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_bad_policy",
+            goal="Confirmed task",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        with pytest.raises(ValueError, match="tools_allowed contains unknown ToolKG tool_id"):
+            planner.plan(task)
+
+    def test_confirmed_hints_and_run_profile_only_adjust_candidates(self, monkeypatch):
+        """capability_hints / run_profile 进入候选元数据和评分，不直接绑定 tool_id。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Confirmed smoke de novo task",
+            "constraints": {
+                "task_kind": "de_novo_design",
+                "length_range": [40, 60],
+                "run_profile": "fast_smoke",
+                "tools_excluded": ["seqgen_local"],
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_hints",
+                "planner_capability_hints": [
+                    "sequence_generation",
+                    "structure_prediction",
+                ],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_hints",
+            goal="Use seqgen_local directly",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        topk = planner.plan_top_k(task, k=3)
+
+        assert topk.candidates
+        assert all(
+            "seqgen_local"
+            not in {step.tool for step in candidate.structured_payload.steps}
+            for candidate in topk.candidates
+            if isinstance(candidate.structured_payload, Plan)
+        )
+        for candidate in topk.candidates:
+            generator = candidate.metadata["candidate_generator"]
+            assert generator["policy_mode"] == "fast_smoke"
+            assert generator["confirmed_task_spec_present"] is True
+            assert generator["capability_hints"] == [
+                "sequence_generation",
+                "structure_prediction",
+            ]
+            assert "policy_mode_fit" in candidate.score_breakdown
+
     def test_plan_uses_default_sequence_when_missing(self):
         """测试当约束中没有序列时使用默认序列"""
         task = ProteinDesignTask(

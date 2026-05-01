@@ -894,7 +894,7 @@ class PendingActionCandidate(BaseModel):
 
     @model_validator(mode="after")
     def _sync_tool_metadata(self):
-        metadata: JsonMap = Field(default_factory=dict)
+        metadata: JsonMap = dict(self.metadata or {})
         self.metadata = metadata
 
         self.tool_id = _sync_metadata_field(
