@@ -57,7 +57,6 @@ class CandidateGenerator:
             spec.id: spec for spec in request.registry
         }
         unique_payloads = self._dedupe_payloads(request.payloads)
-        scored_rows: list[ScoredRow] = []
         filtered_rows: list[ScoredRow] = []
         soft_filtered_rows: list[ScoredRow] = []
         filter_reasons: list[str] = []
@@ -95,7 +94,6 @@ class CandidateGenerator:
                 effective_sort_key,
                 candidate.capability_id or "unknown",
             )
-            scored_rows.append(row)
             reason = self._filter_reason(candidate, payload.payload, request, registry_map)
             if reason is not None:
                 filter_reasons.append(reason)
@@ -107,7 +105,6 @@ class CandidateGenerator:
         available_rows = self._available_rows(
             filtered_rows=filtered_rows,
             soft_filtered_rows=soft_filtered_rows,
-            scored_rows=scored_rows,
             top_k=request.top_k,
         )
         if not available_rows:
@@ -144,7 +141,7 @@ class CandidateGenerator:
             default_candidate.candidate_id if default_candidate is not None else None
         )
         if default_candidate is not None:
-            default_metadata = cast(Metadata, default_candidate.metadata)
+            default_metadata = default_candidate.metadata
             default_metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
                 self._hooks.build_default_recommendation_reason(
                     candidate_kind=request.candidate_kind,
@@ -281,7 +278,6 @@ class CandidateGenerator:
         *,
         filtered_rows: Sequence[ScoredRow],
         soft_filtered_rows: Sequence[ScoredRow],
-        scored_rows: Sequence[ScoredRow],
         top_k: int,
     ) -> list[ScoredRow]:
         available_rows = list(filtered_rows)
@@ -296,8 +292,6 @@ class CandidateGenerator:
                     break
         if not available_rows and soft_filtered_rows:
             return list(soft_filtered_rows)
-        if not available_rows:
-            return list(scored_rows)
         return available_rows
 
     def _select_diverse_top_k(

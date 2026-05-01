@@ -146,8 +146,12 @@ class CandidateBuilder:
                 "confirmed_task_spec_present": request.confirmed_task_spec is not None,
             },
             "s5_contract": self._hooks.build_s5_scoring_contract(score_weights),
-            STATIC_SCORE_METADATA_KEY: self._hooks.build_static_score_summary(score_breakdown),
-            ACTION_SCORE_METADATA_KEY: self._hooks.build_action_score_summary(score_breakdown),
+            STATIC_SCORE_METADATA_KEY: self._hooks.build_static_score_summary(
+                score_breakdown
+            ),
+            ACTION_SCORE_METADATA_KEY: self._hooks.build_action_score_summary(
+                score_breakdown
+            ),
         }
         metadata.update(
             self._hooks.candidate_readiness_metadata(
@@ -164,7 +168,9 @@ class CandidateBuilder:
         if payload.recovery_reason:
             metadata["recovery_reason"] = payload.recovery_reason
         if isinstance(payload.payload, PlanPatch):
-            metadata.update(self._hooks.extract_patch_candidate_metadata(payload.payload))
+            metadata.update(
+                self._hooks.extract_patch_candidate_metadata(payload.payload)
+            )
         if isinstance(payload.payload, Plan):
             plan_metadata = self._hooks.extract_plan_candidate_metadata(payload.payload)
             if plan_metadata:
@@ -224,10 +230,13 @@ class CandidateBuilder:
         policy_adjustment = 0.0
         if policy_mode in {"conservative", "safe", "low_risk"}:
             policy_adjustment = 0.02 * adjusted.get("risk", 0.0)
-        elif policy_mode in {"low_cost", "budget", "cheap"}:
+        elif policy_mode in {"low_cost", "budget", "cheap", "fast_smoke"}:
             policy_adjustment = 0.02 * adjusted.get("cost", 0.0)
-        elif policy_mode in {"exploratory", "aggressive"}:
-            policy_adjustment = 0.02 * adjusted.get("objective", 0.0)
+        elif policy_mode in {"exploratory", "aggressive", "high_accuracy"}:
+            policy_adjustment = 0.02 * (
+                0.6 * adjusted.get("objective", 0.0)
+                + 0.4 * adjusted.get("tool_readiness", 0.0)
+            )
         adjusted["policy_mode_fit"] = round(policy_adjustment, 6)
         adjusted["overall"] = round(
             min(
@@ -242,7 +251,4 @@ class CandidateBuilder:
             ),
             6,
         )
-        return {
-            key: round(value, 6)
-            for key, value in adjusted.items()
-        }
+        return {key: round(value, 6) for key, value in adjusted.items()}

@@ -5,7 +5,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, List, Literal, Optional, Sequence, Set, cast
+from typing import Any, Iterable, List, Literal, Mapping, Optional, Sequence, Set, cast
 
 from src.infra.active_tool_metadata import metadata_by_tool_id
 from src.infra.tool_readiness import (
@@ -177,6 +177,22 @@ _CONSTRAINT_OVERRIDE_BY_CAPABILITY: dict[str, str] = {
     "structure_prediction": "structure_prediction_tool_override",
     "secondary_structure_annotation": "secondary_structure_annotation_tool_override",
 }
+_P0_TASK_KINDS: set[str] = {
+    "de_novo_design",
+    "sequence_evaluation",
+    "template_constrained_design",
+}
+_CONFIRMED_CONSTRAINT_GROUPS: tuple[str, ...] = (
+    "design_constraints",
+    "quality_constraints",
+    "structure_constraints",
+    "function_constraints",
+    "safety_constraints",
+    "execution_preferences",
+    "planner_policy",
+)
+_TOOL_POLICY_ALLOWED_KEYS: tuple[str, ...] = ("tools_allowed", "allowed_tools")
+_TOOL_POLICY_EXCLUDED_KEYS: tuple[str, ...] = ("tools_excluded", "blocked_tools")
 
 _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
 _DEFAULT_PROVIDER_CATALOG_PATH = (
@@ -252,8 +268,12 @@ class PlannerAgent:
         Returns:
             Plan: 包含步骤列表的执行计划
         """
-        enriched_task = enrich_task_from_goal(task)
-        return self._plan_from_route(enriched_task, use_external=use_external)
+        prepared_task = _prepare_task_for_planning(task)
+        _validate_tool_policy_against_registry(
+            prepared_task.constraints,
+            self._tool_registry,
+        )
+        return self._plan_from_route(prepared_task, use_external=use_external)
 
     def plan_top_k(
         self,
@@ -435,12 +455,19 @@ class PlannerAgent:
         生成一个单步骤计划，调用第一个可用工具（或 dummy_tool）
         保持与原始 PlannerAgent 行为一致
         """
-        if _is_de_novo_task(task):
-            plan = _build_de_novo_plan(task, self._tool_registry)
+        registry = _filter_registry_by_tool_policy(self._tool_registry, task.constraints)
+        task_kind = _extract_task_kind(task)
+        if task_kind in _P0_TASK_KINDS:
+            if task_kind == "sequence_evaluation":
+                plan = _build_sequence_evaluation_plan(task, registry)
+            elif task_kind == "template_constrained_design":
+                plan = _build_template_constrained_plan(task, registry)
+            else:
+                plan = _build_de_novo_plan(task, registry)
             return _attach_kg_explanation(plan)
-        if not self._tool_registry:
+        if not registry:
             raise ValueError("Tool registry is empty; cannot build default plan.")
-        tool_id = self._tool_registry[0].id
+        tool_id = registry[0].id
 
         # 从任务约束中提取 sequence，或使用默认值
         sequence = task.constraints.get(
@@ -553,6 +580,7 @@ class PlannerAgent:
             task,
         )
         _ensure_plan_tools_in_registry(plan, self._tool_registry)
+        _ensure_plan_satisfies_tool_policy(plan, task.constraints)
         return _attach_kg_explanation(plan)
 
     def _attach_route_metadata(
@@ -600,7 +628,7 @@ class PlannerAgent:
         record: TaskRecord | None = None,
     ) -> Plan:
         """生成 Plan 并驱动 PLANNING → PLANNED/WAITING_PLAN_CONFIRM 状态变更。"""
-        task = enrich_task_from_goal(task)
+        task = _prepare_task_for_planning(task)
         context.task = task
         if record is not None:
             record.goal = task.goal
@@ -2108,6 +2136,8 @@ def _build_top_k_result(
     runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
 ) -> TopKResult:
     constraints = task_constraints or {}
+    _validate_tool_policy_against_registry(constraints, registry)
+    registry = _filter_registry_by_tool_policy(registry, constraints)
     generator = CandidateGenerator(_candidate_generator_hooks())
     return generator.generate(
         CandidateGenerationInput(
@@ -2125,6 +2155,196 @@ def _build_top_k_result(
             policy_mode=_extract_policy_mode(constraints),
         )
     )
+
+
+def _prepare_task_for_planning(task: ProteinDesignTask) -> ProteinDesignTask:
+    projected = _project_confirmed_task_for_planner(task)
+    if _confirmed_task_spec_for_task(projected) is not None:
+        return projected
+    return enrich_task_from_goal(projected)
+
+
+def _project_confirmed_task_for_planner(task: ProteinDesignTask) -> ProteinDesignTask:
+    confirmed = _confirmed_task_spec_for_task(task)
+    if confirmed is None:
+        return task
+
+    constraints = dict(task.constraints or {})
+    metadata = dict(task.metadata or {})
+    metadata["confirmed_task_spec"] = dict(confirmed)
+    constraints["confirmed_task_spec"] = dict(confirmed)
+
+    confirmed_goal = confirmed.get("goal")
+    goal = task.goal
+    if isinstance(confirmed_goal, str) and confirmed_goal.strip():
+        goal = confirmed_goal.strip()
+
+    objective = _object_dict(confirmed.get("objective"))
+    if objective:
+        constraints["objective"] = dict(objective)
+        _merge_confirmed_values(constraints, objective)
+
+    inputs = _object_dict(confirmed.get("inputs"))
+    if inputs:
+        constraints["inputs"] = dict(inputs)
+        _merge_confirmed_values(constraints, inputs)
+
+    confirmed_constraints = _object_dict(confirmed.get("constraints"))
+    if confirmed_constraints:
+        _merge_confirmed_constraints(constraints, confirmed_constraints)
+
+    confirmed_metadata = _object_dict(confirmed.get("metadata"))
+    if confirmed_metadata:
+        intake_summary = confirmed_metadata.get("intake_summary")
+        if isinstance(intake_summary, dict):
+            metadata["intake_summary"] = dict(intake_summary)
+        hints = confirmed_metadata.get("planner_capability_hints")
+        if isinstance(hints, (list, tuple, set)):
+            constraints["capability_hints"] = [str(item) for item in hints if str(item)]
+
+    artifacts = confirmed.get("initial_artifacts")
+    if isinstance(artifacts, list):
+        constraints["initial_artifacts"] = list(artifacts)
+
+    return task.model_copy(
+        update={
+            "goal": goal,
+            "constraints": constraints,
+            "metadata": metadata,
+        },
+        deep=True,
+    )
+
+
+def _confirmed_task_spec_for_task(
+    task: ProteinDesignTask,
+) -> dict[str, object] | None:
+    metadata_confirmed = _object_dict((task.metadata or {}).get("confirmed_task_spec"))
+    if metadata_confirmed:
+        return metadata_confirmed
+    constraints_confirmed = _object_dict(
+        (task.constraints or {}).get("confirmed_task_spec")
+    )
+    if constraints_confirmed:
+        return constraints_confirmed
+    metadata_block = _object_dict((task.constraints or {}).get("metadata"))
+    metadata_nested = _object_dict(metadata_block.get("confirmed_task_spec"))
+    return metadata_nested or None
+
+
+def _object_dict(value: object) -> dict[str, object]:
+    if isinstance(value, dict):
+        return {str(key): item for key, item in value.items() if isinstance(key, str)}
+    return {}
+
+
+def _merge_confirmed_values(
+    target: dict[str, Any],
+    values: dict[str, object],
+) -> None:
+    for key, value in values.items():
+        target[key] = value
+
+
+def _merge_confirmed_constraints(
+    target: dict[str, Any],
+    values: dict[str, object],
+) -> None:
+    for key, value in values.items():
+        if key in _CONFIRMED_CONSTRAINT_GROUPS and isinstance(value, dict):
+            grouped = _object_dict(value)
+            target[key] = dict(grouped)
+            _merge_confirmed_values(target, grouped)
+        else:
+            target[key] = value
+
+
+def _tool_policy_sets(
+    constraints: Mapping[str, object] | dict[str, Any],
+) -> tuple[set[str], set[str]]:
+    allowed: set[str] = set()
+    excluded: set[str] = set()
+    containers: list[Mapping[str, object]] = []
+    if isinstance(constraints, dict):
+        containers.append(cast(Mapping[str, object], constraints))
+        for group_key in ("planner_policy", "execution_preferences"):
+            group = constraints.get(group_key)
+            if isinstance(group, dict):
+                containers.append(cast(Mapping[str, object], group))
+
+        confirmed = _object_dict(constraints.get("confirmed_task_spec"))
+        confirmed_constraints = _object_dict(confirmed.get("constraints"))
+        if confirmed_constraints:
+            containers.append(confirmed_constraints)
+            for group_key in ("planner_policy", "execution_preferences"):
+                group = confirmed_constraints.get(group_key)
+                if isinstance(group, dict):
+                    containers.append(cast(Mapping[str, object], group))
+
+    for container in containers:
+        for key in _TOOL_POLICY_ALLOWED_KEYS:
+            allowed.update(_string_values(container.get(key)))
+        for key in _TOOL_POLICY_EXCLUDED_KEYS:
+            excluded.update(_string_values(container.get(key)))
+    return allowed, excluded
+
+
+def _string_values(value: object) -> set[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return {stripped} if stripped else set()
+    if isinstance(value, (list, tuple, set)):
+        return {str(item) for item in value if str(item)}
+    return set()
+
+
+def _validate_tool_policy_against_registry(
+    constraints: Mapping[str, object] | dict[str, Any],
+    registry: Sequence[ToolSpec],
+) -> None:
+    allowed, excluded = _tool_policy_sets(constraints)
+    registry_ids = {spec.id for spec in registry}
+    unknown_allowed = sorted(allowed - registry_ids)
+    unknown_excluded = sorted(excluded - registry_ids)
+    if unknown_allowed:
+        raise ValueError(
+            "tools_allowed contains unknown ToolKG tool_id: "
+            f"{unknown_allowed}"
+        )
+    if unknown_excluded:
+        raise ValueError(
+            "tools_excluded contains unknown ToolKG tool_id: "
+            f"{unknown_excluded}"
+        )
+
+
+def _filter_registry_by_tool_policy(
+    registry: Sequence[ToolSpec],
+    constraints: Mapping[str, object] | dict[str, Any],
+) -> list[ToolSpec]:
+    allowed, excluded = _tool_policy_sets(constraints)
+    filtered = [
+        spec
+        for spec in registry
+        if (not allowed or spec.id in allowed) and spec.id not in excluded
+    ]
+    if not filtered:
+        raise ValueError("Tool policy excludes all ToolKG tools")
+    return filtered
+
+
+def _ensure_plan_satisfies_tool_policy(
+    plan: Plan,
+    constraints: Mapping[str, object] | dict[str, Any],
+) -> None:
+    allowed, excluded = _tool_policy_sets(constraints)
+    tool_ids = {step.tool for step in plan.steps}
+    disallowed = sorted(tool_ids - allowed) if allowed else []
+    blocked = sorted(tool_ids & excluded)
+    if disallowed:
+        raise ValueError(f"Plan references tools outside tools_allowed: {disallowed}")
+    if blocked:
+        raise ValueError(f"Plan references tools_excluded: {blocked}")
 
 
 def _candidate_generator_hooks() -> CandidateGeneratorHooks:
@@ -2212,11 +2432,26 @@ def _extract_budget_context(constraints: dict[str, Any]) -> dict[str, Any]:
     for key in ("budget_cap", "cost_cap", "max_runtime_min"):
         if key in constraints:
             extracted[key] = constraints[key]
+    execution_preferences = constraints.get("execution_preferences")
+    if isinstance(execution_preferences, dict):
+        for key in ("budget_cap", "cost_cap", "max_runtime_min"):
+            if key in execution_preferences and key not in extracted:
+                extracted[key] = execution_preferences[key]
     return extracted
 
 
 def _extract_policy_mode(constraints: dict[str, Any]) -> str:
     raw_mode = constraints.get("policy_mode") or constraints.get("run_profile")
+    if raw_mode is None and isinstance(constraints.get("execution_preferences"), dict):
+        raw_mode = constraints["execution_preferences"].get("run_profile")
+    if raw_mode is None and isinstance(constraints.get("confirmed_task_spec"), dict):
+        confirmed_constraints = constraints["confirmed_task_spec"].get("constraints")
+        if isinstance(confirmed_constraints, dict):
+            execution_preferences = confirmed_constraints.get("execution_preferences")
+            if isinstance(execution_preferences, dict):
+                raw_mode = execution_preferences.get("run_profile")
+            if raw_mode is None:
+                raw_mode = confirmed_constraints.get("run_profile")
     return str(raw_mode) if raw_mode is not None else "balanced"
 
 
@@ -4117,6 +4352,9 @@ _S1_OUTPUT_FIELDS = (
 def _extract_goal_type(task: ProteinDesignTask) -> str:
     for container in (task.constraints, task.metadata):
         if isinstance(container, dict):
+            task_kind = container.get("task_kind")
+            if isinstance(task_kind, str) and task_kind:
+                return task_kind
             goal_block = container.get("goal")
             if isinstance(goal_block, dict):
                 goal_type = goal_block.get("type")
@@ -4143,12 +4381,27 @@ def _extract_goal_type(task: ProteinDesignTask) -> str:
     return ""
 
 
+def _extract_task_kind(task: ProteinDesignTask) -> str:
+    goal_type = _extract_goal_type(task)
+    if goal_type:
+        return goal_type
+    confirmed = _confirmed_task_spec_for_task(task)
+    if confirmed is not None:
+        constraints = _object_dict(confirmed.get("constraints"))
+        task_kind = constraints.get("task_kind")
+        if isinstance(task_kind, str) and task_kind:
+            return task_kind
+    return ""
+
+
 def _is_de_novo_task(task: ProteinDesignTask) -> bool:
-    return _extract_goal_type(task) == _DE_NOVO_GOAL_TYPE
+    return _extract_task_kind(task) == _DE_NOVO_GOAL_TYPE
 
 
 def _extract_length_range(constraints: dict) -> List[int] | None:
     value = constraints.get("length_range")
+    if value is None and isinstance(constraints.get("design_constraints"), dict):
+        value = constraints["design_constraints"].get("length_range")
     if isinstance(value, (list, tuple)) and len(value) == 2:
         try:
             return [int(value[0]), int(value[1])]
@@ -4164,10 +4417,28 @@ def _extract_length_range(constraints: dict) -> List[int] | None:
 
 
 def _extract_template_pdb(constraints: dict) -> str | None:
-    for key in ("template", "structure_template_pdb", "pdb_path"):
+    inputs = constraints.get("inputs")
+    if isinstance(inputs, dict):
+        for key in ("template_pdb", "template", "structure_template_pdb", "pdb_path"):
+            value = inputs.get(key)
+            if isinstance(value, str) and value:
+                return value
+    for key in ("template_pdb", "template", "structure_template_pdb", "pdb_path"):
         value = constraints.get(key)
         if isinstance(value, str) and value:
             return value
+    return None
+
+
+def _extract_sequence_input(constraints: dict) -> str | None:
+    inputs = constraints.get("inputs")
+    if isinstance(inputs, dict):
+        value = inputs.get("sequence")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    value = constraints.get("sequence")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
     return None
 
 
@@ -4442,6 +4713,173 @@ def _is_sequence_exploration_step(
     if capability == "sequence_generation":
         return True
     return spec is not None and "sequence_generation" in set(spec.capabilities)
+
+
+def _build_sequence_evaluation_plan(
+    task: ProteinDesignTask,
+    registry: Sequence[ToolSpec],
+) -> Plan:
+    constraints = task.constraints or {}
+    sequence = _extract_sequence_input(constraints)
+    if sequence is None:
+        raise ValueError("sequence_evaluation requires confirmed inputs.sequence")
+
+    safety_level = constraints.get("safety_level")
+    prefer_remote = _prefers_remote_tools(constraints)
+    available_inputs: Set[str] = {"goal", "sequence"}
+    structure_tool = _select_tool_by_capability(
+        registry=registry,
+        capability="structure_prediction",
+        available_inputs=available_inputs,
+        safety_level=safety_level,
+        io_hint={"inputs": ["sequence"]},
+        prefer_remote=prefer_remote,
+    )
+    available_inputs.update(structure_tool.outputs)
+
+    steps: list[PlanStep] = [
+        PlanStep(
+            id="S1",
+            tool=structure_tool.id,
+            inputs={"sequence": sequence},
+            metadata={
+                "stage_id": "S2",
+                "stage_name": "structure_projection",
+                "task_kind": "sequence_evaluation",
+            },
+        )
+    ]
+    try:
+        qc_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="quality_qc",
+            available_inputs=available_inputs,
+            safety_level=safety_level,
+            io_hint={"inputs": ["sequence", "pdb_path"]},
+            prefer_remote=prefer_remote,
+        )
+    except ValueError:
+        qc_tool = None
+    if qc_tool is not None:
+        steps.append(
+            PlanStep(
+                id="S2",
+                tool=qc_tool.id,
+                inputs={"sequence": sequence, "pdb_path": "S1.pdb_path"},
+                metadata={
+                    "stage_id": "S3",
+                    "stage_name": "quality_gate",
+                    "task_kind": "sequence_evaluation",
+                },
+            )
+        )
+
+    return Plan(
+        task_id=task.task_id,
+        steps=steps,
+        constraints=task.constraints,
+        metadata={},
+        explanation=(
+            "ProteinToolKG selected a sequence evaluation chain using "
+            f"{', '.join(step.tool for step in steps)}."
+        ),
+    )
+
+
+def _build_template_constrained_plan(
+    task: ProteinDesignTask,
+    registry: Sequence[ToolSpec],
+) -> Plan:
+    constraints = task.constraints or {}
+    template_pdb = _extract_template_pdb(constraints)
+    if template_pdb is None:
+        raise ValueError("template_constrained_design requires confirmed template_pdb")
+
+    safety_level = constraints.get("safety_level")
+    prefer_remote = _prefers_remote_tools(constraints)
+    available_inputs = _collect_sequence_exploration_inputs(constraints)
+    available_inputs.update({"template", "structure_template_pdb", "pdb_path"})
+    design_tool = _select_tool_by_capability(
+        registry=registry,
+        capability="sequence_design",
+        available_inputs=available_inputs,
+        safety_level=safety_level,
+        io_hint={"inputs": ["pdb_path"]},
+        prefer_remote=prefer_remote,
+    )
+    available_inputs.update(design_tool.outputs)
+    structure_tool = _select_tool_by_capability(
+        registry=registry,
+        capability="structure_prediction",
+        available_inputs=available_inputs,
+        safety_level=safety_level,
+        io_hint={"inputs": ["sequence"]},
+        prefer_remote=prefer_remote,
+    )
+    available_inputs.update(structure_tool.outputs)
+
+    s1_inputs: dict = {"pdb_path": template_pdb, "template": template_pdb}
+    length_range = _extract_length_range(constraints)
+    if length_range:
+        s1_inputs["length_range"] = length_range
+
+    steps: list[PlanStep] = [
+        PlanStep(
+            id="S1",
+            tool=design_tool.id,
+            inputs=s1_inputs,
+            metadata={
+                "stage_id": "S1",
+                "stage_name": "template_conditioned_sequence_design",
+                "task_kind": "template_constrained_design",
+            },
+        ),
+        PlanStep(
+            id="S2",
+            tool=structure_tool.id,
+            inputs={"sequence": "S1.sequence"},
+            metadata={
+                "stage_id": "S2",
+                "stage_name": "structure_projection",
+                "task_kind": "template_constrained_design",
+            },
+        ),
+    ]
+    try:
+        qc_tool = _select_tool_by_capability(
+            registry=registry,
+            capability="quality_qc",
+            available_inputs=available_inputs,
+            safety_level=safety_level,
+            io_hint={"inputs": ["sequence", "pdb_path"]},
+            prefer_remote=prefer_remote,
+        )
+    except ValueError:
+        qc_tool = None
+    if qc_tool is not None:
+        steps.append(
+            PlanStep(
+                id="S3",
+                tool=qc_tool.id,
+                inputs={"sequence": "S1.sequence", "pdb_path": "S2.pdb_path"},
+                metadata={
+                    "stage_id": "S3",
+                    "stage_name": "quality_gate",
+                    "task_kind": "template_constrained_design",
+                },
+            )
+        )
+
+    return Plan(
+        task_id=task.task_id,
+        steps=steps,
+        constraints=task.constraints,
+        metadata={},
+        explanation=(
+            "ProteinToolKG selected a template constrained chain using "
+            f"{', '.join(step.tool for step in steps)}."
+        ),
+    )
 
 
 def _build_de_novo_plan(
