@@ -46,6 +46,8 @@ function readBootstrap(): BootstrapPayload {
 function App() {
   const bootstrap = useMemo(readBootstrap, []);
   const [taskId, setTaskId] = useState(bootstrap.taskId);
+  const [activeIntakeId, setActiveIntakeId] = useState<string | null>(null);
+  const [draftNavigateHref, setDraftNavigateHref] = useState<string | null>(null);
   const [inspector, setInspector] = useState<ReactNode>(null);
   const [state, setState] = useState<WorkspaceState>({
     pendingActions: [],
@@ -105,6 +107,25 @@ function App() {
     [taskId],
   );
 
+  const handleActiveIntakeChange = useCallback((intakeId: string | null) => {
+    setActiveIntakeId(intakeId);
+  }, []);
+
+  const handleDraftNavigate = useCallback((href: string) => {
+    setDraftNavigateHref(href);
+  }, []);
+
+  const handleResolveDraftNavigate = useCallback(
+    (action: "continue" | "discard" | "cancel") => {
+      if (action === "discard" && draftNavigateHref) {
+        window.location.href = draftNavigateHref;
+        return;
+      }
+      setDraftNavigateHref(null);
+    },
+    [draftNavigateHref],
+  );
+
   useEffect(() => {
     if (bootstrap.view === "task_builder") {
       setState((current) => ({ ...current, loading: false, error: null }));
@@ -144,18 +165,18 @@ function App() {
     bootstrap.view === "event_timeline" ? (
       <EventTimelinePage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskTimeline} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
     ) : bootstrap.view === "task_builder" ? (
-      <TaskBuilderPage onOpenTask={openTask} onInspectorChange={setInspector} />
+      <TaskBuilderPage onOpenTask={openTask} onInspectorChange={setInspector} onActiveIntakeChange={handleActiveIntakeChange} draftNavigateHref={draftNavigateHref} onResolveDraftNavigate={handleResolveDraftNavigate} />
     ) : bootstrap.view === "task_detail" ? (
       <TaskDetailPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onLoadTask={loadTaskDetail} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
     ) : (
-      <DashboardPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onOpenTask={openTask} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} />
+      <DashboardPage state={state} taskId={taskId} onTaskIdChange={setTaskId} onOpenTask={openTask} onRefresh={() => loadWorkspace(taskId)} onInspectorChange={setInspector} activeIntakeId={activeIntakeId} onDraftNavigate={handleDraftNavigate} />
     );
 
   return (
     <AppErrorBoundary>
       <main className="app-shell">
         <ColumnErrorBoundary name="sidebar">
-          <WorkbenchSidebar state={state} taskId={taskId} view={bootstrap.view} />
+          <WorkbenchSidebar state={state} taskId={taskId} view={bootstrap.view} activeIntakeId={activeIntakeId} onDraftNavigate={handleDraftNavigate} />
         </ColumnErrorBoundary>
         <ColumnErrorBoundary name="main">
           <section className="workbench-main">
