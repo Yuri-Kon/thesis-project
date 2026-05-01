@@ -6,6 +6,7 @@ import { ErrorNotice } from "../components/ErrorNotice";
 import { FieldSourceBadge } from "../components/FieldSourceBadge";
 import { SafetyPrecheckPanel } from "../components/SafetyPrecheckPanel";
 import { TaskDraftForm } from "../components/TaskDraftForm";
+import { TaskBuilderSkeleton } from "../components/SkeletonCard";
 
 interface TaskBuilderPageProps {
   onOpenTask: (taskId: string) => void;
@@ -207,6 +208,14 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
       </>,
     );
   }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange, taskKind, taskProfile]);
+
+  if (schema === null) {
+    return (
+      <div className="task-builder-layout">
+        <TaskBuilderSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="task-builder-layout">

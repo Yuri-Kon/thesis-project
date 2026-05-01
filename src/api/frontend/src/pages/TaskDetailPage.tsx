@@ -8,7 +8,9 @@ import { PendingReviewWorkspace } from "../components/PendingReviewWorkspace";
 import { ReportExplorer } from "../components/ReportExplorer";
 import { StatusBadge } from "../components/StatusBadge";
 import { StructureViewerPanel } from "../components/StructureViewerPanel";
+import { TaskDetailSkeleton } from "../components/SkeletonCard";
 import { TaskSearch } from "../components/TaskSearch";
+import { TaskDetailSkeleton } from "../components/SkeletonCard";
 
 interface TaskDetailPageProps {
   state: WorkspaceState;
@@ -58,6 +60,15 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
       </>,
     );
   }, [onInspectorChange, pendingLabel, state.pendingActionDetail?.candidates.length, state.pendingActionDetail?.default_suggestion, state.report?.report_path, task, taskId]);
+
+  if (state.loading) {
+    return (
+      <div className="task-detail-layout">
+        <TaskDetailSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="task-detail-layout">
       <section className="workspace-hero">

@@ -3,6 +3,7 @@ import type { WorkspaceState } from "../main";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskSearch } from "../components/TaskSearch";
+import { TimelineSkeleton } from "../components/SkeletonCard";
 
 interface EventTimelinePageProps {
   state: WorkspaceState;
@@ -48,6 +49,14 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
       </>,
     );
   }, [highlighted, latestEvent?.event_type, onInspectorChange, state.events.length, state.task?.id, state.task?.status, taskId]);
+
+  if (state.loading) {
+    return (
+      <div className="timeline-layout">
+        <TimelineSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="timeline-layout">

@@ -5,6 +5,7 @@ import { MetricCard } from "../components/MetricCard";
 import { ModelInvocationPanel } from "../components/ModelInvocationPanel";
 import { PendingActionList } from "../components/PendingActionList";
 import { TaskSearch } from "../components/TaskSearch";
+import { DashboardSkeleton } from "../components/SkeletonCard";
 
 interface DashboardPageProps {
   state: WorkspaceState;
@@ -47,6 +48,14 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
     );
   }, [blockedCapabilities, onInspectorChange, state.pendingActions.length, state.readiness.length, state.task?.id]);
 
+  if (state.loading) {
+    return (
+      <div className="dashboard-layout">
+        <DashboardSkeleton />
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-layout">
       <section className="workspace-hero">
@@ -57,7 +66,6 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
         </div>
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onOpenTask} onRefresh={onRefresh} />
       </section>
-      {state.loading ? <p className="muted">Loading workspace data...</p> : null}
       <section className="metric-strip" aria-label="Workspace overview">
         <MetricCard label="Pending reviews" value={state.pendingActions.length} detail="human decisions waiting" tone={state.pendingActions.length ? "amber" : "green"} />
         <MetricCard label="Capabilities" value={state.readiness.length} detail={`${blockedCapabilities} blocked - ${degradedCapabilities} degraded`} tone={blockedCapabilities ? "red" : degradedCapabilities ? "amber" : "blue"} />
