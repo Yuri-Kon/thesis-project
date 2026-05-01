@@ -4,9 +4,11 @@ import json
 import math
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Literal, cast
+from typing import Any, TypeAlias, Dict, List, Optional, Literal, cast
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+
+JsonMap: TypeAlias = dict[str, object]
 
 
 def now_iso() -> str:
@@ -39,9 +41,7 @@ REMOTE_JOB_ID_METADATA_KEY = "remote_job_id"
 
 def _validate_runtime_state_schema_version(value: int) -> int:
     if value != RUNTIME_STATE_SCHEMA_VERSION:
-        raise ValueError(
-            f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}"
-        )
+        raise ValueError(f"schema_version must be {RUNTIME_STATE_SCHEMA_VERSION}")
     return value
 
 
@@ -94,8 +94,8 @@ class PlanStep(BaseModel):
     id: str
     tool: str  # 对应 ProteinToolKG中的tool.id
     # 支持字面值和 "S1.sequence" 形式的引用
-    inputs: Dict = Field(default_factory=dict)
-    metadata: Dict = Field(default_factory=dict)
+    inputs: JsonMap = Field(default_factory=dict)
+    metadata: JsonMap = Field(default_factory=dict)
 
 
 class Plan(BaseModel):
@@ -208,12 +208,15 @@ class StepResult(BaseModel):
         self.remote_job_id = _sync_step_metadata_field(
             metrics,
             field_name=REMOTE_JOB_ID_METADATA_KEY,
-            field_value=self.remote_job_id or _coerce_non_empty_text(metrics.get("job_id")),
+            field_value=self.remote_job_id
+            or _coerce_non_empty_text(metrics.get("job_id")),
         )
         if self.failure_type is not None:
             metrics.setdefault("failure_type", self.failure_type)
         if isinstance(self.error_details, dict):
-            failure_code = _coerce_non_empty_text(self.error_details.get("failure_code"))
+            failure_code = _coerce_non_empty_text(
+                self.error_details.get("failure_code")
+            )
             if failure_code is not None:
                 metrics.setdefault("failure_code", failure_code)
         return self
@@ -291,9 +294,7 @@ class RuntimeFailureContext(BaseModel):
         try:
             json.dumps(value, ensure_ascii=True)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                f"{info.field_name} must be JSON-serializable"
-            ) from exc
+            raise ValueError(f"{info.field_name} must be JSON-serializable") from exc
         return value
 
     def to_replay_payload(self) -> Dict[str, Any]:
@@ -442,9 +443,7 @@ class RuntimeState(BaseModel):
         try:
             json.dumps(value, ensure_ascii=True)
         except (TypeError, ValueError) as exc:
-            raise ValueError(
-                "observation_summary must be JSON-serializable"
-            ) from exc
+            raise ValueError("observation_summary must be JSON-serializable") from exc
         return value
 
     def to_snapshot_payload(self) -> Dict[str, Any]:
@@ -643,7 +642,9 @@ class RerankReason(BaseModel):
         for item in value:
             if not isinstance(item, str):
                 raise ValueError(f"{info.field_name} items must be strings")
-            normalized.append(_validate_non_empty_text(item, field_name=info.field_name))
+            normalized.append(
+                _validate_non_empty_text(item, field_name=info.field_name)
+            )
         return normalized
 
 
@@ -833,7 +834,7 @@ class PendingActionCandidate(BaseModel):
     endpoint_type: str | None = None
     remote_job_id: str | None = None
     summary: Optional[str] = None
-    metadata: Dict = Field(default_factory=dict)
+    metadata: JsonMap = Field(default_factory=dict)
 
     @field_validator("candidate_id")
     @classmethod
@@ -845,9 +846,7 @@ class PendingActionCandidate(BaseModel):
 
     @field_validator("score_breakdown")
     @classmethod
-    def _validate_score_breakdown(
-        cls, value: Dict[str, float]
-    ) -> Dict[str, float]:
+    def _validate_score_breakdown(cls, value: Dict[str, float]) -> Dict[str, float]:
         normalized: Dict[str, float] = {}
         for key, score in value.items():
             if isinstance(score, bool) or not isinstance(score, (int, float)):
@@ -879,9 +878,7 @@ class PendingActionCandidate(BaseModel):
         payload = self.payload
         structured_payload = self.structured_payload
         if payload is None and structured_payload is None:
-            raise ValueError(
-                "either payload or structured_payload must be provided"
-            )
+            raise ValueError("either payload or structured_payload must be provided")
         if payload is None:
             self.payload = structured_payload
             return self
@@ -897,7 +894,7 @@ class PendingActionCandidate(BaseModel):
 
     @model_validator(mode="after")
     def _sync_tool_metadata(self):
-        metadata = dict(self.metadata or {})
+        metadata: JsonMap = Field(default_factory=dict)
         self.metadata = metadata
 
         self.tool_id = _sync_metadata_field(
@@ -1048,8 +1045,7 @@ def _sync_adapter_mode(
     allowed = {"local", "remote", "mock", "hybrid", "unknown"}
     if normalized not in allowed:
         raise ValueError(
-            "metadata.adapter_mode must be one of "
-            "local, remote, mock, hybrid, unknown"
+            "metadata.adapter_mode must be one of local, remote, mock, hybrid, unknown"
         )
     if field_value is None:
         metadata["adapter_mode"] = normalized
@@ -1068,9 +1064,7 @@ def _normalize_runtime_state_summary(summary_payload: Any) -> Dict[str, Any]:
         return summary_payload.model_dump()
     if isinstance(summary_payload, dict):
         return RuntimeStateSummary.model_validate(summary_payload).model_dump()
-    raise ValueError(
-        f"metadata.{RUNTIME_STATE_SUMMARY_METADATA_KEY} must be a mapping"
-    )
+    raise ValueError(f"metadata.{RUNTIME_STATE_SUMMARY_METADATA_KEY} must be a mapping")
 
 
 def _normalize_recommendation_reason(reason_payload: Any) -> Dict[str, Any]:
@@ -1088,9 +1082,7 @@ def _normalize_runtime_adjustment_summary(summary_payload: Any) -> Dict[str, Any
         return summary_payload.model_dump()
     if isinstance(summary_payload, dict):
         return RuntimeAdjustmentSummary.model_validate(summary_payload).model_dump()
-    raise ValueError(
-        f"metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping"
-    )
+    raise ValueError(f"metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping")
 
 
 def _normalize_rerank_reason(reason_payload: Any) -> Dict[str, Any]:
@@ -1131,8 +1123,8 @@ def _normalize_candidate_runtime_contracts(
 
     reason_payload = metadata.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
     if reason_payload is not None:
-        metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = _normalize_recommendation_reason(
-            reason_payload
+        metadata[DEFAULT_RECOMMENDATION_REASON_METADATA_KEY] = (
+            _normalize_recommendation_reason(reason_payload)
         )
 
     action_score_payload = metadata.get(ACTION_SCORE_METADATA_KEY)
@@ -1165,8 +1157,8 @@ def _normalize_candidate_runtime_contracts(
 
     runtime_adjustment_payload = metadata.get(RUNTIME_ADJUSTMENT_METADATA_KEY)
     if runtime_adjustment_payload is not None:
-        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = _normalize_runtime_adjustment_summary(
-            runtime_adjustment_payload
+        metadata[RUNTIME_ADJUSTMENT_METADATA_KEY] = (
+            _normalize_runtime_adjustment_summary(runtime_adjustment_payload)
         )
 
     rerank_reason_payload = metadata.get(RERANK_REASON_METADATA_KEY)
@@ -1230,9 +1222,7 @@ class PendingAction(BaseModel):
         suggestion = self.default_suggestion
         recommendation = self.default_recommendation
         if suggestion and recommendation and suggestion != recommendation:
-            raise ValueError(
-                "default_suggestion and default_recommendation must match"
-            )
+            raise ValueError("default_suggestion and default_recommendation must match")
         resolved = recommendation or suggestion
         self.default_suggestion = resolved
         self.default_recommendation = resolved
@@ -1245,8 +1235,8 @@ class PendingAction(BaseModel):
         summary_payload = metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
         if summary_payload is None:
             return self
-        metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY] = _normalize_waiting_runtime_summary(
-            summary_payload
+        metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY] = (
+            _normalize_waiting_runtime_summary(summary_payload)
         )
         return self
 
