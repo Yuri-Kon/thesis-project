@@ -116,8 +116,8 @@ function App() {
   }, []);
 
   const handleResolveDraftNavigate = useCallback(
-    (action: "continue" | "discard" | "cancel") => {
-      if (action === "discard" && draftNavigateHref) {
+    (action: "continue" | "discard" | "save" | "cancel") => {
+      if ((action === "discard" || action === "save") && draftNavigateHref) {
         window.location.href = draftNavigateHref;
         return;
       }
