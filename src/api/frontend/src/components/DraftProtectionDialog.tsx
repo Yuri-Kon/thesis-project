@@ -6,7 +6,8 @@ interface DraftProtectionDialogProps {
   updatedAt: string;
   status: "collecting" | "needs_confirmation";
   onContinueEditing: () => void;
-  onDiscardAndNew: () => void;
+  onDiscardAndLeave: () => void;
+  onSaveAndLeave: () => void;
   onCancel: () => void;
 }
 
@@ -15,13 +16,14 @@ export function DraftProtectionDialog({
   updatedAt,
   status,
   onContinueEditing,
-  onDiscardAndNew,
+  onDiscardAndLeave,
+  onSaveAndLeave,
   onCancel,
 }: DraftProtectionDialogProps) {
-  const continueRef = useRef<HTMLButtonElement>(null);
+  const saveRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    continueRef.current?.focus();
+    saveRef.current?.focus();
   }, []);
 
   useEffect(() => {
@@ -59,10 +61,13 @@ export function DraftProtectionDialog({
           <button type="button" className="text-button" onClick={onCancel}>
             Cancel
           </button>
-          <button type="button" className="secondary-button" onClick={onDiscardAndNew}>
-            Discard &amp; New
+          <button type="button" className="secondary-button danger-text" onClick={onDiscardAndLeave}>
+            Discard &amp; Leave
           </button>
-          <button type="button" ref={continueRef} onClick={onContinueEditing}>
+          <button type="button" ref={saveRef} onClick={onSaveAndLeave}>
+            Save &amp; Leave
+          </button>
+          <button type="button" className="secondary-button" onClick={onContinueEditing}>
             Continue Editing
           </button>
         </div>

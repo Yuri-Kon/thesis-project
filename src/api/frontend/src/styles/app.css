@@ -1702,3 +1702,7 @@ pre {
   padding: 6px 30px 6px 10px;
   width: auto;
 }
+
+.draft-dialog-actions .danger-text {
+  color: var(--danger);
+}
