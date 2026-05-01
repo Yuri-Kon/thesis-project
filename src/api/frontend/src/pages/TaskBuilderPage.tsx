@@ -98,7 +98,7 @@ interface TaskBuilderPageProps {
   onInspectorChange: (content: ReactNode) => void;
   onActiveIntakeChange: (intakeId: string | null) => void;
   draftNavigateHref: string | null;
-  onResolveDraftNavigate: (action: "continue" | "discard" | "cancel") => void;
+  onResolveDraftNavigate: (action: "continue" | "discard" | "save" | "cancel") => void;
 }
 
 export function TaskBuilderPage({
@@ -157,7 +157,7 @@ export function TaskBuilderPage({
     onResolveDraftNavigate("continue");
   }
 
-  function handleDiscardAndNew() {
+  function handleDiscardAndLeave() {
     if (intake) {
       removeDraftId(intake.intake_id);
       setRecentIds(readDraftIds());
@@ -168,26 +168,67 @@ export function TaskBuilderPage({
     onResolveDraftNavigate("discard");
   }
 
+  function handleSaveAndLeave() {
+    setIntake(null);
+    setText("");
+    setAcknowledgedWarnings([]);
+    onResolveDraftNavigate("save");
+  }
+
   function handleCancelNavigate() {
     onResolveDraftNavigate("cancel");
   }
 
-  // --- Recovery ---
-  async function handleRecover(intakeId: string) {
+  // --- Draft Switcher: auto-save current then load selected ---
+  async function handleSwitchDraft(targetId: string) {
+    if (intake && intake.intake_id === targetId) return;
     setBusy(true);
     setError(null);
     try {
-      const recovered = await apiClient.getTaskIntake(intakeId);
-      setIntake(recovered);
+      if (intake) {
+        try {
+          await apiClient.patchTaskIntake(intake.intake_id, {
+            fields: intake.draft.fields,
+            updated_by: "web_task_builder",
+          });
+        } catch {
+          /* best-effort save before switching */
+        }
+      }
+      const nextIntake = await apiClient.getTaskIntake(targetId);
+      setIntake(nextIntake);
       setAcknowledgedWarnings([]);
     } catch (nextError) {
       if (nextError instanceof ApiError && nextError.status === 404) {
-        removeDraftId(intakeId);
+        removeDraftId(targetId);
         setRecentIds(readDraftIds());
         setError("Draft no longer available and has been removed from history.");
       } else {
         setError(apiErrorMessage(nextError));
       }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // --- Explicit Save Draft ---
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  async function handleSaveDraft() {
+    if (!intake) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.patchTaskIntake(intake.intake_id, {
+        fields: intake.draft.fields,
+        updated_by: "web_task_builder",
+      });
+      addDraftId(intake.intake_id);
+      setRecentIds(readDraftIds());
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch (nextError) {
+      setError(apiErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -323,7 +364,7 @@ export function TaskBuilderPage({
     );
   }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange, taskKind, taskProfile]);
 
-  const showRecovery = !intake && recentIds.length > 0;
+  const showDraftSwitcher = recentIds.length > 0;
 
   if (schema === null) {
     return (
@@ -342,23 +383,30 @@ export function TaskBuilderPage({
         </div>
         <div className="builder-hero-actions">
           <span className="pill">{intake?.intake_id ?? "new intake"}</span>
-          {showRecovery ? (
-            <select
-              className="recovery-select"
-              value=""
-              onChange={(e) => {
-                const id = e.target.value;
-                if (id) void handleRecover(id);
-              }}
-              disabled={busy}
-            >
-              <option value="">Recover draft ▾</option>
-              {recentIds.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
-            </select>
+          {showDraftSwitcher ? (
+            <div className="draft-switcher-group">
+              <span className="draft-switcher-label">Drafts</span>
+              <select
+                className="recovery-select"
+                value={intake?.intake_id ?? ""}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id) void handleSwitchDraft(id);
+                }}
+                disabled={busy}
+              >
+                {recentIds.map((id) => (
+                  <option key={id} value={id} disabled={id === intake?.intake_id}>
+                    {id}{id === intake?.intake_id ? " (current)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {intake ? (
+            <button type="button" className="save-draft-button" onClick={() => void handleSaveDraft()} disabled={busy}>
+              {draftSaved ? "Saved" : "Save Draft"}
+            </button>
           ) : null}
           <button type="button" onClick={() => void loadSchema()} disabled={busy}>
             Reload Schema
@@ -432,7 +480,8 @@ export function TaskBuilderPage({
           updatedAt={intake!.updated_at}
           status={intake!.status as "collecting" | "needs_confirmation"}
           onContinueEditing={handleContinueEditing}
-          onDiscardAndNew={handleDiscardAndNew}
+          onDiscardAndLeave={handleDiscardAndLeave}
+          onSaveAndLeave={handleSaveAndLeave}
           onCancel={handleCancelNavigate}
         />
       ) : null}

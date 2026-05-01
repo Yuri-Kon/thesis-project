@@ -1706,3 +1706,37 @@ pre {
 .draft-dialog-actions .danger-text {
   color: var(--danger);
 }
+
+.draft-switcher-group {
+  align-items: center;
+  background: var(--surface-tint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: flex;
+  gap: 4px;
+  padding: 0 6px 0 8px;
+}
+
+.draft-switcher-label {
+  color: var(--muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.draft-switcher-group .recovery-select {
+  background: transparent;
+  border: none;
+  min-height: auto;
+  padding: 6px 28px 6px 4px;
+}
+
+.save-draft-button {
+  font-size: 0.75rem;
+  font-weight: 600;
+  min-height: auto;
+  padding: 6px 14px;
+  white-space: nowrap;
+}
