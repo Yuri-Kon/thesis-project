@@ -39,6 +39,10 @@ When behavior changes:
 - `uv run pytest ...` to verify
 - `uv run basedpyright ...` for type checks when practical
 
-## 5. Ambiguity → Stop
+## 5. Docslice
+
+Use the `doc-slicer` skill (see `.agents/skills/doc-slicer/SKILL.md`) to retrieve design spec fragments by SID, topic, or reference instead of full-document reads. Run `--lint` after design doc changes.
+
+## 6. Ambiguity → Stop
 
 When intent is unclear, prefer conservative implementation, defer to existing patterns, and request clarification before continuing.
