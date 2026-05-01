@@ -541,6 +541,7 @@ def validate_plan_executability(
     - 参数合法性与基础资源约束（类型、长度、候选数）
     """
 
+    _ = task
     kg_loader = kg_loader or load_tool_kg
     adapter_resolver = adapter_resolver or get_adapter
 
@@ -999,24 +1000,26 @@ def _validate_resource_limits(
                 )
 
         length_range = step.inputs.get("length_range")
-        if (
-            isinstance(length_range, (list, tuple))
-            and len(length_range) == 2
-            and all(isinstance(v, int) for v in length_range)
-            and length_range[1] > int(max_length)
-        ):
+        length_upper_bound: int | None = None
+        if isinstance(length_range, (list, tuple)):
+            length_range_items = cast(list[object] | tuple[object, ...], length_range)
+            if len(length_range_items) == 2:
+                upper_bound = length_range_items[1]
+                if isinstance(upper_bound, int) and not isinstance(upper_bound, bool):
+                    length_upper_bound = upper_bound
+        if length_upper_bound is not None and length_upper_bound > int(max_length):
             issues.append(
                 CandidateExecutionIssue(
                     code="CANDIDATE_RESOURCE_CONSTRAINT",
                     message=(
-                        f"length_range upper bound {length_range[1]} exceeds "
+                        f"length_range upper bound {length_upper_bound} exceeds "
                         f"tool limit {int(max_length)}"
                     ),
                     step_id=step.id,
                     tool_id=step.tool,
                     capability_id=capability_id,
                     io_type=io_type,
-                    details={"limit": "max_length", "value": length_range[1]},
+                    details={"limit": "max_length", "value": length_upper_bound},
                 )
             )
 
@@ -1045,37 +1048,32 @@ def _validate_resource_limits(
 
 
 def _extract_declared_outputs(step_tool: JsonMap) -> set[str]:
-    io_config = step_tool.get("io", {})
-    if not isinstance(io_config, dict):
-        return set()
-    outputs = io_config.get("outputs", {})
+    io_config = _as_json_map(step_tool.get("io"))
+    outputs = _as_json_map(io_config.get("outputs"))
     result: set[str] = set()
-    if isinstance(outputs, dict):
-        result.update(key for key in outputs if isinstance(key, str))
-    output_types = io_config.get("output_types", [])
-    if isinstance(output_types, list):
-        result.update(key for key in output_types if isinstance(key, str))
+    result.update(outputs)
+    result.update(_as_str_list(io_config.get("output_types")))
     return result
 
 
 def _extract_fallback_outputs(step: PlanStep) -> set[str]:
-    metadata = step.metadata if isinstance(step.metadata, dict) else {}
-    output_types = metadata.get("output_types", {})
-    if isinstance(output_types, dict):
-        return {key for key in output_types if isinstance(key, str)}
-    required_outputs = metadata.get("required_outputs", [])
-    if isinstance(required_outputs, list):
-        return {key for key in required_outputs if isinstance(key, str)}
+    metadata = step.metadata
+    output_types = _as_json_map(metadata.get("output_types"))
+    if output_types:
+        return set(output_types)
+    required_outputs = _as_str_list(metadata.get("required_outputs"))
+    if required_outputs:
+        return set(required_outputs)
     return set()
 
 
 def _resolve_execution_backend(execution: object) -> str | None:
     if isinstance(execution, str):
         return execution
-    if isinstance(execution, dict):
-        backend = execution.get("backend")
-        if isinstance(backend, str):
-            return backend
+    execution_map = _as_json_map(execution)
+    backend = execution_map.get("backend")
+    if isinstance(backend, str):
+        return backend
     return None
 
 
@@ -1091,11 +1089,10 @@ def _primary_capability(step_tool: JsonMap) -> str | None:
 
 
 def _tool_io_type(step_tool: JsonMap) -> str | None:
-    io_config = step_tool.get("io", {})
-    if isinstance(io_config, dict):
-        io_type = io_config.get("io_type_id")
-        if isinstance(io_type, str) and io_type:
-            return io_type
+    io_config = _as_json_map(step_tool.get("io"))
+    io_type = io_config.get("io_type_id")
+    if isinstance(io_type, str) and io_type:
+        return io_type
     return None
 
 
@@ -1134,7 +1131,7 @@ def _has_adapter(
     adapter_resolver: Callable[[str], object],
 ) -> bool:
     try:
-        adapter_resolver(tool_id)
+        _ = adapter_resolver(tool_id)
     except Exception:
         return False
     return True
