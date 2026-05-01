@@ -33,9 +33,9 @@
       "structured_output_mode": "json_schema",
       "use_response_format": true
     },
-    "deepseek-chat": {
+    "deepseek-v4-pro": {
       "provider_type": "openai_compatible",
-      "description": "DeepSeek Chat via OpenAI-compatible API",
+      "description": "DeepSeek V4 Pro via OpenAI-compatible API",
       "model_name": "deepseek-v4-pro",
       "api_key_env": "DEEPSEEK_API_KEY",
       "endpoint": "https://api.deepseek.com/v1",
@@ -122,10 +122,10 @@
       },
       "use_response_format": false
     },
-    "deepseek-reasoner": {
+    "deepseek-v4-flash": {
       "provider_type": "openai_compatible",
-      "description": "DeepSeek Reasoner",
-      "model_name": "deepseek-v4-pro",
+      "description": "DeepSeek V4 Flash via OpenAI-compatible API",
+      "model_name": "deepseek-v4-flash",
       "api_key_env": "DEEPSEEK_API_KEY",
       "endpoint": "https://api.deepseek.com/v1",
       "timeout": 300,

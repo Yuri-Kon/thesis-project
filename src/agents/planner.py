@@ -201,11 +201,11 @@ _DEFAULT_PROVIDER_CATALOG_PATH = (
 )
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 _PREFERRED_LOCAL_PROVIDER_ORDER = (
-    "qwen-flash",
     "glm-5",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
     "glm-4.7",
-    "deepseek-chat",
-    "deepseek-reasoner",
+    "qwen-flash",
     "nemotron",
     "openai",
 )
