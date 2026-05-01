@@ -142,7 +142,10 @@ export function TaskBuilderPage({
         e.returnValue = "";
       };
       window.addEventListener("beforeunload", handler);
-      return () => window.removeEventListener("beforeunload", handler);
+      return () => {
+        window.removeEventListener("beforeunload", handler);
+        onActiveIntakeChange(null);
+      };
     } else {
       onActiveIntakeChange(null);
     }
