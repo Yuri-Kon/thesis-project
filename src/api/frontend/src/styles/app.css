@@ -1675,6 +1675,20 @@ pre {
   to { transform: scale(1); opacity: 1; }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .draft-dialog-backdrop {
+    animation: none;
+  }
+  .draft-dialog {
+    animation: none;
+  }
+}
+
+.draft-dialog-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ---- Draft Recovery Select ---- */
 
 .recovery-select {
