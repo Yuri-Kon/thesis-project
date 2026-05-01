@@ -14,6 +14,7 @@ import { EventTimelinePage } from "./pages/EventTimelinePage";
 import { TaskBuilderPage } from "./pages/TaskBuilderPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
 import { ErrorNotice } from "./components/ErrorNotice";
+import { AppErrorBoundary, ColumnErrorBoundary } from "./components/ErrorBoundary";
 import { InspectorPanel } from "./components/InspectorPanel";
 import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import "./styles/app.css";
@@ -151,14 +152,22 @@ function App() {
     );
 
   return (
-    <main className="app-shell">
-      <WorkbenchSidebar state={state} taskId={taskId} view={bootstrap.view} />
-      <section className="workbench-main">
-        {state.error ? <ErrorNotice message={state.error} /> : null}
-        <div className="workbench-main-scroll">{content}</div>
-      </section>
-      <InspectorPanel>{inspector}</InspectorPanel>
-    </main>
+    <AppErrorBoundary>
+      <main className="app-shell">
+        <ColumnErrorBoundary name="sidebar">
+          <WorkbenchSidebar state={state} taskId={taskId} view={bootstrap.view} />
+        </ColumnErrorBoundary>
+        <ColumnErrorBoundary name="main">
+          <section className="workbench-main">
+            {state.error ? <ErrorNotice message={state.error} /> : null}
+            <div className="workbench-main-scroll">{content}</div>
+          </section>
+        </ColumnErrorBoundary>
+        <ColumnErrorBoundary name="inspector">
+          <InspectorPanel>{inspector}</InspectorPanel>
+        </ColumnErrorBoundary>
+      </main>
+    </AppErrorBoundary>
   );
 }
 
