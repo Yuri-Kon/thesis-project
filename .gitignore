@@ -121,6 +121,8 @@ docs/evidence/*
 !docs/evidence/issue-225/**
 !docs/evidence/*-design.md
 !docs/evidence/*-plan.md
+!docs/superpowers/
+!docs/superpowers/**
 plan/
 shared/
 drafts/
@@ -130,3 +132,4 @@ work/
 .nextflow.log.*
 tmp/
 .envrc
+.superpowers/

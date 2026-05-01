@@ -14,11 +14,20 @@ interface DashboardPageProps {
   onOpenTask: (taskId: string) => void;
   onRefresh: () => void;
   onInspectorChange: (content: ReactNode) => void;
+  activeIntakeId: string | null;
+  onDraftNavigate: (href: string) => void;
 }
 
-export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRefresh, onInspectorChange }: DashboardPageProps) {
+export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRefresh, onInspectorChange, activeIntakeId, onDraftNavigate }: DashboardPageProps) {
   const blockedCapabilities = state.readiness.filter((entry) => entry.status === "blocked").length;
   const degradedCapabilities = state.readiness.filter((entry) => entry.status === "degraded").length;
+
+  const handleNewIntakeClick = (e: React.MouseEvent) => {
+    if (activeIntakeId) {
+      e.preventDefault();
+      onDraftNavigate("/ui/task-builder");
+    }
+  };
 
   useEffect(() => {
     onInspectorChange(
@@ -42,11 +51,11 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
         <section className="inspector-card warning-card">
           <h2>Action required</h2>
           <p>{state.pendingActions.length ? "Open a pending action to review candidates and submit a decision." : "No pending review is currently reported by the API."}</p>
-          <a className="inspector-action" href="/ui/task-builder">New intake</a>
+          <a className="inspector-action" href="/ui/task-builder" onClick={handleNewIntakeClick}>New intake</a>
         </section>
       </>,
     );
-  }, [blockedCapabilities, onInspectorChange, state.pendingActions.length, state.readiness.length, state.task?.id]);
+  }, [blockedCapabilities, onInspectorChange, state.pendingActions.length, state.readiness.length, state.task?.id, activeIntakeId, onDraftNavigate]);
 
   if (state.loading) {
     return (

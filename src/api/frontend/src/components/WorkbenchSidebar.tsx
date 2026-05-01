@@ -4,6 +4,8 @@ interface WorkbenchSidebarProps {
   state: WorkspaceState;
   taskId: string;
   view: string;
+  activeIntakeId: string | null;
+  onDraftNavigate: (href: string) => void;
 }
 
 function navHref(item: string, taskId: string): string {
@@ -35,10 +37,17 @@ function isActive(item: string, view: string): boolean {
   return view === "task_detail" && ["Task Detail", "Review", "Explorer"].includes(item);
 }
 
-export function WorkbenchSidebar({ state, taskId, view }: WorkbenchSidebarProps) {
+export function WorkbenchSidebar({ state, taskId, view, activeIntakeId, onDraftNavigate }: WorkbenchSidebarProps) {
   const blockedCapabilities = state.readiness.filter((entry) => entry.status === "blocked").length;
   const warningCount = state.readiness.filter((entry) => entry.status === "degraded").length;
   const navItems = ["Overview", "Task Builder", "Task Detail", "Review", "Timeline", "Explorer"];
+
+  const handleClick = (href: string) => (e: React.MouseEvent) => {
+    if (activeIntakeId && view === "task_builder") {
+      e.preventDefault();
+      onDraftNavigate(href);
+    }
+  };
 
   return (
     <aside className="workbench-sidebar" aria-label="Workspace sidebar">
@@ -67,7 +76,12 @@ export function WorkbenchSidebar({ state, taskId, view }: WorkbenchSidebarProps)
               {item}
             </span>
           ) : (
-            <a key={item} href={href} className={isActive(item, view) ? "active" : undefined}>
+            <a
+              key={item}
+              href={href}
+              className={isActive(item, view) ? "active" : undefined}
+              onClick={handleClick(href)}
+            >
               {item}
             </a>
           );

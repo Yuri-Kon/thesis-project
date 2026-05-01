@@ -1,16 +1,49 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { apiClient, apiErrorMessage } from "../api/client";
+import { apiClient, apiErrorMessage, ApiError } from "../api/client";
 import type { TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
+import { DraftProtectionDialog } from "../components/DraftProtectionDialog";
 import { ErrorNotice } from "../components/ErrorNotice";
 import { FieldSourceBadge } from "../components/FieldSourceBadge";
 import { SafetyPrecheckPanel } from "../components/SafetyPrecheckPanel";
 import { TaskDraftForm } from "../components/TaskDraftForm";
 import { TaskBuilderSkeleton } from "../components/SkeletonCard";
 
-interface TaskBuilderPageProps {
-  onOpenTask: (taskId: string) => void;
-  onInspectorChange: (content: ReactNode) => void;
+const DRAFT_IDS_KEY = "recent-intake-ids";
+const MAX_DRAFT_IDS = 5;
+
+function readDraftIds(): string[] {
+  try {
+    const raw = localStorage.getItem(DRAFT_IDS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function addDraftId(intakeId: string): void {
+  try {
+    const ids = readDraftIds().filter((id) => id !== intakeId);
+    ids.unshift(intakeId);
+    localStorage.setItem(DRAFT_IDS_KEY, JSON.stringify(ids.slice(0, MAX_DRAFT_IDS)));
+  } catch {
+    /* quota exceeded or private mode */
+  }
+}
+
+function removeDraftId(intakeId: string): void {
+  try {
+    const ids = readDraftIds().filter((id) => id !== intakeId);
+    localStorage.setItem(DRAFT_IDS_KEY, JSON.stringify(ids));
+  } catch {
+    /* quota exceeded or private mode */
+  }
+}
+
+function isActiveDraft(intake: TaskIntakeSession | null): boolean {
+  return intake?.status === "collecting" || intake?.status === "needs_confirmation";
 }
 
 function formatValue(value: unknown): string {
@@ -60,13 +93,28 @@ function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile
   );
 }
 
-export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPageProps) {
+interface TaskBuilderPageProps {
+  onOpenTask: (taskId: string) => void;
+  onInspectorChange: (content: ReactNode) => void;
+  onActiveIntakeChange: (intakeId: string | null) => void;
+  draftNavigateHref: string | null;
+  onResolveDraftNavigate: (action: "continue" | "discard" | "save" | "cancel") => void;
+}
+
+export function TaskBuilderPage({
+  onOpenTask,
+  onInspectorChange,
+  onActiveIntakeChange,
+  draftNavigateHref,
+  onResolveDraftNavigate,
+}: TaskBuilderPageProps) {
   const [schema, setSchema] = useState<TaskIntakeSchema | null>(null);
   const [text, setText] = useState("");
   const [intake, setIntake] = useState<TaskIntakeSession | null>(null);
   const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentIds, setRecentIds] = useState<string[]>(() => readDraftIds());
 
   const loadSchema = useCallback(async () => {
     setBusy(true);
@@ -83,6 +131,108 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
   useEffect(() => {
     void loadSchema();
   }, [loadSchema]);
+
+  // --- Active draft reporting + beforeunload ---
+  useEffect(() => {
+    const active = isActiveDraft(intake);
+    if (active && intake) {
+      onActiveIntakeChange(intake.intake_id);
+      const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = "";
+      };
+      window.addEventListener("beforeunload", handler);
+      return () => {
+        window.removeEventListener("beforeunload", handler);
+        onActiveIntakeChange(null);
+      };
+    } else {
+      onActiveIntakeChange(null);
+    }
+  }, [intake, onActiveIntakeChange]);
+
+  const showDialog = draftNavigateHref !== null && isActiveDraft(intake) && intake !== null;
+
+  function handleContinueEditing() {
+    onResolveDraftNavigate("continue");
+  }
+
+  function handleDiscardAndLeave() {
+    if (intake) {
+      removeDraftId(intake.intake_id);
+      setRecentIds(readDraftIds());
+    }
+    setIntake(null);
+    setText("");
+    setAcknowledgedWarnings([]);
+    onResolveDraftNavigate("discard");
+  }
+
+  function handleSaveAndLeave() {
+    setIntake(null);
+    setText("");
+    setAcknowledgedWarnings([]);
+    onResolveDraftNavigate("save");
+  }
+
+  function handleCancelNavigate() {
+    onResolveDraftNavigate("cancel");
+  }
+
+  // --- Draft Switcher: auto-save current then load selected ---
+  async function handleSwitchDraft(targetId: string) {
+    if (intake && intake.intake_id === targetId) return;
+    setBusy(true);
+    setError(null);
+    try {
+      if (intake) {
+        try {
+          await apiClient.patchTaskIntake(intake.intake_id, {
+            fields: intake.draft.fields,
+            updated_by: "web_task_builder",
+          });
+        } catch {
+          /* best-effort save before switching */
+        }
+      }
+      const nextIntake = await apiClient.getTaskIntake(targetId);
+      setIntake(nextIntake);
+      setAcknowledgedWarnings([]);
+    } catch (nextError) {
+      if (nextError instanceof ApiError && nextError.status === 404) {
+        removeDraftId(targetId);
+        setRecentIds(readDraftIds());
+        setError("Draft no longer available and has been removed from history.");
+      } else {
+        setError(apiErrorMessage(nextError));
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // --- Explicit Save Draft ---
+  const [draftSaved, setDraftSaved] = useState(false);
+
+  async function handleSaveDraft() {
+    if (!intake) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await apiClient.patchTaskIntake(intake.intake_id, {
+        fields: intake.draft.fields,
+        updated_by: "web_task_builder",
+      });
+      addDraftId(intake.intake_id);
+      setRecentIds(readDraftIds());
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch (nextError) {
+      setError(apiErrorMessage(nextError));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const warningCodes = useMemo(
     () => (intake?.safety_check.risk_flags ?? []).filter((risk) => risk.level === "warn").map((risk) => risk.code),
@@ -117,6 +267,8 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
       });
       setIntake(nextIntake);
       setAcknowledgedWarnings([]);
+      addDraftId(nextIntake.intake_id);
+      setRecentIds(readDraftIds());
     } catch (nextError) {
       setError(apiErrorMessage(nextError));
     } finally {
@@ -151,6 +303,9 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
     setError(null);
     try {
       const confirmation = await apiClient.confirmTaskIntake(intake.intake_id, acknowledgedWarnings);
+      removeDraftId(intake.intake_id);
+      setRecentIds(readDraftIds());
+      onActiveIntakeChange(null);
       onOpenTask(confirmation.task_id);
     } catch (nextError) {
       setError(apiErrorMessage(nextError));
@@ -209,6 +364,8 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
     );
   }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange, taskKind, taskProfile]);
 
+  const showDraftSwitcher = recentIds.length > 0;
+
   if (schema === null) {
     return (
       <div className="task-builder-layout">
@@ -226,6 +383,31 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
         </div>
         <div className="builder-hero-actions">
           <span className="pill">{intake?.intake_id ?? "new intake"}</span>
+          {showDraftSwitcher ? (
+            <div className="draft-switcher-group">
+              <span className="draft-switcher-label">Drafts</span>
+              <select
+                className="recovery-select"
+                value={intake?.intake_id ?? ""}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  if (id) void handleSwitchDraft(id);
+                }}
+                disabled={busy}
+              >
+                {recentIds.map((id) => (
+                  <option key={id} value={id} disabled={id === intake?.intake_id}>
+                    {id}{id === intake?.intake_id ? " (current)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {intake ? (
+            <button type="button" className="save-draft-button" onClick={() => void handleSaveDraft()} disabled={busy}>
+              {draftSaved ? "Saved" : "Save Draft"}
+            </button>
+          ) : null}
           <button type="button" onClick={() => void loadSchema()} disabled={busy}>
             Reload Schema
           </button>
@@ -291,6 +473,18 @@ export function TaskBuilderPage({ onOpenTask, onInspectorChange }: TaskBuilderPa
           )}
         </section>
       </section>
+
+      {showDialog ? (
+        <DraftProtectionDialog
+          intakeId={intake!.intake_id}
+          updatedAt={intake!.updated_at}
+          status={intake!.status as "collecting" | "needs_confirmation"}
+          onContinueEditing={handleContinueEditing}
+          onDiscardAndLeave={handleDiscardAndLeave}
+          onSaveAndLeave={handleSaveAndLeave}
+          onCancel={handleCancelNavigate}
+        />
+      ) : null}
     </div>
   );
 }
