@@ -34,6 +34,7 @@ __all__ = [
     "STATIC_TOP1",
     "RuntimeEvaluator",
     "RuntimeEvaluation",
+    "compute_runtime_delta",
     "evaluator_policy_trace",
     "policy_disables_rerank",
 ]
@@ -83,6 +84,91 @@ def evaluator_policy_trace(policy_mode: str) -> dict[str, object]:
         "belief_state_enabled": normalized
         not in {STATIC_TOP1, STATIC_GATE, DYNAMIC_OBSERVATION_ONLY},
     }
+
+
+# -- shared delta computation ------------------------------------------------
+
+
+def compute_runtime_delta(
+    *,
+    p_success: float,
+    p_structural_failure: float,
+    recovery_margin: float,
+    expected_remaining_cost: float,
+    evidence_sufficiency: float,
+    confidence: float,
+    risk: float,
+    cost: float,
+    fallback_depth: float,
+    feasibility: float,
+    candidate_kind: str,
+    replan_mode: str = "",
+) -> tuple[float, str, str, list[RuntimeAdjustmentFactor]]:
+    """计算单个候选的 runtime delta、shadow action、action reason 和因子列表。
+
+    供 Planner shadow-rerank hooks 与 RuntimeEvaluator 共享公式。
+    """
+    budget_pressure = min(max(expected_remaining_cost, 0.0), 1.5)
+    cost_pressure = min(budget_pressure, 1.0)
+    margin_signal = max(-1.0, min(recovery_margin, 1.0))
+
+    action, action_reason = _resolve_candidate_action_from_signals(
+        candidate_kind=candidate_kind,
+        replan_mode=replan_mode,
+        p_success=p_success,
+        p_structural_failure=p_structural_failure,
+        recovery_margin=recovery_margin,
+        budget_pressure=budget_pressure,
+    )
+
+    evidence_effect = 0.18 * (p_success - 0.5) * confidence
+    evidence_sufficiency_effect = (
+        0.10 * ((2.0 * evidence_sufficiency) - 1.0) * max(confidence, feasibility)
+    )
+    risk_effect = -0.16 * p_structural_failure * (1.0 - risk)
+    recovery_effect = 0.10 * margin_signal * fallback_depth
+    cost_effect = -0.14 * cost_pressure * (1.0 - cost)
+
+    delta = (
+        evidence_effect
+        + evidence_sufficiency_effect
+        + risk_effect
+        + recovery_effect
+        + cost_effect
+    )
+
+    factors = _build_adjustment_factors(
+        evidence_effect, evidence_sufficiency_effect,
+        risk_effect, recovery_effect, cost_effect,
+    )
+
+    if action == "patch_local":
+        bonus = 0.04 * fallback_depth
+        delta += bonus
+        factors.append(_make_factor("recovery", "fallback_depth",
+            "score_breakdown.fallback_depth", bonus,
+            "Local patchability keeps more recovery options available."))
+    elif action == "suffix_replan":
+        replan_bonus = 0.02 * feasibility
+        replan_penalty = -0.03 * cost_pressure
+        delta += replan_bonus + replan_penalty
+        factors.append(_make_factor("recovery", "feasibility",
+            "score_breakdown.feasibility", replan_bonus,
+            "Feasible suffix replacement preserves validated prefix value."))
+        factors.append(_make_factor("cost", "cost_pressure",
+            "runtime_state.expected_remaining_cost", replan_penalty,
+            "Suffix replan still carries residual budget pressure."))
+    elif action == "stop":
+        penalty = -(0.12 + 0.06 * cost_pressure)
+        delta += penalty
+        factors.append(_make_factor("policy", "stop_guard",
+            "runtime_state.p_success+runtime_state.expected_remaining_cost",
+            penalty,
+            "Stop guard applies when success is low and cost pressure is already high."))
+
+    delta = max(-_DELTA_CLAMP, min(_DELTA_CLAMP, delta))
+
+    return delta, action, action_reason, factors
 
 
 # -- main evaluator ----------------------------------------------------------
@@ -386,10 +472,6 @@ def _apply_runtime_adjustment(
     evidence_sufficiency = _safe_clip(state.get("evidence_sufficiency"), 0.5)
     expected_remaining_cost = max(_safe_float(state.get("expected_remaining_cost"), 1.0), 0.0)
 
-    budget_pressure = min(expected_remaining_cost, 1.5)
-    cost_pressure = min(budget_pressure, 1.0)
-    margin_signal = max(-1.0, min(recovery_margin, 1.0))
-
     confidence = float(score_breakdown.get("confidence", overall))
     risk = float(score_breakdown.get("risk", overall))
     cost = float(score_breakdown.get("cost", overall))
@@ -398,64 +480,21 @@ def _apply_runtime_adjustment(
     # 候选类型推断
     candidate_kind = _infer_kind(metadata)
 
-    # 动作解析
-    action, action_reason = _resolve_candidate_action(
-        candidate_kind=candidate_kind,
-        metadata=metadata,
+    delta, action, action_reason, factors = compute_runtime_delta(
         p_success=p_success,
         p_structural_failure=p_structural_failure,
         recovery_margin=recovery_margin,
-        budget_pressure=budget_pressure,
+        expected_remaining_cost=expected_remaining_cost,
+        evidence_sufficiency=evidence_sufficiency,
+        confidence=confidence,
+        risk=risk,
+        cost=cost,
+        fallback_depth=fallback_depth,
+        feasibility=feasibility,
+        candidate_kind=candidate_kind,
+        replan_mode=str(metadata.get("replan_mode", "")),
     )
 
-    # 三角洲公式 (对齐设计文档 §6)
-    evidence_effect = 0.18 * (p_success - 0.5) * confidence
-    evidence_sufficiency_effect = (
-        0.10 * ((2.0 * evidence_sufficiency) - 1.0) * max(confidence, feasibility)
-    )
-    risk_effect = -0.16 * p_structural_failure * (1.0 - risk)
-    recovery_effect = 0.10 * margin_signal * fallback_depth
-    cost_effect = -0.14 * cost_pressure * (1.0 - cost)
-
-    delta = (
-        evidence_effect
-        + evidence_sufficiency_effect
-        + risk_effect
-        + recovery_effect
-        + cost_effect
-    )
-
-    factors = _build_adjustment_factors(
-        evidence_effect, evidence_sufficiency_effect,
-        risk_effect, recovery_effect, cost_effect,
-    )
-
-    # 动作特定调整
-    if action == "patch_local":
-        bonus = 0.04 * fallback_depth
-        delta += bonus
-        factors.append(_make_factor("recovery", "fallback_depth",
-            "score_breakdown.fallback_depth", bonus,
-            "Local patchability keeps more recovery options available."))
-    elif action == "suffix_replan":
-        replan_bonus = 0.02 * feasibility
-        replan_penalty = -0.03 * cost_pressure
-        delta += replan_bonus + replan_penalty
-        factors.append(_make_factor("recovery", "feasibility",
-            "score_breakdown.feasibility", replan_bonus,
-            "Feasible suffix replacement preserves validated prefix value."))
-        factors.append(_make_factor("cost", "cost_pressure",
-            "runtime_state.expected_remaining_cost", replan_penalty,
-            "Suffix replan still carries residual budget pressure."))
-    elif action == "stop":
-        penalty = -(0.12 + 0.06 * cost_pressure)
-        delta += penalty
-        factors.append(_make_factor("policy", "stop_guard",
-            "runtime_state.p_success+runtime_state.expected_remaining_cost",
-            penalty,
-            "Stop guard applies when success is low and cost pressure is already high."))
-
-    delta = max(-_DELTA_CLAMP, min(_DELTA_CLAMP, delta))
     adjusted = max(_SCORE_CLAMP_MIN, min(_SCORE_CLAMP_MAX, overall + delta))
 
     rerank_reason = RerankReason(
@@ -563,10 +602,10 @@ def _attach_rerank_metadata(
 # -- action resolution ------------------------------------------------------
 
 
-def _resolve_candidate_action(
+def _resolve_candidate_action_from_signals(
     *,
     candidate_kind: str,
-    metadata: dict[str, object],
+    replan_mode: str,
     p_success: float,
     p_structural_failure: float,
     recovery_margin: float,
@@ -579,7 +618,6 @@ def _resolve_candidate_action(
             return ("suffix_replan", "structural failure pressure is high and local recovery margin is low")
         return ("patch_local", "failure still looks local and recovery margin remains acceptable")
     if candidate_kind == "replan":
-        replan_mode = str(metadata.get("replan_mode", ""))
         if replan_mode == "suffix_replan":
             return ("suffix_replan", "runtime pressure favors preserving the validated prefix and replacing the suffix")
         return ("continue", "runtime state does not justify escalating beyond the current suffix plan")
