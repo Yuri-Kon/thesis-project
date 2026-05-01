@@ -4,9 +4,11 @@ import json
 import math
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Literal, cast
+from typing import Any, TypeAlias, Dict, List, Optional, Literal, cast
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+
+JsonMap: TypeAlias = dict[str, object]
 
 
 def now_iso() -> str:
@@ -92,8 +94,8 @@ class PlanStep(BaseModel):
     id: str
     tool: str  # 对应 ProteinToolKG中的tool.id
     # 支持字面值和 "S1.sequence" 形式的引用
-    inputs: Dict = Field(default_factory=dict)
-    metadata: Dict = Field(default_factory=dict)
+    inputs: JsonMap = Field(default_factory=dict)
+    metadata: JsonMap = Field(default_factory=dict)
 
 
 class Plan(BaseModel):
@@ -832,7 +834,7 @@ class PendingActionCandidate(BaseModel):
     endpoint_type: str | None = None
     remote_job_id: str | None = None
     summary: Optional[str] = None
-    metadata: Dict = Field(default_factory=dict)
+    metadata: JsonMap = Field(default_factory=dict)
 
     @field_validator("candidate_id")
     @classmethod
@@ -892,7 +894,7 @@ class PendingActionCandidate(BaseModel):
 
     @model_validator(mode="after")
     def _sync_tool_metadata(self):
-        metadata = dict(self.metadata or {})
+        metadata: JsonMap = Field(default_factory=dict)
         self.metadata = metadata
 
         self.tool_id = _sync_metadata_field(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from ctypes import cast
 from dataclasses import dataclass, field
 import math
 from collections.abc import Callable, Mapping
@@ -21,6 +20,7 @@ from src.models.contracts import (
     RUNTIME_ADJUSTMENT_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
+    JsonMap,
 )
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.adapters.registry import get_adapter
@@ -43,7 +43,6 @@ ALLOWED_DECISION_CHOICES = {
     },
 }
 
-JsonMap = dict[str, object]
 KgLoader = Callable[[], JsonMap]
 
 
@@ -63,13 +62,15 @@ def _as_json_map(value: object) -> JsonMap:
 def _as_json_map_list(value: object) -> list[JsonMap]:
     if not isinstance(value, list):
         return []
-    return [_as_json_map(item) for item in value if _is_str_object_mapping(item)]
+    items = cast(list[object], value)
+    return [_as_json_map(item) for item in items if _is_str_object_mapping(item)]
 
 
 def _as_str_list(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
-    return [item for item in value if isinstance(item, str)]
+    items = cast(list[object], value)
+    return [item for item in items if isinstance(item, str)]
 
 
 class DecisionValidationError(ValueError):
@@ -262,23 +263,30 @@ def _validate_candidate_shadow_rerank_fields(
             f"{candidate_id}.metadata missing shadow rerank keys: {missing_keys}"
         )
 
-    static_score = metadata[STATIC_SCORE_METADATA_KEY]
-    final_score = metadata[FINAL_SCORE_METADATA_KEY]
-    runtime_adjustment = metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]
-    rerank_reason = metadata[RERANK_REASON_METADATA_KEY]
+    static_score_raw = metadata[STATIC_SCORE_METADATA_KEY]
+    final_score_raw = metadata[FINAL_SCORE_METADATA_KEY]
+    runtime_adjustment_raw = metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]
+    rerank_reason_raw = metadata[RERANK_REASON_METADATA_KEY]
 
-    if not isinstance(static_score, dict) or not isinstance(final_score, dict):
+    if not _is_str_object_mapping(static_score_raw) or not _is_str_object_mapping(
+        final_score_raw
+    ):
         raise CandidateSetValidationError(
-            f"{candidate_id}.metadata static/final score must be mappings"
+            f"{candidate_id}.metadata static/final socre must be mappings"
         )
-    if not isinstance(runtime_adjustment, dict):
+    if not _is_str_object_mapping(runtime_adjustment_raw):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.{RUNTIME_ADJUSTMENT_METADATA_KEY} must be a mapping"
         )
-    if not isinstance(rerank_reason, dict):
+    if not _is_str_object_mapping(rerank_reason_raw):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.{RERANK_REASON_METADATA_KEY} must be a mapping"
         )
+
+    static_score = dict(static_score_raw)
+    final_score = dict(final_score_raw)
+    runtime_adjustment = dict(runtime_adjustment_raw)
+    rerank_reason = dict(rerank_reason_raw)
 
     static_value = _coerce_float(
         static_score.get("value"),
@@ -310,8 +318,9 @@ def _validate_candidate_shadow_rerank_fields(
             f"{candidate_id}.metadata.{FINAL_SCORE_METADATA_KEY}.value must equal clip(static_score + runtime_adjustment, 0, 1)"
         )
 
-    action_score = metadata.get(ACTION_SCORE_METADATA_KEY)
-    if isinstance(action_score, dict):
+    action_score_raw = metadata.get(ACTION_SCORE_METADATA_KEY)
+    if _is_str_object_mapping(action_score_raw):
+        action_score = dict(action_score_raw)
         action_value = _coerce_float(
             action_score.get("value"),
             field_name=f"{candidate_id}.metadata.{ACTION_SCORE_METADATA_KEY}.value",
@@ -321,8 +330,9 @@ def _validate_candidate_shadow_rerank_fields(
                 f"{candidate_id}.metadata.{ACTION_SCORE_METADATA_KEY}.value must match static_score.value"
             )
 
-    shadow_score = metadata.get(SHADOW_SCORE_METADATA_KEY)
-    if isinstance(shadow_score, dict):
+    shadow_score_raw = metadata.get(SHADOW_SCORE_METADATA_KEY)
+    if _is_str_object_mapping(shadow_score_raw):
+        shadow_score = dict(shadow_score_raw)
         shadow_value = _coerce_float(
             shadow_score.get("value"),
             field_name=f"{candidate_id}.metadata.{SHADOW_SCORE_METADATA_KEY}.value",
@@ -368,12 +378,13 @@ def _validate_candidate_s5_fields(
     candidate: PendingActionCandidate,
     candidate_id: str,
 ) -> None:
-    metadata = candidate.metadata or {}
-    contract = metadata.get("s5_contract")
-    if not isinstance(contract, dict):
+    metadata = _as_json_map(candidate.metadata)
+    contract_raw = metadata.get("s5_contract")
+    if not _is_str_object_mapping(contract_raw):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract is required"
         )
+    contract = dict(contract_raw)
 
     if contract.get("stage_id") != "S5":
         raise CandidateSetValidationError(
@@ -384,46 +395,44 @@ def _validate_candidate_s5_fields(
             f"{candidate_id}.metadata.s5_contract.stage_name must be objective_scoring"
         )
 
-    field_order = contract.get("field_order")
-    if not isinstance(field_order, dict):
+    field_order_raw = contract.get("field_order")
+    if not _is_str_object_mapping(field_order_raw):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.field_order is required"
         )
-    input_fields = field_order.get("inputs")
-    output_fields = field_order.get("outputs")
-    if not isinstance(input_fields, list) or not REQUIRED_S5_INPUT_FIELDS.issubset(
-        set(input_fields)
-    ):
+    field_order = dict(field_order_raw)
+    input_fields = _as_str_list(field_order.get("inputs"))
+    output_fields = _as_str_list(field_order.get("outputs"))
+    if not REQUIRED_S5_INPUT_FIELDS.issubset(set(input_fields)):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.field_order.inputs missing required fields"
         )
-    if not isinstance(output_fields, list) or not REQUIRED_S5_OUTPUT_FIELDS.issubset(
-        set(output_fields)
-    ):
+    if not REQUIRED_S5_OUTPUT_FIELDS.issubset(set(output_fields)):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.field_order.outputs missing required fields"
         )
 
-    declared_inputs = contract.get("inputs")
-    declared_outputs = contract.get("outputs")
-    if not isinstance(declared_inputs, dict) or not REQUIRED_S5_INPUT_FIELDS.issubset(
-        set(declared_inputs)
-    ):
+    declared_inputs_raw = contract.get("inputs")
+    declared_outputs_raw = contract.get("outputs")
+    if not _is_str_object_mapping(
+        declared_inputs_raw
+    ) or not REQUIRED_S5_INPUT_FIELDS.issubset(set(declared_inputs_raw)):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.inputs missing required fields"
         )
-    if not isinstance(declared_outputs, dict) or not REQUIRED_S5_OUTPUT_FIELDS.issubset(
-        set(declared_outputs)
-    ):
+    if not _is_str_object_mapping(
+        declared_outputs_raw
+    ) or not REQUIRED_S5_OUTPUT_FIELDS.issubset(set(declared_outputs_raw)):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.outputs missing required fields"
         )
 
-    weights = contract.get("weights")
-    if not isinstance(weights, dict):
+    weights_raw = contract.get("weights")
+    if not _is_str_object_mapping(weights_raw):
         raise CandidateSetValidationError(
             f"{candidate_id}.metadata.s5_contract.weights is required"
         )
+    weights = dict(weights_raw)
     missing_weights = REQUIRED_S5_WEIGHT_FIELDS - set(weights)
     if missing_weights:
         missing = ", ".join(sorted(missing_weights))
@@ -629,13 +638,8 @@ def validate_plan_executability(
                 )
             )
 
-        io_config = step_tool.get("io", {})
-        if not isinstance(io_config, dict):
-            io_config = {}
-        declared_inputs = io_config.get("inputs", {})
-        if not isinstance(declared_inputs, dict):
-            declared_inputs = {}
-
+        io_config = _as_json_map(step_tool.get("io"))
+        declared_inputs = _as_json_map(io_config.get("inputs"))
         for key, expected_type in declared_inputs.items():
             if key not in step.inputs:
                 issues.append(
@@ -692,7 +696,7 @@ def validate_plan_executability(
 def _validate_candidate_tool_metadata(
     *,
     candidate: PendingActionCandidate,
-    tool_by_id: dict[str, dict[str, Any]],
+    tool_by_id: dict[str, JsonMap],
     capability_ids: set[str],
     io_type_ids: set[str],
     adapter_resolver: Callable[[str], object],
@@ -756,12 +760,11 @@ def _validate_candidate_tool_metadata(
                 io_type=io_type,
             )
         )
-    tool_io_type = None
-    io_config = tool.get("io", {})
-    if isinstance(io_config, dict):
-        resolved = io_config.get("io_type_id")
-        if isinstance(resolved, str):
-            tool_io_type = resolved
+    tool_io_type: str | None = None
+    io_config = _as_json_map((tool.get("io")))
+    resolved = io_config.get("io_type_id")
+    if isinstance(resolved, str) and resolved:
+        tool_io_type = resolved
     if io_type and tool_io_type and io_type != tool_io_type:
         issues.append(
             CandidateExecutionIssue(
@@ -919,12 +922,23 @@ def _validate_optional_params(
     issues: list[CandidateExecutionIssue],
 ) -> None:
     if key == "length_range":
-        if (
-            not isinstance(value, (list, tuple))
-            or len(value) != 2
-            or not all(isinstance(v, int) and v > 0 for v in value)
-            or value[0] > value[1]
-        ):
+        invalid = True
+
+        if isinstance(value, (list, tuple)):
+            length_range = cast(list[object] | tuple[object, ...], value)
+            if len(length_range) == 2:
+                min_len = length_range[0]
+                max_len = length_range[1]
+                invalid = (
+                    not isinstance(min_len, int)
+                    or isinstance(min_len, bool)
+                    or not isinstance(max_len, int)
+                    or isinstance(max_len, bool)
+                    or min_len <= 0
+                    or max_len <= 0
+                    or min_len > max_len
+                )
+        if invalid:
             issues.append(
                 CandidateExecutionIssue(
                     code="CANDIDATE_PARAMS_INVALID",
@@ -1065,16 +1079,18 @@ def _resolve_execution_backend(execution: object) -> str | None:
     return None
 
 
-def _primary_capability(step_tool: dict[str, Any]) -> str | None:
-    capabilities = step_tool.get("capabilities", [])
-    if isinstance(capabilities, list):
-        for capability in capabilities:
-            if isinstance(capability, str) and capability:
-                return capability
+def _primary_capability(step_tool: JsonMap) -> str | None:
+    capabilities = step_tool.get("capabilities")
+    if not isinstance(capabilities, list):
+        return None
+    items = cast(list[object], capabilities)
+    for capability in items:
+        if isinstance(capability, str) and capability:
+            return capability
     return None
 
 
-def _tool_io_type(step_tool: dict[str, Any]) -> str | None:
+def _tool_io_type(step_tool: JsonMap) -> str | None:
     io_config = step_tool.get("io", {})
     if isinstance(io_config, dict):
         io_type = io_config.get("io_type_id")
