@@ -119,6 +119,7 @@ docs/evidence/*
 !docs/evidence/issue-224/**
 !docs/evidence/issue-225/
 !docs/evidence/issue-225/**
+!docs/evidence/*-design.md
 plan/
 shared/
 drafts/
