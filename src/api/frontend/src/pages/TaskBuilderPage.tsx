@@ -138,6 +138,7 @@ export function TaskBuilderPage({
     if (active && intake) {
       onActiveIntakeChange(intake.intake_id);
       const handler = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
         e.returnValue = "";
       };
       window.addEventListener("beforeunload", handler);
