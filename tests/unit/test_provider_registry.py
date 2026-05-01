@@ -81,9 +81,9 @@ def test_resolve_endpoint_from_env(monkeypatch):
     settings = ProviderSettings(
         provider_type="anthropic_messages",
         model_name="MiniMax-M2.7",
-        endpoint_env="ANTHROPIC_BASE_URL",
+        endpoint_env="MINIMAX_BASE_URL",
     )
-    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.minimaxi.com/anthropic")
+    monkeypatch.setenv("MINIMAX_BASE_URL", "https://api.minimaxi.com/anthropic")
 
     assert resolve_endpoint(settings) == "https://api.minimaxi.com/anthropic"
 
@@ -109,7 +109,8 @@ def test_load_provider_catalog_keeps_minimax_entry():
     assert "minimax-m2.7" in catalog.providers
     assert catalog.providers["minimax-m2.7"].provider_type == "anthropic_messages"
     assert catalog.providers["minimax-m2.7"].model_name == "MiniMax-M2.7"
-    assert catalog.providers["minimax-m2.7"].endpoint_env == "ANTHROPIC_BASE_URL"
+    assert catalog.providers["minimax-m2.7"].api_key_env == "MINIMAX_API_KEY"
+    assert catalog.providers["minimax-m2.7"].endpoint_env == "MINIMAX_BASE_URL"
 
 
 def test_load_provider_catalog_keeps_glm_entries():

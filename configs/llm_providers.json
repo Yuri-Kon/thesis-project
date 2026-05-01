@@ -36,7 +36,7 @@
     "deepseek-chat": {
       "provider_type": "openai_compatible",
       "description": "DeepSeek Chat via OpenAI-compatible API",
-      "model_name": "deepseek-chat",
+      "model_name": "deepseek-v4-pro",
       "api_key_env": "DEEPSEEK_API_KEY",
       "endpoint": "https://api.deepseek.com/v1",
       "timeout": 60,
@@ -83,8 +83,8 @@
       "provider_type": "anthropic_messages",
       "description": "MiniMax M2.7 via Anthropic-compatible Messages API",
       "model_name": "MiniMax-M2.7",
-      "api_key_env": "ANTHROPIC_API_KEY",
-      "endpoint_env": "ANTHROPIC_BASE_URL",
+      "api_key_env": "MINIMAX_API_KEY",
+      "endpoint_env": "MINIMAX_BASE_URL",
       "timeout": 60,
       "max_tokens": 4000,
       "temperature": 0.2,
@@ -125,7 +125,7 @@
     "deepseek-reasoner": {
       "provider_type": "openai_compatible",
       "description": "DeepSeek Reasoner",
-      "model_name": "deepseek-reasoner",
+      "model_name": "deepseek-v4-pro",
       "api_key_env": "DEEPSEEK_API_KEY",
       "endpoint": "https://api.deepseek.com/v1",
       "timeout": 300,
