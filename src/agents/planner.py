@@ -179,7 +179,9 @@ _CONSTRAINT_OVERRIDE_BY_CAPABILITY: dict[str, str] = {
 }
 
 _DEFAULT_EXTERNAL_PROVIDER_NAME = "external_baseline"
-_DEFAULT_PROVIDER_CATALOG_PATH = Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
+_DEFAULT_PROVIDER_CATALOG_PATH = (
+    Path(__file__).resolve().parents[2] / "configs" / "llm_providers.json"
+)
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 _PREFERRED_LOCAL_PROVIDER_ORDER = (
     "qwen-flash",
@@ -214,7 +216,7 @@ class PlannerAgent:
         """
         if tool_registry is None:
             tool_registry = _load_default_tool_registry()
-        self._tool_registry: List[ToolSpec] = list(tool_registry)
+        self._tool_registry: list[ToolSpec] = list(tool_registry)
         if not self._tool_registry:
             raise ValueError(
                 "Tool registry is empty; ensure ProteinToolKG provides tools."
@@ -229,7 +231,9 @@ class PlannerAgent:
         self._fallback_llm_provider = (
             fallback_llm_provider
             if fallback_llm_provider is not None
-            else BaselineProvider(ProviderConfig(model_name=_DEFAULT_EXTERNAL_PROVIDER_NAME))
+            else BaselineProvider(
+                ProviderConfig(model_name=_DEFAULT_EXTERNAL_PROVIDER_NAME)
+            )
         )
         self._runtime_fallback_state: dict[str, dict[str, Any]] = {}
 
@@ -256,7 +260,10 @@ class PlannerAgent:
         task: ProteinDesignTask,
         *,
         k: int = 3,
-        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+        runtime_state: RuntimeState
+        | RuntimeStateSummary
+        | dict[str, Any]
+        | None = None,
     ) -> TopKResult:
         """生成 Plan Top-K 候选（默认 K=3）。"""
         base_plan = self.plan(task)
@@ -273,7 +280,10 @@ class PlannerAgent:
         base_plan: Plan,
         *,
         k: int,
-        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+        runtime_state: RuntimeState
+        | RuntimeStateSummary
+        | dict[str, Any]
+        | None = None,
     ) -> TopKResult:
         """基于 base_plan 组装 plan top-k 结果。"""
         payloads = _build_plan_candidate_payloads(
@@ -299,7 +309,10 @@ class PlannerAgent:
         request: PatchRequest,
         *,
         k: int = 3,
-        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+        runtime_state: RuntimeState
+        | RuntimeStateSummary
+        | dict[str, Any]
+        | None = None,
     ) -> TopKResult:
         """生成 Patch Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_task_match(request)
@@ -335,7 +348,10 @@ class PlannerAgent:
         request: ReplanRequest,
         *,
         k: int = 3,
-        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+        runtime_state: RuntimeState
+        | RuntimeStateSummary
+        | dict[str, Any]
+        | None = None,
     ) -> TopKResult:
         """生成 Replan Top-K 候选（统一 CandidateSetOutput v1 字段）。"""
         _ensure_replan_task_match(request)
@@ -384,7 +400,10 @@ class PlannerAgent:
         payload: Plan | PlanPatch,
         *,
         task_constraints: dict[str, Any] | None = None,
-        runtime_state: RuntimeState | RuntimeStateSummary | dict[str, Any] | None = None,
+        runtime_state: RuntimeState
+        | RuntimeStateSummary
+        | dict[str, Any]
+        | None = None,
     ) -> dict[str, float]:
         """对单个候选 payload 打分（用于调试/测试）。"""
         score_weights = _resolve_score_weights(task_constraints or {})
@@ -481,9 +500,7 @@ class PlannerAgent:
                 continue
             if idx > 0:
                 remaining = [
-                    candidate
-                    for candidate in providers
-                    if candidate is not provider
+                    candidate for candidate in providers if candidate is not provider
                 ]
                 self._llm_provider = provider
                 self._llm_provider_fallbacks = remaining
@@ -510,7 +527,9 @@ class PlannerAgent:
         provider: BaseProvider,
     ) -> Plan:
         try:
-            plan_dict = provider.call_planner(task=task, tool_registry=self._tool_registry)
+            plan_dict = provider.call_planner(
+                task=task, tool_registry=self._tool_registry
+            )
         except ProviderPayloadValidationError as exc:
             _append_provider_validation_failure_event(
                 task_id=task.task_id,
@@ -614,9 +633,15 @@ class PlannerAgent:
                     base_plan = self.plan(task, use_external=False)
                     runtime_state["schema_fail_streak"] = 0
                 except Exception:
-                    streak = _safe_int(runtime_state.get("schema_fail_streak"), default=0) + 1
+                    streak = (
+                        _safe_int(runtime_state.get("schema_fail_streak"), default=0)
+                        + 1
+                    )
                     runtime_state["schema_fail_streak"] = streak
-                    if runtime_cfg.enable_dual_route and streak >= runtime_cfg.schema_fail_threshold:
+                    if (
+                        runtime_cfg.enable_dual_route
+                        and streak >= runtime_cfg.schema_fail_threshold
+                    ):
                         route_trigger = RouteTrigger(
                             reason="schema_fail_streak",
                             threshold=(
@@ -637,7 +662,9 @@ class PlannerAgent:
                 runtime_state=context.runtime_state,
             )
             executable_rate = self._estimate_executable_rate(top_k, task)
-            previous_rate = _safe_optional_float(runtime_state.get("last_executable_rate"))
+            previous_rate = _safe_optional_float(
+                runtime_state.get("last_executable_rate")
+            )
 
             if (
                 runtime_cfg.enable_dual_route
@@ -692,7 +719,11 @@ class PlannerAgent:
             self._mark_failed(context, record, reason="planning_failed")
             raise
 
-        route_meta = plan.metadata.get("planner_route", {}) if isinstance(plan.metadata, dict) else {}
+        route_meta = (
+            plan.metadata.get("planner_route", {})
+            if isinstance(plan.metadata, dict)
+            else {}
+        )
         to_provider = str(route_meta.get("provider_name") or "planner_default")
         from_provider = str(runtime_state.get("last_provider_name") or to_provider)
         if route_trigger is not None or from_provider != to_provider:
@@ -712,8 +743,12 @@ class PlannerAgent:
                         "from_tool": from_provider,
                         "to_tool": to_provider,
                         "capability_id": runtime_cfg.fallback_capability,
-                        "trigger_reason": route_trigger.reason if route_trigger else "route_stable",
-                        "trigger_threshold": route_trigger.threshold if route_trigger else "",
+                        "trigger_reason": route_trigger.reason
+                        if route_trigger
+                        else "route_stable",
+                        "trigger_threshold": route_trigger.threshold
+                        if route_trigger
+                        else "",
                         "enable_dual_route": runtime_cfg.enable_dual_route,
                     },
                 },
@@ -845,7 +880,9 @@ class PlannerAgent:
             return []
         route_name = _provider_name(provider)
         target_step = _locate_patch_target_step(request)
-        primary_tool_id = _extract_primary_tool_id_from_patch(patch, fallback=target_step.tool)
+        primary_tool_id = _extract_primary_tool_id_from_patch(
+            patch, fallback=target_step.tool
+        )
         capability_bucket = _extract_primary_capability_from_patch(
             patch,
             registry=self._tool_registry,
@@ -897,11 +934,15 @@ class PlannerAgent:
                 request.original_plan.constraints,
             )
             _ensure_plan_tools_in_registry(plan, self._tool_registry)
-            plan = _attach_provider_metadata_to_plan(plan, provider_name=_provider_name(provider))
+            plan = _attach_provider_metadata_to_plan(
+                plan, provider_name=_provider_name(provider)
+            )
             plan = _attach_kg_explanation(plan)
         except Exception:
             return []
-        primary_tool = plan.steps[-1].tool if plan.steps else request.original_plan.steps[-1].tool
+        primary_tool = (
+            plan.steps[-1].tool if plan.steps else request.original_plan.steps[-1].tool
+        )
         primary_spec = _find_tool_spec(self._tool_registry, primary_tool)
         return [
             CandidatePayload(
@@ -955,7 +996,9 @@ def _normalized_planner_provider_env() -> str | None:
 
 
 def _planner_provider_is_disabled(explicit: str | None = None) -> bool:
-    normalized = explicit if explicit is not None else _normalized_planner_provider_env()
+    normalized = (
+        explicit if explicit is not None else _normalized_planner_provider_env()
+    )
     if normalized is None:
         return False
     return normalized.lower() in {"none", "disabled", "off", "baseline"}
@@ -1030,7 +1073,11 @@ def _resolve_local_provider_aliases(catalog: object | None = None) -> list[str]:
                 selected_aliases.append(alias)
                 continue
             api_key_env = getattr(settings, "api_key_env", None)
-            if isinstance(api_key_env, str) and api_key_env.strip() and os.getenv(api_key_env):
+            if (
+                isinstance(api_key_env, str)
+                and api_key_env.strip()
+                and os.getenv(api_key_env)
+            ):
                 selected_aliases.append(alias)
                 continue
             if alias == "openai" and os.getenv("OPENAI_API_KEY"):
@@ -1063,7 +1110,9 @@ def _safe_optional_float(value: object) -> float | None:
         return None
 
 
-def _resolve_runtime_fallback_config(constraints: dict[str, Any]) -> RuntimeFallbackConfig:
+def _resolve_runtime_fallback_config(
+    constraints: dict[str, Any],
+) -> RuntimeFallbackConfig:
     runtime_cfg = constraints.get("runtime_fallback")
     payload = runtime_cfg if isinstance(runtime_cfg, dict) else {}
 
@@ -1073,10 +1122,14 @@ def _resolve_runtime_fallback_config(constraints: dict[str, Any]) -> RuntimeFall
             _safe_bool(payload.get("force_external_only"), default=False)
             or _safe_bool(os.getenv("PLANNER_FORCE_EXTERNAL_FALLBACK"), default=False)
         ),
-        schema_fail_threshold=max(1, _safe_int(payload.get("schema_fail_threshold"), default=2)),
+        schema_fail_threshold=max(
+            1, _safe_int(payload.get("schema_fail_threshold"), default=2)
+        ),
         executable_rate_threshold=min(
             1.0,
-            max(0.0, _safe_float(payload.get("executable_rate_threshold"), default=0.95)),
+            max(
+                0.0, _safe_float(payload.get("executable_rate_threshold"), default=0.95)
+            ),
         ),
         executable_drop_threshold=max(
             0.0,
@@ -1154,7 +1207,9 @@ def _count_sustained_high_risk_events(context: WorkflowContext) -> int:
         if event.action == "warn":
             count += 1
             continue
-        has_high_flag = any(flag.level in {"warn", "block"} for flag in event.risk_flags)
+        has_high_flag = any(
+            flag.level in {"warn", "block"} for flag in event.risk_flags
+        )
         if not has_high_flag:
             break
         count += 1
@@ -1244,8 +1299,12 @@ def _extract_primary_capability_from_patch(
         capability = metadata.get("capability_id")
         if isinstance(capability, str) and capability:
             return capability
-        fallback_meta = fallback_step.metadata if isinstance(fallback_step.metadata, dict) else {}
-        fallback_capability = fallback_meta.get("capability_id") or fallback_meta.get("capability")
+        fallback_meta = (
+            fallback_step.metadata if isinstance(fallback_step.metadata, dict) else {}
+        )
+        fallback_capability = fallback_meta.get("capability_id") or fallback_meta.get(
+            "capability"
+        )
         if isinstance(fallback_capability, str) and fallback_capability:
             return fallback_capability
         return ""
@@ -1532,7 +1591,9 @@ def _build_plan_candidate_payloads(
                     ),
                     source_reason="tool_swap",
                 )
-            new_steps = [plan_step.model_copy(deep=True) for plan_step in base_plan.steps]
+            new_steps = [
+                plan_step.model_copy(deep=True) for plan_step in base_plan.steps
+            ]
             new_steps[idx] = replaced_step
             candidate_plan = base_plan.model_copy(
                 update={
@@ -1815,7 +1876,9 @@ def _build_structure_level_patch(
     target_step: PlanStep,
     target_capability: str,
 ) -> PlanPatch | None:
-    available_inputs = _collect_available_inputs(request.context_step_results, target_step)
+    available_inputs = _collect_available_inputs(
+        request.context_step_results, target_step
+    )
     guard_tools = _rank_structure_guard_tools(
         registry=registry,
         available_inputs=available_inputs,
@@ -1872,7 +1935,8 @@ def _rank_structure_guard_tools(
         candidates = _rank_patch_alternatives(
             registry=registry,
             capability=capability,
-            available_inputs=available_inputs | {"sequence", "pdb_path", "plddt", "candidates"},
+            available_inputs=available_inputs
+            | {"sequence", "pdb_path", "plddt", "candidates"},
             exclude_tool=exclude_tool,
         )
         for candidate in candidates:
@@ -1942,7 +2006,11 @@ def _filter_alternatives_by_constraint_override(
     normalized_pinned_tool = pinned_tool.strip()
     if normalized_pinned_tool != current_tool:
         return list(alternatives)
-    return [candidate for candidate in alternatives if candidate.id == normalized_pinned_tool]
+    return [
+        candidate
+        for candidate in alternatives
+        if candidate.id == normalized_pinned_tool
+    ]
 
 
 def _build_replan_candidate_payloads(
@@ -1986,7 +2054,9 @@ def _build_replan_candidate_payloads(
         )
 
     target_index = next(
-        idx for idx, step in enumerate(request.original_plan.steps) if step.id == target_step.id
+        idx
+        for idx, step in enumerate(request.original_plan.steps)
+        if step.id == target_step.id
     )
     prefix_index = target_index - 1
 
@@ -2086,7 +2156,9 @@ def _candidate_generator_hooks() -> CandidateGeneratorHooks:
 
 def _extract_confirmed_task_spec(constraints: dict[str, Any]) -> dict[str, Any] | None:
     metadata = constraints.get("metadata")
-    if isinstance(metadata, dict) and isinstance(metadata.get("confirmed_task_spec"), dict):
+    if isinstance(metadata, dict) and isinstance(
+        metadata.get("confirmed_task_spec"), dict
+    ):
         return dict(metadata["confirmed_task_spec"])
     confirmed = constraints.get("confirmed_task_spec")
     return dict(confirmed) if isinstance(confirmed, dict) else None
@@ -2183,7 +2255,9 @@ def _normalize_runtime_state_summary_input(
         return runtime_state.model_dump()
     if isinstance(runtime_state, dict):
         return RuntimeStateSummary.model_validate(runtime_state).model_dump()
-    raise ValueError("runtime_state must be RuntimeState, RuntimeStateSummary, or mapping")
+    raise ValueError(
+        "runtime_state must be RuntimeState, RuntimeStateSummary, or mapping"
+    )
 
 
 def _build_shadow_passthrough_decision(
@@ -2449,11 +2523,7 @@ def _resolve_shadow_action(
     budget_pressure: float,
     cost_pressure: float,
 ) -> tuple[str, str]:
-    if (
-        p_success <= 0.20
-        and budget_pressure >= 0.85
-        and recovery_margin <= 0.20
-    ):
+    if p_success <= 0.20 and budget_pressure >= 0.85 and recovery_margin <= 0.20:
         return (
             "stop",
             "success probability is low, budget pressure is high, and recovery headroom is nearly exhausted",
@@ -2583,7 +2653,10 @@ def _summarize_rerank_reason(candidate: PendingActionCandidate) -> str:
 
     factors = rerank_reason.get("factors")
     if not isinstance(factors, list):
-        return str(rerank_reason.get("message") or "Runtime rerank reasons are attached in candidate metadata.")
+        return str(
+            rerank_reason.get("message")
+            or "Runtime rerank reasons are attached in candidate metadata."
+        )
 
     category_labels = {
         "cost": "remaining cost pressure",
@@ -2603,7 +2676,10 @@ def _summarize_rerank_reason(candidate: PendingActionCandidate) -> str:
         if label and label not in categories:
             categories.append(label)
     if not categories:
-        return str(rerank_reason.get("message") or "Runtime rerank reasons are attached in candidate metadata.")
+        return str(
+            rerank_reason.get("message")
+            or "Runtime rerank reasons are attached in candidate metadata."
+        )
     return "Runtime rerank reasons include " + ", ".join(categories) + "."
 
 
@@ -2746,7 +2822,9 @@ def _score_payload(
             + 0.2 * fallback_depth,
         ),
     )
-    normalized_weights = _normalize_score_weights(score_weights or _DEFAULT_SCORE_WEIGHTS)
+    normalized_weights = _normalize_score_weights(
+        score_weights or _DEFAULT_SCORE_WEIGHTS
+    )
     overall = (
         normalized_weights["feasibility"] * feasibility
         + normalized_weights["objective"] * objective
@@ -2827,10 +2905,7 @@ def _normalize_score_weights(weights: dict[str, float]) -> dict[str, float]:
     total = sum(cleaned.values())
     if total <= 0:
         return dict(_DEFAULT_SCORE_WEIGHTS)
-    return {
-        key: round(value / total, 6)
-        for key, value in cleaned.items()
-    }
+    return {key: round(value / total, 6) for key, value in cleaned.items()}
 
 
 def _parse_positive_float(value: Any) -> float | None:
@@ -2965,9 +3040,7 @@ def _candidate_readiness_metadata(
         tool_id,
     )
     status = str(
-        capability_readiness.get("status")
-        or tool_readiness.get("status")
-        or "degraded"
+        capability_readiness.get("status") or tool_readiness.get("status") or "degraded"
     )
     metadata: dict[str, Any] = {
         TOOL_READINESS_METADATA_KEY: tool_readiness,
@@ -3267,11 +3340,9 @@ def _normalize_plan_input_contract_references(
         )
         if normalized_inputs != step.inputs or normalized_step_id != step.id:
             changed = True
-            normalized_step = (
-                step.model_copy(
-                    update={"id": normalized_step_id, "inputs": normalized_inputs},
-                    deep=True,
-                )
+            normalized_step = step.model_copy(
+                update={"id": normalized_step_id, "inputs": normalized_inputs},
+                deep=True,
             )
             updated_steps.append(normalized_step)
         else:
@@ -3484,10 +3555,7 @@ def _collect_step_output_fields(
         "cif_path": "pdb_path",
         "sequence_candidates": "candidates",
     }
-    return {
-        aliases.get(output_field, output_field)
-        for output_field in spec.outputs
-    }
+    return {aliases.get(output_field, output_field) for output_field in spec.outputs}
 
 
 def _normalize_named_placeholder_reference(
@@ -3555,13 +3623,24 @@ def _should_rewrite_input_contract_field(
     current_field: str,
     expected_field: str,
 ) -> bool:
-    if input_key == "sequence" and current_field in {"candidates", "sequence_candidates"}:
+    if input_key == "sequence" and current_field in {
+        "candidates",
+        "sequence_candidates",
+    }:
         return True
     if input_key == "candidates" and current_field == "sequence":
         return True
-    if input_key == "pdb_path" and current_field in {"structure_pdb", "structure_path", "cif_path"}:
+    if input_key == "pdb_path" and current_field in {
+        "structure_pdb",
+        "structure_path",
+        "cif_path",
+    }:
         return True
-    if input_key == "structure_results" and current_field in {"sequence", "pdb_path", "plddt"}:
+    if input_key == "structure_results" and current_field in {
+        "sequence",
+        "pdb_path",
+        "plddt",
+    }:
         return True
     return current_field == expected_field
 
@@ -4108,7 +4187,9 @@ def _extract_structure_refinement_config(constraints: dict) -> dict:
         else {}
     )
 
-    max_iterations_raw = local.get("max_iterations", constraints.get("s4_max_iterations"))
+    max_iterations_raw = local.get(
+        "max_iterations", constraints.get("s4_max_iterations")
+    )
     convergence_raw = local.get(
         "convergence_delta",
         constraints.get("s4_convergence_delta"),
