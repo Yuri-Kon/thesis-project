@@ -17,7 +17,7 @@ export function InspectorPanel({ children }: InspectorPanelProps) {
         title={collapsed ? "Show inspector" : "Hide inspector"}
         onClick={() => setCollapsed((current) => !current)}
       >
-        {collapsed ? "Inspect" : "Hide"}
+        {collapsed ? "Inspect" : "Collapse"}
       </button>
       <div className="inspector-content">{children}</div>
     </aside>
