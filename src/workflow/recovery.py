@@ -36,6 +36,7 @@ from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DI
 from src.workflow.belief_state import update_runtime_state
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
+from src.workflow.runtime_evaluator import RuntimeEvaluator
 from src.workflow.runtime_policy import (
     DYNAMIC_OBSERVATION_ONLY_POLICY,
     resolve_runtime_policy,
@@ -372,6 +373,10 @@ def select_workflow_action(
             basis = "default_continue"
 
     route = resolve_workflow_action_route(action)
+    evaluator = RuntimeEvaluator(policy_mode=runtime_policy)
+    action_utilities = evaluator.compute_action_utilities(
+        runtime_summary or {}
+    ) if runtime_summary else {}
     return WorkflowActionSelectorResult(
         action=action,
         mapped_flow=route.mapped_flow,
@@ -398,6 +403,9 @@ def select_workflow_action(
             "runtime_policy": runtime_policy,
             "belief_state_enabled": not observation_only,
             "runtime_state_summary": runtime_summary or None,
+            "action_utilities": {
+                a: u.model_dump() for a, u in action_utilities.items()
+            },
         },
     )
 

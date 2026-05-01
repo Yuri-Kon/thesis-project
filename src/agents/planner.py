@@ -71,6 +71,7 @@ from src.models.db import (
 from src.storage.log_store import append_event
 from src.workflow.context import WorkflowContext
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
+from src.workflow.runtime_evaluator import compute_runtime_delta
 from src.workflow.status import transition_task_status
 
 
@@ -200,11 +201,11 @@ _DEFAULT_PROVIDER_CATALOG_PATH = (
 )
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 _PREFERRED_LOCAL_PROVIDER_ORDER = (
-    "qwen-flash",
     "glm-5",
+    "deepseek-v4-pro",
+    "deepseek-v4-flash",
     "glm-4.7",
-    "deepseek-chat",
-    "deepseek-reasoner",
+    "qwen-flash",
     "nemotron",
     "openai",
 )
@@ -2556,122 +2557,29 @@ def _build_runtime_shadow_decision(
         runtime_state_summary.get("evidence_sufficiency"),
         default=0.5,
     )
-    budget_pressure = min(max(expected_remaining_cost, 0.0), 1.5)
-    cost_pressure = min(budget_pressure, 1.0)
-    margin_signal = max(-1.0, min(recovery_margin, 1.0))
     overall = _safe_float(score_breakdown.get("overall"), default=0.0)
     confidence = _safe_float(score_breakdown.get("confidence"), default=overall)
     risk = _safe_float(score_breakdown.get("risk"), default=overall)
     cost = _safe_float(score_breakdown.get("cost"), default=overall)
     fallback_depth = _safe_float(score_breakdown.get("fallback_depth"), default=0.5)
     feasibility = _safe_float(score_breakdown.get("feasibility"), default=0.5)
-    action, reason = _resolve_shadow_action(
-        candidate_kind=candidate_kind,
-        payload=payload,
+    replan_mode = _extract_replan_mode(payload)
+
+    delta, action, reason, factors = compute_runtime_delta(
         p_success=p_success,
         p_structural_failure=p_structural_failure,
         recovery_margin=recovery_margin,
-        budget_pressure=budget_pressure,
-        cost_pressure=cost_pressure,
+        expected_remaining_cost=expected_remaining_cost,
+        evidence_sufficiency=evidence_sufficiency,
+        confidence=confidence,
+        risk=risk,
+        cost=cost,
+        fallback_depth=fallback_depth,
+        feasibility=feasibility,
+        candidate_kind=candidate_kind,
+        replan_mode=replan_mode,
     )
-    evidence_effect = 0.18 * (p_success - 0.5) * confidence
-    evidence_sufficiency_effect = (
-        0.10 * ((2.0 * evidence_sufficiency) - 1.0) * max(confidence, feasibility)
-    )
-    risk_effect = -0.16 * p_structural_failure * (1.0 - risk)
-    recovery_effect = 0.10 * margin_signal * fallback_depth
-    cost_effect = -0.14 * cost_pressure * (1.0 - cost)
-    delta = (
-        evidence_effect
-        + evidence_sufficiency_effect
-        + risk_effect
-        + recovery_effect
-        + cost_effect
-    )
-    factors = [
-        _build_runtime_adjustment_factor(
-            category="evidence",
-            signal="p_success*confidence",
-            source="runtime_state.p_success+score_breakdown.confidence",
-            contribution=evidence_effect,
-            message="Current evidence and candidate confidence adjust the shadow score.",
-        ),
-        _build_runtime_adjustment_factor(
-            category="evidence",
-            signal="evidence_sufficiency",
-            source="runtime_state.evidence_sufficiency+score_breakdown.feasibility",
-            contribution=evidence_sufficiency_effect,
-            message="Evidence sufficiency raises confidence in routes backed by enough cheap validation.",
-        ),
-        _build_runtime_adjustment_factor(
-            category="risk",
-            signal="p_structural_failure",
-            source="runtime_state.p_structural_failure+score_breakdown.risk",
-            contribution=risk_effect,
-            message="Structural failure pressure reduces the shadow score.",
-        ),
-        _build_runtime_adjustment_factor(
-            category="recovery",
-            signal="recovery_margin*fallback_depth",
-            source="runtime_state.recovery_margin+score_breakdown.fallback_depth",
-            contribution=recovery_effect,
-            message="Recovery headroom and fallback depth shape the shadow rerank bonus.",
-        ),
-        _build_runtime_adjustment_factor(
-            category="cost",
-            signal="expected_remaining_cost",
-            source="runtime_state.expected_remaining_cost+score_breakdown.cost",
-            contribution=cost_effect,
-            message="Remaining cost pressure penalizes expensive suffixes.",
-        ),
-    ]
-    if action == "patch_local":
-        patch_bonus = 0.04 * fallback_depth
-        delta += patch_bonus
-        factors.append(
-            _build_runtime_adjustment_factor(
-                category="recovery",
-                signal="fallback_depth",
-                source="score_breakdown.fallback_depth",
-                contribution=patch_bonus,
-                message="Local patchability keeps more recovery options available.",
-            )
-        )
-    elif action == "suffix_replan":
-        replan_recovery_bonus = 0.02 * feasibility
-        replan_cost_penalty = -0.03 * cost_pressure
-        delta += replan_recovery_bonus + replan_cost_penalty
-        factors.append(
-            _build_runtime_adjustment_factor(
-                category="recovery",
-                signal="feasibility",
-                source="score_breakdown.feasibility",
-                contribution=replan_recovery_bonus,
-                message="Feasible suffix replacement preserves validated prefix value.",
-            )
-        )
-        factors.append(
-            _build_runtime_adjustment_factor(
-                category="cost",
-                signal="cost_pressure",
-                source="runtime_state.expected_remaining_cost",
-                contribution=replan_cost_penalty,
-                message="Suffix replan still carries residual budget pressure.",
-            )
-        )
-    elif action == "stop":
-        stop_penalty = -(0.12 + 0.06 * cost_pressure)
-        delta += stop_penalty
-        factors.append(
-            _build_runtime_adjustment_factor(
-                category="policy",
-                signal="stop_guard",
-                source="runtime_state.p_success+runtime_state.expected_remaining_cost",
-                contribution=stop_penalty,
-                message="Stop guard applies when success is low and cost pressure is already high.",
-            )
-        )
-    delta = max(-0.35, min(0.35, delta))
+
     adjusted = max(0.0, min(1.0, overall + delta))
     final_score = ScoreSummary(
         value=round(adjusted, 6),
@@ -2793,6 +2701,15 @@ def _resolve_shadow_action(
         "continue",
         "runtime state is only attached for shadow comparison and does not change planning semantics",
     )
+
+
+def _extract_replan_mode(payload: Plan | PlanPatch) -> str:
+    if isinstance(payload, Plan):
+        metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+        raw_mode = metadata.get("replan_mode")
+        if isinstance(raw_mode, str):
+            return raw_mode
+    return ""
 
 
 def _infer_candidate_kind(payload: Plan | PlanPatch) -> str:
