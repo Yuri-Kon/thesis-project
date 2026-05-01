@@ -1,18 +1,27 @@
 from __future__ import annotations
 
+from ctypes import cast
 from dataclasses import dataclass, field
 import math
-from typing import Any, Callable, Optional
+from collections.abc import Callable, Mapping
+from typing import TypeGuard, cast
 
-from src.models.contracts import (ACTION_SCORE_METADATA_KEY, Decision,
-                                  DecisionChoice, FINAL_SCORE_METADATA_KEY,
-                                  PendingAction, PendingActionCandidate,
-                                  PendingActionType, Plan, PlanStep,
-                                  ProteinDesignTask,
-                                  RERANK_REASON_METADATA_KEY,
-                                  RUNTIME_ADJUSTMENT_METADATA_KEY,
-                                  SHADOW_SCORE_METADATA_KEY,
-                                  STATIC_SCORE_METADATA_KEY)
+from src.models.contracts import (
+    ACTION_SCORE_METADATA_KEY,
+    Decision,
+    DecisionChoice,
+    FINAL_SCORE_METADATA_KEY,
+    PendingAction,
+    PendingActionCandidate,
+    PendingActionType,
+    Plan,
+    PlanStep,
+    ProteinDesignTask,
+    RERANK_REASON_METADATA_KEY,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
+    SHADOW_SCORE_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
+)
 from src.kg.kg_client import ToolKGError, load_tool_kg
 from src.adapters.registry import get_adapter
 
@@ -33,6 +42,34 @@ ALLOWED_DECISION_CHOICES = {
         DecisionChoice.CANCEL,
     },
 }
+
+JsonMap = dict[str, object]
+KgLoader = Callable[[], JsonMap]
+
+
+def _is_str_object_mapping(value: object) -> TypeGuard[Mapping[str, object]]:
+    if not isinstance(value, Mapping):
+        return False
+    mapping = cast(Mapping[object, object], value)
+    return all(isinstance(key, str) for key in mapping)
+
+
+def _as_json_map(value: object) -> JsonMap:
+    if not _is_str_object_mapping(value):
+        return {}
+    return dict(value)
+
+
+def _as_json_map_list(value: object) -> list[JsonMap]:
+    if not isinstance(value, list):
+        return []
+    return [_as_json_map(item) for item in value if _is_str_object_mapping(item)]
+
+
+def _as_str_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
 
 
 class DecisionValidationError(ValueError):
@@ -88,9 +125,9 @@ class CandidateExecutionIssue:
     tool_id: str | None = None
     capability_id: str | None = None
     io_type: str | None = None
-    details: dict[str, Any] = field(default_factory=dict)
+    details: JsonMap = field(default_factory=dict)
 
-    def as_dict(self) -> dict[str, Any]:
+    def as_dict(self) -> JsonMap:
         return {
             "code": self.code,
             "message": self.message,
@@ -106,7 +143,7 @@ class CandidateExecutionValidationError(ValueError):
     """候选可执行性硬约束校验失败。"""
 
     def __init__(self, issues: list[CandidateExecutionIssue]):
-        self.issues = list(issues)
+        self.issues: list[CandidateExecutionIssue] = list(issues)
         if self.issues:
             first = self.issues[0]
             super().__init__(f"{first.code}: {first.message}")
@@ -160,9 +197,7 @@ def validate_candidate_set_output(
             "default_recommendation is required for candidate set output"
         )
     if default_id and default_id not in seen_ids:
-        raise CandidateSetValidationError(
-            "default_recommendation is not in candidates"
-        )
+        raise CandidateSetValidationError("default_recommendation is not in candidates")
 
 
 def _validate_candidate_v1_fields(
@@ -195,15 +230,13 @@ def _validate_candidate_tool_fields(
     if candidate.tool_id is None:
         raise CandidateSetValidationError(f"{candidate_id}.tool_id is required")
     if candidate.capability_id is None:
-        raise CandidateSetValidationError(
-            f"{candidate_id}.capability_id is required"
-        )
+        raise CandidateSetValidationError(f"{candidate_id}.capability_id is required")
     if candidate.io_type is None:
         raise CandidateSetValidationError(f"{candidate_id}.io_type is required")
     if candidate.adapter_mode is None:
         raise CandidateSetValidationError(f"{candidate_id}.adapter_mode is required")
 
-    metadata = candidate.metadata or {}
+    metadata = _as_json_map(candidate.metadata)
     missing_metadata = [
         key
         for key in REQUIRED_TOOL_METADATA_WITH_DEFAULTS
@@ -317,12 +350,14 @@ def _validate_candidate_shadow_rerank_fields(
         )
 
 
-def _coerce_float(value: Any, *, field_name: str) -> float:
+def _coerce_float(value: object, *, field_name: str) -> float:
     if isinstance(value, bool):
+        raise CandidateSetValidationError(f"{field_name} must be numeric")
+    if not isinstance(value, (int, float, str)):
         raise CandidateSetValidationError(f"{field_name} must be numeric")
     try:
         parsed = float(value)
-    except (TypeError, ValueError) as exc:
+    except ValueError as exc:
         raise CandidateSetValidationError(f"{field_name} must be numeric") from exc
     if not math.isfinite(parsed):
         raise CandidateSetValidationError(f"{field_name} must be finite")
@@ -424,7 +459,7 @@ def validate_decision_for_pending_action(
     if decision.choice not in allowed_choices:
         raise DecisionValidationError(
             f"Choice {decision.choice.value} is not allowed for "
-            f"{pending_action.action_type.value}"
+            + f"{pending_action.action_type.value}"
         )
     if decision.choice == DecisionChoice.ACCEPT:
         if not decision.selected_candidate_id:
@@ -442,7 +477,7 @@ def validate_decision_for_pending_action(
 def find_pending_action_candidate(
     pending_action: PendingAction,
     candidate_id: str,
-) -> Optional[PendingActionCandidate]:
+) -> PendingActionCandidate | None:
     """在 PendingAction.candidates 中查找指定候选。
 
     Args:
@@ -461,7 +496,7 @@ def find_pending_action_candidate(
 
 def _resolve_candidate_id(
     candidate: PendingActionCandidate,
-) -> Optional[str]:
+) -> str | None:
     """兼容不同字段命名以解析候选 ID。
 
     Args:
@@ -471,9 +506,12 @@ def _resolve_candidate_id(
         候选 ID；若字段缺失则返回 None。
     """
     candidate_id = getattr(candidate, "candidate_id", None)
-    if candidate_id is not None:
+    if isinstance(candidate_id, str):
         return candidate_id
-    return getattr(candidate, "id", None)
+    fallback_id = getattr(candidate, "id", None)
+    if isinstance(fallback_id, str):
+        return fallback_id
+    return None
 
 
 def validate_plan_executability(
@@ -481,7 +519,7 @@ def validate_plan_executability(
     task: ProteinDesignTask,
     *,
     candidate: PendingActionCandidate | None = None,
-    kg_loader: Callable[[], dict] | None = None,
+    kg_loader: KgLoader | None = None,
     adapter_resolver: Callable[[str], object] | None = None,
 ) -> None:
     """执行前候选可执行性硬约束校验。
@@ -511,25 +549,20 @@ def validate_plan_executability(
             ]
         ) from exc
 
-    tools = kg.get("tools", [])
-    tool_by_id: dict[str, dict[str, Any]] = {}
-    if isinstance(tools, list):
-        for tool in tools:
-            if not isinstance(tool, dict):
-                continue
-            tool_id = tool.get("id")
-            if isinstance(tool_id, str) and tool_id:
-                tool_by_id[tool_id] = tool
-
+    tool_by_id: dict[str, JsonMap] = {}
+    for tool in _as_json_map_list(kg.get("tools")):
+        tool_id = tool.get("id")
+        if isinstance(tool_id, str) and tool_id:
+            tool_by_id[tool_id] = tool
     capability_ids = {
-        entry.get("capability_id")
-        for entry in kg.get("capabilities", [])
-        if isinstance(entry, dict) and isinstance(entry.get("capability_id"), str)
+        capability_id
+        for entry in _as_json_map_list(kg.get(("capabilities")))
+        if isinstance((capability_id := entry.get("capability_id")), str)
     }
     io_type_ids = {
-        entry.get("io_type_id")
-        for entry in kg.get("io_types", [])
-        if isinstance(entry, dict) and isinstance(entry.get("io_type_id"), str)
+        io_type_id
+        for entry in _as_json_map_list(kg.get("io_types"))
+        if isinstance((io_type_id := entry.get("io_type_id")), str)
     }
 
     if candidate is not None:
@@ -709,7 +742,9 @@ def _validate_candidate_tool_metadata(
         return
 
     capabilities = tool.get("capabilities", [])
-    if capability_id and (not isinstance(capabilities, list) or capability_id not in capabilities):
+    if capability_id and (
+        not isinstance(capabilities, list) or capability_id not in capabilities
+    ):
         issues.append(
             CandidateExecutionIssue(
                 code="CANDIDATE_SCHEMA_INVALID",
@@ -744,8 +779,7 @@ def _validate_candidate_tool_metadata(
             CandidateExecutionIssue(
                 code="CANDIDATE_ADAPTER_UNSUPPORTED",
                 message=(
-                    f"tool '{tool_id}' uses unsupported execution backend "
-                    f"'{backend}'"
+                    f"tool '{tool_id}' uses unsupported execution backend '{backend}'"
                 ),
                 tool_id=tool_id,
                 capability_id=capability_id,
@@ -758,8 +792,8 @@ def _validate_input_value(
     *,
     step: PlanStep,
     key: str,
-    value: Any,
-    expected_type: Any,
+    value: object,
+    expected_type: object,
     step_index: dict[str, int],
     current_idx: int,
     produced_outputs_by_step: dict[str, set[str]],
@@ -878,7 +912,7 @@ def _validate_step_references(
 def _validate_optional_params(
     step: PlanStep,
     key: str,
-    value: Any,
+    value: object,
     *,
     capability_id: str | None,
     io_type: str | None,
@@ -920,16 +954,14 @@ def _validate_optional_params(
 def _validate_resource_limits(
     *,
     step: PlanStep,
-    step_tool: dict[str, Any],
+    step_tool: JsonMap,
     capability_id: str | None,
     io_type: str | None,
     issues: list[CandidateExecutionIssue],
 ) -> None:
-    constraints = step_tool.get("constraints", {})
-    if not isinstance(constraints, dict):
-        return
-    limits = constraints.get("limits", {})
-    if not isinstance(limits, dict):
+    constraints = _as_json_map(step_tool.get("constraints"))
+    limits = _as_json_map(constraints.get("limits"))
+    if not limits:
         return
 
     max_length = limits.get("max_length")
@@ -998,7 +1030,7 @@ def _validate_resource_limits(
         )
 
 
-def _extract_declared_outputs(step_tool: dict[str, Any]) -> set[str]:
+def _extract_declared_outputs(step_tool: JsonMap) -> set[str]:
     io_config = step_tool.get("io", {})
     if not isinstance(io_config, dict):
         return set()
@@ -1023,7 +1055,7 @@ def _extract_fallback_outputs(step: PlanStep) -> set[str]:
     return set()
 
 
-def _resolve_execution_backend(execution: Any) -> str | None:
+def _resolve_execution_backend(execution: object) -> str | None:
     if isinstance(execution, str):
         return execution
     if isinstance(execution, dict):
@@ -1051,7 +1083,7 @@ def _tool_io_type(step_tool: dict[str, Any]) -> str | None:
     return None
 
 
-def _parse_step_reference(value: Any) -> tuple[str, str] | None:
+def _parse_step_reference(value: object) -> tuple[str, str] | None:
     if not isinstance(value, str) or "." not in value:
         return None
     step_id, field = value.split(".", 1)
@@ -1062,7 +1094,7 @@ def _parse_step_reference(value: Any) -> tuple[str, str] | None:
     return step_id, field
 
 
-def _matches_expected_type(value: Any, expected_type: Any) -> bool:
+def _matches_expected_type(value: object, expected_type: object) -> bool:
     if not isinstance(expected_type, str):
         return True
     expected = expected_type.strip().lower()
