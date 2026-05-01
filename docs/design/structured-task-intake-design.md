@@ -887,7 +887,78 @@ Task Intake 的确认不是 `PendingAction / Decision`。
 
 ---
 
-## 15. 设计结论
+## 15. 草稿恢复与导航保护
+<!-- SID:interface.task_intake.draft_recovery -->
+
+### 15.1 问题
+
+Task Builder 页面中，用户在创建 intake 并填写结构化字段后，可能因以下操作丢失未确认的草稿数据：
+
+- 误点击 Sidebar "Task Builder" 链接导致页面重新加载
+- 点击 Dashboard "New intake" 入口
+- 浏览器刷新、关闭标签页
+- 前后端均无草稿找回机制
+
+### 15.2 活跃草稿定义
+
+`TaskIntakeSession` 的 `status` 字段为 `"collecting"` 或 `"needs_confirmation"` 时视为活跃草稿。仅此两种状态触发保护逻辑。
+
+### 15.3 导航拦截
+
+**前端拦截点**：Sidebar 中指向 Task Builder 的链接（`/ui/task-builder`）和 Dashboard Inspector 中的 "New intake" 链接在点击时需检查是否存在活跃草稿。存在时弹出确认对话框而非直接跳转。
+
+**对话框**使用 `<dialog>` 语义或 `role="alertdialog"` + `aria-modal="true"`，由 React portal 渲染至 `document.body`。三按钮布局：
+
+- **Continue Editing**（默认焦点，主按钮样式）：关闭对话框，留在当前草稿
+- **Discard & New**（次要按钮样式）：清空前端 intake 状态，从 `localStorage` 的 `recent-intake-ids` 中移除当前 `intake_id`，加载空白 Task Builder。后端 intake 记录保留但不影响后续操作
+- **Cancel**（文本按钮样式）：关闭对话框，不做任何操作
+
+`Escape` 键映射至 Cancel。
+
+**浏览器级保护**：活跃草稿存在时注册 `window.beforeunload` 事件监听器。草稿状态变更为 `"confirmed"` 或 `"cancelled"` 时移除监听器。`beforeunload` 处理函数仅设置 `e.returnValue = ""` 触发浏览器原生对话框，不尝试自定义其内容。
+
+### 15.4 草稿恢复 UI
+
+Task Builder 页面 hero 区域增加 `<select>` 下拉控件：
+
+```
+[Recover draft ▾]
+
+  intake_20260501_001  · 2026-05-01 14:32
+  intake_20260430_003  · 2026-04-30 10:15
+```
+
+数据源为 `localStorage` key `recent-intake-ids`（`string[]`，按创建时间倒序，最多 5 条）。用户选择一条后，通过 `GET /task-intakes/{intake_id}` 拉取完整 `TaskIntakeSession` 并恢复到表单中（包括自然语言文本、已解析的结构化字段、safety check 结果、acknowledged warnings）。
+
+### 15.5 localStorage 契约
+
+```
+Key: recent-intake-ids
+Value: string[]  (JSON array of intake_id)
+Max length: 5
+
+写入时机:
+  - createTaskIntake 成功后 ← unshift 至头部
+  - confirmTaskIntake 成功后 → 移除对应 entry
+  - 用户选择 Discard & New → 移除对应 entry
+
+清除时机:
+  - GET /task-intakes/{id} 返回 404 → 从数组移除
+  - 数组长度超过 5 → 截断尾部
+
+不写入时机:
+  - patchTaskIntake 不修改此列表
+  - 不将 intake 完整数据写入 localStorage（只存 id 列表）
+```
+
+### 15.6 与已有流程的关系
+
+- 不影响 `POST /task-intakes`、`PATCH /task-intakes/{id}`、`POST /task-intakes/{id}/confirm` 的 API 契约
+- 不影响 Planner 的输入 `ConfirmedTaskSpec`
+- 不改变 FSM 状态或 PendingAction / Decision 流程
+- 仅在前端增加"防误操作"和"草稿找回"两个纯 UI 层保护
+
+## 16. 设计结论
 
 本方案将“自然语言理解”从 Planner 的隐式前置步骤中拆出，变成一个可见、可编辑、可确认的 Task Intake 层。
 

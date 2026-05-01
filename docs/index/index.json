@@ -2,7 +2,7 @@
   "version": "1.7",
   "generated_at": "2026-04-27",
   "description": "Machine-readable specification index for thesis-project design documents",
-  "total_specs": 204,
+  "total_specs": 208,
   "documents": [
     {
       "doc_key": "arch",
@@ -228,6 +228,21 @@
         "interface_surfaces",
         "impl",
         "hitl"
+      ]
+    },
+    {
+      "doc_key": "structured_task_intake",
+      "title": "结构化任务输入与用户确认设计稿",
+      "path": "docs/design/structured-task-intake-design.md",
+      "status": "draft",
+      "version": "0.1",
+      "depends_on": [
+        "arch",
+        "agent",
+        "impl",
+        "algo",
+        "interface_surfaces",
+        "interface_web_workspace"
       ]
     }
   ],
@@ -4508,6 +4523,99 @@
         "interface.cli_workflow.watch_flow"
       ],
       "stability": "stable"
+    },
+    {
+      "sid": "interface.web_workspace.inspector_reorder",
+      "title": "Inspector 卡片拖拽重排",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 413,
+        "marker": "<!-- SID:interface.web_workspace.inspector_reorder -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "inspector",
+        "drag-and-drop",
+        "ux"
+      ],
+      "depends_on": [
+        "interface.web_workspace.primary_layout",
+        "interface.web_workspace.interaction_patterns"
+      ],
+      "stability": "draft"
+    },
+    {
+      "sid": "interface.web_workspace.card_density",
+      "title": "卡片空间密度与视口填充",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 481,
+        "marker": "<!-- SID:interface.web_workspace.card_density -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "layout",
+        "scrolling",
+        "responsive"
+      ],
+      "depends_on": [
+        "interface.web_workspace.primary_layout"
+      ],
+      "stability": "draft"
+    },
+    {
+      "sid": "interface.web_workspace.draft_protection",
+      "title": "Task Builder 草稿保护与恢复",
+      "doc_key": "interface_web_workspace",
+      "path": "docs/design/web-operator-workspace.md",
+      "locator": {
+        "type": "comment",
+        "line": 511,
+        "marker": "<!-- SID:interface.web_workspace.draft_protection -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "web",
+        "task-builder",
+        "draft",
+        "ux"
+      ],
+      "depends_on": [
+        "interface.web_workspace.react_ui_boundary"
+      ],
+      "stability": "draft"
+    },
+    {
+      "sid": "interface.task_intake.draft_recovery",
+      "title": "草稿恢复与导航保护",
+      "doc_key": "structured_task_intake",
+      "path": "docs/design/structured-task-intake-design.md",
+      "locator": {
+        "type": "comment",
+        "line": 891,
+        "marker": "<!-- SID:interface.task_intake.draft_recovery -->"
+      },
+      "level": "Section",
+      "tags": [
+        "interface",
+        "intake",
+        "draft",
+        "recovery",
+        "navigation-guard"
+      ],
+      "depends_on": [
+        "interface.web_workspace.draft_protection"
+      ],
+      "stability": "draft"
     }
   ]
 }

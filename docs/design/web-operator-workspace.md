@@ -407,4 +407,169 @@ Web 主工作台建议按以下顺序落地：
 3. 把现有 NGL + Plotly 能力从“报告内嵌”提升为“工作台内可访问能力”；
 4. 再逐步增强候选对比、结构-指标联动与多产物切换。
 
-演进过程中，Web 端始终应保持“全信息展示、强交互确认、结构可视化原生存在”的定位。
+演进过程中，Web 端始终应保持”全信息展示、强交互确认、结构可视化原生存在”的定位。
+
+## Inspector 卡片拖拽重排
+<!-- SID:interface.web_workspace.inspector_reorder -->
+
+Inspector 面板内卡片应支持用户自定义排序，使不同角色、不同任务阶段的操作者可将最相关的上下文卡片置于顶部。
+
+### 适用范围
+
+重排仅作用于右侧 Inspector 面板内的 `.inspector-card` 元素，不涉及 Sidebar 导航、主工作区卡片或 Pending Review 工作区。
+
+不同页面注入的 Inspector 卡片集合：
+
+| 页面 | Inspector 卡片（默认顺序） |
+|------|---------------------------|
+| Dashboard | `inspector-overview` → `action-required` |
+| TaskDetail | `inspector-overview` → `operation` |
+| TaskBuilder | `inspector-overview` → `safety-precheck` → `action-required` |
+| EventTimeline | `inspector-overview` → `timeline-boundary` |
+
+### 交互规格
+
+**拖拽手柄**：每张卡片标题栏右侧渲染 `⋮⋮` 图标（CSS class: `drag-handle`）。默认 `opacity: 0`，卡片 `:hover` 时过渡至 `opacity: 1`（150ms ease）。手柄区域 `cursor: grab`，拖拽中 `cursor: grabbing`。
+
+**视觉状态**：
+
+| 状态 | 源卡片 | 其他卡片 |
+|------|--------|---------|
+| 静止 | `box-shadow: var(--soft-shadow)` | 同左 |
+| Hover 手柄 | `translateY(-1px)`, shadow 增强, 150ms | 不变 |
+| 拖拽中 | `opacity: 0.5`, `scale(1.02)`, `z-index: 100` | `translateY(±card-height)` 平滑让位, 200ms ease |
+| 释放 | 滑入目标位置, 250ms ease-out 复位 | 归位 |
+
+**键盘操作**：卡片聚焦时 `Ctrl+ArrowUp/Down`（macOS: `Cmd+ArrowUp/Down`）移动卡片一个位置。`aria-roledescription=”sortable card”` 标注可排序，`aria-grabbed` 反映拖拽状态。
+
+### 持久化契约
+
+顺序写入 `localStorage`，各页面独立 key：
+
+```
+inspector-order:dashboard        → [“inspector-overview”, “action-required”]
+inspector-order:task_detail      → [“operation”, “inspector-overview”]
+inspector-order:task_builder     → [“safety-precheck”, “inspector-overview”, “action-required”]
+inspector-order:event_timeline   → [“timeline-boundary”, “inspector-overview”]
+```
+
+**恢复规则**：
+1. 页面加载时读取对应 key，无存储则使用默认顺序
+2. 若存储的 card-key 列表与当前卡片集合不匹配（新增/移除卡片），将新卡片追加至末尾，已移除卡片从列表中删除——“保留已知顺序，新卡片后置”
+
+不将顺序同步到后端 API，不跨设备同步。
+
+### 实现约束
+
+- 使用 HTML5 Drag and Drop API（`draggable`、`dragstart`、`dragover`、`drop`），不引入第三方库
+- 拖拽事件通过 `.inspector-content` 容器上的事件委托处理
+- 拖拽期间不修改 React state；DOM 变换通过 `ref` + `requestAnimationFrame` 完成
+- 释放后仅调用一次 `setState` 更新顺序并写入 `localStorage`
+
+### 卡片 DOM 结构
+
+```
+.inspector-card
+  .inspector-card__header
+    .inspector-card__title      ← 标题文本
+    .drag-handle                ← ⋮⋮ 手柄，位于 header 右侧
+  .inspector-card__body
+    ...content...
+```
+
+## 卡片空间密度与视口填充
+<!-- SID:interface.web_workspace.card_density -->
+
+### 列级滚动模型
+
+三栏布局采用”每列独立滚动、卡片自然撑开”策略。三个滚动上下文为：
+
+| 列 | CSS 选择器 | 滚动行为 |
+|----|-----------|---------|
+| 左侧导航 | `.workbench-sidebar` | `overflow: auto` |
+| 主内容区 | `.workbench-main-scroll` | `overflow: auto` |
+| 右侧检查器 | `.workbench-inspector` | `overflow: auto` |
+
+**禁止嵌套滚动**：卡片内部不得设置 `max-height: Npx` 配合 `overflow: auto`。当卡片内容超过视口高度时，由列级滚动条统一处理溢出。
+
+### 卡片高度策略
+
+| 卡片类型 | 策略 |
+|---------|------|
+| MetricCard、Inspector 卡片 | 内容自然高度，无 `min-height` 约束 |
+| PendingActionList | 内容自然撑开；待办项少时卡片较短，待办项多时列级滚动接管 |
+| CapabilityReadinessPanel | 同上 |
+| StructureViewerPanel | 结构画布 `height: 104px`（固定），其余内容自然撑开 |
+| `<pre>` 代码块 | `max-height: 220px; overflow: auto`（特例，长 JSON/日志需要局部滚动） |
+
+### 响应式规则
+
+- `> 900px`：三栏完整布局，`html/body/#root` 设置 `height: 100%; overflow: hidden`，禁止页面级滚动
+- `≤ 900px`：单栏堆叠，所有列 `overflow: visible`，页面整体可滚动；`.app-shell` 切换为 `height: auto; min-height: 100vh`
+
+## Task Builder 草稿保护与恢复
+<!-- SID:interface.web_workspace.draft_protection -->
+
+Task Builder 页面中的未确认 intake 草稿在用户误导航时存在丢失风险，需要保护机制。
+
+### 活跃草稿判定
+
+`TaskIntakeSession.status` 为 `”collecting”` 或 `”needs_confirmation”` 时视为活跃草稿，触发保护。`”confirmed”` 和 `”cancelled”` 状态不触发。
+
+### 导航拦截对话框
+
+当存在活跃草稿且用户试图离开 Task Builder 时，弹出确认对话框：
+
+**触发条件**：
+- 点击 Sidebar 中 “Task Builder” 或 “New Intake” 链接
+- 点击 Dashboard Inspector 中 “New intake” 链接
+
+```
+┌──────────────────────────────────────────┐
+│  Unsaved Intake Draft                    │
+│                                          │
+│  You have an active intake draft         │
+│  ({intake_id}) that has not been         │
+│  confirmed as a task.                    │
+│                                          │
+│  Last updated: {updated_at}              │
+│  Status: {status}                        │
+│                                          │
+│  [Continue Editing]  [Discard & New]     │
+│  [Cancel]                                │
+└──────────────────────────────────────────┘
+```
+
+按钮行为：
+- **Continue Editing**（默认焦点）：关闭对话框，留在当前草稿
+- **Discard & New**：不删除后端数据，清空前端状态，加载空白 Task Builder，当前 `intake_id` 从 `recent-intake-ids` 移除
+- **Cancel**：关闭对话框，不做任何事
+
+对话框通过 React portal 渲染至 `document.body`（`z-index: 1000`），`role=”alertdialog”` + `aria-modal=”true”`。背景遮罩 `rgba(0,0,0,0.3)`，点击遮罩不关闭。入场动画：遮罩 `opacity 0→1`（150ms），对话框 `scale(0.95→1)`（200ms ease-out）。`Escape` 键等效 Cancel。
+
+### 浏览器级保护
+
+存在活跃草稿时注册 `beforeunload` 事件监听器，触发浏览器原生确认对话框。草稿确认或取消后移除监听器。不自定义浏览器原生对话框内容。
+
+### 草稿恢复入口
+
+Task Builder 页面 hero 区域增加草稿恢复下拉控件：
+
+```
+┌─ builder-hero ──────────────────────────────────┐
+│  ...                          [Recover draft ▾] │
+└──────────────────────────────────────────────────┘
+```
+
+下拉列表读取 `localStorage` key `recent-intake-ids`（`string[]`，最多 5 条），每条展示 `intake_id` + `updated_at`。选择后通过 `GET /task-intakes/{intake_id}` 恢复完整状态。
+
+### localStorage 契约
+
+```
+recent-intake-ids: [“intake_20260501_001”, “intake_20260430_003”]
+```
+
+- `createTaskIntake` 成功后 `intake_id` 插入数组头部
+- `confirmTaskIntake` 成功后从数组移除
+- 长度 > 5 时截断
+- 后端返回 404 时前端从数组移除对应条目
