@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import type { WorkspaceState } from "../main";
 import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
@@ -11,7 +12,7 @@ interface EventTimelinePageProps {
   onTaskIdChange: (taskId: string) => void;
   onLoadTask: (taskId: string) => void;
   onRefresh: () => void;
-  onInspectorChange: (content: ReactNode) => void;
+  onInspectorChange: (cards: InspectorCardDescriptor[]) => void;
 }
 
 export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh, onInspectorChange }: EventTimelinePageProps) {

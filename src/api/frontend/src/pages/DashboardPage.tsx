@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect } from "react";
+import { useEffect } from "react";
+import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import type { WorkspaceState } from "../main";
 import { CapabilityReadinessPanel } from "../components/CapabilityReadinessPanel";
 import { MetricCard } from "../components/MetricCard";
@@ -13,7 +14,7 @@ interface DashboardPageProps {
   onTaskIdChange: (taskId: string) => void;
   onOpenTask: (taskId: string) => void;
   onRefresh: () => void;
-  onInspectorChange: (content: ReactNode) => void;
+  onInspectorChange: (cards: InspectorCardDescriptor[]) => void;
   activeIntakeId: string | null;
   onDraftNavigate: (href: string) => void;
 }

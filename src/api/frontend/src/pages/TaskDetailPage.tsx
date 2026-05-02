@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect } from "react";
+import { useEffect } from "react";
+import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import type { WorkspaceState } from "../main";
 import { CapabilityReadinessPanel } from "../components/CapabilityReadinessPanel";
 import { JsonDisclosure } from "../components/JsonDisclosure";
@@ -17,7 +18,7 @@ interface TaskDetailPageProps {
   onTaskIdChange: (taskId: string) => void;
   onLoadTask: (taskId: string) => void;
   onRefresh: () => void;
-  onInspectorChange: (content: ReactNode) => void;
+  onInspectorChange: (cards: InspectorCardDescriptor[]) => void;
 }
 
 export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh, onInspectorChange }: TaskDetailPageProps) {

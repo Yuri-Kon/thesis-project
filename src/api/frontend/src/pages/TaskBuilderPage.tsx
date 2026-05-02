@@ -1,4 +1,5 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import { apiClient, apiErrorMessage, ApiError } from "../api/client";
 import type { TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
@@ -95,7 +96,7 @@ function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile
 
 interface TaskBuilderPageProps {
   onOpenTask: (taskId: string) => void;
-  onInspectorChange: (content: ReactNode) => void;
+  onInspectorChange: (cards: InspectorCardDescriptor[]) => void;
   onActiveIntakeChange: (intakeId: string | null) => void;
   draftNavigateHref: string | null;
   onResolveDraftNavigate: (action: "continue" | "discard" | "save" | "cancel") => void;
