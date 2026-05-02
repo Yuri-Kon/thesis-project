@@ -345,6 +345,7 @@ pre {
 .inspector-content {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .workbench-inspector.collapsed .inspector-content {
@@ -358,6 +359,7 @@ pre {
   box-shadow: var(--soft-shadow);
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 18px;
 }
 
@@ -1739,4 +1741,125 @@ pre {
   min-height: auto;
   padding: 6px 14px;
   white-space: nowrap;
+}
+
+/* ---- Inspector Card Header ---- */
+
+.inspector-card__header {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.inspector-card__title {
+  flex: 1;
+  font-size: 0.92rem;
+  font-weight: 800;
+  margin: 0;
+  min-width: 0;
+}
+
+.inspector-card__body {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---- Move Buttons ---- */
+
+.inspector-card__move {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  line-height: 1;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.inspector-card__move:hover,
+.inspector-card:focus-within .inspector-card__move {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.inspector-card__move:disabled {
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* ---- Drag Handle ---- */
+
+.drag-handle {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--muted);
+  cursor: grab;
+  display: flex;
+  font-size: 0.9rem;
+  justify-content: center;
+  line-height: 1;
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.drag-handle:hover,
+.inspector-card:focus-within .drag-handle {
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* ---- Drag States ---- */
+
+.inspector-card.is-dragging {
+  opacity: 0.62;
+}
+
+.workbench-inspector.is-reordering {
+  user-select: none;
+}
+
+/* ---- Drop Indicator ---- */
+
+.inspector-drop-indicator {
+  background: var(--accent);
+  border-radius: 2px;
+  height: 2px;
+  margin: 2px 0;
+  width: 100%;
+}
+
+/* ---- Screen Reader Only ---- */
+
+.sr-only {
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* ---- Reduced Motion ---- */
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector-card {
+    transition: none;
+  }
 }

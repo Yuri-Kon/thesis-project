@@ -1,4 +1,5 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import { apiClient, apiErrorMessage, ApiError } from "../api/client";
 import type { TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
@@ -95,7 +96,7 @@ function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile
 
 interface TaskBuilderPageProps {
   onOpenTask: (taskId: string) => void;
-  onInspectorChange: (content: ReactNode) => void;
+  onInspectorChange: (cards: InspectorCardDescriptor[]) => void;
   onActiveIntakeChange: (intakeId: string | null) => void;
   draftNavigateHref: string | null;
   onResolveDraftNavigate: (action: "continue" | "discard" | "save" | "cancel") => void;
@@ -325,13 +326,12 @@ export function TaskBuilderPage({
 
   useEffect(() => {
     const safety = intake?.safety_check;
-    onInspectorChange(
-      <>
-        <section className="inspector-card">
-          <div className="panel-header">
-            <h2>Inspector</h2>
-            <span className="pill">{intake?.status ?? "idle"}</span>
-          </div>
+    onInspectorChange([
+      {
+        key: "inspector-overview",
+        title: "Inspector",
+        statusBadge: <span className="pill">{intake?.status ?? "idle"}</span>,
+        children: (
           <dl className="kv compact-kv">
             <dt>Intake</dt>
             <dd>{intake?.intake_id ?? "new"}</dd>
@@ -346,22 +346,34 @@ export function TaskBuilderPage({
             <dt>Confirmable</dt>
             <dd>{canConfirm ? "yes" : "no"}</dd>
           </dl>
-        </section>
-        <SafetyPrecheckPanel
-          action={safety?.action}
-          risks={safety?.risk_flags ?? []}
-          acknowledgedWarnings={acknowledgedWarnings}
-          onToggleWarning={toggleWarning}
-        />
-        <section className="inspector-card warning-card">
-          <h2>Action required</h2>
-          <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, field validation warnings, ambiguous fields, or safety warnings before confirming."}</p>
-          <button type="button" className="primary-action" onClick={() => void confirmDraft()} disabled={busy || !canConfirm}>
-            Create Task
-          </button>
-        </section>
-      </>,
-    );
+        ),
+      },
+      {
+        key: "safety-precheck",
+        title: "Safety Precheck",
+        children: (
+          <SafetyPrecheckPanel
+            action={safety?.action}
+            risks={safety?.risk_flags ?? []}
+            acknowledgedWarnings={acknowledgedWarnings}
+            onToggleWarning={toggleWarning}
+          />
+        ),
+      },
+      {
+        key: "action-required",
+        title: "Action required",
+        tone: "warning",
+        children: (
+          <>
+            <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, field validation warnings, ambiguous fields, or safety warnings before confirming."}</p>
+            <button type="button" className="primary-action" onClick={() => void confirmDraft()} disabled={busy || !canConfirm}>
+              Create Task
+            </button>
+          </>
+        ),
+      },
+    ]);
   }, [acknowledgedWarnings, busy, canConfirm, intake, onInspectorChange, taskKind, taskProfile]);
 
   const showDraftSwitcher = recentIds.length > 0;
