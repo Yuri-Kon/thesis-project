@@ -24,13 +24,12 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
   );
 
   useEffect(() => {
-    onInspectorChange(
-      <>
-        <section className="inspector-card">
-          <div className="panel-header">
-            <h2>Inspector</h2>
-            <StatusBadge value={state.task?.status} />
-          </div>
+    onInspectorChange([
+      {
+        key: "inspector-overview",
+        title: "Inspector",
+        statusBadge: <StatusBadge value={state.task?.status} />,
+        children: (
           <dl className="kv compact-kv">
             <dt>Task</dt>
             <dd>{state.task?.id ?? (taskId || "none")}</dd>
@@ -41,13 +40,16 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
             <dt>Latest</dt>
             <dd>{latestEvent?.event_type ?? "none"}</dd>
           </dl>
-        </section>
-        <section className="inspector-card">
-          <h2>Timeline boundary</h2>
+        ),
+      },
+      {
+        key: "timeline-boundary",
+        title: "Timeline boundary",
+        children: (
           <p>Recent events stay in a bounded scroll area; older entries remain available through the timeline list.</p>
-        </section>
-      </>,
-    );
+        ),
+      },
+    ]);
   }, [highlighted, latestEvent?.event_type, onInspectorChange, state.events.length, state.task?.id, state.task?.status, taskId]);
 
   if (state.loading) {
