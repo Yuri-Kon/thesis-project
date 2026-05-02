@@ -15,7 +15,7 @@ import { TaskBuilderPage } from "./pages/TaskBuilderPage";
 import { TaskDetailPage } from "./pages/TaskDetailPage";
 import { ErrorNotice } from "./components/ErrorNotice";
 import { AppErrorBoundary, ColumnErrorBoundary } from "./components/ErrorBoundary";
-import { InspectorPanel } from "./components/InspectorPanel";
+import { InspectorPanel, type InspectorCardDescriptor } from "./components/InspectorPanel";
 import { WorkbenchSidebar } from "./components/WorkbenchSidebar";
 import "./styles/app.css";
 
@@ -48,7 +48,7 @@ function App() {
   const [taskId, setTaskId] = useState(bootstrap.taskId);
   const [activeIntakeId, setActiveIntakeId] = useState<string | null>(null);
   const [draftNavigateHref, setDraftNavigateHref] = useState<string | null>(null);
-  const [inspector, setInspector] = useState<ReactNode>(null);
+  const [inspector, setInspector] = useState<InspectorCardDescriptor[]>([]);
   const [state, setState] = useState<WorkspaceState>({
     pendingActions: [],
     readiness: [],
@@ -185,7 +185,7 @@ function App() {
           </section>
         </ColumnErrorBoundary>
         <ColumnErrorBoundary name="inspector">
-          <InspectorPanel>{inspector}</InspectorPanel>
+          <InspectorPanel cards={inspector} pageKey={bootstrap.view} />
         </ColumnErrorBoundary>
       </main>
     </AppErrorBoundary>
