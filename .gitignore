@@ -133,3 +133,4 @@ work/
 tmp/
 .envrc
 .superpowers/
+.worktrees/
