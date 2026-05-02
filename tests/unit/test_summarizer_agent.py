@@ -160,6 +160,49 @@ class TestSummarizerAgent:
         assert objective["component_scores"]["cand_a"]["quality"] == 0.9
         assert objective["warnings"]
 
+    def test_summarizer_includes_structure_similarity_report_fields(
+        self,
+        sample_workflow_context: WorkflowContext,
+    ):
+        """structure similarity 输出应进入报告元数据。"""
+
+        summarizer = SummarizerAgent()
+        context = sample_workflow_context
+        context.step_results["S4"] = StepResult(
+            task_id=context.task.task_id,
+            step_id="S4",
+            tool="foldseek",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            inputs={},
+            outputs={
+                "capability_id": "structure_similarity_search",
+                "query_structure": "output/query.pdb",
+                "database": "db/foldseek",
+                "hit_count": 1,
+                "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82},
+                "structure_similarity_hits": [
+                    {"hit_id": "1abc_A", "tm_score": 0.82, "coverage": 0.91}
+                ],
+                "artifact_refs": [
+                    {"kind": "foldseek_tabular", "path": "output/foldseek.m8"}
+                ],
+            },
+            artifacts={},
+            metrics={"hit_count": 1},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+
+        result = summarizer.summarize(context)
+
+        structure = result.metadata["structure_similarity"]
+        assert structure["hit_count"] == 1
+        assert structure["top_hit"]["hit_id"] == "1abc_A"
+        assert structure["artifact_refs"][0]["kind"] == "foldseek_tabular"
+
     def test_summarizer_preserves_sequence_from_task(
         self, sample_workflow_context: WorkflowContext, sample_step_result: StepResult, tmp_path: Path
     ):

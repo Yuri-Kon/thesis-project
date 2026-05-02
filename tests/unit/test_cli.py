@@ -30,6 +30,14 @@ def test_task_show_json_includes_readiness_summary(monkeypatch, capsys) -> None:
                     "status": "WAITING_PLAN_CONFIRM",
                     "internal_status": "WAITING_PLAN_CONFIRM",
                     "goal": "design",
+                    "design_result": {
+                        "metadata": {
+                            "structure_similarity": {
+                                "hit_count": 1,
+                                "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82},
+                            }
+                        }
+                    },
                 }
             )
         if url.endswith("/capabilities/readiness"):
@@ -62,6 +70,8 @@ def test_task_show_json_includes_readiness_summary(monkeypatch, capsys) -> None:
     assert code == 0
     output = capsys.readouterr().out
     assert '"readiness_summary"' in output
+    assert '"structure_similarity"' in output
+    assert '"hit_id": "1abc_A"' in output
     assert '"capability_id": "structure_prediction"' in output
     assert '"suggested_recovery": "Start remote services."' in output
 
@@ -82,6 +92,13 @@ def test_report_show_json_exposes_objective_scoring(monkeypatch, capsys) -> None
                             {"candidate_id": "cand_a", "objective_score": 0.77}
                         ],
                         "rank_reason": "cand_a ranks by objective_score=0.770",
+                    },
+                    "structure_similarity": {
+                        "hit_count": 1,
+                        "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82},
+                        "artifact_refs": [
+                            {"kind": "foldseek_tabular", "path": "output/foldseek.m8"}
+                        ],
                     },
                     "metadata": {},
                 }
@@ -105,6 +122,8 @@ def test_report_show_json_exposes_objective_scoring(monkeypatch, capsys) -> None
     output = capsys.readouterr().out
     assert '"objective_score": 0.77' in output
     assert '"rank_reason": "cand_a ranks by objective_score=0.770"' in output
+    assert '"structure_similarity"' in output
+    assert '"hit_id": "1abc_A"' in output
 
 
 def test_pending_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:

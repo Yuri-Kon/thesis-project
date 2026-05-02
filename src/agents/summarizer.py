@@ -47,6 +47,7 @@ class SuccessReport(BaseModel):
     objective_warnings: List[str] = Field(default_factory=list)
     evidence_refs: List[Dict[str, Any]] = Field(default_factory=list)
     rank_reason: Optional[str] = None
+    structure_similarity: Dict[str, Any] = Field(default_factory=dict)
 
 
 class FailureReport(BaseModel):
@@ -161,6 +162,7 @@ class SummarizerAgent:
         # 合并结构预测的分数
         scores.update(structure_scores)
         objective_scoring = _extract_objective_scoring_summary(context)
+        structure_similarity = _extract_structure_similarity_summary(context)
         objective_score = objective_scoring.get("objective_score")
         if isinstance(objective_score, (int, float)):
             scores["objective_score"] = objective_score
@@ -218,6 +220,7 @@ class SummarizerAgent:
                 "plan_version": plan_version,
                 "execution_steps": execution_steps,
                 "objective_scoring": objective_scoring,
+                "structure_similarity": structure_similarity,
                 **de_novo_report_paths,
             },
         )
@@ -306,6 +309,58 @@ def _extract_objective_scoring_summary(context: WorkflowContext) -> dict[str, An
         "rank_reason": outputs.get("rank_reason"),
         "default_recommendation": outputs.get("default_recommendation"),
     }
+
+
+def _extract_structure_similarity_summary(context: WorkflowContext) -> dict[str, Any]:
+    """从 structure similarity StepResult 提取报告与 UI 可复用摘要。"""
+
+    selected: StepResult | None = None
+    for step_result in context.step_results.values():
+        outputs = step_result.outputs or {}
+        if (
+            step_result.tool == "foldseek"
+            or outputs.get("capability_id") == "structure_similarity_search"
+        ):
+            selected = step_result
+
+    if selected is None:
+        return {}
+
+    outputs = selected.outputs or {}
+    hits = outputs.get("structure_similarity_hits")
+    if not isinstance(hits, list):
+        hits = []
+    artifacts = outputs.get("artifact_refs")
+    if not isinstance(artifacts, list):
+        artifacts = outputs.get("artifacts")
+    if not isinstance(artifacts, list):
+        artifacts = []
+    top_hit = outputs.get("top_hit") if isinstance(outputs.get("top_hit"), dict) else None
+    return {
+        "step_id": selected.step_id,
+        "tool": selected.tool,
+        "query_structure": outputs.get("query_structure") or outputs.get("pdb_path"),
+        "database": outputs.get("database") or outputs.get("database_path"),
+        "hit_count": outputs.get("hit_count") or len(hits),
+        "top_hit": top_hit or {},
+        "hits": hits[:10],
+        "artifact_refs": artifacts,
+        "warnings": _structure_similarity_warnings(hits),
+    }
+
+
+def _structure_similarity_warnings(hits: list[Any]) -> list[str]:
+    warnings: list[str] = []
+    for hit in hits:
+        if not isinstance(hit, dict):
+            continue
+        raw = hit.get("warnings")
+        if not isinstance(raw, list):
+            continue
+        for item in raw:
+            if isinstance(item, str) and item not in warnings:
+                warnings.append(item)
+    return warnings
 
 
 def _write_fallback_report(
@@ -513,6 +568,7 @@ def _build_success_report(context: WorkflowContext) -> SuccessReport:
     plddt_mean = None
     confidence = None
     objective_scoring = _extract_objective_scoring_summary(context)
+    structure_similarity = _extract_structure_similarity_summary(context)
 
     for step_result in context.step_results.values():
         outputs = step_result.outputs or {}
@@ -544,6 +600,7 @@ def _build_success_report(context: WorkflowContext) -> SuccessReport:
         objective_warnings=objective_scoring.get("warnings") or [],
         evidence_refs=objective_scoring.get("evidence_refs") or [],
         rank_reason=objective_scoring.get("rank_reason"),
+        structure_similarity=structure_similarity,
     )
 
 

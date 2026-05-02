@@ -222,12 +222,12 @@ def _quality_score(candidate: Dict[str, Any]) -> float:
 
 
 def _novelty_score(candidate: Dict[str, Any]) -> float:
-    identity = _extract_similarity_value(candidate, "identity")
-    if identity is None:
+    similarity = _extract_novelty_similarity(candidate)
+    if similarity is None:
         return 0.55
-    if identity > 1:
-        identity = identity / 100.0
-    return round(min(max(1.0 - identity, 0.0), 1.0), 6)
+    if similarity > 1:
+        similarity = similarity / 100.0
+    return round(min(max(1.0 - similarity, 0.0), 1.0), 6)
 
 
 def _stability_score(candidate: Dict[str, Any]) -> float:
@@ -294,6 +294,19 @@ def _extract_similarity_value(candidate: Dict[str, Any], key: str) -> float | No
     return None
 
 
+def _extract_novelty_similarity(candidate: Dict[str, Any]) -> float | None:
+    identity = _extract_similarity_value(candidate, "identity")
+    if identity is not None:
+        return identity
+    tm_score = _extract_similarity_value(candidate, "tm_score")
+    if tm_score is not None:
+        return tm_score
+    top_hit = candidate.get("top_hit")
+    if isinstance(top_hit, dict):
+        return _as_float(top_hit.get("alignment_score"))
+    return None
+
+
 def _candidate_warnings(candidate: Dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     qc_metrics = candidate.get("qc_metrics")
@@ -304,7 +317,7 @@ def _candidate_warnings(candidate: Dict[str, Any]) -> list[str]:
         _deep_get(candidate, "metrics", "plddt_mean")
     ) is None and qc_plddt is None:
         warnings.append("quality uses neutral proxy because pLDDT is missing")
-    if _extract_similarity_value(candidate, "identity") is None:
+    if _extract_novelty_similarity(candidate) is None:
         warnings.append("novelty uses neutral proxy because similarity hits are missing")
     if not isinstance(candidate.get("stability_metrics"), dict) and not isinstance(
         candidate.get("secondary_structure_summary"),

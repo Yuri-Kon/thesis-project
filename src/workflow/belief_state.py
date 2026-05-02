@@ -116,6 +116,9 @@ def update_runtime_state(
                     evidence_sufficiency += 0.03 * _clamp_unit_interval(progress)
                 if gap is not None:
                     recovery_margin += 0.02 * _clamp_unit_interval(gap)
+            structure_similarity_signal = _extract_structure_similarity_signal(step_result)
+            if structure_similarity_signal:
+                observation_summary.update(structure_similarity_signal)
         elif step_result.status == "failed":
             p_success -= 0.18
             p_structural_failure += 0.14
@@ -408,6 +411,8 @@ def _estimate_candidate_agreement(
             agreement += 0.12
             if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
                 agreement += 0.08
+            if _extract_structure_similarity_signal(step_result):
+                agreement += 0.08
         elif step_result.status == "failed":
             agreement -= 0.18
     if safety_result is not None:
@@ -527,6 +532,37 @@ def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
         "objective_warning_count": metrics.get("warning_count"),
     }
     return _drop_none_values(payload)
+
+
+def _extract_structure_similarity_signal(step_result: StepResult) -> dict[str, Any]:
+    outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+    capability_id = _as_non_empty_text(outputs.get("capability_id"))
+    tool_key = step_result.tool.strip().lower()
+    if capability_id != "structure_similarity_search" and tool_key != "foldseek":
+        return {}
+
+    hit_count = _as_float(outputs.get("hit_count"))
+    top_hit = outputs.get("top_hit")
+    top_tm_score = None
+    top_coverage = None
+    if isinstance(top_hit, dict):
+        top_tm_score = _as_float(top_hit.get("tm_score"))
+        top_coverage = _as_float(top_hit.get("coverage"))
+    return _drop_none_values(
+        {
+            "structure_similarity_hit_count": int(hit_count) if hit_count is not None else None,
+            "structure_similarity_top_tm_score": (
+                _round_metric(_clamp_unit_interval(top_tm_score))
+                if top_tm_score is not None
+                else None
+            ),
+            "structure_similarity_top_coverage": (
+                _round_metric(_clamp_unit_interval(top_coverage))
+                if top_coverage is not None
+                else None
+            ),
+        }
+    )
 
 
 def _clamp_unit_interval(value: float) -> float:

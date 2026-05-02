@@ -138,18 +138,53 @@ def build_similarity_metrics(
     return metrics
 
 
-def normalize_structure_similarity_hit(raw: Dict[str, Any], *, rank: int) -> Dict[str, Any]:
+def normalize_structure_similarity_hit(
+    raw: Dict[str, Any],
+    *,
+    rank: int,
+    query_structure: str | None = None,
+    database: str | None = None,
+    artifact_refs: list[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
+    alignment_length = _to_int(raw.get("alignment_length"))
+    query_length = _to_int(raw.get("query_length"))
+    target_length = _to_int(raw.get("target_length"))
+    query_coverage = _bounded_fraction(alignment_length, query_length)
+    target_coverage = _bounded_fraction(alignment_length, target_length)
+    tm_score = _to_float(raw.get("tm_score"))
+    bitscore = _to_float(raw.get("bitscore"))
+    warnings: list[str] = []
+    if tm_score is None:
+        warnings.append("tm_score missing from structure similarity hit")
+    if query_coverage is None:
+        warnings.append("query coverage unavailable")
     return {
         "rank": rank,
         "query_id": _to_str(raw.get("query_id")) or "query_1",
         "target_id": _to_str(raw.get("target_id")) or f"structure_{rank}",
-        "tm_score": _to_float(raw.get("tm_score")),
+        "hit_id": _to_str(raw.get("hit_id"))
+        or _to_str(raw.get("target_id"))
+        or f"structure_{rank}",
+        "query_structure": query_structure,
+        "database": database,
+        "tm_score": tm_score,
+        "query_tm_score": _to_float(raw.get("query_tm_score")),
+        "target_tm_score": _to_float(raw.get("target_tm_score")),
+        "rmsd": _to_float(raw.get("rmsd")),
+        "alignment_score": tm_score if tm_score is not None else bitscore,
         "lddt": _to_float(raw.get("lddt")),
+        "probability": _to_float(raw.get("probability")),
         "evalue": _to_float(raw.get("evalue")),
-        "bitscore": _to_float(raw.get("bitscore")),
-        "alignment_length": _to_int(raw.get("alignment_length")),
-        "query_length": _to_int(raw.get("query_length")),
-        "target_length": _to_int(raw.get("target_length")),
+        "e_value": _to_float(raw.get("evalue")),
+        "bitscore": bitscore,
+        "coverage": query_coverage,
+        "query_coverage": query_coverage,
+        "target_coverage": target_coverage,
+        "alignment_length": alignment_length,
+        "query_length": query_length,
+        "target_length": target_length,
+        "artifact_refs": list(artifact_refs or []),
+        "warnings": warnings,
     }
 
 
@@ -158,8 +193,22 @@ def build_structure_similarity_outputs(
     inputs: Dict[str, Any],
     hits: list[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    artifact_refs = inputs.get("artifact_refs")
+    normalized_artifact_refs = (
+        [item for item in artifact_refs if isinstance(item, dict)]
+        if isinstance(artifact_refs, list)
+        else []
+    )
+    query_structure = _to_str(inputs.get("pdb_path"))
+    database = _to_str(inputs.get("database_path"))
     normalized_hits = [
-        normalize_structure_similarity_hit(hit, rank=index)
+        normalize_structure_similarity_hit(
+            hit,
+            rank=index,
+            query_structure=query_structure,
+            database=database,
+            artifact_refs=normalized_artifact_refs,
+        )
         for index, hit in enumerate(hits, start=1)
     ]
     top_hit = normalized_hits[0] if normalized_hits else None
@@ -167,11 +216,14 @@ def build_structure_similarity_outputs(
         "tool_id": tool_id,
         "capability_id": "structure_similarity_search",
         "io_type": "structure_to_similarity_hits",
-        "pdb_path": _to_str(inputs.get("pdb_path")),
-        "database_path": _to_str(inputs.get("database_path")),
+        "pdb_path": query_structure,
+        "query_structure": query_structure,
+        "database_path": database,
+        "database": database,
         "structure_similarity_hits": normalized_hits,
         "hit_count": len(normalized_hits),
         "top_hit": top_hit,
+        "artifact_refs": normalized_artifact_refs,
     }
 
 

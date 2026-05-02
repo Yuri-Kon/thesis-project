@@ -16,14 +16,16 @@ from src.adapters.interproscan_adapter import (
 )
 from src.adapters.mda_analysis_adapter import MDAnalysisAdapter
 from src.adapters.objective_ranker_adapter import ObjectiveRankerAdapter
+from src.workflow.errors import StepRunError
 
 
 def test_parse_foldseek_tabular_extracts_structure_hits() -> None:
-    hits = parse_foldseek_tabular("q1\tt1\t1e-8\t240\t0.81\t0.72\t120\t130\t140\n")
+    hits = parse_foldseek_tabular("q1\tt1\t1e-8\t240\t0.81\t0.80\t0.78\t0.72\t120\t130\t140\t0.91\n")
 
     assert hits[0]["query_id"] == "q1"
     assert hits[0]["tm_score"] == "0.81"
     assert hits[0]["target_length"] == "140"
+    assert hits[0]["probability"] == "0.91"
 
 
 def test_parse_interproscan_tsv_extracts_terms() -> None:
@@ -84,26 +86,72 @@ def test_objective_ranker_scores_candidates_with_proxy_signals() -> None:
     assert metrics["requirement2"]["capability_id"] == "objective_scoring"
 
 
+def test_objective_ranker_uses_structure_similarity_for_novelty() -> None:
+    adapter = ObjectiveRankerAdapter()
+
+    outputs, _ = adapter.run_local(
+        {
+            "candidates": [
+                {
+                    "candidate_id": "novel_fold",
+                    "plddt": 88.0,
+                    "structure_similarity_hits": [{"tm_score": 0.25, "coverage": 0.8}],
+                },
+                {
+                    "candidate_id": "known_fold",
+                    "plddt": 88.0,
+                    "structure_similarity_hits": [{"tm_score": 0.9, "coverage": 0.8}],
+                },
+            ]
+        }
+    )
+
+    scores = outputs["component_scores"]
+    assert scores["novel_fold"]["novelty"] > scores["known_fold"]["novelty"]
+
+
 def test_foldseek_adapter_runs_local_and_emits_structure_similarity_schema(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     def fake_runner(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
         Path(cmd[4]).write_text(
-            "query_1\thitA\t1e-8\t220\t0.79\t0.71\t110\t120\t135\n",
+            "query_1\thitA\t1e-8\t220\t0.79\t0.78\t0.76\t0.71\t110\t120\t135\t0.88\n",
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(cmd, 0, "", "")
 
+    query_path = tmp_path / "query.pdb"
+    query_path.write_text("ATOM\n", encoding="utf-8")
+    database_path = tmp_path / "foldseek_db"
+    database_path.mkdir()
     monkeypatch.setattr("src.adapters.foldseek_adapter.shutil.which", lambda _: "/usr/bin/foldseek")
-    adapter = FoldseekAdapter(runner=fake_runner)
+    adapter = FoldseekAdapter(artifacts_dir=tmp_path / "artifacts", runner=fake_runner)
 
     outputs, metrics = adapter.run_local(
-        {"pdb_path": "/tmp/query.pdb", "database_path": "/db/foldseek"}
+        {"pdb_path": str(query_path), "database_path": str(database_path)}
     )
 
     assert outputs["capability_id"] == "structure_similarity_search"
     assert outputs["structure_similarity_hits"][0]["tm_score"] == 0.79
+    assert outputs["structure_similarity_hits"][0]["hit_id"] == "hitA"
+    assert outputs["structure_similarity_hits"][0]["coverage"] == pytest.approx(110 / 120)
+    assert outputs["artifact_refs"][0]["kind"] == "foldseek_tabular"
     assert metrics["requirement2"]["capability_id"] == "structure_similarity_search"
+
+
+def test_foldseek_adapter_reports_missing_input_pdb(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("src.adapters.foldseek_adapter.shutil.which", lambda _: "/usr/bin/foldseek")
+    database_path = tmp_path / "foldseek_db"
+    database_path.mkdir()
+    adapter = FoldseekAdapter(artifacts_dir=tmp_path / "artifacts")
+
+    with pytest.raises(StepRunError) as exc_info:
+        adapter.run_local(
+            {"pdb_path": str(tmp_path / "missing.pdb"), "database_path": str(database_path)}
+        )
+
+    assert "pdb_path does not exist" in str(exc_info.value)
 
 
 def test_interproscan_adapter_runs_local_and_emits_function_terms(

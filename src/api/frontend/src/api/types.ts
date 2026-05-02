@@ -316,5 +316,6 @@ export interface TaskReportDetail {
   report_path?: string | null;
   scores: Record<string, unknown>;
   objective_scoring: Record<string, unknown>;
+  structure_similarity: Record<string, unknown>;
   metadata: Record<string, unknown>;
 }

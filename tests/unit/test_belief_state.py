@@ -170,6 +170,40 @@ def test_runtime_state_consumes_objective_signal_without_overriding_safety_block
     assert blocked.observation_summary["last_safety_action"] == "block"
 
 
+def test_runtime_state_consumes_structure_similarity_signal() -> None:
+    """structure similarity hit 摘要应进入 runtime evidence observation。"""
+
+    step_result = StepResult(
+        task_id="task_belief",
+        step_id="S4",
+        tool="foldseek",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        inputs={},
+        outputs={
+            "capability_id": "structure_similarity_search",
+            "hit_count": 1,
+            "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82, "coverage": 0.91},
+            "structure_similarity_hits": [
+                {"hit_id": "1abc_A", "tm_score": 0.82, "coverage": 0.91}
+            ],
+        },
+        artifacts={},
+        metrics={"hit_count": 1},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+
+    state = update_runtime_state(previous_state=None, step_result=step_result)
+
+    assert state.observation_summary["structure_similarity_hit_count"] == 1
+    assert state.observation_summary["structure_similarity_top_tm_score"] == 0.82
+    assert state.observation_summary["structure_similarity_top_coverage"] == 0.91
+    assert state.evidence_sufficiency > 0.5
+
+
 def test_workflow_context_apply_runtime_state_update_is_runner_entrypoint() -> None:
     task = ProteinDesignTask(task_id="task_belief", goal="demo")
     plan = Plan(
