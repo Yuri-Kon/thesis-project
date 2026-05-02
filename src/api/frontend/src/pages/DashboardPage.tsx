@@ -30,13 +30,12 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
   };
 
   useEffect(() => {
-    onInspectorChange(
-      <>
-        <section className="inspector-card">
-          <div className="panel-header">
-            <h2>Inspector</h2>
-            <span className="pill">overview</span>
-          </div>
+    onInspectorChange([
+      {
+        key: "inspector-overview",
+        title: "Inspector",
+        statusBadge: <span className="pill">overview</span>,
+        children: (
           <dl className="kv compact-kv">
             <dt>Pending</dt>
             <dd>{state.pendingActions.length}</dd>
@@ -47,14 +46,20 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
             <dt>Loaded task</dt>
             <dd>{state.task?.id ?? "none"}</dd>
           </dl>
-        </section>
-        <section className="inspector-card warning-card">
-          <h2>Action required</h2>
-          <p>{state.pendingActions.length ? "Open a pending action to review candidates and submit a decision." : "No pending review is currently reported by the API."}</p>
-          <a className="inspector-action" href="/ui/task-builder" onClick={handleNewIntakeClick}>New intake</a>
-        </section>
-      </>,
-    );
+        ),
+      },
+      {
+        key: "action-required",
+        title: "Action required",
+        tone: "warning",
+        children: (
+          <>
+            <p>{state.pendingActions.length ? "Open a pending action to review candidates and submit a decision." : "No pending review is currently reported by the API."}</p>
+            <a className="inspector-action" href="/ui/task-builder" onClick={handleNewIntakeClick}>New intake</a>
+          </>
+        ),
+      },
+    ]);
   }, [blockedCapabilities, onInspectorChange, state.pendingActions.length, state.readiness.length, state.task?.id, activeIntakeId, onDraftNavigate]);
 
   if (state.loading) {
