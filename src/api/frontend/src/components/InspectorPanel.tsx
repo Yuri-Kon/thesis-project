@@ -324,6 +324,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
               <section
                 ref={(el) => {
                   if (el) cardRefs.current.set(card.key, el);
+                  else cardRefs.current.delete(card.key);
                 }}
                 className={`inspector-card${toneClass}${dragClass}${extraClass}`}
                 data-card-key={card.key}
