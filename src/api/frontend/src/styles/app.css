@@ -345,6 +345,7 @@ pre {
 .inspector-content {
   display: grid;
   gap: 14px;
+  min-width: 0;
 }
 
 .workbench-inspector.collapsed .inspector-content {
@@ -358,6 +359,7 @@ pre {
   box-shadow: var(--soft-shadow);
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 18px;
 }
 
