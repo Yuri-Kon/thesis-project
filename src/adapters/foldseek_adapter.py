@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Dict, Tuple
+from typing import Protocol, override
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.adapters.tool_schema_utils import (
@@ -19,6 +19,17 @@ from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureCode, FailureType, StepRunError
 
 __all__ = ["FoldseekAdapter", "parse_foldseek_tabular"]
+
+
+class _CompletedProcessRunner(Protocol):
+    def __call__(
+        self,
+        args: list[str],
+        *,
+        capture_output: bool,
+        text: bool,
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]: ...
 
 FOLDSEEK_FIELDS = (
     "query",
@@ -44,26 +55,28 @@ _DATABASE_ENV_KEYS = (
 class FoldseekAdapter(BaseToolAdapter):
     """结构相似性检索适配器。"""
 
-    tool_id = "foldseek"
-    adapter_id = "foldseek"
+    tool_id: str = "foldseek"
+    adapter_id: str | None = "foldseek"
 
     def __init__(
         self,
         *,
         binary: str = "foldseek",
         artifacts_dir: str | Path = "output/artifacts",
-        runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+        runner: _CompletedProcessRunner | None = None,
     ) -> None:
-        self.binary = binary
-        self.artifacts_dir = Path(artifacts_dir)
-        self.runner = runner or subprocess.run
+        self.binary: str = binary
+        self.artifacts_dir: Path = Path(artifacts_dir)
+        self.runner: _CompletedProcessRunner = runner or subprocess.run
 
-    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> Dict[str, Any]:
+    @override
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> dict[str, object]:
         inputs = resolve_step_inputs(step, context, required_keys=("pdb_path",))
         inputs["database_path"] = _resolve_database_path(inputs.get("database_path"))
         return inputs
 
-    def describe_capabilities(self) -> Dict[str, Any]:
+    @override
+    def describe_capabilities(self) -> dict[str, object]:
         return {
             **super().describe_capabilities(),
             "capability_id": "structure_similarity_search",
@@ -72,7 +85,8 @@ class FoldseekAdapter(BaseToolAdapter):
             "database_env_keys": list(_DATABASE_ENV_KEYS),
         }
 
-    def healthcheck(self) -> Dict[str, Any]:
+    @override
+    def healthcheck(self) -> dict[str, object]:
         binary_path = shutil.which(self.binary)
         if binary_path is None:
             return {
@@ -110,7 +124,8 @@ class FoldseekAdapter(BaseToolAdapter):
             "database_path": str(database_path),
         }
 
-    def normalize_error(self, exc: Exception) -> Dict[str, Any]:
+    @override
+    def normalize_error(self, exc: Exception) -> dict[str, object]:
         if isinstance(exc, StepRunError):
             return {
                 "error_type": exc.__class__.__name__,
@@ -121,12 +136,13 @@ class FoldseekAdapter(BaseToolAdapter):
         if isinstance(exc, subprocess.CalledProcessError):
             return {
                 "error_type": exc.__class__.__name__,
-                "message": str(exc.stderr or exc.stdout or exc),
+                "message": str(exc),
                 "returncode": exc.returncode,
             }
         return super().normalize_error(exc)
 
-    def run_local(self, inputs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    @override
+    def run_local(self, inputs: dict[str, object]) -> tuple[dict[str, object], dict[str, object]]:
         if shutil.which(self.binary) is None:
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
@@ -159,11 +175,11 @@ class FoldseekAdapter(BaseToolAdapter):
                 cmd.extend(["--max-seqs", str(max_seqs)])
 
             try:
-                self.runner(cmd, capture_output=True, text=True, check=True)
+                _ = self.runner(cmd, capture_output=True, text=True, check=True)
             except subprocess.CalledProcessError as exc:
                 raise StepRunError(
                     failure_type=FailureType.TOOL_ERROR,
-                    message=f"Foldseek command failed: {exc.stderr or exc.stdout or exc}",
+                    message=f"Foldseek command failed: {exc}",
                     code=FailureCode.TOOL_EXECUTION_ERROR.value,
                 ) from exc
 
@@ -197,8 +213,8 @@ class FoldseekAdapter(BaseToolAdapter):
             return outputs, metrics
 
 
-def parse_foldseek_tabular(text: str) -> list[Dict[str, Any]]:
-    hits: list[Dict[str, Any]] = []
+def parse_foldseek_tabular(text: str) -> list[dict[str, object]]:
+    hits: list[dict[str, object]] = []
     for raw_line in text.splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#"):
@@ -233,7 +249,7 @@ def _configured_database_path() -> str | None:
     return None
 
 
-def _resolve_database_path(value: Any) -> str:
+def _resolve_database_path(value: object) -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
     configured = _configured_database_path()
@@ -249,7 +265,7 @@ def _resolve_database_path(value: Any) -> str:
     )
 
 
-def _require_existing_path(value: Any, *, field_name: str) -> Path:
+def _require_existing_path(value: object, *, field_name: str) -> Path:
     if not isinstance(value, str) or not value.strip():
         raise StepRunError(
             failure_type=FailureType.NON_RETRYABLE,
@@ -271,7 +287,7 @@ def _require_existing_path(value: Any, *, field_name: str) -> Path:
     return path
 
 
-def _resolve_result_path(artifacts_dir: Path, inputs: Dict[str, Any]) -> Path:
+def _resolve_result_path(artifacts_dir: Path, inputs: dict[str, object]) -> Path:
     output_dir = inputs.get("output_dir")
     if isinstance(output_dir, str) and output_dir.strip():
         root = Path(output_dir)
