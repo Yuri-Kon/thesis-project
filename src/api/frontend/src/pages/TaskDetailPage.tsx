@@ -25,13 +25,12 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
   const pendingLabel = task?.pending_action?.pending_action_id ?? "none";
 
   useEffect(() => {
-    onInspectorChange(
-      <>
-        <section className="inspector-card">
-          <div className="panel-header">
-            <h2>Inspector</h2>
-            <StatusBadge value={task?.status} />
-          </div>
+    onInspectorChange([
+      {
+        key: "inspector-overview",
+        title: "Inspector",
+        statusBadge: <StatusBadge value={task?.status} />,
+        children: (
           <dl className="kv compact-kv">
             <dt>Task</dt>
             <dd>{task?.id ?? (taskId || "none")}</dd>
@@ -44,9 +43,12 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
             <dt>Updated</dt>
             <dd>{task?.updated_at ?? "-"}</dd>
           </dl>
-        </section>
-        <section className="inspector-card">
-          <h2>Operation</h2>
+        ),
+      },
+      {
+        key: "operation",
+        title: "Operation",
+        children: (
           <dl className="kv compact-kv">
             <dt>Candidates</dt>
             <dd>{state.pendingActionDetail?.candidates.length ?? 0}</dd>
@@ -55,9 +57,9 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
             <dt>Report</dt>
             <dd>{state.report?.report_path ?? task?.design_result?.report_path ?? "not available"}</dd>
           </dl>
-        </section>
-      </>,
-    );
+        ),
+      },
+    ]);
   }, [onInspectorChange, pendingLabel, state.pendingActionDetail?.candidates.length, state.pendingActionDetail?.default_suggestion, state.report?.report_path, task, taskId]);
 
   if (state.loading) {
