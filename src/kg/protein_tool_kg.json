@@ -332,18 +332,17 @@
     {
       "constraint_id": "foldseek_runtime",
       "preconditions": [
-        "structure_provided",
-        "database_ready"
+        "structure_provided"
       ],
       "resource_assumptions": [
-        "foldseek_installed",
-        "local_structure_database_ready"
+        "network_available",
+        "foldseek_web_api_available"
       ],
       "model_assumptions": [
         "single_candidate_or_batch"
       ],
       "limits": {},
-      "description": "Foldseek runtime requirements for structure similarity search."
+      "description": "Foldseek Web API runtime requirements for structure similarity search."
     },
     {
       "constraint_id": "interproscan_runtime",
@@ -1181,7 +1180,8 @@
         "io_type_id": "structure_to_similarity_hits",
         "inputs": {
           "pdb_path": "path",
-          "database_path": "path"
+          "databases": "list[str]",
+          "database_path": "path_or_api_database_id"
         },
         "outputs": {
           "structure_similarity_hits": "list",
@@ -1198,28 +1198,62 @@
       },
       "constraints": {
         "preconditions": [
-          "structure_provided",
-          "database_ready"
+          "structure_provided"
         ],
         "resource_assumptions": [
-          "foldseek_installed",
-          "local_structure_database_ready"
+          "network_available",
+          "foldseek_web_api_available"
         ],
         "model_assumptions": [
           "single_candidate_or_batch"
         ],
         "limits": {}
       },
-      "execution": "python",
+      "execution": {
+        "backend": "foldseek_web_api",
+        "provider": "foldseek_web",
+        "execution_mode": "foldseek_api",
+        "endpoint_type": "rest",
+        "base_url_env": "FOLDSEEK_API_BASE_URL",
+        "default_base_url": "https://search.foldseek.com/api",
+        "database_env": "FOLDSEEK_API_DATABASES",
+        "default_databases": [
+          "afdb-swissprot"
+        ],
+        "alternate_provider": "local_cli",
+        "execution_modes": [
+          {
+            "execution_mode": "foldseek_api",
+            "adapter_id": "foldseek",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "base_url_env": "FOLDSEEK_API_BASE_URL"
+          },
+          {
+            "execution_mode": "local_cli",
+            "adapter_id": "foldseek",
+            "provider": "local_foldseek",
+            "endpoint_type": "cli",
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          }
+        ]
+      },
       "cost_score": 0.28,
       "safety_level": 1,
       "priority": "P1",
       "official_links": [
+        "https://search.foldseek.com",
+        "https://github.com/soedinglab/MMseqs2-App/blob/master/docs/api.html",
         "https://github.com/steineggerlab/foldseek"
       ],
       "failure_modes": [
-        "binary_missing",
-        "database_missing"
+        "remote_unreachable",
+        "timeout",
+        "invalid_input"
       ],
       "preferred_next": [
         "objective_ranker"
