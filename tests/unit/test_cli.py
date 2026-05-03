@@ -126,6 +126,61 @@ def test_report_show_json_exposes_objective_scoring(monkeypatch, capsys) -> None
     assert '"hit_id": "1abc_A"' in output
 
 
+def test_report_show_human_prints_posterior_score(monkeypatch, capsys) -> None:
+    """design report show human summary 应展示 posterior score 证据状态。"""
+
+    def fake_get(url: str, timeout: float) -> _FakeResponse:
+        assert timeout == 10.0
+        if url.endswith("/tasks/task_report/report"):
+            return _FakeResponse(
+                {
+                    "task_id": "task_report",
+                    "report_path": "output/reports/task_report.json",
+                    "scores": {"objective_score": 0.77},
+                    "objective_scoring": {
+                        "top_k": [
+                            {
+                                "candidate_id": "cand_a",
+                                "objective_score": 0.77,
+                                "posterior_score": {"evidence_status": "partial"},
+                            }
+                        ],
+                        "posterior_score": {
+                            "aggregate_score": 0.77,
+                            "evidence_status": "partial",
+                            "evidence_sufficiency": 0.64,
+                            "component_weights": {
+                                "stability": 0.7,
+                                "structure_quality": 0.3,
+                            },
+                        },
+                        "rank_reason": "cand_a ranks by objective_score=0.770",
+                    },
+                    "structure_similarity": {},
+                    "metadata": {},
+                }
+            )
+        raise AssertionError(f"unexpected URL: {url}")
+
+    monkeypatch.setattr(cli.httpx, "get", fake_get)
+
+    code = cli.main(
+        [
+            "--api-base-url",
+            "http://api.test",
+            "report",
+            "show",
+            "task_report",
+        ]
+    )
+
+    assert code == 0
+    output = capsys.readouterr().out
+    assert "posterior_score: aggregate=0.77 evidence=partial" in output
+    assert "component_weights:" in output
+    assert "candidate: cand_a rank=- score=0.77 evidence=partial" in output
+
+
 def test_pending_show_human_outputs_execution_mode(monkeypatch, capsys) -> None:
     """pending show 应输出执行通道与远程失败恢复提示。"""
 

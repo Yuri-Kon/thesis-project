@@ -45,17 +45,20 @@ def resolve_step_inputs(
             step_id, field = val.split(".", 1)
             if step_id and step_id.startswith("S"):
                 if not context.has_step_result(step_id):
-                    raise ValueError(
-                        f"Failed to resolve input reference '{val}' "
-                        f"for step '{step.id}': step '{step_id}' not found in context"
+                    message = (
+                        f"Failed to resolve input reference '{val}' for step " +
+                        f"'{step.id}': step '{step_id}' not found in context"
                     )
+                    raise ValueError(message)
                 try:
                     resolved[key] = context.get_step_output(step_id, field)
                 except KeyError as exc:
-                    raise ValueError(
-                        f"Failed to resolve input reference '{val}' "
-                        f"for step '{step.id}': field '{field}' not found in step '{step_id}' outputs"
-                    ) from exc
+                    message = (
+                        f"Failed to resolve input reference '{val}' for step " +
+                        f"'{step.id}': field '{field}' not found in step " +
+                        f"'{step_id}' outputs"
+                    )
+                    raise ValueError(message) from exc
                 continue
         resolved[key] = val
 
@@ -390,6 +393,22 @@ def build_objective_outputs(
         for ref in row.get("evidence_refs", [])
         if isinstance(row.get("evidence_refs"), list) and isinstance(ref, dict)
     ]
+    posterior_scores: dict[str, Dict[str, Any]] = {}
+    for index, row in enumerate(scored_candidates, start=1):
+        posterior_score = row.get("posterior_score")
+        if isinstance(posterior_score, dict):
+            posterior_scores[
+                str(row.get("candidate_id") or f"candidate_{index}")
+            ] = dict(posterior_score)
+    top_posterior_score: Dict[str, Any] = {}
+    if top_k_rows:
+        raw_top_posterior = top_k_rows[0].get("posterior_score")
+        if isinstance(raw_top_posterior, dict):
+            top_posterior_score = dict(raw_top_posterior)
+    component_weights: Dict[str, Any] = {}
+    raw_component_weights = top_posterior_score.get("component_weights")
+    if isinstance(raw_component_weights, dict):
+        component_weights = dict(raw_component_weights)
     rank_reason = (
         _to_str(scored_candidates[0].get("rank_reason")) if scored_candidates else None
     )
@@ -400,6 +419,10 @@ def build_objective_outputs(
         "score_table": scored_candidates,
         "top_k": top_k_rows,
         "component_scores": component_scores,
+        "posterior_score": top_posterior_score,
+        "posterior_scores": posterior_scores,
+        "aggregate_score": top_score,
+        "component_weights": component_weights,
         "default_recommendation": default_recommendation,
         "objective_score": top_score,
         "score_breakdown": (

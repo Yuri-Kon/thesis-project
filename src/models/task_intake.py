@@ -123,6 +123,26 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "support_level": "P0",
             "audit_visibility": "public",
         },
+        "objective_weights": {
+            "group": "objective",
+            "type": "object",
+            "ui_control": "json",
+            "nl_aliases": ["目标权重", "objective weights", "scoring weights"],
+            "validators": {
+                "allowed_keys": [
+                    "generic_objective",
+                    "stability",
+                    "function",
+                    "novelty",
+                    "structure_quality",
+                ],
+            },
+            "options": [],
+            "default": None,
+            "maps_to": "objective.objective_weights",
+            "support_level": "P0",
+            "audit_visibility": "public",
+        },
         "goal_summary": {
             "group": "objective",
             "type": "string",
@@ -430,6 +450,7 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "required": ["task_kind", "objective_type", "length_range"],
             "optional": [
                 "objective_description",
+                "objective_weights",
                 "goal_summary",
                 "design_count",
                 "quality_metric",
@@ -454,6 +475,7 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "support_level": "P0",
             "required": ["task_kind", "sequence", "objective_type"],
             "optional": [
+                "objective_weights",
                 "quality_metric",
                 "min_quality_score",
                 "initial_artifacts",
@@ -474,6 +496,7 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "required": ["task_kind", "objective_type", "length_range", "template_pdb"],
             "optional": [
                 "design_count",
+                "objective_weights",
                 "quality_metric",
                 "min_quality_score",
                 "target_fold",
@@ -491,6 +514,7 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "required": ["task_kind", "sequence"],
             "optional": [
                 "objective_type",
+                "objective_weights",
                 "quality_metric",
                 "min_quality_score",
                 "secondary_structure_bias",
@@ -504,6 +528,7 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             "required": ["task_kind", "motif_pattern"],
             "optional": [
                 "objective_type",
+                "objective_weights",
                 "length_range",
                 "template_pdb",
                 "secondary_structure_bias",
@@ -514,7 +539,12 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
         "binding_design": {
             "support_level": "P2",
             "required": ["task_kind", "objective_type"],
-            "optional": ["length_range", "target_ligand", "run_profile"],
+            "optional": [
+                "objective_weights",
+                "length_range",
+                "target_ligand",
+                "run_profile",
+            ],
             "conditional_required": [
                 {
                     "if": {"field": "objective_type", "equals": "binding"},
@@ -527,7 +557,12 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
         "enzyme_like_design": {
             "support_level": "P2",
             "required": ["task_kind", "objective_type"],
-            "optional": ["length_range", "motif_pattern", "active_site_residues"],
+            "optional": [
+                "objective_weights",
+                "length_range",
+                "motif_pattern",
+                "active_site_residues",
+            ],
             "conditional_required": [
                 {
                     "if": {"field": "objective_type", "equals": "activity"},
@@ -1186,6 +1221,8 @@ def _json_schema_type_for_field(definition: RegistryField) -> str | list[str]:
         return "integer" if field_type == "integer" else "array"
     if field_type == "number":
         return "number"
+    if field_type == "object":
+        return "object"
     if field_type == "boolean":
         return "boolean"
     if field_type in {
@@ -1714,6 +1751,23 @@ def _validate_registry_value(field_name: str, value: JsonValue) -> str | None:
         maximum = _numeric_validator_value(validators, "max", value)
         if value < minimum or value > maximum:
             return f"{field_name} is outside allowed range"
+    if field_type == "object":
+        if not isinstance(value, dict):
+            return f"{field_name} must be an object"
+        validators = field.get("validators", {})
+        allowed_keys = validators.get("allowed_keys")
+        if isinstance(allowed_keys, list):
+            allowed = {item for item in allowed_keys if isinstance(item, str)}
+            unknown = sorted(str(key) for key in value if str(key) not in allowed)
+            if unknown:
+                return f"{field_name} contains unknown keys: {', '.join(unknown)}"
+        for item in value.values():
+            if (
+                not isinstance(item, (int, float))
+                or isinstance(item, bool)
+                or item < 0
+            ):
+                return f"{field_name} values must be non-negative numbers"
     if field_type == "integer_range":
         validators = field.get("validators", {})
         minimum = int(_numeric_validator_value(validators, "min", 0))

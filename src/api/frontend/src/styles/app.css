@@ -1861,6 +1861,23 @@ pre {
   gap: 6px;
 }
 
+.compact-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.compact-table th,
+.compact-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.compact-table th {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 /* ---- Reduced Motion ---- */
 
 @media (prefers-reduced-motion: reduce) {

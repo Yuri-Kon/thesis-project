@@ -90,7 +90,10 @@ def test_confirmed_task_spec_projection_to_protein_design_task_shape() -> None:
 
     spec = ConfirmedTaskSpec(
         goal="de_novo_design for stability",
-        objective={"objective_type": "stability"},
+        objective={
+            "objective_type": "stability",
+            "objective_weights": {"stability": 0.7, "structure_quality": 0.3},
+        },
         inputs={"sequence": "ACDE"},
         constraints={"length_range": [4, 8]},
         initial_artifacts=[{"kind": "sequence", "path": "input.fa"}],
@@ -108,7 +111,10 @@ def test_confirmed_task_spec_projection_to_protein_design_task_shape() -> None:
 
     assert goal == "de_novo_design for stability"
     assert constraints["length_range"] == [4, 8]
-    assert constraints["objective"] == {"objective_type": "stability"}
+    assert constraints["objective"] == {
+        "objective_type": "stability",
+        "objective_weights": {"stability": 0.7, "structure_quality": 0.3},
+    }
     assert constraints["inputs"] == {"sequence": "ACDE"}
     assert metadata["intake_id"] == "intake_projection"
     assert metadata["confirmed_task_spec"]["initial_artifacts"] == [
