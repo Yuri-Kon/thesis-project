@@ -70,17 +70,6 @@ function supportLabel(supportLevel?: string): string {
   return supportLevel ?? "unknown";
 }
 
-function profileListLabel(values: string[]): string {
-  return values.length ? values.join(", ") : "none";
-}
-
-function optionalProfileListLabel(values: string[]): string {
-  const visibleValues = values.slice(0, 4);
-  const hiddenCount = values.length - visibleValues.length;
-  const label = profileListLabel(visibleValues);
-  return hiddenCount > 0 ? `${label} (+${hiddenCount} more)` : label;
-}
-
 function selectedTaskKind(intake: TaskIntakeSession | null): string | null {
   const value = intake?.draft.fields.task_kind?.value;
   return typeof value === "string" ? value : null;
@@ -88,6 +77,36 @@ function selectedTaskKind(intake: TaskIntakeSession | null): string | null {
 
 function draftHasFieldWarnings(intake: TaskIntakeSession | null): boolean {
   return Object.values(intake?.draft.fields ?? {}).some((field) => field.warnings.length > 0);
+}
+
+function InspectorProfileSection({
+  title,
+  values,
+  defaultOpen = false,
+}: {
+  title: string;
+  values: string[];
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details className="inspector-profile-section" open={defaultOpen}>
+      <summary>
+        <span>{title}</span>
+        <span className="inspector-profile-count">({values.length})</span>
+      </summary>
+      <div className="inspector-profile-fields">
+        {values.length ? (
+          values.map((value) => (
+            <span className="inspector-profile-chip" key={value}>
+              {value}
+            </span>
+          ))
+        ) : (
+          <span>none</span>
+        )}
+      </div>
+    </details>
+  );
 }
 
 function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile?: TaskIntakeTaskProfile }) {
@@ -368,14 +387,11 @@ export function TaskBuilderPage({
                       {supportLabel(taskProfile.support_level)}
                     </span>
                   </div>
-                  <dl className="inspector-profile-grid">
-                    <dt>Required</dt>
-                    <dd>{profileListLabel(taskProfile.required)}</dd>
-                    <dt>Optional</dt>
-                    <dd>{optionalProfileListLabel(taskProfile.optional)}</dd>
-                    <dt>Capabilities</dt>
-                    <dd>{profileListLabel(taskProfile.capability_hints)}</dd>
-                  </dl>
+                  <div className="inspector-profile-sections">
+                    <InspectorProfileSection title="Required" values={taskProfile.required} defaultOpen />
+                    <InspectorProfileSection title="Optional" values={taskProfile.optional} />
+                    <InspectorProfileSection title="Capabilities" values={taskProfile.capability_hints} />
+                  </div>
                 </div>
               ) : (
                 "not selected"
