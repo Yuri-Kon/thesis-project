@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, cast
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -43,10 +44,13 @@ from src.models.db import ExternalStatus, InternalStatus
 from src.models.task_intake import (
     ConfirmedTaskSpec,
     IntentDraftClarificationRequest,
+    JsonObject,
     TaskIntakeConfirmRequest,
     TaskIntakeCreateRequest,
     TaskIntakePatchRequest,
     TaskIntakeSession,
+    TaskIntakeStatus,
+    _append_intake_audit_event,
     build_task_intake_schema,
     cancel_task_intake_session,
     confirm_task_intake_session,
@@ -859,6 +863,33 @@ def _draft_only_payload(
     }
 
 
+def _commit_confirmed_session(
+    session: TaskIntakeSession,
+    shadow: TaskIntakeSession,
+    *,
+    confirmed_by: str,
+) -> None:
+    """确认 session 状态（仅当 scenario gate 通过后调用）。"""
+    session.status = TaskIntakeStatus.CONFIRMED
+    session.confirmed_task_spec = shadow.confirmed_task_spec
+    session.updated_at = now_iso()
+    for field in session.draft.fields.values():
+        field.confirmed = True
+        field.last_modified_by = confirmed_by
+    _append_intake_audit_event(
+        session,
+        "INTAKE_CONFIRMED",
+        actor_type="system",
+        actor_id=confirmed_by,
+        data=cast(
+            JsonObject,
+            {
+                "safety_action": session.safety_check.action,
+            },
+        ),
+    )
+
+
 def _record_payload_with_scenario_gate(
     record: TaskRecord,
     scenario_gate: dict[str, Any],
@@ -1119,8 +1150,9 @@ async def confirm_task_intake(
 
     session = _get_intake_or_404(intake_id)
     try:
+        shadow = deepcopy(session)
         confirmed_spec = confirm_task_intake_session(
-            session,
+            shadow,
             confirmed_by=req.confirmed_by,
             acknowledged_warnings=req.acknowledged_warnings,
         )
@@ -1142,6 +1174,14 @@ async def confirm_task_intake(
             scenario_gate=scenario_gate,
         )
 
+    if scenario_gate["status"] == "reject":
+        raise ScenarioGateAPIError(
+            scenario_gate=scenario_gate,
+            intake_id=intake_id,
+            human_summary=session.human_summary,
+        )
+
+    _commit_confirmed_session(session, shadow, confirmed_by=req.confirmed_by)
     record = _create_task_record_from_confirmed_spec(confirmed_spec)
     return {
         "intake_id": intake_id,
@@ -1218,8 +1258,9 @@ async def finalize_intent_draft(
 
     session = _get_intake_or_404(intent_draft_id)
     try:
+        shadow = deepcopy(session)
         confirmed_spec = confirm_task_intake_session(
-            session,
+            shadow,
             confirmed_by=req.confirmed_by,
             acknowledged_warnings=req.acknowledged_warnings,
         )
@@ -1240,6 +1281,13 @@ async def finalize_intent_draft(
         )
         payload["intent_draft_id"] = intent_draft_id
         return payload
+    if scenario_gate["status"] == "reject":
+        raise ScenarioGateAPIError(
+            scenario_gate=scenario_gate,
+            intake_id=intent_draft_id,
+            human_summary=session.human_summary,
+        )
+    _commit_confirmed_session(session, shadow, confirmed_by=req.confirmed_by)
     record = _create_task_record_from_confirmed_spec(confirmed_spec)
     return {
         "intent_draft_id": intent_draft_id,
