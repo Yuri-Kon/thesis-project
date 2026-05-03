@@ -1370,6 +1370,10 @@ pre {
   gap: 6px;
 }
 
+.inspector-profile-head .source-chip {
+  flex-shrink: 0;
+}
+
 .clarification-grid {
   display: grid;
   gap: 12px;
