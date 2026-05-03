@@ -1368,6 +1368,7 @@ pre {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
 }
 
 .inspector-profile-head .source-chip {
