@@ -693,6 +693,7 @@ pre {
 .candidate-card dl,
 .kv {
   grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  min-width: 0;
 }
 
 .candidate-card dt,
