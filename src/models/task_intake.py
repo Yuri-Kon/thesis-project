@@ -73,6 +73,13 @@ class ScenarioGateResult(TypedDict):
     user_message_zh: str
 
 
+class ScenarioGatePreviewInputs(TypedDict):
+    support_level: str
+    capability_hints: list[CapabilityHint]
+    tools_allowed: list[str]
+    tools_excluded: list[str]
+
+
 def normalize_capability_hints(raw_hints: object) -> list[CapabilityHint]:
     """规范化 capability hints，兼容旧字符串数组与结构化对象。"""
 
@@ -1310,6 +1317,27 @@ def project_confirmed_task_spec(
     metadata = dict(spec.metadata)
     metadata["confirmed_task_spec"] = cast(JsonValue, spec.model_dump(mode="json"))
     return spec.goal, constraints, metadata
+
+
+def build_scenario_gate_preview_inputs(
+    session: TaskIntakeSession,
+) -> ScenarioGatePreviewInputs:
+    """构建 scenario gate 预览输入。
+
+    Args:
+        session: 当前 Task Intake 草稿会话。
+
+    Returns:
+        与确认阶段 scenario gate 等价的支持等级、能力提示和工具过滤器。
+    """
+
+    fields = {name: field.value for name, field in session.draft.fields.items()}
+    return {
+        "support_level": _support_level_for(fields),
+        "capability_hints": _capability_hint_details_for(fields),
+        "tools_allowed": _coerce_string_list(fields.get("tools_allowed")),
+        "tools_excluded": _coerce_string_list(fields.get("tools_excluded")),
+    }
 
 
 def _registry_fields() -> dict[str, RegistryField]:

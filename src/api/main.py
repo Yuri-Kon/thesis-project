@@ -51,6 +51,7 @@ from src.models.task_intake import (
     TaskIntakeSession,
     TaskIntakeStatus,
     _append_intake_audit_event,
+    build_scenario_gate_preview_inputs,
     build_task_intake_schema,
     cancel_task_intake_session,
     confirm_task_intake_session,
@@ -339,6 +340,17 @@ class CapabilityReadinessEntry(BaseModel):
     reason: str
     checked_at: Optional[str] = None
     tools: list[ToolReadinessEntry] = Field(default_factory=list)
+
+
+class ScenarioGatePreviewResponse(BaseModel):
+    status: str
+    support_level: str
+    blocked_hints: list[str] = Field(default_factory=list)
+    degraded_hints: list[str] = Field(default_factory=list)
+    readiness: Dict[str, CapabilityReadinessEntry] = Field(default_factory=dict)
+    checked_at: str
+    user_message: str
+    user_message_zh: str
 
 
 class TaskReportDetail(BaseModel):
@@ -1081,6 +1093,49 @@ async def health() -> Dict[str, Any]:
 async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
     entries = build_capability_readiness_matrix()
     return [CapabilityReadinessEntry(**entry) for entry in entries]
+
+
+@app.get(
+    "/capabilities/scenario-gate/preview",
+    response_model=ScenarioGatePreviewResponse,
+)
+async def preview_scenario_gate_readiness(
+    structured_fields: str = Query(default="{}"),
+) -> ScenarioGatePreviewResponse:
+    """预览当前草稿在确认阶段会使用的 scenario gate readiness。"""
+
+    try:
+        parsed_fields = json.loads(structured_fields)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="structured_fields must be a JSON object",
+        ) from exc
+    if not isinstance(parsed_fields, dict):
+        raise HTTPException(
+            status_code=422,
+            detail="structured_fields must be a JSON object",
+        )
+
+    try:
+        session = create_task_intake_session(
+            intake_id="preview",
+            text=None,
+            structured_fields=cast(JsonObject, parsed_fields),
+            source="web",
+        )
+    except ValueError as exc:
+        _raise_task_intake_value_error(detail=str(exc))
+    _raise_if_task_intake_field_validation_failed(session)
+
+    preview_inputs = build_scenario_gate_preview_inputs(session)
+    scenario_gate = evaluate_scenario_gate(
+        support_level=preview_inputs["support_level"],
+        capability_hints=preview_inputs["capability_hints"],
+        tools_allowed=preview_inputs["tools_allowed"],
+        tools_excluded=preview_inputs["tools_excluded"],
+    )
+    return ScenarioGatePreviewResponse(**scenario_gate)
 
 
 @app.get("/task-intakes/schema")

@@ -108,6 +108,37 @@ class TestAPIEndpoints:
         assert "degraded_reasons" in objective_entry
         assert "suggested_recovery" in objective_entry
 
+    async def test_scenario_gate_preview_applies_hint_and_tool_filters(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """预览接口应按确认阶段的 io_type 与工具过滤器计算 readiness。"""
+
+        response = await client.get(
+            "/capabilities/scenario-gate/preview",
+            params={
+                "structured_fields": json.dumps(
+                    {
+                        "task_kind": "stability_optimization",
+                        "sequence": "ACDEFGHIKLMNPQRSTVWY",
+                        "tools_allowed": ["esmfold"],
+                    }
+                )
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["support_level"] == "P1"
+        readiness = data["readiness"]
+        objective_key = "objective_scoring:candidates_to_objective_scores_topk"
+        assert objective_key in readiness
+        objective_entry = readiness[objective_key]
+        assert objective_entry["capability_id"] == "objective_scoring"
+        assert objective_entry["status"] == "unavailable"
+        assert "allowed tool filter" in objective_entry["reason"]
+        assert objective_key in data["blocked_hints"]
+
     async def test_pending_action_detail_exposes_execution_mode(
         self,
         client: httpx.AsyncClient,

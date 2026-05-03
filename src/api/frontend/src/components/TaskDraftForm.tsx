@@ -1,7 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { apiClient, apiErrorMessage } from "../api/client";
 import type {
   CapabilityHint,
   CapabilityReadinessEntry,
+  ScenarioGateResult,
   TaskIntakeConditionalRequiredRule,
   TaskIntakeFieldDefinition,
   TaskIntakeSchema,
@@ -15,7 +17,6 @@ interface TaskDraftFormProps {
   intake: TaskIntakeSession | null;
   text: string;
   busy: boolean;
-  capabilityReadiness: CapabilityReadinessEntry[];
   onTextChange: (value: string) => void;
   onCreate: (structuredFields: Record<string, unknown>) => void;
   onPatch: (structuredFields: Record<string, unknown>) => void;
@@ -211,19 +212,25 @@ function profileCapabilityHints(profile: TaskIntakeTaskProfile): CapabilityHint[
   return profile.capability_hints.map((name) => ({ name, required: true }));
 }
 
-function readinessForHint(readiness: CapabilityReadinessEntry[], hint: CapabilityHint): CapabilityReadinessEntry | null {
-  return readiness.find((entry) => entry.capability_id === hint.name) ?? null;
+function hintKey(hint: CapabilityHint): string {
+  return hint.io_type ? `${hint.name}:${hint.io_type}` : hint.name;
+}
+
+function readinessForHint(preview: ScenarioGateResult | null, hint: CapabilityHint): CapabilityReadinessEntry | null {
+  return preview?.readiness[hintKey(hint)] ?? null;
 }
 
 function CapabilityStatusBadge({
   hint,
   readiness,
+  unavailableReason,
 }: {
   hint: CapabilityHint;
   readiness: CapabilityReadinessEntry | null;
+  unavailableReason?: string;
 }) {
   const status = readiness?.status ?? "unavailable";
-  const reason = readiness?.reason ?? hint.degraded_message ?? "capability readiness is unavailable";
+  const reason = readiness?.reason ?? unavailableReason ?? hint.degraded_message ?? "capability readiness is unavailable";
   return (
     <span className={`capability-status capability-${status}`} title={reason}>
       <strong>{hint.name}</strong>
@@ -241,12 +248,13 @@ export function TaskDraftForm({
   intake,
   text,
   busy,
-  capabilityReadiness,
   onTextChange,
   onCreate,
   onPatch,
 }: TaskDraftFormProps) {
   const [fieldValues, setFieldValues] = useState<Record<string, FieldValue>>({});
+  const [scenarioGatePreview, setScenarioGatePreview] = useState<ScenarioGateResult | null>(null);
+  const [scenarioGatePreviewError, setScenarioGatePreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!schema) {
@@ -288,6 +296,7 @@ export function TaskDraftForm({
     }
     return fields;
   }, [fieldValues, schema]);
+  const structuredFieldsJson = useMemo(() => JSON.stringify(structuredFields), [structuredFields]);
   const taskKind = useMemo(() => currentTaskKind(schema, fieldValues), [fieldValues, schema]);
   const activeProfile = useMemo(() => profileForTaskKind(schema, taskKind), [schema, taskKind]);
   const activeConditionalRules = useMemo(() => {
@@ -306,6 +315,36 @@ export function TaskDraftForm({
     () => new Set(activeConditionalRules.flatMap((rule) => rule.required)),
     [activeConditionalRules],
   );
+
+  useEffect(() => {
+    if (!schema) {
+      setScenarioGatePreview(null);
+      setScenarioGatePreviewError(null);
+      return;
+    }
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      const fields = JSON.parse(structuredFieldsJson) as Record<string, unknown>;
+      apiClient
+        .getScenarioGatePreview(fields)
+        .then((preview) => {
+          if (!cancelled) {
+            setScenarioGatePreview(preview);
+            setScenarioGatePreviewError(null);
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setScenarioGatePreview(null);
+            setScenarioGatePreviewError(apiErrorMessage(error));
+          }
+        });
+    }, 150);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [schema, structuredFieldsJson]);
 
   function setFieldValue(name: string, value: FieldValue) {
     setFieldValues((current) => ({ ...current, [name]: value }));
@@ -554,7 +593,8 @@ export function TaskDraftForm({
                         <CapabilityStatusBadge
                           key={`${hint.name}:${hint.io_type ?? ""}`}
                           hint={hint}
-                          readiness={readinessForHint(capabilityReadiness, hint)}
+                          readiness={readinessForHint(scenarioGatePreview, hint)}
+                          unavailableReason={scenarioGatePreviewError ?? undefined}
                         />
                       ))
                     : "none"}
