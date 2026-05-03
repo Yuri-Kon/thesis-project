@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { InspectorCardDescriptor } from "../components/InspectorPanel";
 import { apiClient, apiErrorMessage, ApiError } from "../api/client";
-import type { TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
+import type { CapabilityReadinessEntry, TaskIntakeSchema, TaskIntakeSession, TaskIntakeTaskProfile } from "../api/types";
 import { ClarificationCard } from "../components/ClarificationCard";
 import { DraftProtectionDialog } from "../components/DraftProtectionDialog";
 import { ErrorNotice } from "../components/ErrorNotice";
@@ -110,6 +110,7 @@ export function TaskBuilderPage({
   onResolveDraftNavigate,
 }: TaskBuilderPageProps) {
   const [schema, setSchema] = useState<TaskIntakeSchema | null>(null);
+  const [capabilityReadiness, setCapabilityReadiness] = useState<CapabilityReadinessEntry[]>([]);
   const [text, setText] = useState("");
   const [intake, setIntake] = useState<TaskIntakeSession | null>(null);
   const [acknowledgedWarnings, setAcknowledgedWarnings] = useState<string[]>([]);
@@ -121,7 +122,12 @@ export function TaskBuilderPage({
     setBusy(true);
     setError(null);
     try {
-      setSchema(await apiClient.getTaskIntakeSchema());
+      const [nextSchema, nextReadiness] = await Promise.all([
+        apiClient.getTaskIntakeSchema(),
+        apiClient.getCapabilityReadiness(),
+      ]);
+      setSchema(nextSchema);
+      setCapabilityReadiness(nextReadiness);
     } catch (nextError) {
       setError(apiErrorMessage(nextError));
     } finally {
@@ -304,6 +310,11 @@ export function TaskBuilderPage({
     setError(null);
     try {
       const confirmation = await apiClient.confirmTaskIntake(intake.intake_id, acknowledgedWarnings);
+      if (!confirmation.task_id) {
+        setError(confirmation.scenario_gate?.user_message ?? "Scenario gate kept this intake as draft only.");
+        setIntake(await apiClient.getTaskIntake(intake.intake_id));
+        return;
+      }
       removeDraftId(intake.intake_id);
       setRecentIds(readDraftIds());
       onActiveIntakeChange(null);
@@ -435,6 +446,7 @@ export function TaskBuilderPage({
           intake={intake}
           text={text}
           busy={busy}
+          capabilityReadiness={capabilityReadiness}
           onTextChange={setText}
           onCreate={(structuredFields) => void createDraft(structuredFields)}
           onPatch={(structuredFields) => void patchDraft(structuredFields)}

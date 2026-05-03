@@ -1,5 +1,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import type {
+  CapabilityHint,
+  CapabilityReadinessEntry,
   TaskIntakeConditionalRequiredRule,
   TaskIntakeFieldDefinition,
   TaskIntakeSchema,
@@ -13,6 +15,7 @@ interface TaskDraftFormProps {
   intake: TaskIntakeSession | null;
   text: string;
   busy: boolean;
+  capabilityReadiness: CapabilityReadinessEntry[];
   onTextChange: (value: string) => void;
   onCreate: (structuredFields: Record<string, unknown>) => void;
   onPatch: (structuredFields: Record<string, unknown>) => void;
@@ -201,11 +204,44 @@ function profileForTaskKind(schema: TaskIntakeSchema | null, taskKind: string): 
   return schema?.task_profiles[taskKind] ?? null;
 }
 
+function profileCapabilityHints(profile: TaskIntakeTaskProfile): CapabilityHint[] {
+  if (profile.capability_hint_details?.length) {
+    return profile.capability_hint_details;
+  }
+  return profile.capability_hints.map((name) => ({ name, required: true }));
+}
+
+function readinessForHint(readiness: CapabilityReadinessEntry[], hint: CapabilityHint): CapabilityReadinessEntry | null {
+  return readiness.find((entry) => entry.capability_id === hint.name) ?? null;
+}
+
+function CapabilityStatusBadge({
+  hint,
+  readiness,
+}: {
+  hint: CapabilityHint;
+  readiness: CapabilityReadinessEntry | null;
+}) {
+  const status = readiness?.status ?? "unavailable";
+  const reason = readiness?.reason ?? hint.degraded_message ?? "capability readiness is unavailable";
+  return (
+    <span className={`capability-status capability-${status}`} title={reason}>
+      <strong>{hint.name}</strong>
+      <small>
+        {status}
+        {hint.required ? " · required" : " · optional"}
+        {hint.io_type ? ` · ${hint.io_type}` : ""}
+      </small>
+    </span>
+  );
+}
+
 export function TaskDraftForm({
   schema,
   intake,
   text,
   busy,
+  capabilityReadiness,
   onTextChange,
   onCreate,
   onPatch,
@@ -262,6 +298,10 @@ export function TaskDraftForm({
   }, [activeProfile, fieldValues, schema]);
   const requiredFields = useMemo(() => new Set(activeProfile?.required ?? []), [activeProfile]);
   const optionalFields = useMemo(() => new Set(activeProfile?.optional ?? []), [activeProfile]);
+  const activeCapabilityHints = useMemo(
+    () => (activeProfile ? profileCapabilityHints(activeProfile) : []),
+    [activeProfile],
+  );
   const conditionalFields = useMemo(
     () => new Set(activeConditionalRules.flatMap((rule) => rule.required)),
     [activeConditionalRules],
@@ -508,7 +548,17 @@ export function TaskDraftForm({
               </div>
               <div>
                 <strong>Capabilities</strong>
-                <span>{activeProfile.capability_hints.join(", ") || "none"}</span>
+                <span className="capability-status-list">
+                  {activeCapabilityHints.length
+                    ? activeCapabilityHints.map((hint) => (
+                        <CapabilityStatusBadge
+                          key={`${hint.name}:${hint.io_type ?? ""}`}
+                          hint={hint}
+                          readiness={readinessForHint(capabilityReadiness, hint)}
+                        />
+                      ))
+                    : "none"}
+                </span>
               </div>
             </div>
           </div>

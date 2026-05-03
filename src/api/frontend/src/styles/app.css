@@ -1064,6 +1064,49 @@ pre {
   overflow-wrap: anywhere;
 }
 
+.capability-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.capability-status {
+  align-items: flex-start;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius);
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 100%;
+  padding: 6px 8px;
+}
+
+.capability-status strong {
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.capability-status small {
+  color: #667085;
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.capability-ready {
+  background: rgba(19, 138, 88, 0.10);
+  border-color: rgba(19, 138, 88, 0.24);
+}
+
+.capability-degraded {
+  background: rgba(183, 121, 31, 0.12);
+  border-color: rgba(183, 121, 31, 0.28);
+}
+
+.capability-unavailable {
+  background: rgba(194, 65, 12, 0.10);
+  border-color: rgba(194, 65, 12, 0.28);
+}
+
 .profile-summary.support-p1 {
   background: #fffaf0;
   border-color: #e4ca84;

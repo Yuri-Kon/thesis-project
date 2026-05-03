@@ -6,6 +6,7 @@ from src.models.task_intake import (
     confirm_task_intake_session,
     create_task_intake_session,
     extract_task_intake_fields,
+    normalize_capability_hints,
 )
 
 
@@ -50,6 +51,63 @@ def test_task_profiles_mark_support_levels_and_capability_hints() -> None:
         "binding_design",
         "docking_scoring",
     ]
+    assert schema["planner_capability_hint_details"]["binding_design"] == [
+        {
+            "name": "binding_design",
+            "required": True,
+            "degraded_message": "Binding design is unsupported until a binding-design adapter-backed tool is registered.",
+        },
+        {
+            "name": "docking_scoring",
+            "io_type": "structure_ligand_to_binding_score",
+            "required": True,
+            "degraded_message": "Docking scoring is required for binding design evaluation.",
+        },
+    ]
+
+
+def test_capability_hint_normalization_keeps_legacy_string_view() -> None:
+    """结构化 hints 应兼容旧字符串列表并稳定去重。"""
+
+    hints = normalize_capability_hints(
+        [
+            "binding_design",
+            {
+                "name": "binding_design",
+                "required": False,
+                "degraded_message": "duplicate ignored",
+            },
+            {
+                "name": "docking_scoring",
+                "io_type": "structure_ligand_to_binding_score",
+                "required": True,
+            },
+        ]
+    )
+
+    assert hints == [
+        {
+            "name": "binding_design",
+            "required": True,
+            "degraded_message": "duplicate ignored",
+        },
+        {
+            "name": "docking_scoring",
+            "required": True,
+            "io_type": "structure_ligand_to_binding_score",
+        },
+    ]
+
+
+def test_capability_hint_normalization_rejects_malformed_hint() -> None:
+    """缺少 name 的结构化 hint 不应静默进入公共 schema。"""
+
+    try:
+        normalize_capability_hints([{"required": True}])
+    except ValueError as exc:
+        assert "name" in str(exc)
+    else:  # pragma: no cover - 失败路径断言
+        raise AssertionError("malformed capability hint should fail")
 
 
 def test_tool_selection_fields_defer_candidates_to_toolkg() -> None:
@@ -112,6 +170,10 @@ def test_confirmed_spec_carries_planner_capability_hints() -> None:
     assert spec.metadata["planner_capability_hints"] == [
         "sequence_generation",
         "structure_prediction",
+    ]
+    assert spec.metadata["planner_capability_hint_details"] == [
+        {"name": "sequence_generation", "required": True},
+        {"name": "structure_prediction", "required": True},
     ]
 
 

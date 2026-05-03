@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import re
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import Literal, NotRequired, TypedDict, cast
 
 from pydantic import BaseModel, Field, field_validator
@@ -43,6 +43,93 @@ class TaskProfile(TypedDict):
     optional: list[str]
     conditional_required: list[JsonObject]
     capability_hints: list[str]
+    capability_hint_details: NotRequired[list[CapabilityHint]]
+
+
+class CapabilityHint(TypedDict):
+    name: str
+    required: bool
+    io_type: NotRequired[str]
+    degraded_message: NotRequired[str]
+
+
+class ScenarioGatingStatus(StrEnum):
+    """场景门控判定结果。"""
+
+    ALLOW = "allow"
+    DEGRADED = "degraded"
+    DRAFT_ONLY = "draft_only"
+    REJECT = "reject"
+
+
+class ScenarioGateResult(TypedDict):
+    status: str
+    support_level: str
+    blocked_hints: list[str]
+    degraded_hints: list[str]
+    readiness: JsonObject
+    checked_at: str
+    user_message: str
+    user_message_zh: str
+
+
+def normalize_capability_hints(raw_hints: object) -> list[CapabilityHint]:
+    """规范化 capability hints，兼容旧字符串数组与结构化对象。"""
+
+    if raw_hints is None:
+        return []
+    if isinstance(raw_hints, str):
+        candidates: list[object] = [raw_hints]
+    elif isinstance(raw_hints, list):
+        candidates = cast(list[object], raw_hints)
+    else:
+        raise ValueError("capability_hints must be a list or string")
+
+    normalized_by_key: dict[tuple[str, str], CapabilityHint] = {}
+    for candidate in candidates:
+        hint = _coerce_capability_hint(candidate)
+        key = (hint["name"], hint.get("io_type", ""))
+        existing = normalized_by_key.get(key)
+        if existing is None:
+            normalized_by_key[key] = hint
+            continue
+        existing["required"] = existing["required"] or hint["required"]
+        if "degraded_message" not in existing and "degraded_message" in hint:
+            existing["degraded_message"] = hint["degraded_message"]
+    return list(normalized_by_key.values())
+
+
+def capability_hint_names(raw_hints: object) -> list[str]:
+    """返回稳定的字符串兼容视图。"""
+
+    return [hint["name"] for hint in normalize_capability_hints(raw_hints)]
+
+
+def _coerce_capability_hint(candidate: object) -> CapabilityHint:
+    if isinstance(candidate, str):
+        name = candidate.strip()
+        if not name:
+            raise ValueError("capability hint name must not be empty")
+        return {"name": name, "required": True}
+    if not isinstance(candidate, dict):
+        raise ValueError("capability hint must be a string or object")
+
+    candidate_obj = cast(dict[str, object], candidate)
+    raw_name = candidate_obj.get("name")
+    if not isinstance(raw_name, str) or not raw_name.strip():
+        raise ValueError("capability hint object must include non-empty name")
+    raw_required = candidate_obj.get("required")
+    hint: CapabilityHint = {
+        "name": raw_name.strip(),
+        "required": raw_required if isinstance(raw_required, bool) else True,
+    }
+    raw_io_type = candidate_obj.get("io_type")
+    if isinstance(raw_io_type, str) and raw_io_type.strip():
+        hint["io_type"] = raw_io_type.strip()
+    raw_message = candidate_obj.get("degraded_message")
+    if isinstance(raw_message, str) and raw_message.strip():
+        hint["degraded_message"] = raw_message.strip()
+    return hint
 
 
 class ToolOption(TypedDict, total=False):
@@ -522,6 +609,20 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             ],
             "conditional_required": [],
             "capability_hints": ["objective_scoring", "stability_simulation"],
+            "capability_hint_details": [
+                {
+                    "name": "objective_scoring",
+                    "io_type": "candidates_to_objective_scores_topk",
+                    "required": True,
+                    "degraded_message": "Objective scoring is required for ranking stability optimization candidates.",
+                },
+                {
+                    "name": "stability_simulation",
+                    "io_type": "trajectory_to_stability_metrics",
+                    "required": False,
+                    "degraded_message": "Stability simulation is experimental and may be shown as degraded.",
+                },
+            ],
         },
         "motif_scaffold_design": {
             "support_level": "P1",
@@ -535,6 +636,18 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
             ],
             "conditional_required": [],
             "capability_hints": ["motif_scaffolding", "backbone_generation"],
+            "capability_hint_details": [
+                {
+                    "name": "motif_scaffolding",
+                    "required": True,
+                    "degraded_message": "Motif scaffold design requires a registered motif scaffolding capability.",
+                },
+                {
+                    "name": "backbone_generation",
+                    "required": True,
+                    "degraded_message": "Backbone generation is required before motif scaffold execution.",
+                },
+            ],
         },
         "binding_design": {
             "support_level": "P2",
@@ -553,6 +666,19 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
                 }
             ],
             "capability_hints": ["binding_design", "docking_scoring"],
+            "capability_hint_details": [
+                {
+                    "name": "binding_design",
+                    "required": True,
+                    "degraded_message": "Binding design is unsupported until a binding-design adapter-backed tool is registered.",
+                },
+                {
+                    "name": "docking_scoring",
+                    "io_type": "structure_ligand_to_binding_score",
+                    "required": True,
+                    "degraded_message": "Docking scoring is required for binding design evaluation.",
+                },
+            ],
         },
         "enzyme_like_design": {
             "support_level": "P2",
@@ -571,6 +697,19 @@ TASK_FIELD_REGISTRY: TaskFieldRegistry = {
                 }
             ],
             "capability_hints": ["enzyme_design", "function_annotation"],
+            "capability_hint_details": [
+                {
+                    "name": "enzyme_design",
+                    "required": True,
+                    "degraded_message": "Enzyme-like design is unsupported until an enzyme-design capability is registered.",
+                },
+                {
+                    "name": "function_annotation",
+                    "io_type": "sequence_or_structure_to_function_terms",
+                    "required": True,
+                    "degraded_message": "Function annotation is required for enzyme-like design review.",
+                },
+            ],
         },
     },
 }
@@ -752,6 +891,10 @@ def build_task_intake_schema() -> JsonObject:
         JsonValue,
         build_planner_capability_hints(),
     )
+    registry["planner_capability_hint_details"] = cast(
+        JsonValue,
+        build_planner_capability_hint_details(),
+    )
     registry["conditional_required"] = cast(
         JsonValue, _all_conditional_required_rules()
     )
@@ -885,6 +1028,15 @@ def build_planner_capability_hints() -> dict[str, list[str]]:
 
     return {
         name: list(profile["capability_hints"])
+        for name, profile in _task_profiles().items()
+    }
+
+
+def build_planner_capability_hint_details() -> dict[str, list[CapabilityHint]]:
+    """从 profile 派生结构化 Planner capability hints。"""
+
+    return {
+        name: _capability_hint_details_from_profile(profile)
         for name, profile in _task_profiles().items()
     }
 
@@ -1187,6 +1339,13 @@ def _attach_tool_options(
 
 def _task_profiles() -> dict[str, TaskProfile]:
     return deepcopy(TASK_FIELD_REGISTRY["task_profiles"])
+
+
+def _capability_hint_details_from_profile(profile: TaskProfile) -> list[CapabilityHint]:
+    details = profile.get("capability_hint_details")
+    if details is not None:
+        return normalize_capability_hints(details)
+    return normalize_capability_hints(profile["capability_hints"])
 
 
 def _all_conditional_required_rules() -> list[JsonObject]:
@@ -2196,6 +2355,10 @@ def _build_confirmed_spec(
         "field_registry_version": TASK_FIELD_REGISTRY_VERSION,
         "support_level": _support_level_for(fields),
         "planner_capability_hints": cast(JsonValue, _capability_hints_for(fields)),
+        "planner_capability_hint_details": cast(
+            JsonValue,
+            _capability_hint_details_for(fields),
+        ),
         "confirmed_by": confirmed_by,
         "input_mode": _input_mode(session),
         "acknowledged_warnings": cast(JsonValue, list(acknowledged_warnings)),
@@ -2262,6 +2425,15 @@ def _capability_hints_for(fields: JsonObject) -> list[str]:
         _task_profiles()["de_novo_design"],
     )
     return list(profile["capability_hints"])
+
+
+def _capability_hint_details_for(fields: JsonObject) -> list[CapabilityHint]:
+    task_kind = fields.get("task_kind", "de_novo_design")
+    profile = _task_profiles().get(
+        str(task_kind),
+        _task_profiles()["de_novo_design"],
+    )
+    return _capability_hint_details_from_profile(profile)
 
 
 def _input_mode(session: TaskIntakeSession) -> str:

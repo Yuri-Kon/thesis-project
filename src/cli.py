@@ -773,9 +773,17 @@ def _readiness_summary(readiness: dict[str, Any] | list[dict[str, Any]]) -> list
 
 def _print_task(payload: dict[str, Any]) -> None:
     task = payload["task"]
+    metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+    scenario_gate = metadata.get("scenario_gate") if isinstance(metadata, dict) else None
     print(f"task_id: {task.get('id')}")
     print(f"status: {task.get('status')} / {task.get('internal_status') or '-'}")
     print(f"goal: {task.get('goal')}")
+    if isinstance(metadata, dict):
+        support_level = metadata.get("support_level")
+        if support_level:
+            print(f"support_level: {support_level}")
+    if isinstance(scenario_gate, dict):
+        _print_scenario_gate(scenario_gate)
     pending = task.get("pending_action")
     if isinstance(pending, dict):
         print(f"pending_action: {pending.get('pending_action_id')} ({pending.get('action_type')})")
@@ -838,6 +846,38 @@ def _print_submission(payload: dict[str, Any], *, emit_json: bool) -> None:
     print(f"intake_id: {profile.get('intake_id') or '-'}")
     print(f"task_id: {profile.get('task_id')}")
     print(f"status: {profile.get('status')}")
+    scenario_gate = payload.get("scenario_gate")
+    if isinstance(scenario_gate, dict):
+        _print_scenario_gate(scenario_gate)
+
+
+def _print_scenario_gate(scenario_gate: dict[str, Any]) -> None:
+    print(
+        "scenario_gate: "
+        f"{scenario_gate.get('status')} "
+        f"support={scenario_gate.get('support_level') or '-'} "
+        f"checked_at={scenario_gate.get('checked_at') or '-'}"
+    )
+    message = scenario_gate.get("user_message_zh") or scenario_gate.get("user_message")
+    if message:
+        print(f"scenario_gate_message: {message}")
+    blocked = scenario_gate.get("blocked_hints")
+    if isinstance(blocked, list) and blocked:
+        print(f"blocked_capabilities: {_format_list(blocked)}")
+    degraded = scenario_gate.get("degraded_hints")
+    if isinstance(degraded, list) and degraded:
+        print(f"degraded_capabilities: {_format_list(degraded)}")
+    readiness = scenario_gate.get("readiness")
+    if isinstance(readiness, dict) and readiness:
+        print("scenario_capability_readiness:")
+        for key, snapshot in readiness.items():
+            if not isinstance(snapshot, dict):
+                continue
+            print(
+                "  "
+                f"{key}: {snapshot.get('status') or '-'} "
+                f"reason={snapshot.get('reason') or '-'}"
+            )
 
 
 def _format_list(items: Any) -> str:

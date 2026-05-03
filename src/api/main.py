@@ -37,6 +37,7 @@ from src.workflow.decision_apply import (
     DecisionConflictError,
 )
 from src.infra.runtime_init import RuntimeInitResult, initialize_runtime
+from src.infra.scenario_gate import evaluate_scenario_gate
 from src.models.contracts import PendingActionType, now_iso
 from src.models.db import ExternalStatus, InternalStatus
 from src.models.task_intake import (
@@ -52,6 +53,7 @@ from src.models.task_intake import (
     create_task_intake_session,
     patch_task_intake_session,
     project_confirmed_task_spec,
+    normalize_capability_hints,
 )
 from src.storage.log_store import append_event, read_timeline_events
 from src.workflow.context import WorkflowContext
@@ -95,10 +97,30 @@ class TaskIntakeAPIError(Exception):
         }
 
 
+class ScenarioGateAPIError(Exception):
+    """场景门控 API 响应，不改变正式 Task FSM。"""
+
+    status_code: int
+    payload: dict[str, Any]
+
+    def __init__(self, *, status_code: int, payload: dict[str, Any]) -> None:
+        super().__init__(str(payload.get("detail") or "scenario gate rejected"))
+        self.status_code = status_code
+        self.payload = payload
+
+
 @app.exception_handler(TaskIntakeAPIError)
 async def _handle_task_intake_api_error(
     _request: Request,
     exc: TaskIntakeAPIError,
+) -> JSONResponse:
+    return JSONResponse(status_code=exc.status_code, content=exc.payload)
+
+
+@app.exception_handler(ScenarioGateAPIError)
+async def _handle_scenario_gate_api_error(
+    _request: Request,
+    exc: ScenarioGateAPIError,
 ) -> JSONResponse:
     return JSONResponse(status_code=exc.status_code, content=exc.payload)
 
@@ -765,6 +787,94 @@ def _get_intake_or_404(intake_id: str) -> TaskIntakeSession:
     return session
 
 
+def _scenario_gate_for_confirmed_spec(
+    spec: ConfirmedTaskSpec,
+) -> dict[str, Any]:
+    metadata = dict(spec.metadata)
+    raw_details = (
+        metadata.get("planner_capability_hint_details")
+        or metadata.get("planner_capability_hints")
+        or []
+    )
+    hints = normalize_capability_hints(raw_details)
+    support_level = str(metadata.get("support_level") or "P0")
+    return dict(
+        evaluate_scenario_gate(
+            support_level=support_level,
+            capability_hints=hints,
+            tools_allowed=_json_string_list(spec.constraints.get("tools_allowed")),
+            tools_excluded=_json_string_list(spec.constraints.get("tools_excluded")),
+        )
+    )
+
+
+def _confirmed_spec_with_scenario_gate(
+    spec: ConfirmedTaskSpec,
+    scenario_gate: dict[str, Any],
+) -> ConfirmedTaskSpec:
+    metadata = dict(spec.metadata)
+    metadata["scenario_gate"] = scenario_gate
+    return spec.model_copy(update={"metadata": metadata})
+
+
+def _prepare_confirmed_spec_for_task_creation(
+    spec: ConfirmedTaskSpec,
+    *,
+    intake_id: str | None = None,
+    human_summary: str | None = None,
+) -> tuple[ConfirmedTaskSpec, dict[str, Any]]:
+    scenario_gate = _scenario_gate_for_confirmed_spec(spec)
+    gated_spec = _confirmed_spec_with_scenario_gate(spec, scenario_gate)
+    status = scenario_gate.get("status")
+    if status == "reject":
+        raise ScenarioGateAPIError(
+            status_code=422,
+            payload={
+                "detail": scenario_gate.get("user_message"),
+                "status": "rejected",
+                "intake_id": intake_id,
+                "human_summary": human_summary,
+                "confirmed_task_spec": gated_spec.model_dump(mode="json"),
+                "scenario_gate": scenario_gate,
+            },
+        )
+    return gated_spec, scenario_gate
+
+
+def _draft_only_payload(
+    *,
+    intake_id: str | None,
+    human_summary: str | None,
+    confirmed_spec: ConfirmedTaskSpec,
+    scenario_gate: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "intake_id": intake_id,
+        "task_id": None,
+        "status": "draft_only",
+        "needs_confirmation": True,
+        "human_summary": human_summary,
+        "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
+        "scenario_gate": scenario_gate,
+    }
+
+
+def _record_payload_with_scenario_gate(
+    record: TaskRecord,
+    scenario_gate: dict[str, Any],
+) -> dict[str, Any]:
+    payload = record.model_dump(mode="json")
+    payload["task_id"] = record.id
+    payload["scenario_gate"] = scenario_gate
+    return payload
+
+
+def _json_string_list(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+
+
 def _create_task_record_from_confirmed_spec(spec: ConfirmedTaskSpec) -> TaskRecord:
     goal, constraints, metadata = project_confirmed_task_spec(spec)
     task_id = f"task_{uuid4().hex[:8]}"
@@ -795,6 +905,7 @@ def _create_task_record_from_confirmed_spec(spec: ConfirmedTaskSpec) -> TaskReco
                 "intake_id": metadata.get("intake_id"),
                 "support_level": metadata.get("support_level"),
                 "input_mode": metadata.get("input_mode"),
+                "scenario_gate": metadata.get("scenario_gate"),
             },
         },
     )
@@ -1016,6 +1127,21 @@ async def confirm_task_intake(
     except ValueError as exc:
         _raise_task_intake_error(session, detail=str(exc))
 
+    confirmed_spec, scenario_gate = _prepare_confirmed_spec_for_task_creation(
+        confirmed_spec,
+        intake_id=intake_id,
+        human_summary=session.human_summary,
+    )
+    session.confirmed_task_spec = confirmed_spec
+    if scenario_gate["status"] == "draft_only":
+        INTAKE_STORE[intake_id] = session
+        return _draft_only_payload(
+            intake_id=intake_id,
+            human_summary=session.human_summary,
+            confirmed_spec=confirmed_spec,
+            scenario_gate=scenario_gate,
+        )
+
     record = _create_task_record_from_confirmed_spec(confirmed_spec)
     return {
         "intake_id": intake_id,
@@ -1023,6 +1149,7 @@ async def confirm_task_intake(
         "status": record.status.value,
         "human_summary": session.human_summary,
         "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
+        "scenario_gate": scenario_gate,
     }
 
 
@@ -1098,6 +1225,21 @@ async def finalize_intent_draft(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    confirmed_spec, scenario_gate = _prepare_confirmed_spec_for_task_creation(
+        confirmed_spec,
+        intake_id=intent_draft_id,
+        human_summary=session.human_summary,
+    )
+    session.confirmed_task_spec = confirmed_spec
+    if scenario_gate["status"] == "draft_only":
+        payload = _draft_only_payload(
+            intake_id=intent_draft_id,
+            human_summary=session.human_summary,
+            confirmed_spec=confirmed_spec,
+            scenario_gate=scenario_gate,
+        )
+        payload["intent_draft_id"] = intent_draft_id
+        return payload
     record = _create_task_record_from_confirmed_spec(confirmed_spec)
     return {
         "intent_draft_id": intent_draft_id,
@@ -1105,6 +1247,7 @@ async def finalize_intent_draft(
         "task_id": record.id,
         "status": record.status.value,
         "confirmed_task_spec": confirmed_spec.model_dump(mode="json"),
+        "scenario_gate": scenario_gate,
     }
 
 
@@ -1149,7 +1292,18 @@ async def create_task(req: TaskCreateRequest):
         return payload
 
     if req.confirmed_task_spec is not None:
-        return _create_task_record_from_confirmed_spec(req.confirmed_task_spec)
+        confirmed_spec, scenario_gate = _prepare_confirmed_spec_for_task_creation(
+            req.confirmed_task_spec,
+        )
+        if scenario_gate["status"] == "draft_only":
+            return _draft_only_payload(
+                intake_id=None,
+                human_summary=None,
+                confirmed_spec=confirmed_spec,
+                scenario_gate=scenario_gate,
+            )
+        record = _create_task_record_from_confirmed_spec(confirmed_spec)
+        return _record_payload_with_scenario_gate(record, scenario_gate)
 
     if req.goal is None:
         raise HTTPException(status_code=422, detail="goal is required")

@@ -9,6 +9,7 @@ from src.adapters.registry import get_adapter
 from src.infra.active_tool_metadata import metadata_by_tool_id
 from src.kg.kg_client import load_tool_kg
 from src.models.contracts import CapabilityReadiness, ToolReadiness, now_iso
+from src.models.task_intake import CapabilityHint
 
 __all__ = [
     "P0_CAPABILITY_IDS",
@@ -16,6 +17,7 @@ __all__ = [
     "build_capability_readiness_matrix",
     "build_capability_readiness_snapshot",
     "build_tool_readiness_snapshot",
+    "batch_check_capability_hints",
     "evaluate_tool_readiness",
 ]
 
@@ -258,6 +260,133 @@ def build_capability_readiness_snapshot(capability_id: str) -> Dict[str, Any]:
     return payload
 
 
+def batch_check_capability_hints(
+    hints: Sequence[CapabilityHint],
+    *,
+    tools_allowed: Sequence[str] | None = None,
+    tools_excluded: Sequence[str] | None = None,
+) -> Dict[str, Dict[str, Any]]:
+    """按 capability hints 批量生成约束过滤后的 readiness 快照。"""
+
+    return {
+        _hint_key(hint): _build_effective_capability_readiness_snapshot(
+            hint,
+            tools_allowed=tools_allowed,
+            tools_excluded=tools_excluded,
+        )
+        for hint in hints
+    }
+
+
+def _build_effective_capability_readiness_snapshot(
+    hint: CapabilityHint,
+    *,
+    tools_allowed: Sequence[str] | None,
+    tools_excluded: Sequence[str] | None,
+) -> Dict[str, Any]:
+    capability_id = hint["name"].strip()
+    io_type = hint.get("io_type", "").strip()
+    allowed = {item for item in tools_allowed or [] if item}
+    excluded = {item for item in tools_excluded or [] if item}
+    checked_at = now_iso()
+
+    kg = load_tool_kg()
+    capabilities = kg.get("capabilities", [])
+    capability_exists = _capability_exists(capabilities, capability_id)
+    if not capability_exists:
+        payload = build_capability_readiness_snapshot(capability_id)
+        payload["effective_filters"] = _effective_filters_payload(
+            tools_allowed=allowed,
+            tools_excluded=excluded,
+            io_type=io_type,
+        )
+        return payload
+
+    tools = [
+        tool
+        for tool in _matching_tools_for_hint(
+            kg.get("tools", []),
+            capability_id=capability_id,
+            io_type=io_type,
+            tools_allowed=allowed,
+            tools_excluded=excluded,
+        )
+    ]
+    tool_readiness = [
+        evaluate_tool_readiness(
+            str(tool.get("id")),
+            tool_entry=tool,
+            checked_at=checked_at,
+        )
+        for tool in tools
+        if isinstance(tool.get("id"), str)
+    ]
+    available_tools = [
+        item for item in tool_readiness if item["status"] in {"ready", "degraded"}
+    ]
+    ready_tools = [item for item in tool_readiness if item["status"] == "ready"]
+    blocked_tools = [
+        item for item in tool_readiness if item["status"] == "unavailable"
+    ]
+    degraded_reasons = [
+        _tool_reason(item)
+        for item in tool_readiness
+        if item["status"] != "ready" and _tool_reason(item)
+    ]
+
+    status = "unavailable"
+    reason = _no_effective_tool_reason(
+        allowed=allowed,
+        excluded=excluded,
+        io_type=io_type,
+    )
+    if tool_readiness:
+        first = tool_readiness[0]
+        if first["status"] == "ready":
+            status = "ready"
+            reason = first["reason"] or "primary tool is ready"
+        elif ready_tools:
+            status = "degraded"
+            reason = "primary tool unavailable; fallback tool is ready"
+        elif any(item["status"] == "degraded" for item in tool_readiness):
+            status = "degraded"
+            reason = "tool registered but health is degraded"
+        elif degraded_reasons:
+            reason = degraded_reasons[0]
+
+    priors = _aggregate_priors(tool_readiness)
+    recovery = _suggest_capability_recovery(status, degraded_reasons, blocked_tools)
+    entry = CapabilityReadiness(
+        capability_id=capability_id,
+        status=status,  # type: ignore[arg-type]
+        available_tools=[
+            ToolReadiness(**item) for item in available_tools
+        ],
+        blocked_tools=[
+            ToolReadiness(**item) for item in blocked_tools
+        ],
+        degraded_reasons=degraded_reasons,
+        last_checked_at=checked_at,
+        cost_prior=priors.get("cost_prior"),
+        risk_prior=priors.get("risk_prior"),
+        suggested_recovery=recovery,
+        primary_tool_id=(
+            str(tool_readiness[0]["tool_id"]) if tool_readiness else None
+        ),
+        fallback_tool_ids=[str(item["tool_id"]) for item in tool_readiness[1:]],
+        reason=reason,
+        tools=[ToolReadiness(**item) for item in tool_readiness],
+    )
+    payload = entry.model_dump(mode="json", exclude_none=True)
+    payload["checked_at"] = checked_at
+    payload["effective_filters"] = _effective_filters_payload(
+        tools_allowed=allowed,
+        tools_excluded=excluded,
+        io_type=io_type,
+    )
+    return payload
+
+
 def build_tool_readiness_snapshot(tool_id: str) -> Dict[str, Any]:
     """返回候选可追溯使用的单工具 readiness 快照。"""
     kg = load_tool_kg()
@@ -340,6 +469,95 @@ def _aggregate_priors(tool_readiness: Sequence[Dict[str, Any]]) -> dict[str, flo
         if values:
             result[key] = round(sum(values) / len(values), 6)
     return result
+
+
+def _hint_key(hint: CapabilityHint) -> str:
+    io_type = hint.get("io_type", "").strip()
+    return f"{hint['name']}:{io_type}" if io_type else hint["name"]
+
+
+def _capability_exists(capabilities: object, capability_id: str) -> bool:
+    if not isinstance(capabilities, list):
+        return False
+    return any(
+        isinstance(item, dict) and item.get("capability_id") == capability_id
+        for item in capabilities
+    )
+
+
+def _matching_tools_for_hint(
+    tools: object,
+    *,
+    capability_id: str,
+    io_type: str,
+    tools_allowed: set[str],
+    tools_excluded: set[str],
+) -> list[dict[str, Any]]:
+    if not isinstance(tools, list):
+        return []
+
+    matched: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        tool_id = tool.get("id")
+        if not isinstance(tool_id, str) or not tool_id:
+            continue
+        if tools_allowed and tool_id not in tools_allowed:
+            continue
+        if tool_id in tools_excluded:
+            continue
+        capabilities = tool.get("capabilities", [])
+        if not isinstance(capabilities, list) or capability_id not in capabilities:
+            continue
+        if io_type and _tool_io_type(tool) != io_type:
+            continue
+        matched.append(tool)
+    return sorted(
+        matched,
+        key=lambda item: (
+            0 if _primary_capability(item) == capability_id else 1,
+            _priority_rank(item.get("priority")),
+            str(item.get("id") or ""),
+        ),
+    )
+
+
+def _tool_io_type(tool: dict[str, Any]) -> str:
+    io = tool.get("io")
+    if not isinstance(io, dict):
+        return ""
+    raw = io.get("io_type_id")
+    return raw if isinstance(raw, str) else ""
+
+
+def _no_effective_tool_reason(
+    *,
+    allowed: set[str],
+    excluded: set[str],
+    io_type: str,
+) -> str:
+    pieces: list[str] = []
+    if allowed:
+        pieces.append("allowed tool filter removed all matching tools")
+    if excluded:
+        pieces.append("excluded tool filter removed matching tools")
+    if io_type:
+        pieces.append(f"no tool matched io_type {io_type}")
+    return "; ".join(pieces) or "no registered tool is ready"
+
+
+def _effective_filters_payload(
+    *,
+    tools_allowed: set[str],
+    tools_excluded: set[str],
+    io_type: str,
+) -> dict[str, Any]:
+    return {
+        "tools_allowed": sorted(tools_allowed),
+        "tools_excluded": sorted(tools_excluded),
+        "io_type": io_type or None,
+    }
 
 
 def _protocol_readiness_override(
