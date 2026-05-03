@@ -1363,74 +1363,11 @@ pre {
   margin-top: 8px;
 }
 
-.inspector-profile-summary {
-  display: grid;
-  gap: 6px;
-}
-
 .inspector-profile-head {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-}
-
-.inspector-profile-sections {
-  display: grid;
-  gap: 4px;
-}
-
-.inspector-profile-section {
-  border-top: 1px solid rgba(216, 222, 232, 0.7);
-  padding-top: 4px;
-}
-
-.inspector-profile-section summary {
-  align-items: center;
-  color: var(--muted);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 0.72rem;
-  gap: 4px;
-  font-weight: 700;
-  line-height: 1.25;
-  list-style-position: outside;
-}
-
-.inspector-profile-section[open] summary {
-  color: var(--text);
-  font-weight: 800;
-}
-
-.inspector-profile-count {
-  background: rgba(238, 240, 245, 0.9);
-  border: 1px solid rgba(216, 222, 232, 0.9);
-  border-radius: 999px;
-  color: #667085;
-  font-size: 0.68rem;
-  line-height: 1;
-  padding: 2px 5px;
-}
-
-.inspector-profile-fields {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 5px;
-  overflow-wrap: anywhere;
-}
-
-.inspector-profile-chip {
-  background: rgba(248, 250, 252, 0.92);
-  border: 1px solid rgba(216, 222, 232, 0.9);
-  border-radius: 999px;
-  color: #475467;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1.2;
-  max-width: 100%;
-  overflow-wrap: anywhere;
-  padding: 2px 6px;
 }
 
 .clarification-grid {

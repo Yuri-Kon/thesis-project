@@ -79,36 +79,6 @@ function draftHasFieldWarnings(intake: TaskIntakeSession | null): boolean {
   return Object.values(intake?.draft.fields ?? {}).some((field) => field.warnings.length > 0);
 }
 
-function InspectorProfileSection({
-  title,
-  values,
-  defaultOpen = false,
-}: {
-  title: string;
-  values: string[];
-  defaultOpen?: boolean;
-}) {
-  return (
-    <details className="inspector-profile-section" open={defaultOpen}>
-      <summary>
-        <span>{title}</span>
-        <span className="inspector-profile-count">({values.length})</span>
-      </summary>
-      <div className="inspector-profile-fields">
-        {values.length ? (
-          values.map((value) => (
-            <span className="inspector-profile-chip" key={value}>
-              {value}
-            </span>
-          ))
-        ) : (
-          <span>none</span>
-        )}
-      </div>
-    </details>
-  );
-}
-
 function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile?: TaskIntakeTaskProfile }) {
   if (!taskKind || !profile || profile.support_level === "P0") {
     return null;
@@ -380,18 +350,11 @@ export function TaskBuilderPage({
             <dt>Profile</dt>
             <dd>
               {taskProfile ? (
-                <div className="inspector-profile-summary">
-                  <div className="inspector-profile-head">
-                    {taskKind ? <span className="source-chip">{taskKind.replace(/_/g, " ")}</span> : null}
-                    <span className={`source-chip support-chip support-${taskProfile.support_level.toLowerCase()}`}>
-                      {supportLabel(taskProfile.support_level)}
-                    </span>
-                  </div>
-                  <div className="inspector-profile-sections">
-                    <InspectorProfileSection title="Required" values={taskProfile.required} defaultOpen />
-                    <InspectorProfileSection title="Optional" values={taskProfile.optional} />
-                    <InspectorProfileSection title="Capabilities" values={taskProfile.capability_hints} />
-                  </div>
+                <div className="inspector-profile-head">
+                  {taskKind ? <span className="source-chip">{taskKind.replace(/_/g, " ")}</span> : null}
+                  <span className={`source-chip support-chip support-${taskProfile.support_level.toLowerCase()}`}>
+                    {supportLabel(taskProfile.support_level)}
+                  </span>
                 </div>
               ) : (
                 "not selected"
