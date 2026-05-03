@@ -268,6 +268,7 @@ def _task_show(base_url: str, task_id: str, *, emit_json: bool) -> int:
     payload = {
         "task": task,
         "readiness_summary": _readiness_summary(readiness),
+        "structure_similarity": _structure_similarity_summary_from_task(task),
     }
     if emit_json:
         _print_json(payload)
@@ -781,6 +782,7 @@ def _print_task(payload: dict[str, Any]) -> None:
         for candidate in pending.get("candidates") or []:
             if isinstance(candidate, dict):
                 _print_candidate_runtime_line(candidate)
+    _print_structure_similarity_summary(payload.get("structure_similarity"))
     _print_readiness_summary(payload["readiness_summary"])
 
 
@@ -955,6 +957,35 @@ def _print_report(report: dict[str, Any] | list[dict[str, Any]]) -> None:
             f"rank={row.get('top_k_rank') or '-'} "
             f"score={row.get('objective_score', '-')}"
         )
+    _print_structure_similarity_summary(report.get("structure_similarity"))
+
+
+def _structure_similarity_summary_from_task(task: dict[str, Any] | list[dict[str, Any]]) -> dict[str, Any]:
+    if not isinstance(task, dict):
+        return {}
+    design_result = task.get("design_result")
+    if not isinstance(design_result, dict):
+        return {}
+    metadata = design_result.get("metadata")
+    if not isinstance(metadata, dict):
+        return {}
+    structure_similarity = metadata.get("structure_similarity")
+    return dict(structure_similarity) if isinstance(structure_similarity, dict) else {}
+
+
+def _print_structure_similarity_summary(value: Any) -> None:
+    if not isinstance(value, dict) or not value:
+        return
+    top_hit = value.get("top_hit") if isinstance(value.get("top_hit"), dict) else {}
+    print(
+        "structure_similarity: "
+        f"hits={value.get('hit_count', '-')} "
+        f"top_hit={top_hit.get('hit_id') or top_hit.get('target_id') or '-'} "
+        f"tm_score={top_hit.get('tm_score', '-')}"
+    )
+    artifacts = value.get("artifact_refs") if isinstance(value.get("artifact_refs"), list) else []
+    if artifacts:
+        print(f"structure_similarity_artifacts: {len(artifacts)}")
 
 
 def _print_readiness_summary(items: list[dict[str, Any]]) -> None:

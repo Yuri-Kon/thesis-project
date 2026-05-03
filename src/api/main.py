@@ -320,6 +320,7 @@ class TaskReportDetail(BaseModel):
     report_path: Optional[str] = None
     scores: Dict[str, Any] = Field(default_factory=dict)
     objective_scoring: Dict[str, Any] = Field(default_factory=dict)
+    structure_similarity: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -1189,11 +1190,15 @@ async def get_task_report(task_id: str) -> TaskReportDetail:
     objective_scoring = metadata.get("objective_scoring")
     if not isinstance(objective_scoring, dict):
         objective_scoring = {}
+    structure_similarity = metadata.get("structure_similarity")
+    if not isinstance(structure_similarity, dict):
+        structure_similarity = {}
     return TaskReportDetail(
         task_id=task_id,
         report_path=design_result.report_path,
         scores=dict(design_result.scores or {}),
         objective_scoring=objective_scoring,
+        structure_similarity=structure_similarity,
         metadata=metadata,
     )
 

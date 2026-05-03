@@ -202,6 +202,13 @@ class TestAPIEndpoints:
                         "component_scores": {"cand_a": {"quality": 0.9}},
                         "warnings": ["proxy warning"],
                         "rank_reason": "cand_a ranks by objective_score=0.810",
+                    },
+                    "structure_similarity": {
+                        "hit_count": 1,
+                        "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82},
+                        "artifact_refs": [
+                            {"kind": "foldseek_tabular", "path": "output/foldseek.m8"}
+                        ],
                     }
                 },
             ),
@@ -214,6 +221,7 @@ class TestAPIEndpoints:
         assert data["scores"]["objective_score"] == 0.81
         assert data["objective_scoring"]["top_k"][0]["candidate_id"] == "cand_a"
         assert data["objective_scoring"]["rank_reason"].startswith("cand_a ranks")
+        assert data["structure_similarity"]["top_hit"]["hit_id"] == "1abc_A"
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""

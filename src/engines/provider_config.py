@@ -80,6 +80,23 @@ def _default_provider_configs() -> dict[str, ProviderConfig]:
                 }
             },
         ),
+        "foldseek_web": ProviderConfig(
+            provider_type="foldseek_web",
+            description="Foldseek public Web API provider",
+            base_url="https://search.foldseek.com/api",
+            timeout=60.0,
+            max_retries=3,
+            extra={
+                "endpoints": {
+                    "databases": "/databases",
+                    "ticket": "/ticket",
+                    "ticket_status": "/ticket/{id}",
+                    "result": "/result/{id}/{entry}",
+                    "download": "/result/download/{id}",
+                },
+                "default_databases": ["afdb-swissprot"],
+            },
+        ),
     }
 
 

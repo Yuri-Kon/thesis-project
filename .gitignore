@@ -132,5 +132,7 @@ work/
 .nextflow.log.*
 tmp/
 .envrc
+.env
+*.env
 .superpowers/
 .worktrees/

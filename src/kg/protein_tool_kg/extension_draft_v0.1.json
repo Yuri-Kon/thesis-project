@@ -359,11 +359,15 @@
       "name": "Foldseek",
       "capability_id": ["structure_similarity_search"],
       "io_type": ["structure_to_similarity_hits"],
-      "adapter_modes": ["nextflow", "python"],
+      "adapter_modes": ["external_api", "python"],
       "priority": "P1",
       "status": "candidate",
       "source": ["web"],
-      "official_links": ["https://github.com/steineggerlab/foldseek"]
+      "official_links": [
+        "https://search.foldseek.com",
+        "https://github.com/soedinglab/MMseqs2-App/blob/master/docs/api.html",
+        "https://github.com/steineggerlab/foldseek"
+      ]
     },
     {
       "tool_id": "tmalign",

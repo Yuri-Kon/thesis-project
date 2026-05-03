@@ -133,6 +133,40 @@ def test_readiness_classifies_database_missing(monkeypatch: pytest.MonkeyPatch) 
     assert "database" in payload["reason"]
 
 
+def test_readiness_classifies_foldseek_database_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Foldseek 结构库未配置时应暴露结构化 database_missing。"""
+
+    for env_key in (
+        "FOLDSEEK_DB_PATH",
+        "PROTEIN_STRUCTURE_DB_PATH",
+        "PROTEIN_DATABASE_PATH",
+    ):
+        monkeypatch.delenv(env_key, raising=False)
+    monkeypatch.setattr(
+        tool_readiness,
+        "get_adapter",
+        lambda tool_id: FakeReadinessAdapter(),
+    )
+
+    payload = tool_readiness.evaluate_tool_readiness(
+        "foldseek",
+        tool_entry={
+            "id": "foldseek",
+            "capabilities": ["structure_similarity_search"],
+            "constraints": {
+                "resource_assumptions": [
+                    "foldseek_installed",
+                    "local_structure_database_ready",
+                ]
+            },
+        },
+    )
+
+    assert payload["status"] == "degraded"
+    assert payload["error_category"] == "database_missing"
+    assert "database" in payload["suggested_recovery"].lower()
+
+
 def test_capability_readiness_matrix_exposes_structured_reasons(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
