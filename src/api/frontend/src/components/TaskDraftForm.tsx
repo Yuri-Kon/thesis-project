@@ -46,6 +46,9 @@ function formatDefault(value: unknown): string {
   if (Array.isArray(value)) {
     return value.length ? value.join(", ") : "empty";
   }
+  if (value && typeof value === "object") {
+    return JSON.stringify(value);
+  }
   return String(value);
 }
 
@@ -59,6 +62,9 @@ function defaultValue(definition: TaskIntakeFieldDefinition): FieldValue {
     }
     if (definition.type === "boolean") {
       return Boolean(definition.default);
+    }
+    if (definition.type === "object") {
+      return JSON.stringify(definition.default, null, 2);
     }
     return String(definition.default);
   }
@@ -101,6 +107,9 @@ function normalizeDraftValue(definition: TaskIntakeFieldDefinition, value: unkno
   if (definition.type === "integer" || definition.type === "number") {
     return value === null || value === undefined || value === "" ? "" : Number(value);
   }
+  if (definition.type === "object") {
+    return value && typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "");
+  }
   return value === null || value === undefined ? "" : String(value);
 }
 
@@ -138,6 +147,17 @@ function collectValue(definition: TaskIntakeFieldDefinition, value: FieldValue):
       return value.map(String).map((item) => item.trim()).filter(Boolean);
     }
     return String(value ?? "").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  }
+  if (definition.type === "object") {
+    const raw = String(value ?? "").trim();
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      return raw;
+    }
   }
   const normalized = String(value ?? "").trim();
   return normalized || null;
@@ -416,6 +436,16 @@ export function TaskDraftForm({
         <textarea
           value={String(value ?? "")}
           rows={definition.type === "protein_sequence" ? 5 : 3}
+          onChange={(event) => setFieldValue(name, event.target.value)}
+        />
+      );
+    }
+
+    if (definition.type === "object") {
+      return (
+        <textarea
+          value={String(value ?? "")}
+          rows={4}
           onChange={(event) => setFieldValue(name, event.target.value)}
         />
       );
