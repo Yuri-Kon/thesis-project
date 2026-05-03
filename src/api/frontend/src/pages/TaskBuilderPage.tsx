@@ -121,7 +121,8 @@ export function TaskBuilderPage({
     setBusy(true);
     setError(null);
     try {
-      setSchema(await apiClient.getTaskIntakeSchema());
+      const nextSchema = await apiClient.getTaskIntakeSchema();
+      setSchema(nextSchema);
     } catch (nextError) {
       setError(apiErrorMessage(nextError));
     } finally {
@@ -304,6 +305,11 @@ export function TaskBuilderPage({
     setError(null);
     try {
       const confirmation = await apiClient.confirmTaskIntake(intake.intake_id, acknowledgedWarnings);
+      if (!confirmation.task_id) {
+        setError(confirmation.scenario_gate?.user_message ?? "Scenario gate kept this intake as draft only.");
+        setIntake(await apiClient.getTaskIntake(intake.intake_id));
+        return;
+      }
       removeDraftId(intake.intake_id);
       setRecentIds(readDraftIds());
       onActiveIntakeChange(null);

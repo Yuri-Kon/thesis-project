@@ -3,6 +3,7 @@ import type {
   DecisionRequest,
   PendingActionDetail,
   PendingActionSummary,
+  ScenarioGateResult,
   TaskIntakeConfirmation,
   TaskIntakeCreateRequest,
   TaskIntakePatchRequest,
@@ -123,5 +124,11 @@ export const apiClient = {
   },
   getCapabilityReadiness(): Promise<CapabilityReadinessEntry[]> {
     return requestJson<CapabilityReadinessEntry[]>("/capabilities/readiness");
+  },
+  getScenarioGatePreview(structuredFields: Record<string, unknown>): Promise<ScenarioGateResult> {
+    const params = new URLSearchParams({
+      structured_fields: JSON.stringify(structuredFields),
+    });
+    return requestJson<ScenarioGateResult>(`/capabilities/scenario-gate/preview?${params.toString()}`);
   },
 };

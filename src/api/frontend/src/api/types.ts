@@ -124,6 +124,14 @@ export interface TaskIntakeTaskProfile {
   optional: string[];
   conditional_required: TaskIntakeConditionalRequiredRule[];
   capability_hints: string[];
+  capability_hint_details?: CapabilityHint[];
+}
+
+export interface CapabilityHint {
+  name: string;
+  required: boolean;
+  io_type?: string;
+  degraded_message?: string;
 }
 
 export interface TaskIntakeFieldDefinition {
@@ -166,14 +174,28 @@ export interface TaskIntakeSchema {
   conditional_required: TaskIntakeConditionalRequiredRule[];
   confirmed_task_spec_mapping: Record<string, string>;
   planner_capability_hints: Record<string, string[]>;
+  planner_capability_hint_details?: Record<string, CapabilityHint[]>;
 }
 
 export interface TaskIntakeConfirmation {
   intake_id: string;
-  task_id: string;
-  status: ExternalStatus;
+  task_id?: string | null;
+  status: ExternalStatus | "draft_only";
   human_summary: string;
   confirmed_task_spec: Record<string, unknown>;
+  scenario_gate?: ScenarioGateResult;
+  needs_confirmation?: boolean;
+}
+
+export interface ScenarioGateResult {
+  status: "allow" | "degraded" | "draft_only" | "reject";
+  support_level: string;
+  blocked_hints: string[];
+  degraded_hints: string[];
+  readiness: Record<string, CapabilityReadinessEntry>;
+  checked_at: string;
+  user_message: string;
+  user_message_zh: string;
 }
 
 export interface PendingAction {

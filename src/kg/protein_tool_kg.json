@@ -63,10 +63,34 @@
       "description": "Estimate structural stability from trajectory or structure-derived proxy metrics."
     },
     {
+      "capability_id": "motif_scaffolding",
+      "name": "Motif Scaffolding",
+      "domain": "protein/design",
+      "description": "Design scaffold candidates that preserve user-provided motif constraints."
+    },
+    {
+      "capability_id": "backbone_generation",
+      "name": "Backbone Generation",
+      "domain": "protein/structure",
+      "description": "Generate protein backbone candidates for downstream sequence design."
+    },
+    {
+      "capability_id": "binding_design",
+      "name": "Binding Design",
+      "domain": "protein/binding",
+      "description": "Design protein candidates targeting an explicit binding partner."
+    },
+    {
       "capability_id": "docking_scoring",
       "name": "Docking Scoring",
       "domain": "protein/docking",
       "description": "Evaluate receptor-ligand binding affinity with docking-based proxy scores."
+    },
+    {
+      "capability_id": "enzyme_design",
+      "name": "Enzyme Design",
+      "domain": "protein/function",
+      "description": "Design enzyme-like candidates around activity and active-site constraints."
     }
   ],
   "io_types": [

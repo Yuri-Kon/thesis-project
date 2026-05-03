@@ -108,6 +108,37 @@ class TestAPIEndpoints:
         assert "degraded_reasons" in objective_entry
         assert "suggested_recovery" in objective_entry
 
+    async def test_scenario_gate_preview_applies_hint_and_tool_filters(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """预览接口应按确认阶段的 io_type 与工具过滤器计算 readiness。"""
+
+        response = await client.get(
+            "/capabilities/scenario-gate/preview",
+            params={
+                "structured_fields": json.dumps(
+                    {
+                        "task_kind": "stability_optimization",
+                        "sequence": "ACDEFGHIKLMNPQRSTVWY",
+                        "tools_allowed": ["esmfold"],
+                    }
+                )
+            },
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["support_level"] == "P1"
+        readiness = data["readiness"]
+        objective_key = "objective_scoring:candidates_to_objective_scores_topk"
+        assert objective_key in readiness
+        objective_entry = readiness[objective_key]
+        assert objective_entry["capability_id"] == "objective_scoring"
+        assert objective_entry["status"] == "unavailable"
+        assert "allowed tool filter" in objective_entry["reason"]
+        assert objective_key in data["blocked_hints"]
+
     async def test_pending_action_detail_exposes_execution_mode(
         self,
         client: httpx.AsyncClient,
@@ -374,12 +405,77 @@ class TestAPIEndpoints:
         assert task["metadata"]["confirmed_task_spec"]["metadata"][
             "planner_capability_hints"
         ] == ["sequence_generation", "structure_prediction"]
+        assert task["metadata"]["scenario_gate"]["status"] == "allow"
+        assert confirmation["scenario_gate"]["status"] == "allow"
 
         events_response = await client.get(f"/tasks/{confirmation['task_id']}/events")
         assert events_response.status_code == 200
         events = events_response.json()
         assert events[0]["event_type"] == "TASK_CREATED_FROM_CONFIRMED_INTAKE"
         assert events[0]["data"]["intake_id"] == intake_id
+        assert events[0]["data"]["scenario_gate"]["status"] == "allow"
+
+    async def test_task_intake_confirm_p1_unavailable_returns_draft_only(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """P1 必需能力不可用时不创建正式 TaskRecord。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "motif_scaffold_design",
+                    "motif_pattern": "RxxE",
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+
+        assert confirm_response.status_code == 200
+        payload = confirm_response.json()
+        assert payload["task_id"] is None
+        assert payload["status"] == "draft_only"
+        assert payload["scenario_gate"]["status"] == "draft_only"
+        assert "motif_scaffolding" in payload["scenario_gate"]["blocked_hints"]
+        assert TASK_STORE == {}
+
+    async def test_task_intake_confirm_p2_unavailable_is_rejected(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """P2 必需能力不可用时返回 422 和 scenario_gate。"""
+
+        create_response = await client.post(
+            "/task-intakes",
+            json={
+                "structured_fields": {
+                    "task_kind": "binding_design",
+                    "objective_type": "stability",
+                },
+                "source": "web",
+            },
+        )
+        assert create_response.status_code == 200
+        intake_id = create_response.json()["intake_id"]
+
+        confirm_response = await client.post(
+            f"/task-intakes/{intake_id}/confirm",
+            json={"confirmed_by": "tester", "acknowledged_warnings": []},
+        )
+
+        assert confirm_response.status_code == 422
+        payload = confirm_response.json()
+        assert payload["scenario_gate"]["status"] == "reject"
+        assert "binding_design" in payload["scenario_gate"]["blocked_hints"]
+        assert TASK_STORE == {}
 
     async def test_task_intake_confirm_missing_fields_returns_stable_error(
         self,
@@ -753,6 +849,46 @@ class TestAPIEndpoints:
         assert task.status == ExternalStatus.CREATED
         assert task.metadata["intake_id"] == intent_draft_id
         assert task.metadata["intent_draft_id"] == intent_draft_id
+        assert task.metadata["scenario_gate"]["status"] == "allow"
+        assert data["scenario_gate"]["status"] == "allow"
+
+    async def test_post_tasks_confirmed_spec_p2_rejected(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """兼容 /tasks confirmed_task_spec 分支也必须执行 scenario gate。"""
+
+        response = await client.post(
+            "/tasks",
+            json={
+                "confirmed_task_spec": {
+                    "goal": "binding_design for stability",
+                    "constraints": {
+                        "task_kind": "binding_design",
+                    },
+                    "metadata": {
+                        "support_level": "P2",
+                        "planner_capability_hints": [
+                            "binding_design",
+                            "docking_scoring",
+                        ],
+                        "planner_capability_hint_details": [
+                            {"name": "binding_design", "required": True},
+                            {
+                                "name": "docking_scoring",
+                                "io_type": "structure_ligand_to_binding_score",
+                                "required": True,
+                            },
+                        ],
+                    },
+                }
+            },
+        )
+
+        assert response.status_code == 422
+        payload = response.json()
+        assert payload["scenario_gate"]["status"] == "reject"
+        assert TASK_STORE == {}
 
     async def test_get_task_endpoint_success(self, client: httpx.AsyncClient):
         """测试获取任务端点成功"""

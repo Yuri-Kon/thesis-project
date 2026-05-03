@@ -1,5 +1,9 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { apiClient, apiErrorMessage } from "../api/client";
 import type {
+  CapabilityHint,
+  CapabilityReadinessEntry,
+  ScenarioGateResult,
   TaskIntakeConditionalRequiredRule,
   TaskIntakeFieldDefinition,
   TaskIntakeSchema,
@@ -201,6 +205,44 @@ function profileForTaskKind(schema: TaskIntakeSchema | null, taskKind: string): 
   return schema?.task_profiles[taskKind] ?? null;
 }
 
+function profileCapabilityHints(profile: TaskIntakeTaskProfile): CapabilityHint[] {
+  if (profile.capability_hint_details?.length) {
+    return profile.capability_hint_details;
+  }
+  return profile.capability_hints.map((name) => ({ name, required: true }));
+}
+
+function hintKey(hint: CapabilityHint): string {
+  return hint.io_type ? `${hint.name}:${hint.io_type}` : hint.name;
+}
+
+function readinessForHint(preview: ScenarioGateResult | null, hint: CapabilityHint): CapabilityReadinessEntry | null {
+  return preview?.readiness[hintKey(hint)] ?? null;
+}
+
+function CapabilityStatusBadge({
+  hint,
+  readiness,
+  unavailableReason,
+}: {
+  hint: CapabilityHint;
+  readiness: CapabilityReadinessEntry | null;
+  unavailableReason?: string;
+}) {
+  const status = readiness?.status ?? "unavailable";
+  const reason = readiness?.reason ?? unavailableReason ?? hint.degraded_message ?? "capability readiness is unavailable";
+  return (
+    <span className={`capability-status capability-${status}`} title={reason}>
+      <strong>{hint.name}</strong>
+      <small>
+        {status}
+        {hint.required ? " · required" : " · optional"}
+        {hint.io_type ? ` · ${hint.io_type}` : ""}
+      </small>
+    </span>
+  );
+}
+
 export function TaskDraftForm({
   schema,
   intake,
@@ -211,6 +253,8 @@ export function TaskDraftForm({
   onPatch,
 }: TaskDraftFormProps) {
   const [fieldValues, setFieldValues] = useState<Record<string, FieldValue>>({});
+  const [scenarioGatePreview, setScenarioGatePreview] = useState<ScenarioGateResult | null>(null);
+  const [scenarioGatePreviewError, setScenarioGatePreviewError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!schema) {
@@ -252,6 +296,7 @@ export function TaskDraftForm({
     }
     return fields;
   }, [fieldValues, schema]);
+  const structuredFieldsJson = useMemo(() => JSON.stringify(structuredFields), [structuredFields]);
   const taskKind = useMemo(() => currentTaskKind(schema, fieldValues), [fieldValues, schema]);
   const activeProfile = useMemo(() => profileForTaskKind(schema, taskKind), [schema, taskKind]);
   const activeConditionalRules = useMemo(() => {
@@ -262,10 +307,44 @@ export function TaskDraftForm({
   }, [activeProfile, fieldValues, schema]);
   const requiredFields = useMemo(() => new Set(activeProfile?.required ?? []), [activeProfile]);
   const optionalFields = useMemo(() => new Set(activeProfile?.optional ?? []), [activeProfile]);
+  const activeCapabilityHints = useMemo(
+    () => (activeProfile ? profileCapabilityHints(activeProfile) : []),
+    [activeProfile],
+  );
   const conditionalFields = useMemo(
     () => new Set(activeConditionalRules.flatMap((rule) => rule.required)),
     [activeConditionalRules],
   );
+
+  useEffect(() => {
+    if (!schema) {
+      setScenarioGatePreview(null);
+      setScenarioGatePreviewError(null);
+      return;
+    }
+    let cancelled = false;
+    const timeout = window.setTimeout(() => {
+      const fields = JSON.parse(structuredFieldsJson) as Record<string, unknown>;
+      apiClient
+        .getScenarioGatePreview(fields)
+        .then((preview) => {
+          if (!cancelled) {
+            setScenarioGatePreview(preview);
+            setScenarioGatePreviewError(null);
+          }
+        })
+        .catch((error: unknown) => {
+          if (!cancelled) {
+            setScenarioGatePreview(null);
+            setScenarioGatePreviewError(apiErrorMessage(error));
+          }
+        });
+    }, 150);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [schema, structuredFieldsJson]);
 
   function setFieldValue(name: string, value: FieldValue) {
     setFieldValues((current) => ({ ...current, [name]: value }));
@@ -508,7 +587,18 @@ export function TaskDraftForm({
               </div>
               <div>
                 <strong>Capabilities</strong>
-                <span>{activeProfile.capability_hints.join(", ") || "none"}</span>
+                <span className="capability-status-list">
+                  {activeCapabilityHints.length
+                    ? activeCapabilityHints.map((hint) => (
+                        <CapabilityStatusBadge
+                          key={`${hint.name}:${hint.io_type ?? ""}`}
+                          hint={hint}
+                          readiness={readinessForHint(scenarioGatePreview, hint)}
+                          unavailableReason={scenarioGatePreviewError ?? undefined}
+                        />
+                      ))
+                    : "none"}
+                </span>
               </div>
             </div>
           </div>
