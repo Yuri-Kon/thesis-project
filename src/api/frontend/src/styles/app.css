@@ -1363,6 +1363,37 @@ pre {
   margin-top: 8px;
 }
 
+.inspector-profile-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.inspector-profile-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.inspector-profile-grid {
+  display: grid;
+  gap: 4px 8px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 0;
+}
+
+.inspector-profile-grid dt {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.inspector-profile-grid dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .clarification-grid {
   display: grid;
   gap: 12px;

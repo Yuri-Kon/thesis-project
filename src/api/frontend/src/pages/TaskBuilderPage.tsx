@@ -70,6 +70,17 @@ function supportLabel(supportLevel?: string): string {
   return supportLevel ?? "unknown";
 }
 
+function profileListLabel(values: string[]): string {
+  return values.length ? values.join(", ") : "none";
+}
+
+function optionalProfileListLabel(values: string[]): string {
+  const visibleValues = values.slice(0, 4);
+  const hiddenCount = values.length - visibleValues.length;
+  const label = profileListLabel(visibleValues);
+  return hiddenCount > 0 ? `${label} (+${hiddenCount} more)` : label;
+}
+
 function selectedTaskKind(intake: TaskIntakeSession | null): string | null {
   const value = intake?.draft.fields.task_kind?.value;
   return typeof value === "string" ? value : null;
@@ -348,7 +359,28 @@ export function TaskBuilderPage({
             <dt>Unmapped</dt>
             <dd>{intake?.unmapped_text.length ?? 0}</dd>
             <dt>Profile</dt>
-            <dd>{taskKind ? `${taskKind} · ${supportLabel(taskProfile?.support_level)}` : "not selected"}</dd>
+            <dd>
+              {taskProfile ? (
+                <div className="inspector-profile-summary">
+                  <div className="inspector-profile-head">
+                    {taskKind ? <span className="source-chip">{taskKind.replace(/_/g, " ")}</span> : null}
+                    <span className={`source-chip support-chip support-${taskProfile.support_level.toLowerCase()}`}>
+                      {supportLabel(taskProfile.support_level)}
+                    </span>
+                  </div>
+                  <dl className="inspector-profile-grid">
+                    <dt>Required</dt>
+                    <dd>{profileListLabel(taskProfile.required)}</dd>
+                    <dt>Optional</dt>
+                    <dd>{optionalProfileListLabel(taskProfile.optional)}</dd>
+                    <dt>Capabilities</dt>
+                    <dd>{profileListLabel(taskProfile.capability_hints)}</dd>
+                  </dl>
+                </div>
+              ) : (
+                "not selected"
+              )}
+            </dd>
             <dt>Confirmable</dt>
             <dd>{canConfirm ? "yes" : "no"}</dd>
           </dl>
