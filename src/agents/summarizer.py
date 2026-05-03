@@ -46,6 +46,7 @@ class SuccessReport(BaseModel):
     component_scores: Dict[str, Any] = Field(default_factory=dict)
     objective_warnings: List[str] = Field(default_factory=list)
     evidence_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    posterior_score: Dict[str, Any] = Field(default_factory=dict)
     rank_reason: Optional[str] = None
     structure_similarity: Dict[str, Any] = Field(default_factory=dict)
 
@@ -304,10 +305,15 @@ def _extract_objective_scoring_summary(context: WorkflowContext) -> dict[str, An
         "score_table": outputs.get("score_table") or [],
         "top_k": outputs.get("top_k") or [],
         "component_scores": outputs.get("component_scores") or {},
+        "posterior_score": outputs.get("posterior_score") or {},
+        "posterior_scores": outputs.get("posterior_scores") or {},
+        "aggregate_score": outputs.get("aggregate_score"),
+        "component_weights": outputs.get("component_weights") or {},
         "warnings": outputs.get("warnings") or [],
         "evidence_refs": outputs.get("evidence_refs") or [],
         "rank_reason": outputs.get("rank_reason"),
         "default_recommendation": outputs.get("default_recommendation"),
+        "evidence_sufficiency": metrics.get("evidence_sufficiency"),
     }
 
 
@@ -599,6 +605,7 @@ def _build_success_report(context: WorkflowContext) -> SuccessReport:
         component_scores=objective_scoring.get("component_scores") or {},
         objective_warnings=objective_scoring.get("warnings") or [],
         evidence_refs=objective_scoring.get("evidence_refs") or [],
+        posterior_score=objective_scoring.get("posterior_score") or {},
         rank_reason=objective_scoring.get("rank_reason"),
         structure_similarity=structure_similarity,
     )
@@ -806,6 +813,13 @@ def _render_de_novo_markdown(report: DeNovoReport) -> str:
             lines.append("")
             if sr.objective_score is not None:
                 lines.append(f"- **综合目标分**: {sr.objective_score:.3f}")
+            if sr.posterior_score:
+                evidence_status = sr.posterior_score.get("evidence_status") or "-"
+                evidence_sufficiency = sr.posterior_score.get("evidence_sufficiency")
+                if isinstance(evidence_sufficiency, (int, float)):
+                    lines.append(
+                        f"- **证据充分度**: {evidence_sufficiency:.3f} ({evidence_status})"
+                    )
             if sr.rank_reason:
                 lines.append(f"- **排序理由**: {sr.rank_reason}")
             if sr.objective_warnings:

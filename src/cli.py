@@ -946,16 +946,40 @@ def _print_report(report: dict[str, Any] | list[dict[str, Any]]) -> None:
         else {}
     )
     print(f"rank_reason: {objective.get('rank_reason') or '-'}")
+    posterior = (
+        objective.get("posterior_score")
+        if isinstance(objective.get("posterior_score"), dict)
+        else {}
+    )
+    if posterior:
+        print(
+            "posterior_score: "
+            f"aggregate={posterior.get('aggregate_score', '-')} "
+            f"evidence={posterior.get('evidence_status', '-')} "
+            f"evidence_sufficiency={posterior.get('evidence_sufficiency', '-')}"
+        )
+        weights = posterior.get("component_weights")
+        if isinstance(weights, dict):
+            print(
+                "component_weights: "
+                f"{json.dumps(weights, ensure_ascii=False, sort_keys=True)}"
+            )
     warnings = objective.get("warnings") if isinstance(objective.get("warnings"), list) else []
     print(f"warnings: {len(warnings)}")
     for row in objective.get("top_k") or []:
         if not isinstance(row, dict):
             continue
+        row_posterior = (
+            row.get("posterior_score")
+            if isinstance(row.get("posterior_score"), dict)
+            else {}
+        )
         print(
             "candidate: "
             f"{row.get('candidate_id') or row.get('id')} "
             f"rank={row.get('top_k_rank') or '-'} "
-            f"score={row.get('objective_score', '-')}"
+            f"score={row.get('objective_score', '-')} "
+            f"evidence={row_posterior.get('evidence_status', '-')}"
         )
     _print_structure_similarity_summary(report.get("structure_similarity"))
 

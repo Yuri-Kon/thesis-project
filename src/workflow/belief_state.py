@@ -114,6 +114,13 @@ def update_runtime_state(
                 if progress is not None:
                     p_success += 0.04 * _clamp_unit_interval(progress)
                     evidence_sufficiency += 0.03 * _clamp_unit_interval(progress)
+                objective_evidence = _as_float(
+                    objective_signal.get("objective_evidence_sufficiency")
+                )
+                if objective_evidence is not None:
+                    evidence_sufficiency += 0.05 * _clamp_unit_interval(
+                        objective_evidence
+                    )
                 if gap is not None:
                     recovery_margin += 0.02 * _clamp_unit_interval(gap)
             structure_similarity_signal = _extract_structure_similarity_signal(step_result)
@@ -506,8 +513,8 @@ def _is_structural_step(*, stage_id: str | None, tool_id: str) -> bool:
 
 
 def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
-    metrics = step_result.metrics if isinstance(step_result.metrics, dict) else {}
-    outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+    metrics = step_result.metrics
+    outputs = step_result.outputs
     capability_id = _as_non_empty_text(outputs.get("capability_id"))
     tool_key = step_result.tool.strip().lower()
     if capability_id != "objective_scoring" and tool_key != "objective_ranker":
@@ -520,6 +527,11 @@ def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
     top_candidate_id = _as_non_empty_text(metrics.get("top_candidate_id"))
     if top_candidate_id is None:
         top_candidate_id = _as_non_empty_text(outputs.get("default_recommendation"))
+    objective_evidence = _as_float(metrics.get("evidence_sufficiency"))
+    if objective_evidence is None:
+        posterior_score = outputs.get("posterior_score")
+        if isinstance(posterior_score, dict):
+            objective_evidence = _as_float(posterior_score.get("evidence_sufficiency"))
 
     payload: dict[str, Any] = {
         "objective_progress": (
@@ -530,6 +542,11 @@ def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
         "objective_gap": _round_metric(max(gap, 0.0)) if gap is not None else None,
         "objective_top_candidate_id": top_candidate_id,
         "objective_warning_count": metrics.get("warning_count"),
+        "objective_evidence_sufficiency": (
+            _round_metric(_clamp_unit_interval(objective_evidence))
+            if objective_evidence is not None
+            else None
+        ),
     }
     return _drop_none_values(payload)
 

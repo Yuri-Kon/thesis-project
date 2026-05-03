@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from time import perf_counter
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Literal, Tuple, override
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.adapters.tool_schema_utils import (
@@ -15,24 +15,86 @@ from src.workflow.errors import FailureCode, FailureType, StepRunError
 
 __all__ = ["ObjectiveRankerAdapter"]
 
-_DEFAULT_WEIGHTS = {
-    "quality": 0.35,
-    "novelty": 0.2,
+_POSTERIOR_SCORE_SCHEMA_VERSION = "posterior_score.v1"
+_POSTERIOR_COMPONENTS = (
+    "generic_objective",
+    "stability",
+    "function",
+    "novelty",
+    "structure_quality",
+)
+_DEFAULT_WEIGHTS: dict[str, float] = {
+    "generic_objective": 0.1,
     "stability": 0.2,
     "function": 0.15,
-    "docking": 0.1,
+    "novelty": 0.2,
+    "structure_quality": 0.35,
 }
+_OBJECTIVE_TYPE_WEIGHT_PRESETS: dict[str, dict[str, float]] = {
+    "stability": {
+        "stability": 0.45,
+        "structure_quality": 0.25,
+        "novelty": 0.15,
+        "function": 0.05,
+        "generic_objective": 0.10,
+    },
+    "structure": {
+        "structure_quality": 0.45,
+        "stability": 0.25,
+        "novelty": 0.15,
+        "function": 0.05,
+        "generic_objective": 0.10,
+    },
+    "structure_quality": {
+        "structure_quality": 0.45,
+        "stability": 0.25,
+        "novelty": 0.15,
+        "function": 0.05,
+        "generic_objective": 0.10,
+    },
+    "function": {
+        "function": 0.45,
+        "structure_quality": 0.20,
+        "stability": 0.15,
+        "novelty": 0.10,
+        "generic_objective": 0.10,
+    },
+    "activity": {
+        "function": 0.40,
+        "generic_objective": 0.20,
+        "structure_quality": 0.20,
+        "stability": 0.10,
+        "novelty": 0.10,
+    },
+    "binding": {
+        "generic_objective": 0.35,
+        "function": 0.20,
+        "structure_quality": 0.20,
+        "stability": 0.15,
+        "novelty": 0.10,
+    },
+}
+_WEIGHT_ALIASES = {
+    "quality": "structure_quality",
+    "docking": "generic_objective",
+    "goal_fit": "generic_objective",
+    "custom_score": "generic_objective",
+    "objective": "generic_objective",
+}
+EvidenceStatus = Literal["direct", "proxy", "degraded"]
 
 
 class ObjectiveRankerAdapter(BaseToolAdapter):
     """对候选进行规则化目标评分。"""
 
-    tool_id = "objective_ranker"
-    adapter_id = "objective_ranker"
+    tool_id: str = "objective_ranker"
+    adapter_id: str | None = "objective_ranker"
 
+    @override
     def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> Dict[str, Any]:
         return resolve_step_inputs(step, context, required_keys=("candidates",))
 
+    @override
     def run_local(self, inputs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         candidates = inputs.get("candidates")
         if not isinstance(candidates, list) or not candidates:
@@ -43,13 +105,15 @@ class ObjectiveRankerAdapter(BaseToolAdapter):
             )
 
         t0 = perf_counter()
-        weights = _resolve_weights(inputs.get("objective_weights"))
+        objective_type, raw_weights = _extract_objective_config(inputs)
+        weights = _resolve_weights(raw_weights, objective_type=objective_type)
         shared_context = _extract_shared_context(inputs)
         scored_candidates = [
             _score_candidate(
                 _merge_candidate_context(candidate, shared_context),
                 index=index,
                 weights=weights,
+                objective_type=objective_type,
             )
             for index, candidate in enumerate(candidates, start=1)
         ]
@@ -88,30 +152,72 @@ class ObjectiveRankerAdapter(BaseToolAdapter):
         )
         metrics["duration_ms"] = int((perf_counter() - t0) * 1000)
         metrics["weights"] = weights
+        metrics["component_weights"] = weights
+        if objective_type is not None:
+            metrics["objective_type"] = objective_type
         metrics["objective_progress"] = outputs.get("objective_score")
         metrics["objective_gap"] = _objective_gap(scored_candidates)
         metrics["warning_count"] = len(outputs.get("warnings") or [])
+        top_posterior = outputs.get("posterior_score")
+        if isinstance(top_posterior, dict):
+            metrics["evidence_sufficiency"] = top_posterior.get("evidence_sufficiency")
         if default_recommendation:
             metrics["top_candidate_id"] = default_recommendation
         return outputs, metrics
 
 
-def _resolve_weights(raw: Any) -> Dict[str, float]:
-    if not isinstance(raw, dict):
-        return dict(_DEFAULT_WEIGHTS)
+def _extract_objective_config(inputs: Dict[str, Any]) -> tuple[str | None, Any]:
+    task_constraints = inputs.get("task_constraints")
+    objective: Any = None
+    if isinstance(task_constraints, dict):
+        objective = task_constraints.get("objective")
+    if not isinstance(objective, dict):
+        objective = inputs.get("objective")
+    if not isinstance(objective, dict):
+        objective = {}
 
-    resolved = dict(_DEFAULT_WEIGHTS)
+    objective_type = _normalize_objective_type(
+        inputs.get("objective_type") or objective.get("objective_type")
+    )
+    raw_weights = inputs.get("objective_weights")
+    if raw_weights is None:
+        raw_weights = objective.get("objective_weights")
+    return objective_type, raw_weights
+
+
+def _normalize_objective_type(raw: Any) -> str | None:
+    if isinstance(raw, str) and raw.strip():
+        return _normalize_weight_key(raw)
+    if isinstance(raw, list):
+        for item in raw:
+            if isinstance(item, str) and item.strip():
+                return _normalize_weight_key(item)
+    return None
+
+
+def _normalize_weight_key(raw: str) -> str:
+    key = raw.strip().lower()
+    return _WEIGHT_ALIASES.get(key, key)
+
+
+def _resolve_weights(raw: Any, *, objective_type: str | None = None) -> Dict[str, float]:
+    base = _OBJECTIVE_TYPE_WEIGHT_PRESETS.get(objective_type or "", _DEFAULT_WEIGHTS)
+    if not isinstance(raw, dict):
+        return dict(base)
+
+    resolved = {key: 0.0 for key in _POSTERIOR_COMPONENTS}
     for key, value in raw.items():
-        if key not in resolved:
+        normalized_key = _normalize_weight_key(str(key))
+        if normalized_key not in resolved:
             continue
         try:
-            resolved[key] = max(0.0, float(value))
+            resolved[normalized_key] = max(0.0, float(value))
         except (TypeError, ValueError):
             continue
 
     total = sum(resolved.values())
     if total <= 0:
-        return dict(_DEFAULT_WEIGHTS)
+        return dict(base)
     return {
         key: round(value / total, 6)
         for key, value in resolved.items()
@@ -155,6 +261,7 @@ def _score_candidate(
     *,
     index: int,
     weights: Dict[str, float],
+    objective_type: str | None,
 ) -> Dict[str, Any]:
     row = candidate if isinstance(candidate, dict) else {}
     candidate_id = str(
@@ -163,24 +270,45 @@ def _score_candidate(
         or f"candidate_{index}"
     )
 
-    quality = _quality_score(row)
-    novelty = _novelty_score(row)
-    stability = _stability_score(row)
-    function = _function_score(row)
+    structure_quality = _structure_quality_component(row)
+    novelty = _novelty_component(row)
+    stability = _stability_component(row)
+    function = _function_component(row)
+    generic_objective = _generic_objective_component(row)
     docking = _docking_score(row)
-    score_breakdown = {
-        "quality": quality,
-        "novelty": novelty,
+    posterior_components = {
+        "generic_objective": generic_objective,
         "stability": stability,
         "function": function,
+        "novelty": novelty,
+        "structure_quality": structure_quality,
+    }
+    score_breakdown = {
+        "quality": _component_effective_score(structure_quality),
+        "structure_quality": _component_effective_score(structure_quality),
+        "novelty": _component_effective_score(novelty),
+        "stability": _component_effective_score(stability),
+        "function": _component_effective_score(function),
+        "generic_objective": _component_effective_score(generic_objective),
         "docking": docking,
     }
     objective_score = round(
-        sum(score_breakdown[key] * weights[key] for key in score_breakdown),
+        sum(
+            _component_effective_score(posterior_components[key]) * weights[key]
+            for key in _POSTERIOR_COMPONENTS
+        ),
         6,
     )
     warnings = _candidate_warnings(row)
     evidence_refs = _candidate_evidence_refs(row, candidate_id)
+    posterior_score = _build_posterior_score(
+        aggregate_score=objective_score,
+        objective_type=objective_type,
+        components=posterior_components,
+        component_weights=weights,
+        evidence_refs=evidence_refs,
+        warnings=warnings,
+    )
     rank_reason = _rank_reason(
         candidate_id=candidate_id,
         objective_score=objective_score,
@@ -192,17 +320,202 @@ def _score_candidate(
         **row,
         "candidate_id": candidate_id,
         "objective_score": objective_score,
+        "aggregate_score": objective_score,
+        "posterior_score": posterior_score,
         "score_breakdown": score_breakdown,
         "component_scores": score_breakdown,
         "top_k_rank": index,
         "objective_explanation": (
-            f"quality={quality:.3f}, novelty={novelty:.3f}, stability={stability:.3f}, "
-            f"function={function:.3f}, docking={docking:.3f}"
+            f"structure_quality={score_breakdown['structure_quality']:.3f}, "
+            f"novelty={score_breakdown['novelty']:.3f}, "
+            f"stability={score_breakdown['stability']:.3f}, "
+            f"function={score_breakdown['function']:.3f}, "
+            f"generic_objective={score_breakdown['generic_objective']:.3f}"
         ),
         "rank_reason": rank_reason,
         "warnings": warnings,
         "evidence_refs": evidence_refs,
     }
+
+
+def _component_effective_score(component: Dict[str, Any]) -> float:
+    score = _as_float(component.get("score"))
+    if score is not None:
+        return score
+    proxy_score = _as_float(component.get("proxy_score"))
+    if proxy_score is not None:
+        return proxy_score
+    return 0.5
+
+
+def _make_component(
+    *,
+    score: float | None,
+    proxy_score: float | None,
+    evidence_status: EvidenceStatus,
+    source_fields: list[str],
+    warning: str | None = None,
+) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {
+        "score": score,
+        "proxy_score": proxy_score,
+        "effective_score": score if score is not None else proxy_score if proxy_score is not None else 0.5,
+        "evidence_status": evidence_status,
+        "source_fields": source_fields,
+    }
+    if warning:
+        payload["warning"] = warning
+    return payload
+
+
+def _structure_quality_component(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    score = _quality_score(candidate)
+    fields = _present_fields(candidate, ("plddt", "metrics", "qc_metrics", "pass_fail"))
+    if fields:
+        return _make_component(
+            score=score,
+            proxy_score=None,
+            evidence_status="direct",
+            source_fields=fields,
+        )
+    return _make_component(
+        score=None,
+        proxy_score=score,
+        evidence_status="degraded",
+        source_fields=[],
+        warning="structure_quality uses degraded evidence because pLDDT/QC metrics are missing",
+    )
+
+
+def _novelty_component(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    score = _novelty_score(candidate)
+    fields = _present_fields(candidate, ("similarity_hits", "structure_similarity_hits", "top_hit"))
+    if fields:
+        return _make_component(
+            score=score,
+            proxy_score=None,
+            evidence_status="direct",
+            source_fields=fields,
+        )
+    return _make_component(
+        score=None,
+        proxy_score=score,
+        evidence_status="degraded",
+        source_fields=[],
+        warning="novelty uses degraded evidence because similarity hits are missing",
+    )
+
+
+def _stability_component(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    score = _stability_score(candidate)
+    if isinstance(candidate.get("stability_metrics"), dict):
+        return _make_component(
+            score=score,
+            proxy_score=None,
+            evidence_status="direct",
+            source_fields=["stability_metrics"],
+        )
+    fields = _present_fields(candidate, ("secondary_structure_summary",))
+    return _make_component(
+        score=None,
+        proxy_score=score,
+        evidence_status="degraded",
+        source_fields=fields,
+        warning="stability uses degraded evidence because stability simulation metrics are missing",
+    )
+
+
+def _function_component(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    score = _function_score(candidate)
+    fields = _present_fields(candidate, ("annotation_summary", "function_terms"))
+    if fields:
+        return _make_component(
+            score=score,
+            proxy_score=None,
+            evidence_status="direct",
+            source_fields=fields,
+        )
+    return _make_component(
+        score=None,
+        proxy_score=score,
+        evidence_status="degraded",
+        source_fields=[],
+        warning="function uses degraded evidence because annotation evidence is missing",
+    )
+
+
+def _generic_objective_component(candidate: Dict[str, Any]) -> Dict[str, Any]:
+    for field_name in ("generic_objective_score", "goal_fit_score", "custom_score"):
+        score = _as_float(candidate.get(field_name))
+        if score is not None:
+            return _make_component(
+                score=round(min(max(score, 0.0), 1.0), 6),
+                proxy_score=None,
+                evidence_status="direct",
+                source_fields=[field_name],
+            )
+    docking_score = _docking_score(candidate)
+    fields = _present_fields(candidate, ("binding_score", "best_pose"))
+    if fields:
+        return _make_component(
+            score=None,
+            proxy_score=docking_score,
+            evidence_status="proxy",
+            source_fields=fields,
+            warning="generic_objective uses binding proxy evidence",
+        )
+    return _make_component(
+        score=None,
+        proxy_score=0.5,
+        evidence_status="degraded",
+        source_fields=[],
+        warning="generic_objective uses degraded evidence because explicit objective evidence is missing",
+    )
+
+
+def _build_posterior_score(
+    *,
+    aggregate_score: float,
+    objective_type: str | None,
+    components: Dict[str, Dict[str, Any]],
+    component_weights: Dict[str, float],
+    evidence_refs: list[Dict[str, Any]],
+    warnings: list[str],
+) -> Dict[str, Any]:
+    direct_weight = sum(
+        component_weights[key]
+        for key in _POSTERIOR_COMPONENTS
+        if components[key].get("evidence_status") == "direct"
+    )
+    proxy_weight = sum(
+        component_weights[key]
+        for key in _POSTERIOR_COMPONENTS
+        if components[key].get("evidence_status") == "proxy"
+    )
+    posterior_warnings = list(warnings)
+    for component in components.values():
+        warning = component.get("warning")
+        if isinstance(warning, str) and warning not in posterior_warnings:
+            posterior_warnings.append(warning)
+    payload: Dict[str, Any] = {
+        "schema_version": _POSTERIOR_SCORE_SCHEMA_VERSION,
+        "objective_type": objective_type,
+        "generic_objective": components["generic_objective"],
+        "stability": components["stability"],
+        "function": components["function"],
+        "novelty": components["novelty"],
+        "structure_quality": components["structure_quality"],
+        "aggregate_score": aggregate_score,
+        "component_weights": dict(component_weights),
+        "evidence_refs": list(evidence_refs),
+        "warnings": posterior_warnings,
+        "evidence_sufficiency": round(min(direct_weight + (0.5 * proxy_weight), 1.0), 6),
+    }
+    if posterior_warnings:
+        payload["evidence_status"] = "degraded" if direct_weight < 0.8 else "partial"
+    else:
+        payload["evidence_status"] = "direct"
+    return payload
 
 
 def _quality_score(candidate: Dict[str, Any]) -> float:
@@ -316,24 +629,24 @@ def _candidate_warnings(candidate: Dict[str, Any]) -> list[str]:
     if _as_float(candidate.get("plddt")) is None and _as_float(
         _deep_get(candidate, "metrics", "plddt_mean")
     ) is None and qc_plddt is None:
-        warnings.append("quality uses neutral proxy because pLDDT is missing")
+        warnings.append("structure_quality uses degraded evidence because pLDDT/QC metrics are missing")
     if _extract_novelty_similarity(candidate) is None:
-        warnings.append("novelty uses neutral proxy because similarity hits are missing")
+        warnings.append("novelty uses degraded evidence because similarity hits are missing")
     if not isinstance(candidate.get("stability_metrics"), dict) and not isinstance(
         candidate.get("secondary_structure_summary"),
         dict,
     ):
-        warnings.append("stability uses neutral proxy because stability metrics are missing")
+        warnings.append("stability uses degraded evidence because stability simulation metrics are missing")
     if not isinstance(candidate.get("annotation_summary"), dict) and not isinstance(
         candidate.get("function_terms"),
         list,
     ):
-        warnings.append("function uses neutral proxy because annotation evidence is missing")
+        warnings.append("function uses degraded evidence because annotation evidence is missing")
     if _as_float(candidate.get("binding_score")) is None and not isinstance(
         candidate.get("best_pose"),
         dict,
     ):
-        warnings.append("docking uses neutral proxy because binding evidence is missing")
+        warnings.append("generic_objective uses degraded evidence because explicit objective evidence is missing")
     return warnings
 
 
@@ -343,14 +656,14 @@ def _candidate_evidence_refs(
 ) -> list[Dict[str, Any]]:
     refs: list[Dict[str, Any]] = []
     field_groups = {
-        "quality": ("plddt", "metrics", "qc_metrics", "pass_fail"),
+        "structure_quality": ("plddt", "metrics", "qc_metrics", "pass_fail"),
         "novelty": ("similarity_hits", "structure_similarity_hits", "top_hit"),
         "stability": ("stability_metrics", "secondary_structure_summary"),
         "function": ("annotation_summary", "function_terms"),
-        "docking": ("binding_score", "best_pose"),
+        "generic_objective": ("generic_objective_score", "goal_fit_score", "custom_score", "binding_score", "best_pose"),
     }
     for component, fields in field_groups.items():
-        present_fields = [field for field in fields if candidate.get(field) is not None]
+        present_fields = _present_fields(candidate, fields)
         if present_fields:
             refs.append(
                 {
@@ -360,6 +673,10 @@ def _candidate_evidence_refs(
                 }
             )
     return refs
+
+
+def _present_fields(candidate: Dict[str, Any], fields: tuple[str, ...]) -> list[str]:
+    return [field for field in fields if candidate.get(field) is not None]
 
 
 def _rank_reason(

@@ -215,6 +215,45 @@ def test_objective_ranker_uses_structure_similarity_for_novelty() -> None:
     assert scores["novel_fold"]["novelty"] > scores["known_fold"]["novelty"]
 
 
+def test_objective_ranker_emits_posterior_score_schema_and_degraded_evidence() -> None:
+    adapter = ObjectiveRankerAdapter()
+
+    outputs, metrics = adapter.run_local(
+        {
+            "task_constraints": {
+                "objective": {
+                    "objective_type": "stability",
+                    "objective_weights": {
+                        "stability": 0.7,
+                        "structure_quality": 0.3,
+                    },
+                }
+            },
+            "candidates": [
+                {
+                    "candidate_id": "cand_degraded",
+                    "plddt": 80.0,
+                }
+            ],
+        }
+    )
+
+    top_k = cast(list[dict[str, object]], outputs["top_k"])
+    posterior = cast(dict[str, object], top_k[0]["posterior_score"])
+    stability = cast(dict[str, object], posterior["stability"])
+    weights = cast(dict[str, float], posterior["component_weights"])
+
+    assert posterior["schema_version"] == "posterior_score.v1"
+    assert posterior["objective_type"] == "stability"
+    assert posterior["aggregate_score"] == outputs["objective_score"]
+    assert stability["score"] is None
+    assert stability["evidence_status"] == "degraded"
+    assert weights["stability"] == 0.7
+    assert weights["structure_quality"] == 0.3
+    assert metrics["evidence_sufficiency"] == posterior["evidence_sufficiency"]
+    assert "posterior_scores" in outputs
+
+
 def test_foldseek_adapter_uses_api_by_default_and_emits_structure_similarity_schema(
     tmp_path: Path,
 ) -> None:

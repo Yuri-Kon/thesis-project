@@ -133,6 +133,13 @@ class TestSummarizerAgent:
                 "score_table": [{"candidate_id": "cand_a", "objective_score": 0.82}],
                 "top_k": [{"candidate_id": "cand_a", "objective_score": 0.82}],
                 "component_scores": {"cand_a": {"quality": 0.9}},
+                "posterior_score": {
+                    "schema_version": "posterior_score.v1",
+                    "aggregate_score": 0.82,
+                    "evidence_status": "partial",
+                    "evidence_sufficiency": 0.7,
+                    "component_weights": {"structure_quality": 1.0},
+                },
                 "warnings": ["docking uses neutral proxy because binding evidence is missing"],
                 "evidence_refs": [
                     {
@@ -158,6 +165,8 @@ class TestSummarizerAgent:
         objective = result.metadata["objective_scoring"]
         assert objective["top_k"][0]["candidate_id"] == "cand_a"
         assert objective["component_scores"]["cand_a"]["quality"] == 0.9
+        assert objective["posterior_score"]["schema_version"] == "posterior_score.v1"
+        assert objective["evidence_sufficiency"] is None
         assert objective["warnings"]
 
     def test_summarizer_includes_structure_similarity_report_fields(
