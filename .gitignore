@@ -101,29 +101,6 @@ nf/work/
 nf/.nextflow/
 
 # 13. 不需要上传到dev的文件
-docs/
-!docs/
-docs/*
-!docs/assets/
-docs/assets/*
-!docs/assets/readme/
-docs/assets/readme/*
-!docs/assets/readme/*.svg
-!docs/algorithm-and-llm/
-docs/algorithm-and-llm/*
-!docs/algorithm-and-llm/requirement2-similarity-secondary-structure-tools.md
-!docs/evidence/
-docs/evidence/*
-!docs/evidence/issue-233-action-runtime-audit-output-evidence.md
-!docs/evidence/issue-224/
-!docs/evidence/issue-224/**
-!docs/evidence/issue-225/
-!docs/evidence/issue-225/**
-!docs/evidence/*-design.md
-!docs/evidence/*-plan.md
-!docs/superpowers/
-!docs/superpowers/**
-plan/
 shared/
 drafts/
 .idea/
