@@ -1817,7 +1817,15 @@ pre {
 .inspector-card__header {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.inspector-card__header-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .inspector-card__title {

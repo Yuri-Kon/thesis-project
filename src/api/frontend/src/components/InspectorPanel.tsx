@@ -332,41 +332,43 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
               >
                 <div className="inspector-card__header">
                   <h2 className="inspector-card__title">{card.title}</h2>
-                  {card.statusBadge}
-                  {showControls ? (
-                    <>
-                      <button
-                        type="button"
-                        className="inspector-card__move"
-                        aria-label={`Move ${card.title} up`}
-                        disabled={index === 0}
-                        onClick={() => moveCard(index, index - 1)}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="inspector-card__move"
-                        aria-label={`Move ${card.title} down`}
-                        disabled={index === order.length - 1}
-                        onClick={() => moveCard(index, index + 1)}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="drag-handle"
-                        aria-label={`Reorder ${card.title}`}
-                        aria-describedby="inspector-reorder-help"
-                        onPointerDown={handlePointerDown}
-                        onPointerMove={handlePointerMove}
-                        onPointerUp={handlePointerUp}
-                        onPointerCancel={handlePointerCancel}
-                      >
-                        ↕
-                      </button>
-                    </>
-                  ) : null}
+                  <div className="inspector-card__header-actions">
+                    {card.statusBadge}
+                    {showControls ? (
+                      <>
+                        <button
+                          type="button"
+                          className="inspector-card__move"
+                          aria-label={`Move ${card.title} up`}
+                          disabled={index === 0}
+                          onClick={() => moveCard(index, index - 1)}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="inspector-card__move"
+                          aria-label={`Move ${card.title} down`}
+                          disabled={index === order.length - 1}
+                          onClick={() => moveCard(index, index + 1)}
+                        >
+                          ↓
+                        </button>
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          aria-label={`Reorder ${card.title}`}
+                          aria-describedby="inspector-reorder-help"
+                          onPointerDown={handlePointerDown}
+                          onPointerMove={handlePointerMove}
+                          onPointerUp={handlePointerUp}
+                          onPointerCancel={handlePointerCancel}
+                        >
+                          ↕
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="inspector-card__body">{card.children}</div>
               </section>
