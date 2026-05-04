@@ -18,7 +18,7 @@ function navHref(item: string, taskId: string): string {
   if (item === "Timeline" && taskId) {
     return `/ui/tasks/${encodeURIComponent(taskId)}/events`;
   }
-  if ((item === "Task Detail" || item === "Review" || item === "Explorer") && taskId) {
+  if (item === "Task Detail" && taskId) {
     return `/ui/tasks/${encodeURIComponent(taskId)}`;
   }
   return "#";
@@ -34,13 +34,13 @@ function isActive(item: string, view: string): boolean {
   if (item === "Timeline") {
     return view === "event_timeline";
   }
-  return view === "task_detail" && ["Task Detail", "Review", "Explorer"].includes(item);
+  return view === "task_detail" && item === "Task Detail";
 }
 
 export function WorkbenchSidebar({ state, taskId, view, activeIntakeId, onDraftNavigate }: WorkbenchSidebarProps) {
   const blockedCapabilities = state.readiness.filter((entry) => entry.status === "blocked").length;
   const warningCount = state.readiness.filter((entry) => entry.status === "degraded").length;
-  const navItems = ["Overview", "Task Builder", "Task Detail", "Review", "Timeline", "Explorer"];
+  const navItems = ["Overview", "Task Builder", "Task Detail", "Timeline"];
 
   const handleClick = (href: string) => (e: React.MouseEvent) => {
     if (activeIntakeId && view === "task_builder") {
