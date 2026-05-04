@@ -143,9 +143,16 @@ pre {
   align-content: start;
   display: grid;
   gap: 14px;
-  overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(0, 0, 0, 0.10) transparent;
+}
+
+.workbench-sidebar {
+  overflow: auto;
+}
+
+.workbench-inspector {
+  overflow: hidden auto;
 }
 
 .workbench-main {
@@ -275,7 +282,9 @@ pre {
 .workbench-inspector {
   align-content: start;
   border-left: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden auto;
   padding-left: 10px;
+  position: relative;
 }
 
 .workbench-inspector.collapsed {
@@ -287,7 +296,7 @@ pre {
 
 .inspector-toggle {
   align-items: center;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg);
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 6px;
   color: var(--muted);
@@ -300,7 +309,10 @@ pre {
   line-height: 1;
   min-height: 30px;
   padding: 0 10px;
+  position: sticky;
+  top: 0;
   transition: background 0.15s;
+  z-index: 10;
 }
 
 .inspector-toggle:hover {
@@ -360,6 +372,7 @@ pre {
   display: grid;
   gap: 12px;
   min-width: 0;
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -680,6 +693,7 @@ pre {
 .candidate-card dl,
 .kv {
   grid-template-columns: minmax(120px, 0.35fr) minmax(0, 1fr);
+  min-width: 0;
 }
 
 .candidate-card dt,
@@ -1350,6 +1364,18 @@ pre {
   margin-top: 8px;
 }
 
+.inspector-profile-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.inspector-profile-head .source-chip {
+  flex-shrink: 0;
+}
+
 .clarification-grid {
   display: grid;
   gap: 12px;
@@ -1805,6 +1831,8 @@ pre {
 .inspector-card__body {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 /* ---- Move Buttons ---- */

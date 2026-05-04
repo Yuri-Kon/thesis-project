@@ -348,7 +348,18 @@ export function TaskBuilderPage({
             <dt>Unmapped</dt>
             <dd>{intake?.unmapped_text.length ?? 0}</dd>
             <dt>Profile</dt>
-            <dd>{taskKind ? `${taskKind} · ${supportLabel(taskProfile?.support_level)}` : "not selected"}</dd>
+            <dd>
+              {taskProfile ? (
+                <div className="inspector-profile-head">
+                  {taskKind ? <span className="source-chip">{taskKind.replace(/_/g, " ")}</span> : null}
+                  <span className={`source-chip support-chip support-${taskProfile.support_level.toLowerCase()}`}>
+                    {supportLabel(taskProfile.support_level)}
+                  </span>
+                </div>
+              ) : (
+                "not selected"
+              )}
+            </dd>
             <dt>Confirmable</dt>
             <dd>{canConfirm ? "yes" : "no"}</dd>
           </dl>
