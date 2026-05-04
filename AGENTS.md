@@ -77,6 +77,7 @@ Check the remote baseline document before relying on exact startup commands, por
 ## 6. Git And GitHub
 
 - Prepare issues, PRs, or `gh` operations only when explicitly requested.
+- When creating a branch from an issue with `gh issue develop`, default to `--base dev` unless the user specifies a different base branch.
 - Use Conventional Commits for commits, for example `feat(scope): short summary`.
 - Commit bodies may be Chinese when useful.
 
