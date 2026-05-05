@@ -888,7 +888,7 @@ We propose CEBRA-WP, a constraint- and evidence-aware, belief-guided, recovery-a
 4. 为 `local_patchability/evidence_reusability/prefix_preservability/budget_relief/goal_realignment` 补充稳定派生逻辑。
 5. 确认 `RuntimeEvaluator.select_action()` 与 `recovery.select_workflow_action()` 的主从关系。
 6. 为 `runtime_adjustment_formula` 补充设计文档正文，避免 SID 只有标题。
-7. 用实验对照验证 `static_top1`、`static_gate`、`dynamic_observation_only`、`lite_belief_state` 的差异。
+7. 用实验对照验证 `static_top1`、`static_gate`、`dynamic_observation_only`、`lite_belief_state` 的差异，并通过 `docs/experiment/algorithm-group-paper-mapping.md` 将其稳定映射到论文组。
 
 ## 13. 可直接放入论文的核心公式汇总
 
