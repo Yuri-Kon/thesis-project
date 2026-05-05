@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import src.agents.planner as planner_module
 from src.agents.candidate_generator.generator import (
     CANDIDATE_FEASIBILITY_METADATA_KEY,
+    TOPK_DIVERSITY_METADATA_KEY,
     CandidateGenerator,
 )
 from src.agents.candidate_generator.recovery_complexity import (
@@ -56,6 +57,23 @@ def _registry() -> list[ToolSpec]:
             cost=0.3,
             safety_level=1,
             io_type="goal_to_sequence",
+            adapter_mode="local",
+            priority="P1",
+        ),
+    ]
+
+
+def _diverse_registry() -> list[ToolSpec]:
+    return [
+        *_registry(),
+        ToolSpec(
+            id="qc_a",
+            capabilities=("quality_qc",),
+            inputs=("goal",),
+            outputs=("qc_report",),
+            cost=0.4,
+            safety_level=1,
+            io_type="goal_to_qc",
             adapter_mode="local",
             priority="P1",
         ),
@@ -116,11 +134,17 @@ def _direct_generator(
     *,
     readiness_status: str = "ready",
     unavailable_tools: set[str] | None = None,
+    score_overrides: dict[str, float] | None = None,
 ) -> CandidateGenerator:
     unavailable_tool_ids = unavailable_tools or set()
+    score_by_tool = score_overrides or {}
+
     def score_payload(payload: Plan, *_args: object, **_kwargs: object) -> dict[str, float]:
         primary_tool = payload.steps[0].tool
-        overall = 0.9 if primary_tool == "seqgen_a" else 0.8
+        overall = score_by_tool.get(
+            primary_tool,
+            0.9 if primary_tool == "seqgen_a" else 0.8,
+        )
         return {
             "feasibility": 0.9,
             "objective": 0.8,
@@ -386,6 +410,96 @@ def test_generator_backfills_degraded_candidate_but_keeps_eligible_default():
     assert degraded_feasibility["requires_hitl"] is True
     assert degraded_feasibility["auto_executable"] is False
     assert degraded_feasibility["allowed_for_default_recommendation"] is False
+
+
+def test_generator_records_topk_diversity_metadata_with_score_fallback():
+    result = _direct_generator().generate(
+        CandidateGenerationInput(
+            candidate_kind="plan",
+            payloads=[
+                CandidatePayload(
+                    payload=_plan("seqgen_a", inputs={"goal": "design"}),
+                    primary_tool_id="seqgen_a",
+                    capability_bucket="sequence_generation",
+                    note="eligible candidate",
+                ),
+                CandidatePayload(
+                    payload=_plan("seqgen_b", inputs={"goal": "design"}),
+                    primary_tool_id="seqgen_b",
+                    capability_bucket="sequence_generation",
+                    note="eligible candidate",
+                ),
+            ],
+            registry=_registry(),
+            top_k=2,
+            task_constraints={},
+        )
+    )
+
+    for index, candidate in enumerate(result.candidates, start=1):
+        diversity = candidate.metadata[TOPK_DIVERSITY_METADATA_KEY]
+        assert isinstance(diversity, dict)
+        assert diversity["schema_version"] == "topk_diversity.v1"
+        assert diversity["strategy"] == "capability_coverage"
+        assert diversity["selected_by"] == "_select_diverse_top_k"
+        assert diversity["selection_mode"] == "score_ranking_fallback"
+        assert diversity["selection_rank"] == index
+        assert diversity["diversity_degraded"] is True
+        assert diversity["fallback_reason"] == "single_capability_bucket"
+        assert diversity["covered_capabilities"] == ["sequence_generation"]
+        assert "impl:candidate_generator.topk_diversity.v1" in diversity["source_refs"]
+
+
+def test_generator_selects_diverse_capability_bucket_over_pure_score_topk():
+    result = _direct_generator(
+        score_overrides={
+            "seqgen_a": 0.90,
+            "seqgen_b": 0.86,
+            "qc_a": 0.80,
+        }
+    ).generate(
+        CandidateGenerationInput(
+            candidate_kind="plan",
+            payloads=[
+                CandidatePayload(
+                    payload=_plan("seqgen_a", inputs={"goal": "design"}),
+                    primary_tool_id="seqgen_a",
+                    capability_bucket="sequence_generation",
+                    note="best sequence candidate",
+                ),
+                CandidatePayload(
+                    payload=_plan("seqgen_b", inputs={"goal": "design"}),
+                    primary_tool_id="seqgen_b",
+                    capability_bucket="sequence_generation",
+                    note="second sequence candidate",
+                ),
+                CandidatePayload(
+                    payload=_plan("qc_a", inputs={"goal": "design"}),
+                    primary_tool_id="qc_a",
+                    capability_bucket="quality_qc",
+                    note="diverse quality candidate",
+                ),
+            ],
+            registry=_diverse_registry(),
+            top_k=2,
+            task_constraints={},
+        )
+    )
+
+    assert [candidate.tool_id for candidate in result.candidates] == [
+        "seqgen_a",
+        "qc_a",
+    ]
+    assert "seqgen_b" not in {candidate.tool_id for candidate in result.candidates}
+    diversity = result.candidates[1].metadata[TOPK_DIVERSITY_METADATA_KEY]
+    assert isinstance(diversity, dict)
+    assert diversity["selection_mode"] == "capability_bucket_round_robin"
+    assert diversity["diversity_degraded"] is False
+    assert diversity["covered_capabilities"] == [
+        "quality_qc",
+        "sequence_generation",
+    ]
+    assert "SelectDiverseTopK" in result.explanation
 
 
 def test_plan_top_k_applies_policy_mode_and_cost_filter(monkeypatch):
