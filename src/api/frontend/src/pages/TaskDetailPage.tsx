@@ -11,6 +11,7 @@ import { StatusBadge } from "../components/StatusBadge";
 import { StructureViewerPanel } from "../components/StructureViewerPanel";
 import { TaskDetailSkeleton } from "../components/SkeletonCard";
 import { TaskSearch } from "../components/TaskSearch";
+import { TheoryObjectSummary } from "../components/TheoryObjectSummary";
 
 interface TaskDetailPageProps {
   state: WorkspaceState;
@@ -47,6 +48,12 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
         ),
       },
       {
+        key: "theory-objects",
+        title: "Theory Objects",
+        statusBadge: state.pendingActionDetail ? <span className="pill">core</span> : undefined,
+        children: <TheoryObjectSummary detail={state.pendingActionDetail} />,
+      },
+      {
         key: "operation",
         title: "Operation",
         children: (
@@ -61,7 +68,7 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
         ),
       },
     ]);
-  }, [onInspectorChange, pendingLabel, state.pendingActionDetail?.candidates.length, state.pendingActionDetail?.default_suggestion, state.report?.report_path, task, taskId]);
+  }, [onInspectorChange, pendingLabel, state.pendingActionDetail, state.report?.report_path, task, taskId]);
 
   if (state.loading) {
     return (
