@@ -246,6 +246,13 @@ def test_objective_ranker_emits_posterior_score_schema_and_degraded_evidence() -
     assert posterior["schema_version"] == "posterior_score.v1"
     assert posterior["objective_type"] == "stability"
     assert posterior["aggregate_score"] == outputs["objective_score"]
+    assert "binding" not in posterior
+    assert posterior["binding_policy"] == "folded_into_generic_objective"
+    binding_evidence = cast(dict[str, object], posterior["binding_evidence"])
+    assert binding_evidence["source"] == "not_present"
+    assert binding_evidence["role"] == "proxy"
+    assert binding_evidence["target_component"] == "generic_objective"
+    assert binding_evidence["source_fields"] == []
     assert stability["score"] is None
     assert stability["evidence_status"] == "degraded"
     assert weights["stability"] == 0.7
@@ -255,6 +262,8 @@ def test_objective_ranker_emits_posterior_score_schema_and_degraded_evidence() -
     posterior_objective = cast(dict[str, object], top_k[0]["posterior_objective"])
     assert posterior_objective["schema_version"] == "posterior_objective.v1"
     assert posterior_objective["aggregate_score"] == posterior["aggregate_score"]
+    assert posterior_objective["binding_policy"] == "folded_into_generic_objective"
+    assert posterior_objective["binding_evidence"] == binding_evidence
     assert posterior_objective["source_refs"] == [
         "sid:algo.posterior_objective_scoring",
         "impl:posterior_score.v1",
@@ -281,8 +290,23 @@ def test_objective_ranker_binding_objective_marks_generic_proxy() -> None:
     )
 
     top_k = cast(list[dict[str, object]], outputs["top_k"])
+    posterior = cast(dict[str, object], top_k[0]["posterior_score"])
+    binding_evidence = cast(dict[str, object], posterior["binding_evidence"])
     posterior_objective = cast(dict[str, object], top_k[0]["posterior_objective"])
+    objective_binding_evidence = cast(
+        dict[str, object],
+        posterior_objective["binding_evidence"],
+    )
+    assert "binding" not in posterior
+    assert posterior["binding_policy"] == "folded_into_generic_objective"
+    assert binding_evidence["source"] == "binding_score|best_pose"
+    assert binding_evidence["role"] == "proxy"
+    assert binding_evidence["target_component"] == "generic_objective"
+    assert binding_evidence["source_fields"] == ["binding_score", "best_pose"]
     assert posterior_objective["objective_type"] == "binding"
+    assert posterior_objective["binding_policy"] == "folded_into_generic_objective"
+    assert objective_binding_evidence["source"] == "binding_score|best_pose"
+    assert objective_binding_evidence["role"] == "proxy"
     assert posterior_objective["binding_proxy_component"] == "generic_objective"
     assert posterior_objective["binding_proxy_fields"] == ["binding_score", "best_pose"]
 
