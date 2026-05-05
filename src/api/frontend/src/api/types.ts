@@ -233,6 +233,7 @@ export interface PendingActionDetail {
   recommendation_summary: string;
   runtime_state_summary: Record<string, unknown>;
   workflow_action_reason?: string | null;
+  theory_objects: Record<string, unknown>;
   evidence_refs: Record<string, unknown>[];
   score_breakdown: Record<string, number>;
   candidates: PendingActionCandidateDisplay[];
@@ -254,6 +255,7 @@ export interface PendingActionCandidateDisplay {
   score_breakdown: Record<string, number>;
   runtime_state_summary: Record<string, unknown>;
   workflow_action_reason?: string | null;
+  theory_objects: Record<string, unknown>;
   evidence_refs: Record<string, unknown>[];
   tool: PendingActionToolDisplay;
 }
