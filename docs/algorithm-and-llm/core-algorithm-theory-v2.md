@@ -526,6 +526,15 @@ bp_t = clip(c_t, 0, 1)
 实现中该理论对象由 `runtime_adjustment.action_bias` 承载，包含
 `action/value/factors/source_refs`，且 `action_bias.value` 与
 `runtime_adjustment.value` 保持一致。
+每个 factor 同时保留工程解释 `message` 与论文展示层可用的理论字段：
+
+```text
+term ∈ {recovery_margin, budget_pressure, evidence_sufficiency, ActionBias, recoverability, ...}
+formula_ref ∈ {Eq.(runtime_delta), Eq.(ActionBias)}
+```
+
+展示层可优先使用 `term + formula_ref` 作为图注或表格标签，展开时再展示
+工程原文 `message`。
 
 为了避免单次观测过度影响排序，限定：
 

@@ -6,7 +6,14 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, TypeAlias, Dict, List, Optional, Literal, cast
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from src.models.budget_pressure import derive_budget_pressure
 
@@ -665,10 +672,14 @@ class RuntimeAdjustmentFactor(BaseModel):
     source: str
     contribution: float
     message: str
+    term: str | None = None
+    formula_ref: str | None = None
 
-    @field_validator("signal", "source", "message")
+    @field_validator("signal", "source", "message", "term", "formula_ref")
     @classmethod
-    def _validate_text(cls, value: str, info) -> str:
+    def _validate_text(cls, value: str | None, info: ValidationInfo) -> str | None:
+        if value is None:
+            return None
         return _validate_non_empty_text(value, field_name=info.field_name)
 
     @field_validator("contribution")

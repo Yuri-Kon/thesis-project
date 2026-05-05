@@ -94,6 +94,8 @@ _STOP_RECOVERY_MARGIN_THRESHOLD = 0.20
 
 _STRUCTURAL_FAILURE_THRESHOLD = 0.55
 _RECOVERY_MARGIN_LOW = 0.1
+_RUNTIME_DELTA_FORMULA_REF = "Eq.(runtime_delta)"
+_ACTION_BIAS_FORMULA_REF = "Eq.(ActionBias)"
 
 
 @dataclass(frozen=True)
@@ -839,13 +841,46 @@ def _make_factor(
     contribution: float,
     message: str,
 ) -> RuntimeAdjustmentFactor:
+    term, formula_ref = _theory_explanation_ref(category=category, signal=signal)
     return RuntimeAdjustmentFactor(
         category=category,
         signal=signal,
         source=source,
         contribution=round(contribution, 6),
         message=message,
+        term=term,
+        formula_ref=formula_ref,
     )
+
+
+def _theory_explanation_ref(
+    *,
+    category: Literal["cost", "risk", "recovery", "evidence", "policy"],
+    signal: str,
+) -> tuple[str, str]:
+    if signal == "evidence_sufficiency":
+        return "evidence_sufficiency", _RUNTIME_DELTA_FORMULA_REF
+    if signal == "budget_pressure" or signal == "cost_pressure":
+        return "budget_pressure", _RUNTIME_DELTA_FORMULA_REF
+    if signal == "p_structural_failure":
+        return "p_structural_failure", _RUNTIME_DELTA_FORMULA_REF
+    if signal == "recovery_margin*fallback_depth":
+        return "recovery_margin", _RUNTIME_DELTA_FORMULA_REF
+    if signal == "fallback_depth":
+        return "recoverability", _ACTION_BIAS_FORMULA_REF
+    if signal == "feasibility":
+        return "recoverability", _ACTION_BIAS_FORMULA_REF
+    if signal == "stop_guard":
+        return "ActionBias", _ACTION_BIAS_FORMULA_REF
+    if category == "evidence":
+        return "evidence_sufficiency", _RUNTIME_DELTA_FORMULA_REF
+    if category == "recovery":
+        return "recovery_margin", _RUNTIME_DELTA_FORMULA_REF
+    if category == "cost":
+        return "budget_pressure", _RUNTIME_DELTA_FORMULA_REF
+    if category == "policy":
+        return "ActionBias", _ACTION_BIAS_FORMULA_REF
+    return signal, _RUNTIME_DELTA_FORMULA_REF
 
 
 def _build_action_bias(

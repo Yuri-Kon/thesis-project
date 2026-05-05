@@ -272,6 +272,13 @@ class TestRerank:
         assert action_bias["value"] == adj["value"]
         rerank_reason = _object_dict(metadata[RERANK_REASON_METADATA_KEY])
         assert action_bias["factors"] == rerank_reason["factors"]
+        factors = cast(list[dict[str, object]], action_bias["factors"])
+        assert any(
+            factor["term"] == "evidence_sufficiency"
+            and factor["formula_ref"] == "Eq.(runtime_delta)"
+            and factor["message"]
+            for factor in factors
+        )
         bias_refs = cast(list[str], action_bias["source_refs"])
         assert set(SOURCE_REF_ACTION_BIAS).issubset(bias_refs)
 
@@ -311,6 +318,9 @@ class TestRerank:
             assert action_bias["action"] == expected_action
             assert action_bias["value"] == adjustment["value"]
             assert action_bias["factors"] == rerank["factors"]
+            factors = cast(list[dict[str, object]], action_bias["factors"])
+            assert all(factor["term"] for factor in factors)
+            assert all(factor["formula_ref"] for factor in factors)
 
     def test_high_risk_reduces_score(self) -> None:
         e = RuntimeEvaluator()
@@ -359,12 +369,39 @@ class TestRerank:
         assert any(
             factor.signal == "budget_pressure"
             and factor.source == "runtime_state.budget_pressure+score_breakdown.cost"
+            and factor.term == "budget_pressure"
+            and factor.formula_ref == "Eq.(runtime_delta)"
             for factor in low_pressure_factors
         )
         assert any(
             factor.signal == "budget_pressure"
             and factor.source == "runtime_state.budget_pressure+score_breakdown.cost"
+            and factor.term == "budget_pressure"
+            and factor.formula_ref == "Eq.(runtime_delta)"
             for factor in high_pressure_factors
+        )
+
+    def test_theory_terms_preserve_engineering_messages(self) -> None:
+        _, action, _, factors = compute_runtime_delta(
+            p_success=0.6,
+            p_structural_failure=0.2,
+            recovery_margin=0.6,
+            expected_remaining_cost=0.4,
+            evidence_sufficiency=0.6,
+            confidence=0.6,
+            risk=0.5,
+            cost=0.2,
+            fallback_depth=0.8,
+            feasibility=0.8,
+            candidate_kind="patch",
+        )
+
+        assert action == "patch_local"
+        patch_factor = next(factor for factor in factors if factor.signal == "fallback_depth")
+        assert patch_factor.term == "recoverability"
+        assert patch_factor.formula_ref == "Eq.(ActionBias)"
+        assert patch_factor.message == (
+            "Local patchability keeps more recovery options available."
         )
 
     def test_delta_clamped_to_range(self) -> None:

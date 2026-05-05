@@ -6,7 +6,7 @@
 - Scope: algorithm / explanation / UI text
 - Phase: CEBRA-WP P2 文档与表达增强
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P2-2 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -61,6 +61,17 @@
 - 解释字段保留工程原文；
 - 增加一层理论标签；
 - UI / 日志 / 论文图表优先显示理论标签，展开时再看工程原文。
+
+当前实现中，`RuntimeAdjustmentFactor` 保留：
+
+```python
+message: str
+term: str | None
+formula_ref: str | None
+```
+
+`runtime_evaluator._make_factor()` 为新生成的 runtime delta / ActionBias
+factor 自动填充理论标签；旧 payload 可不提供这两个字段以保持兼容。
 
 ## 6. 测试建议
 

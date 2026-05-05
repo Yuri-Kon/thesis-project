@@ -41,6 +41,30 @@ def test_runtime_adjustment_accepts_source_refs() -> None:
     assert "impl:planner.runtime_adjustment.v1" in summary.source_refs
 
 
+def test_runtime_adjustment_factor_keeps_theory_terms_optional() -> None:
+    legacy = RuntimeAdjustmentFactor(
+        category="evidence",
+        signal="evidence_sufficiency",
+        source="runtime_state.evidence_sufficiency",
+        contribution=0.03,
+        message="Evidence sufficiency raises confidence.",
+    )
+    annotated = RuntimeAdjustmentFactor(
+        category="evidence",
+        signal="evidence_sufficiency",
+        source="runtime_state.evidence_sufficiency",
+        contribution=0.03,
+        message="Evidence sufficiency raises confidence.",
+        term="evidence_sufficiency",
+        formula_ref="Eq.(runtime_delta)",
+    )
+
+    assert legacy.term is None
+    assert legacy.formula_ref is None
+    assert annotated.term == "evidence_sufficiency"
+    assert annotated.formula_ref == "Eq.(runtime_delta)"
+
+
 def test_runtime_adjustment_accepts_action_bias() -> None:
     factor = RuntimeAdjustmentFactor(
         category="recovery",
