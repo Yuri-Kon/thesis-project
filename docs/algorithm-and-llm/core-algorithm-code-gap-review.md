@@ -462,14 +462,18 @@ budget_pressure: 归一化 [0,1] 或 clipped [0,1.5]
 
 ### P1-4：belief-state 更新规则需要文档化为 `B(x_t,o_t,h_t)`
 
-`belief_state.py` 已实现五维状态更新，但论文需要明确：
+状态：已补齐。`core-algorithm-theory-v2.md §5.3` 已加入可引用的
+`B(x_t,o_t,h_t)` 更新表，代码侧由
+`src/workflow/belief_state.py::BELIEF_STATE_UPDATE_RULES` 承载同一组信号。
+
+`belief_state.py` 已实现五维状态更新，论文现在明确：
 
 - 每个观测如何影响 `p_success`；
 - 哪些 failure type 提高 `p_structural_failure`；
 - recovery history 如何降低 `recovery_margin`；
 - evidence_sufficiency 如何平滑更新。
 
-建议在代码 docstring 或设计文档中添加一张更新表，避免只有 D2 文档里有数学表达。
+该表避免只有 D2 文档里有数学表达，同时给测试和论文表述提供稳定引用点。
 
 ### P1-5：Top-K diversity 的理论解释可以增强
 

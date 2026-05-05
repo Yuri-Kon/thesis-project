@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -16,8 +17,15 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.workflow.belief_state import extract_failure_context, update_runtime_state
+from src.workflow.belief_state import (
+    BELIEF_STATE_UPDATE_RULES,
+    extract_failure_context,
+    update_runtime_state,
+)
 from src.workflow.context import WorkflowContext
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _build_failed_step_result() -> StepResult:
@@ -61,6 +69,49 @@ def test_extract_failure_context_returns_stable_schema() -> None:
         },
     )
     assert failure_context.to_replay_payload()["recovery_action"] == "patch_local"
+
+
+def test_belief_state_update_rules_cover_runtime_signals() -> None:
+    """规则表应覆盖论文中 B(x_t,o_t,h_t) 需要解释的观测信号。"""
+
+    rules = {rule.signal: rule for rule in BELIEF_STATE_UPDATE_RULES}
+
+    assert set(rules) == {
+        "step_result.success",
+        "step_result.success@structural",
+        "step_result.failed",
+        "step_result.failed@structural",
+        "step_result.retry_exhausted",
+        "step_result.skipped",
+        "safety_result.warn",
+        "safety_result.block",
+        "failure_context.patch_local",
+        "failure_context.suffix_replan",
+        "failure_context.stop",
+        "failure_context.retry_exhausted",
+        "objective_evidence.progress",
+        "objective_evidence.sufficiency",
+        "objective_evidence.gap",
+        "evidence_signal",
+        "progress_counters",
+    }
+    assert rules["step_result.failed"].p_success == pytest.approx(-0.18)
+    assert rules["step_result.failed"].p_structural_failure == pytest.approx(0.14)
+    assert rules["step_result.failed"].recovery_margin == pytest.approx(-0.12)
+    assert rules["safety_result.block"].recovery_margin == pytest.approx(-0.16)
+    assert rules["failure_context.patch_local"].expected_remaining_cost == (
+        "cost_penalty += 0.60"
+    )
+
+
+def test_belief_state_update_rules_are_documented_in_theory_table() -> None:
+    theory_doc = (
+        _REPO_ROOT / "docs/algorithm-and-llm/core-algorithm-theory-v2.md"
+    ).read_text(encoding="utf-8")
+
+    assert "B(x_t,o_t,h_t)" in theory_doc
+    for rule in BELIEF_STATE_UPDATE_RULES:
+        assert f"`{rule.signal}`" in theory_doc
 
 
 def test_runtime_state_update_input_rejects_invalid_progress_bounds() -> None:
