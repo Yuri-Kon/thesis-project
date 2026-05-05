@@ -504,9 +504,10 @@ DiversityPenalty(pi_i, pi_j)
 
 这样 Top-K 不只是排序，而是保留替代路径的探索价值。
 
-### P1-6：`binding` posterior component 需要检查输出一致性
+### P1-6：`binding` posterior component 需要检查输出一致性（已补齐）
 
-`_POSTERIOR_COMPONENTS` 包含 `binding`，但 `_build_posterior_score()` payload 中当前显式列出了：
+结论：当前版本不引入独立 `binding` posterior component。`_POSTERIOR_COMPONENTS`
+保持为：
 
 ```text
 generic_objective
@@ -516,13 +517,23 @@ novelty
 structure_quality
 ```
 
-建议确认是否遗漏：
+`binding` objective type 仍可作为权重预设存在，但 binding 证据通过
+`binding_score` / `best_pose` 折叠为 `generic_objective` 的 proxy evidence。
+为避免“权重存在但输出缺失”的歧义，posterior payload 显式记录：
 
 ```text
-binding: components["binding"]
+binding_policy = "folded_into_generic_objective"
+binding_evidence = {source, role, target_component, source_fields}
 ```
 
-如果遗漏，应修复；如果故意不输出，应在文档说明。
+这意味着论文/schema/测试的唯一表述是：
+
+```text
+binding ∉ M_v1
+binding_evidence -> generic_objective proxy
+```
+
+若未来要新增一等 `binding` component，必须作为 schema version 升级处理。
 
 ### P1-7：实验配置与 runtime policy mode 需要对应理论消融
 
