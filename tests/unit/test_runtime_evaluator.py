@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import cast
 
+import pytest
+
 from src.models.contracts import (
     FINAL_SCORE_METADATA_KEY,
     PendingActionCandidate,
@@ -25,6 +27,7 @@ from src.workflow.runtime_evaluator import (
     evaluator_policy_trace,
     policy_disables_rerank,
 )
+from src.workflow.action_features import derive_action_features
 
 
 def _plan_payload(task_id: str = "test_task") -> Plan:
@@ -292,6 +295,11 @@ class TestActionUtility:
             assert set(SOURCE_REF_ACTION_UTILITY).issubset(u.source_refs)
             assert any(ref.startswith("sid:") for ref in u.source_refs)
             assert any(ref.startswith("impl:") for ref in u.source_refs)
+            assert "derived_features" in u.metadata
+            derived = u.metadata["derived_features"]
+            assert isinstance(derived, dict)
+            assert "local_patchability" in derived
+            assert "source" in derived["local_patchability"]
 
     def test_stop_utility_higher_under_pressure(self) -> None:
         e = RuntimeEvaluator()
@@ -321,6 +329,44 @@ class TestActionUtility:
         assert set(utilities.keys()) == {"continue", "patch_local", "suffix_replan", "stop"}
         for u in utilities.values():
             assert 0.0 <= u.utility <= 1.0
+
+    def test_missing_intervention_value_uses_neutral_default(self) -> None:
+        e = RuntimeEvaluator()
+        utilities = e.compute_action_utilities({})
+
+        stop = utilities["stop"]
+        assert stop.intervention_value == pytest.approx(0.5)
+        derived = stop.metadata["derived_features"]
+        assert derived["intervention_value"]["source"] == "default"
+
+    def test_explicit_action_features_take_priority(self) -> None:
+        e = RuntimeEvaluator()
+        state = {
+            "p_success": 0.6,
+            "p_structural_failure": 0.2,
+            "recovery_margin": 0.6,
+            "expected_remaining_cost": 0.4,
+            "evidence_sufficiency": 0.6,
+        }
+        action_features = derive_action_features(
+            runtime_state={
+                **state,
+                "local_patchability": 0.9,
+                "intervention_value": 0.8,
+            }
+        )
+
+        utilities = e.compute_action_utilities(state, action_features=action_features)
+
+        patch_feature = utilities["patch_local"].metadata["derived_features"][
+            "local_patchability"
+        ]
+        stop_feature = utilities["stop"].metadata["derived_features"][
+            "intervention_value"
+        ]
+        assert patch_feature["value"] == pytest.approx(0.9)
+        assert patch_feature["source"] == "observed"
+        assert stop_feature["value"] == pytest.approx(0.8)
 
     def test_compatibility_select_action_returns_best(self) -> None:
         e = RuntimeEvaluator()
