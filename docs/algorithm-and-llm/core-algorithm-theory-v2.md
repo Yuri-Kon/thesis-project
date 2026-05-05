@@ -5,6 +5,8 @@
 - 方法暂名：**CEBRA-WP: Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning**
 - 中文名：**面向高代价蛋白质设计工作流的约束化、证据感知、信念引导、恢复自适应规划算法**
 - 本文定位：可作为论文“方法/核心算法”章节初稿；实现差距将在 D4 单独审查。
+- 算法总版本：`cebra_wp.v2`
+- 版本 registry：`docs/algorithm-and-llm/algorithm-version-registry.md`
 
 ## 摘要
 
@@ -13,6 +15,30 @@
 为解决上述问题，本文提出 CEBRA-WP。该算法将蛋白质设计工具链规划建模为一个受约束、部分可观测、证据感知且恢复自适应的工作流决策问题。算法首先基于任务目标、约束和工具能力图生成候选工具链集合；随后使用硬可行性谓词过滤不可执行候选，并以静态效用估计候选的先验质量；在执行过程中，算法维护一个低维 Lite belief-state，用于近似隐藏的工作流可行性、结构性失败压力、恢复余量、剩余成本和证据充分度；最终，算法根据运行时状态对候选效用进行有界修正，并在 continue、patch_local、suffix_replan 和 stop 四类控制动作之间做恢复感知选择。
 
 CEBRA-WP 的核心贡献不是提出新的蛋白生成模型，而是提出一种可解释、可审计、可工程落地的高代价蛋白质设计工具链编排算法。
+
+## 0. 版本体系
+
+本文对应算法总版本 `cebra_wp.v2`。该总版本不替代各 payload 的
+`schema_version`，而是把当前论文算法使用的子公式和实现引用归档到同一版本下：
+
+```text
+cebra_wp.v2
+├─ static_score.v1
+├─ posterior_score.v1
+├─ runtime_adjustment.v1
+├─ action_utility.v1
+└─ action_bias.v1
+```
+
+| 子公式 | schema / payload 版本 | 主要实现引用 |
+| --- | --- | --- |
+| `static_score.v1` | `score_breakdown.v1` | `impl:planner.score_breakdown.v1` |
+| `posterior_score.v1` | `posterior_score.v1`, `posterior_objective.v1` | `impl:posterior_score.v1`, `impl:posterior_objective.v1` |
+| `runtime_adjustment.v1` | `runtime_adjustment.v1` | `impl:planner.runtime_adjustment.v1` |
+| `action_utility.v1` | `action_utility.v1`, `action_features.v1` | `impl:runtime_evaluator.action_utility.v1`, `impl:workflow.action_features.v1` |
+| `action_bias.v1` | `action_bias.v1` | `impl:runtime_evaluator.compute_runtime_delta.v1` |
+
+代码侧 registry 为 `src.models.algorithm_versions`。若后续任一子公式改变字段语义或公式含义，应先升级子版本，再归档到新的算法总版本。
 
 ## 1. 问题定义
 
