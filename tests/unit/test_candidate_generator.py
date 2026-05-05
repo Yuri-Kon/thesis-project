@@ -7,6 +7,9 @@ from src.agents.candidate_generator.generator import (
     CANDIDATE_FEASIBILITY_METADATA_KEY,
     CandidateGenerator,
 )
+from src.agents.candidate_generator.recovery_complexity import (
+    RECOVERY_COMPLEXITY_METADATA_KEY,
+)
 from src.agents.candidate_generator.models import (
     CandidateGenerationInput,
     CandidateGeneratorHooks,
@@ -240,6 +243,17 @@ def test_plan_top_k_uses_candidate_generator_context(monkeypatch):
     assert feasibility["allowed_for_default_recommendation"] is True
     assert "feasibility" not in candidate.metadata
     assert candidate.score_breakdown["recovery_complexity"] >= 0.0
+    recovery_source = candidate.metadata[RECOVERY_COMPLEXITY_METADATA_KEY]
+    assert isinstance(recovery_source, dict)
+    assert recovery_source["recovery_complexity"] == candidate.score_breakdown[
+        "recovery_complexity"
+    ]
+    assert recovery_source["derived_from"] == [
+        "retry_budget_ratio",
+        "local_patchability",
+        "prefix_preservability",
+        "evidence_reusability",
+    ]
     assert candidate.score_breakdown["capability_hint_match"] == 1.0
 
 
