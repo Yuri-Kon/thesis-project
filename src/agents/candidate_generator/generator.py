@@ -36,6 +36,91 @@ from src.models.contracts import (
 ScoredRow = tuple[PendingActionCandidate, SortKey, SortKey, str]
 RankedRow = tuple[PendingActionCandidate, SortKey, str]
 
+CANDIDATE_FEASIBILITY_METADATA_KEY = "candidate_feasibility"
+_SOFT_FEASIBILITY_REASONS = {"io_not_closed", "tool_unavailable"}
+_FEASIBILITY_SOURCE_REFS = [
+    "sid:algo.adaptive.feasibility_filter",
+    "impl:candidate_generator.feasibility.v1",
+]
+_FEASIBILITY_DESIGN_REF_STATUS = {
+    "sid:algo.adaptive.feasibility_filter": "proposed",
+}
+_HARD_FEASIBILITY_CONSTRAINT_CODES = {
+    "tool_not_allowed": "tool.not_allowed",
+    "tool_blocked": "tool.blocked",
+    "safety_level_exceeded": "safety.exceeded",
+    "cost_level_exceeded": "cost.exceeded",
+}
+
+
+def _build_candidate_feasibility_metadata(reason: str | None) -> Metadata:
+    """构造候选硬/软可行性审计元数据。"""
+    constraint_codes = _constraint_codes_for_filter_reason(reason)
+    filter_class = _filter_class_for_reason(reason)
+    hard_feasible = reason is None
+    degraded_feasible = filter_class == "soft"
+    requires_hitl = degraded_feasible
+    auto_executable = hard_feasible and not requires_hitl
+    allowed_for_top_k = filter_class in {"eligible", "soft"}
+    allowed_for_default_recommendation = auto_executable
+    return {
+        "schema_version": "candidate_feasibility.v1",
+        "hard_feasible": hard_feasible,
+        "soft_feasible": filter_class in {"eligible", "soft"},
+        "degraded_feasible": degraded_feasible,
+        "requires_hitl": requires_hitl,
+        "auto_executable": auto_executable,
+        "filter_class": filter_class,
+        "filter_reason": reason,
+        "constraint_codes": constraint_codes,
+        "blocked_by": _blocked_by_for_filter_reason(reason),
+        "allowed_for_top_k": allowed_for_top_k,
+        "allowed_for_default_recommendation": allowed_for_default_recommendation,
+        "explanation": _feasibility_explanation(reason, filter_class),
+        "source_refs": list(_FEASIBILITY_SOURCE_REFS),
+        "design_ref_status": dict(_FEASIBILITY_DESIGN_REF_STATUS),
+    }
+
+
+def _filter_class_for_reason(reason: str | None) -> str:
+    if reason is None:
+        return "eligible"
+    if reason in _SOFT_FEASIBILITY_REASONS:
+        return "soft"
+    return "hard"
+
+
+def _constraint_codes_for_filter_reason(reason: str | None) -> list[str]:
+    if reason is None:
+        return []
+    if reason == "io_not_closed":
+        return ["schema.io_open"]
+    if reason == "tool_unavailable":
+        return ["tool.unavailable"]
+    if reason.startswith("missing_tools:"):
+        return ["tool.missing"]
+    return [_HARD_FEASIBILITY_CONSTRAINT_CODES.get(reason, "unknown")]
+
+
+def _blocked_by_for_filter_reason(reason: str | None) -> list[str]:
+    if reason is None:
+        return []
+    if reason.startswith("missing_tools:"):
+        missing = reason.split(":", 1)[1]
+        return [tool_id for tool_id in missing.split(",") if tool_id]
+    return [reason]
+
+
+def _feasibility_explanation(reason: str | None, filter_class: str) -> str:
+    if filter_class == "eligible":
+        return "Candidate satisfies hard feasibility constraints and can be auto defaulted."
+    if filter_class == "soft":
+        return (
+            "Candidate is degraded feasible for Top-K display only; "
+            f"requires HITL because {reason}."
+        )
+    return f"Candidate is hard infeasible and excluded from Top-K because {reason}."
+
 
 class CandidateGenerator:
     """统一生成 Plan/Patch/Replan Top-K 候选。
@@ -88,16 +173,17 @@ class CandidateGenerator:
                 payload.payload,
                 score_metadata_key=FINAL_SCORE_METADATA_KEY,
             )
+            reason = self._filter_reason(candidate, payload.payload, request, registry_map)
+            candidate = self._with_candidate_feasibility(candidate, reason)
             row = (
                 candidate,
                 static_sort_key,
                 effective_sort_key,
                 candidate.capability_id or "unknown",
             )
-            reason = self._filter_reason(candidate, payload.payload, request, registry_map)
             if reason is not None:
                 filter_reasons.append(reason)
-                if reason in {"io_not_closed", "tool_unavailable"}:
+                if reason in _SOFT_FEASIBILITY_REASONS:
                     soft_filtered_rows.append(row)
                 continue
             filtered_rows.append(row)
@@ -135,8 +221,10 @@ class CandidateGenerator:
 
         candidates = [row[0] for row in selected_rows]
         static_candidates = [row[0] for row in static_selected_rows]
-        default_candidate = candidates[0] if candidates else None
-        static_default_candidate = static_candidates[0] if static_candidates else None
+        default_candidate = self._first_default_recommendation_candidate(candidates)
+        static_default_candidate = self._first_default_recommendation_candidate(
+            static_candidates
+        )
         default_recommendation = (
             default_candidate.candidate_id if default_candidate is not None else None
         )
@@ -165,6 +253,48 @@ class CandidateGenerator:
                 runtime_state_summary=runtime_state_summary,
             ),
         )
+
+    def _with_candidate_feasibility(
+        self,
+        candidate: PendingActionCandidate,
+        reason: str | None,
+    ) -> PendingActionCandidate:
+        metadata = dict(candidate.metadata or {})
+        metadata[CANDIDATE_FEASIBILITY_METADATA_KEY] = (
+            _build_candidate_feasibility_metadata(reason)
+        )
+        return candidate.model_copy(update={"metadata": metadata})
+
+    def _first_default_recommendation_candidate(
+        self,
+        candidates: Sequence[PendingActionCandidate],
+    ) -> PendingActionCandidate | None:
+        for candidate in candidates:
+            metadata = object_mapping(cast(object, candidate.metadata))
+            feasibility = object_mapping(
+                metadata.get(CANDIDATE_FEASIBILITY_METADATA_KEY)
+            )
+            if feasibility.get("allowed_for_default_recommendation") is True:
+                return candidate
+        return None
+
+    def _degraded_candidate_reasons(
+        self,
+        candidates: Sequence[PendingActionCandidate],
+    ) -> list[str]:
+        reasons: list[str] = []
+        for candidate in candidates:
+            metadata = object_mapping(cast(object, candidate.metadata))
+            feasibility = object_mapping(
+                metadata.get(CANDIDATE_FEASIBILITY_METADATA_KEY)
+            )
+            if feasibility.get("degraded_feasible") is not True:
+                continue
+            raw_reason = feasibility.get("filter_reason")
+            reason = raw_reason if isinstance(raw_reason, str) else "unknown"
+            if reason not in reasons:
+                reasons.append(reason)
+        return reasons
 
     def _filter_reason(
         self,
@@ -354,6 +484,17 @@ class CandidateGenerator:
                     default_candidate=default_candidate,
                     static_default_candidate=static_default_candidate,
                 )
+        elif candidates:
+            explanation = (
+                f"{explanation} No hard-feasible default recommendation exists; "
+                "returned degraded candidates require HITL."
+            )
+        degraded_reasons = self._degraded_candidate_reasons(candidates)
+        if degraded_reasons:
+            explanation = (
+                f"{explanation} Returned degraded candidates require HITL because: "
+                f"{', '.join(degraded_reasons)}."
+            )
         difference = candidate_difference_explanation(candidates)
         if difference:
             explanation = f"{explanation} Candidate differences: {difference}."
@@ -364,8 +505,8 @@ class CandidateGenerator:
             )
         elif filter_reasons:
             explanation = (
-                f"{explanation} Filtering would remove all candidates, so the generator "
-                "returned the scored fallback set for compatibility."
+                f"{explanation} Filtering found only degraded soft fallback candidates; "
+                "returned candidates require HITL and are not eligible for automatic default."
             )
         if len(candidates) < request.top_k:
             explanation = (
