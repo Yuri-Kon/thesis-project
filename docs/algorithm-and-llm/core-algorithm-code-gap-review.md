@@ -586,7 +586,7 @@ cebra_wp.v2
 - `docs/algorithm-and-llm/algorithm-version-registry.md`
 - `docs/algorithm-and-llm/core-algorithm-theory-v2.md` §0
 
-### P2-2：候选解释可以更贴近论文术语
+### P2-2：候选解释可以更贴近论文术语（已补齐）
 
 当前解释偏工程：
 
@@ -595,12 +595,16 @@ Local patchability keeps more recovery options available.
 Suffix replan still carries residual budget pressure.
 ```
 
-建议补充理论字段：
+已在 `RuntimeAdjustmentFactor` 中补充理论字段，同时保留工程原文：
 
 ```text
-term = "recovery_margin" | "budget_pressure" | "evidence_sufficiency"
-formula_ref = "Eq.(runtime_delta)"
+term = "recovery_margin" | "budget_pressure" | "evidence_sufficiency" | "ActionBias" | "recoverability"
+formula_ref = "Eq.(runtime_delta)" | "Eq.(ActionBias)"
+message = 原工程解释
 ```
+
+因此论文图注/UI 简版可以显示 `term + formula_ref`，调试展开层继续显示
+`message`。
 
 ### P2-3：文献映射可进入代码注释/设计文档
 
