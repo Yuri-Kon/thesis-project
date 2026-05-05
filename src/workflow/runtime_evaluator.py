@@ -24,6 +24,7 @@ from src.models.contracts import (
 )
 from src.models.runtime_schemas import (
     ActionUtility,
+    JsonObject,
     RuntimeStateSchema,
 )
 from src.models.source_refs import (
@@ -32,6 +33,10 @@ from src.models.source_refs import (
     SOURCE_REF_RUNTIME_ADJUSTMENT,
     SOURCE_REF_STATIC_SCORE,
     as_source_refs,
+)
+from src.workflow.action_features import (
+    ActionFeatureDerivation,
+    derive_action_features,
 )
 
 __all__ = [
@@ -287,7 +292,11 @@ class RuntimeEvaluator:
             return self._default_action_utility("continue", reason="no runtime state")
 
         # 计算四动作效用
-        utilities = self.compute_action_utilities(state)
+        action_features = derive_action_features(runtime_state=state)
+        utilities = self.compute_action_utilities(
+            state,
+            action_features=action_features,
+        )
 
         # 解析候选建议
         suggested = _top_candidate_action(candidates) if candidates else None
@@ -296,7 +305,7 @@ class RuntimeEvaluator:
         if safety_blocked and "suffix_replan" in _RUNTIME_ACTIONS:
             replan_util = utilities.get("suffix_replan")
             if replan_util is not None and not self._should_auto_stop(
-                utilities, state, allow_auto_stop
+                utilities, state, allow_auto_stop, action_features=action_features
             ):
                 return self._with_hard_constraint(
                     replan_util,
@@ -305,7 +314,9 @@ class RuntimeEvaluator:
                 )
 
         # 硬约束: auto-stop
-        if self._should_auto_stop(utilities, state, allow_auto_stop):
+        if self._should_auto_stop(
+            utilities, state, allow_auto_stop, action_features=action_features
+        ):
             stop_util = utilities.get("stop")
             if stop_util is not None:
                 return self._with_hard_constraint(
@@ -323,6 +334,8 @@ class RuntimeEvaluator:
     def compute_action_utilities(
         self,
         runtime_state: RuntimeStateSchema | Mapping[str, object],
+        *,
+        action_features: ActionFeatureDerivation | None = None,
     ) -> dict[str, ActionUtility]:
         """计算全部四个动作的标准化效用值。
 
@@ -341,16 +354,20 @@ class RuntimeEvaluator:
         f_param = _safe_clip(state.get("p_structural_failure"), 0.25)
         r_margin = _safe_clip(state.get("recovery_margin"), 0.6)
         e_suff = _safe_clip(state.get("evidence_sufficiency"), 0.5)
-        ec = _safe_float(state.get("expected_remaining_cost"), 1.0)
-        b = min(max(ec, 0.0), 1.5)
-
-        lp = _safe_float(state.get("local_patchability"), 0.5)
-        er_val = _safe_float(state.get("evidence_reusability"), 0.5)
-        pp = _safe_float(state.get("prefix_preservability"), 0.5)
-        br = _safe_float(state.get("budget_relief"), 0.5)
-        gr = _safe_float(state.get("goal_realignment"), 0.5)
-        safety_term = _safe_float(state.get("safety_terminality"), 0.0)
-        iv = _safe_float(state.get("intervention_value"), 0.0)
+        derivation = action_features or derive_action_features(runtime_state=state)
+        feature_values = derivation.values
+        lp = feature_values["local_patchability"]
+        er_val = feature_values["evidence_reusability"]
+        pp = feature_values["prefix_preservability"]
+        br = feature_values["budget_relief"]
+        gr = feature_values["goal_realignment"]
+        safety_term = feature_values["safety_terminality"]
+        iv = feature_values["intervention_value"]
+        b = feature_values["budget_pressure"]
+        utility_metadata: JsonObject = {
+            "derived_features": derivation.features_metadata(),
+            "action_feature_source_refs": list(derivation.source_refs),
+        }
 
         bp = round(min(max(b, 0.0), 1.0), 6)
         return {
@@ -359,18 +376,21 @@ class RuntimeEvaluator:
                 utility=round(max(0.0, min(1.0, 0.38 * s + 0.14 * e_suff + 0.12 * r_margin - 0.22 * f_param - 0.14 * b)), 6),
                 budget_pressure=bp,
                 source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
+                metadata=utility_metadata,
             ),
             "patch_local": ActionUtility(
                 action="patch_local",
                 utility=round(max(0.0, min(1.0, 0.20 * s + 0.24 * r_margin + 0.18 * lp + 0.12 * er_val - 0.14 * f_param - 0.12 * b)), 6),
                 budget_pressure=bp,
                 source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
+                metadata=utility_metadata,
             ),
             "suffix_replan": ActionUtility(
                 action="suffix_replan",
                 utility=round(max(0.0, min(1.0, 0.18 * (1.0 - s) + 0.20 * f_param + 0.16 * (1.0 - r_margin) + 0.18 * pp + 0.14 * br + 0.14 * gr)), 6),
                 budget_pressure=bp,
                 source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
+                metadata=utility_metadata,
             ),
             "stop": ActionUtility(
                 action="stop",
@@ -379,6 +399,7 @@ class RuntimeEvaluator:
                 intervention_value=round(iv, 6),
                 terminal_reason="auto_stop: low success, high budget pressure, exhausted recovery margin",
                 source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
+                metadata=utility_metadata,
             ),
         }
 
@@ -389,6 +410,8 @@ class RuntimeEvaluator:
         utilities: dict[str, ActionUtility],
         state: dict[str, object],
         allow_auto_stop: bool,
+        *,
+        action_features: ActionFeatureDerivation | None = None,
     ) -> bool:
         if not allow_auto_stop:
             return False
@@ -396,10 +419,10 @@ class RuntimeEvaluator:
         if stop_u is None:
             return False
         s = _safe_clip(state.get("p_success"), 0.5)
-        ec = _safe_float(state.get("expected_remaining_cost"), 1.0)
-        b = min(max(ec, 0.0), 1.5)
         r_margin = _safe_clip(state.get("recovery_margin"), 0.6)
-        iv = _safe_float(state.get("intervention_value"), 0.0)
+        derivation = action_features or derive_action_features(runtime_state=state)
+        b = derivation.values["budget_pressure"]
+        iv = derivation.values["intervention_value"]
         return (
             stop_u.utility >= 0.72
             and s <= _STOP_P_SUCCESS_THRESHOLD

@@ -89,9 +89,15 @@ def test_selector_derives_runtime_features_from_core_belief_state_only():
     assert decision.action == "suffix_replan"
     assert decision.evidence_source["budget_pressure"] == pytest.approx(1.1)
     assert decision.evidence_source["evidence_sufficiency"] == pytest.approx(0.66)
-    assert decision.evidence_source["local_patchability"] == pytest.approx(0.459, rel=1e-3)
+    assert decision.evidence_source["local_patchability"] == pytest.approx(0.369, rel=1e-3)
     assert decision.evidence_source["prefix_preservability"] == pytest.approx(0.258, rel=1e-3)
-    assert decision.evidence_source["intervention_value"] == pytest.approx(0.4991375, rel=1e-3)
+    assert decision.evidence_source["intervention_value"] == pytest.approx(0.4867625, rel=1e-3)
+    derived = decision.evidence_source["derived_features"]
+    assert derived["local_patchability"]["source"] == "inferred"
+    assert derived["intervention_value"]["source"] == "inferred"
+    assert "sid:algo.action_feature_derivation" in decision.evidence_source[
+        "action_feature_source_refs"
+    ]
 
 
 @pytest.mark.unit
