@@ -6,7 +6,7 @@
 - Scope: research / documentation / algorithm background
 - Phase: CEBRA-WP P2 文档与表达增强
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P2-3 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -67,3 +67,11 @@
 - 文献映射不是附录，而是实现/写作共同参考；
 - 理论背景不再散落在多份笔记里；
 - 最新论文可以作为算法细化依据被稳定复用。
+
+## 8. 实现记录
+
+- 新增 `docs/algorithm-and-llm/theory-background-paper-code-map.md` 作为稳定映射矩阵。
+- 矩阵逐项覆盖 `Pi_t`、`S_static`、`G_post`、`x_t`、`B(x_t,o_t,h_t)`、`Delta`、`U_pi`、`SelectDiverseTopK`、`U_a` 和 stop guard。
+- 每个条目同时给出设计 SID / schema 或公式版本、代码落点、字段或 metadata、理论背景、代表文献和正文采用状态。
+- 近期文献按 2026-05-05 检索口径记录 arXiv/Nature 链接和用途，包括 RosettaSearch、AutoBinder Agent、ProtAlign、ProteinGuide、ProteinZero、PDB-Struct、AlphaFold3 等。
+- `core-algorithm-literature-map.md` 和 `core-algorithm-theory-v2.md` 已指向该映射矩阵，避免文献综述、理论公式和实现审查三者分散。
