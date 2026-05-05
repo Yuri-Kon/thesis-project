@@ -322,7 +322,7 @@ x_t = (s_t, f_t, r_t, c_t, e_t)
 - `s_t = p_success`：当前工作流最终成功概率的代理估计；
 - `f_t = p_structural_failure`：结构性失败压力；
 - `r_t = recovery_margin`：恢复余量；
-- `c_t = expected_remaining_cost`：预期剩余成本；
+- `c_t = expected_remaining_cost`：预期剩余成本，保持原始非负成本尺度，可大于 1；
 - `e_t = evidence_sufficiency`：当前证据充分度。
 
 取值范围：
@@ -331,6 +331,16 @@ x_t = (s_t, f_t, r_t, c_t, e_t)
 s_t, f_t, r_t, e_t ∈ [0,1]
 c_t ∈ R_{>=0}
 ```
+
+预算压力不是核心状态量本身，而是从剩余成本按需派生：
+
+```text
+budget_pressure =
+  clip(c_t / max(budget_cap, 0.1), 0, 1.5)  if budget_cap is available
+  clip(c_t, 0, 1.5)                          otherwise
+```
+
+因此 `expected_remaining_cost` 保留原始估计，`budget_pressure` 承担归一化后的预算压力语义。
 
 ### 5.2 为什么称为 Lite belief-state
 
@@ -515,7 +525,7 @@ s = s_t = p_success
 f = f_t = p_structural_failure
 r = r_t = recovery_margin
 e = e_t = evidence_sufficiency
-b = budget_pressure = clip(c_t,0,1)
+b = budget_pressure
 ```
 
 派生量：
