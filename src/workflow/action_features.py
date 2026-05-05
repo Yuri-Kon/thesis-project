@@ -6,6 +6,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, cast
 
+from src.models.budget_pressure import (
+    BUDGET_PRESSURE_SOURCE_REFS,
+    coerce_optional_budget_cap,
+    coerce_optional_budget_pressure,
+    derive_budget_pressure,
+)
 from src.models.runtime_schemas import JsonObject
 from src.workflow.errors import FailureType
 
@@ -25,6 +31,7 @@ ACTION_FEATURE_NAMES: tuple[str, ...] = (
 ACTION_FEATURE_SOURCE_REFS: tuple[str, ...] = (
     "sid:algo.action_feature_derivation",
     "impl:workflow.action_features.v1",
+    *BUDGET_PRESSURE_SOURCE_REFS,
 )
 
 
@@ -125,7 +132,9 @@ def derive_action_features(
 
     features: dict[str, DerivedActionFeature] = {}
 
-    budget_pressure = _observed_or_none(runtime_state, "budget_pressure")
+    budget_pressure = coerce_optional_budget_pressure(
+        runtime_state.get("budget_pressure")
+    )
     if budget_pressure is not None:
         features["budget_pressure"] = _feature(
             budget_pressure,
@@ -135,11 +144,15 @@ def derive_action_features(
             upper=1.5,
         )
     else:
+        budget_derivation = derive_budget_pressure(
+            expected_remaining_cost=expected_remaining_cost,
+            budget_cap=coerce_optional_budget_cap(runtime_state.get("budget_cap")),
+        )
         features["budget_pressure"] = _feature(
-            _clip(expected_remaining_cost, lower=0.0, upper=1.5),
+            budget_derivation.budget_pressure,
             "inferred" if "expected_remaining_cost" in runtime_state else "default",
-            ("runtime_state.expected_remaining_cost",),
-            "Budget pressure is clipped from expected remaining cost.",
+            budget_derivation.source_fields,
+            budget_derivation.reason,
             upper=1.5,
         )
 
@@ -419,6 +432,8 @@ def _has_contextual_signal(
         "recovery_margin",
         "expected_remaining_cost",
         "evidence_sufficiency",
+        "budget_pressure",
+        "budget_cap",
     }
     return (
         bool(core_fields.intersection(runtime_state.keys()))
