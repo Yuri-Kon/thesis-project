@@ -30,6 +30,21 @@ from src.models.contracts import (
     STATIC_SCORE_METADATA_KEY,
 )
 
+_POSTERIOR_OBJECTIVE_SCHEMA_VERSION = "posterior_objective.v1"
+_POSTERIOR_SCORE_SCHEMA_VERSION = "posterior_score.v1"
+_POSTERIOR_OBJECTIVE_THRESHOLD = 0.30
+_POSTERIOR_OBJECTIVE_SOURCE_REFS = [
+    "sid:algo.posterior_objective_scoring",
+    "impl:posterior_score.v1",
+]
+_POSTERIOR_COMPONENT_KEYS = (
+    "generic_objective",
+    "stability",
+    "function",
+    "novelty",
+    "structure_quality",
+)
+
 
 class CandidateBuilder:
     """构造 PendingActionCandidate 及其审计 metadata。"""
@@ -160,6 +175,8 @@ class CandidateBuilder:
             )
         )
         payload_metadata = object_mapping(cast(object, payload.payload.metadata))
+        posterior_metadata = objective_metadata_from_payload_metadata(payload_metadata)
+        metadata.update(posterior_metadata)
         planner_route = payload_metadata.get("planner_route")
         if isinstance(planner_route, dict):
             metadata["planner_route"] = object_mapping(cast(object, planner_route))
@@ -252,3 +269,88 @@ class CandidateBuilder:
             6,
         )
         return {key: round(value, 6) for key, value in adjusted.items()}
+
+
+def _bounded_optional_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return min(max(parsed, 0.0), 1.0)
+
+
+def _normalize_posterior_objective(raw: object) -> Metadata | None:
+    if not isinstance(raw, Mapping):
+        return None
+    aggregate_score = _bounded_optional_float(raw.get("aggregate_score"))
+    evidence_sufficiency = _bounded_optional_float(raw.get("evidence_sufficiency"))
+    if aggregate_score is None or evidence_sufficiency is None:
+        return None
+    schema_version = raw.get("schema_version")
+    if schema_version == _POSTERIOR_OBJECTIVE_SCHEMA_VERSION:
+        normalized = object_mapping(cast(object, raw))
+        normalized["aggregate_score"] = aggregate_score
+        normalized["evidence_sufficiency"] = evidence_sufficiency
+        return normalized
+    if schema_version not in {_POSTERIOR_SCORE_SCHEMA_VERSION, None}:
+        return None
+    components: Metadata = {}
+    for key in _POSTERIOR_COMPONENT_KEYS:
+        component = raw.get(key)
+        if isinstance(component, Mapping):
+            components[key] = object_mapping(cast(object, component))
+    raw_component_weights = raw.get("component_weights")
+    raw_warnings = raw.get("warnings")
+    raw_evidence_refs = raw.get("evidence_refs")
+    raw_evidence_status = raw.get("evidence_status")
+    objective_type = raw.get("objective_type")
+    return {
+        "schema_version": _POSTERIOR_OBJECTIVE_SCHEMA_VERSION,
+        "aggregate_score": aggregate_score,
+        "components": components,
+        "component_weights": object_mapping(cast(object, raw_component_weights))
+        if isinstance(raw_component_weights, Mapping)
+        else {},
+        "evidence_sufficiency": evidence_sufficiency,
+        "evidence_status": raw_evidence_status
+        if isinstance(raw_evidence_status, str)
+        else "degraded",
+        "objective_type": objective_type if isinstance(objective_type, str) else None,
+        "objective_source": "posterior_objective",
+        "binding_proxy_component": "generic_objective"
+        if objective_type == "binding"
+        else None,
+        "warnings": list(raw_warnings) if isinstance(raw_warnings, list) else [],
+        "evidence_refs": list(raw_evidence_refs) if isinstance(raw_evidence_refs, list) else [],
+        "source_refs": list(_POSTERIOR_OBJECTIVE_SOURCE_REFS),
+    }
+
+
+def objective_metadata_from_payload_metadata(payload_metadata: Metadata) -> Metadata:
+    raw = payload_metadata.get("posterior_objective") or payload_metadata.get("posterior_score")
+    posterior = _normalize_posterior_objective(raw)
+    if posterior is None:
+        return {
+            "objective_score_source": "prior_goal_fit",
+            "objective_evidence_sufficiency": 0.5,
+            "objective_evidence_status": "prior",
+        }
+    evidence_sufficiency = _bounded_optional_float(
+        posterior.get("evidence_sufficiency")
+    ) or 0.0
+    raw_evidence_status = posterior.get("evidence_status")
+    objective_source = (
+        "posterior_objective"
+        if evidence_sufficiency >= _POSTERIOR_OBJECTIVE_THRESHOLD
+        else "degraded_proxy"
+    )
+    return {
+        "posterior_objective": posterior,
+        "objective_score_source": objective_source,
+        "objective_evidence_sufficiency": evidence_sufficiency,
+        "objective_evidence_status": raw_evidence_status
+        if isinstance(raw_evidence_status, str)
+        else "degraded",
+    }
