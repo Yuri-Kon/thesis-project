@@ -23,12 +23,15 @@ from src.models.source_refs import (
 from src.workflow.runtime_evaluator import (
     DYNAMIC_OBSERVATION_ONLY,
     LITE_BELIEF_STATE,
+    RUNTIME_POLICY_ABLATION_GROUPS,
+    RUNTIME_POLICY_ABLATION_GROUP_BY_MODE,
     STATIC_GATE,
     STATIC_TOP1,
     RuntimeEvaluator,
     compute_runtime_delta,
     evaluator_policy_trace,
     policy_disables_rerank,
+    runtime_policy_ablation_group,
 )
 from src.workflow.action_features import derive_action_features
 
@@ -109,10 +112,61 @@ def _state_dict(**overrides: float) -> dict[str, object]:
     return dict(defaults)
 
 
+def _object_dict(value: object) -> dict[str, object]:
+    assert isinstance(value, dict)
+    return cast(dict[str, object], value)
+
+
 # -- policy mode tests -------------------------------------------------------
 
 
 class TestPolicyModes:
+    def test_policy_ablation_groups_are_complete_and_ordered(self) -> None:
+        modes = [group.policy_mode for group in RUNTIME_POLICY_ABLATION_GROUPS]
+        assert modes == [
+            STATIC_TOP1,
+            STATIC_GATE,
+            DYNAMIC_OBSERVATION_ONLY,
+            LITE_BELIEF_STATE,
+        ]
+        assert set(RUNTIME_POLICY_ABLATION_GROUP_BY_MODE) == set(modes)
+
+    @pytest.mark.parametrize(
+        ("mode", "paper_group_id", "name", "rerank", "belief", "full_adjustment"),
+        [
+            (STATIC_TOP1, "static_top1", "静态单链基线", False, False, False),
+            (STATIC_GATE, "fixed_threshold_gate", "静态门控基线", False, False, False),
+            (
+                DYNAMIC_OBSERVATION_ONLY,
+                "dynamic_no_belief_state",
+                "动态观测但不使用 belief-state",
+                True,
+                False,
+                False,
+            ),
+            (LITE_BELIEF_STATE, "lite_belief_state", "完整 CEBRA-WP", True, True, True),
+        ],
+    )
+    def test_policy_ablation_group_mapping(
+        self,
+        mode: str,
+        paper_group_id: str,
+        name: str,
+        rerank: bool,
+        belief: bool,
+        full_adjustment: bool,
+    ) -> None:
+        group = runtime_policy_ablation_group(mode)
+        assert group.paper_group_id == paper_group_id
+        assert group.paper_group_name == name
+        assert group.rerank_enabled is rerank
+        assert group.belief_state_enabled is belief
+        assert group.full_runtime_adjustment is full_adjustment
+        assert group.semantic_meaning
+        assert group.question
+        assert group.expected_effect
+        assert group.key_metrics
+
     def test_static_top1_disables_rerank(self) -> None:
         e = RuntimeEvaluator(policy_mode=STATIC_TOP1)
         candidates = [_candidate("a", overall=0.8), _candidate("b", overall=0.6)]
@@ -157,12 +211,16 @@ class TestPolicyModes:
     def test_invalid_policy_defaults_to_lite(self) -> None:
         e = RuntimeEvaluator(policy_mode="invalid_mode")
         assert e.policy_mode == LITE_BELIEF_STATE
+        assert runtime_policy_ablation_group("invalid_mode").policy_mode == LITE_BELIEF_STATE
 
     def test_policy_trace(self) -> None:
         trace = evaluator_policy_trace(STATIC_TOP1)
         assert trace["rerank_enabled"] is False
         assert trace["belief_state_enabled"] is False
         assert trace["policy_mode"] == STATIC_TOP1
+        assert trace["paper_group_id"] == "static_top1"
+        assert trace["paper_group_name"] == "静态单链基线"
+        assert trace["full_runtime_adjustment"] is False
 
     def test_empty_candidates(self) -> None:
         e = RuntimeEvaluator()
@@ -212,7 +270,8 @@ class TestRerank:
         action_bias = adj["action_bias"]
         assert isinstance(action_bias, dict)
         assert action_bias["value"] == adj["value"]
-        assert action_bias["factors"] == metadata[RERANK_REASON_METADATA_KEY]["factors"]
+        rerank_reason = _object_dict(metadata[RERANK_REASON_METADATA_KEY])
+        assert action_bias["factors"] == rerank_reason["factors"]
         bias_refs = cast(list[str], action_bias["source_refs"])
         assert set(SOURCE_REF_ACTION_BIAS).issubset(bias_refs)
 
@@ -386,10 +445,10 @@ class TestActionUtility:
             assert any(ref.startswith("sid:") for ref in u.source_refs)
             assert any(ref.startswith("impl:") for ref in u.source_refs)
             assert "derived_features" in u.metadata
-            derived = u.metadata["derived_features"]
-            assert isinstance(derived, dict)
+            derived = _object_dict(u.metadata["derived_features"])
             assert "local_patchability" in derived
-            assert "source" in derived["local_patchability"]
+            local_patchability = _object_dict(derived["local_patchability"])
+            assert "source" in local_patchability
 
     def test_stop_utility_higher_under_pressure(self) -> None:
         e = RuntimeEvaluator()
@@ -414,8 +473,9 @@ class TestActionUtility:
         assert high_cap["continue"].budget_pressure == pytest.approx(0.6)
         assert low_cap["continue"].budget_pressure == pytest.approx(1.5)
         assert low_cap["stop"].utility > high_cap["stop"].utility
-        derived = low_cap["stop"].metadata["derived_features"]
-        assert derived["budget_pressure"]["source_fields"] == [
+        derived = _object_dict(low_cap["stop"].metadata["derived_features"])
+        budget_pressure = _object_dict(derived["budget_pressure"])
+        assert budget_pressure["source_fields"] == [
             "runtime_state.expected_remaining_cost",
             "runtime_state.budget_cap",
         ]
@@ -444,8 +504,9 @@ class TestActionUtility:
 
         stop = utilities["stop"]
         assert stop.intervention_value == pytest.approx(0.5)
-        derived = stop.metadata["derived_features"]
-        assert derived["intervention_value"]["source"] == "default"
+        derived = _object_dict(stop.metadata["derived_features"])
+        intervention_value = _object_dict(derived["intervention_value"])
+        assert intervention_value["source"] == "default"
 
     def test_explicit_action_features_take_priority(self) -> None:
         e = RuntimeEvaluator()
@@ -466,12 +527,10 @@ class TestActionUtility:
 
         utilities = e.compute_action_utilities(state, action_features=action_features)
 
-        patch_feature = utilities["patch_local"].metadata["derived_features"][
-            "local_patchability"
-        ]
-        stop_feature = utilities["stop"].metadata["derived_features"][
-            "intervention_value"
-        ]
+        patch_features = _object_dict(utilities["patch_local"].metadata["derived_features"])
+        stop_features = _object_dict(utilities["stop"].metadata["derived_features"])
+        patch_feature = _object_dict(patch_features["local_patchability"])
+        stop_feature = _object_dict(stop_features["intervention_value"])
         assert patch_feature["value"] == pytest.approx(0.9)
         assert patch_feature["source"] == "observed"
         assert stop_feature["value"] == pytest.approx(0.8)

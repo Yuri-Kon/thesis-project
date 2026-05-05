@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Literal, cast
+from typing import Final, Literal, cast
 
 from src.models.contracts import (
     ActionBiasSummary,
@@ -49,6 +49,9 @@ from src.workflow.action_features import (
 __all__ = [
     "DYNAMIC_OBSERVATION_ONLY",
     "LITE_BELIEF_STATE",
+    "RUNTIME_POLICY_ABLATION_GROUPS",
+    "RUNTIME_POLICY_ABLATION_GROUP_BY_MODE",
+    "RuntimePolicyAblationGroup",
     "STATIC_GATE",
     "STATIC_TOP1",
     "RuntimeEvaluator",
@@ -56,13 +59,20 @@ __all__ = [
     "compute_runtime_delta",
     "evaluator_policy_trace",
     "policy_disables_rerank",
+    "runtime_policy_ablation_group",
 ]
 
 # -- policy mode constants ---------------------------------------------------
-STATIC_TOP1 = "static_top1"
-STATIC_GATE = "static_gate"
-DYNAMIC_OBSERVATION_ONLY = "dynamic_observation_only"
-LITE_BELIEF_STATE = "lite_belief_state"
+RuntimePolicyMode = Literal[
+    "static_top1",
+    "static_gate",
+    "dynamic_observation_only",
+    "lite_belief_state",
+]
+STATIC_TOP1: Final[RuntimePolicyMode] = "static_top1"
+STATIC_GATE: Final[RuntimePolicyMode] = "static_gate"
+DYNAMIC_OBSERVATION_ONLY: Final[RuntimePolicyMode] = "dynamic_observation_only"
+LITE_BELIEF_STATE: Final[RuntimePolicyMode] = "lite_belief_state"
 
 _POLICY_MODES = frozenset(
     {STATIC_TOP1, STATIC_GATE, DYNAMIC_OBSERVATION_ONLY, LITE_BELIEF_STATE}
@@ -86,6 +96,83 @@ _STRUCTURAL_FAILURE_THRESHOLD = 0.55
 _RECOVERY_MARGIN_LOW = 0.1
 
 
+@dataclass(frozen=True)
+class RuntimePolicyAblationGroup:
+    """论文消融组与 runtime policy mode 的稳定映射。"""
+
+    policy_mode: RuntimePolicyMode
+    paper_group_id: str
+    paper_group_name: str
+    semantic_meaning: str
+    question: str
+    expected_effect: str
+    key_metrics: tuple[str, ...]
+    rerank_enabled: bool
+    belief_state_enabled: bool
+    full_runtime_adjustment: bool
+    design_refs: tuple[str, ...] = (
+        "sid:experiment.group_mapping.overview",
+        "sid:planner.algorithm.runtime_reranking",
+        "sid:algo.schema.action_utility",
+    )
+
+
+RUNTIME_POLICY_ABLATION_GROUPS: tuple[RuntimePolicyAblationGroup, ...] = (
+    RuntimePolicyAblationGroup(
+        policy_mode=STATIC_TOP1,
+        paper_group_id="static_top1",
+        paper_group_name="静态单链基线",
+        semantic_meaning="仅采用静态最高分候选，不消费运行时观测做重排。",
+        question="静态单链路是否足够支撑高代价工作流？",
+        expected_effect="成本最低但最缺少失败恢复与替代路径收益。",
+        key_metrics=("success_rate", "high_cost_call_count", "early_failure_rate"),
+        rerank_enabled=False,
+        belief_state_enabled=False,
+        full_runtime_adjustment=False,
+    ),
+    RuntimePolicyAblationGroup(
+        policy_mode=STATIC_GATE,
+        paper_group_id="fixed_threshold_gate",
+        paper_group_name="静态门控基线",
+        semantic_meaning="保留静态过滤/门控，但不启用运行时重排。",
+        question="简单静态门控是否已经足够？",
+        expected_effect="比 static_top1 更稳健，但无法利用运行时失败证据。",
+        key_metrics=("gate_pass_rate", "manual_intervention_rate", "wasted_call_rate"),
+        rerank_enabled=False,
+        belief_state_enabled=False,
+        full_runtime_adjustment=False,
+    ),
+    RuntimePolicyAblationGroup(
+        policy_mode=DYNAMIC_OBSERVATION_ONLY,
+        paper_group_id="dynamic_no_belief_state",
+        paper_group_name="动态观测但不使用 belief-state",
+        semantic_meaning="保留动态 patch/replan 观测链路，但 runtime adjustment 为 passthrough。",
+        question="仅有动态观测和恢复动作、没有 belief-state 是否足够？",
+        expected_effect="可隔离恢复机制收益，但不体现 belief-state 的重排增益。",
+        key_metrics=("patch_success_rate", "replan_success_rate", "recovery_cost"),
+        rerank_enabled=True,
+        belief_state_enabled=False,
+        full_runtime_adjustment=False,
+    ),
+    RuntimePolicyAblationGroup(
+        policy_mode=LITE_BELIEF_STATE,
+        paper_group_id="lite_belief_state",
+        paper_group_name="完整 CEBRA-WP",
+        semantic_meaning="启用 Lite belief-state、runtime adjustment 与 action utility。",
+        question="belief-state 是否带来最后一段 runtime 决策增益？",
+        expected_effect="应改善高代价调用控制、止损质量和整体成功率。",
+        key_metrics=("success_rate", "high_cost_call_count", "stop_quality", "rerank_delta"),
+        rerank_enabled=True,
+        belief_state_enabled=True,
+        full_runtime_adjustment=True,
+    ),
+)
+RUNTIME_POLICY_ABLATION_GROUP_BY_MODE: dict[str, RuntimePolicyAblationGroup] = {
+    group.policy_mode: group
+    for group in RUNTIME_POLICY_ABLATION_GROUPS
+}
+
+
 # -- public helpers ----------------------------------------------------------
 
 
@@ -94,15 +181,25 @@ def policy_disables_rerank(policy_mode: str) -> bool:
     return policy_mode.strip().lower() in _RERANK_DISABLED_POLICIES
 
 
-def evaluator_policy_trace(policy_mode: str) -> dict[str, object]:
+def runtime_policy_ablation_group(policy_mode: str) -> RuntimePolicyAblationGroup:
+    """返回 policy mode 对应的论文消融组，未知 mode 回退到完整方法。"""
     normalized = policy_mode.strip().lower()
-    if normalized not in _POLICY_MODES:
-        normalized = LITE_BELIEF_STATE
+    return RUNTIME_POLICY_ABLATION_GROUP_BY_MODE.get(
+        normalized,
+        RUNTIME_POLICY_ABLATION_GROUP_BY_MODE[LITE_BELIEF_STATE],
+    )
+
+
+def evaluator_policy_trace(policy_mode: str) -> dict[str, object]:
+    group = runtime_policy_ablation_group(policy_mode)
+    normalized = group.policy_mode
     return {
         "policy_mode": normalized,
-        "rerank_enabled": not policy_disables_rerank(normalized),
-        "belief_state_enabled": normalized
-        not in {STATIC_TOP1, STATIC_GATE, DYNAMIC_OBSERVATION_ONLY},
+        "paper_group_id": group.paper_group_id,
+        "paper_group_name": group.paper_group_name,
+        "rerank_enabled": group.rerank_enabled,
+        "belief_state_enabled": group.belief_state_enabled,
+        "full_runtime_adjustment": group.full_runtime_adjustment,
     }
 
 

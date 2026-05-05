@@ -6,7 +6,7 @@
 - Scope: algorithm / evaluation / ablation design
 - Phase: CEBRA-WP P1 规划与实现准备
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P1-7 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -80,6 +80,18 @@ mode / paper group / semantic meaning / expected effect / key metrics
 - `policy_mode` 枚举值不可再隐式扩展；
 - 新增 mode 必须同步更新测试和实验文档；
 - mode 名称尽量保持与论文一致。
+
+当前实现中，代码侧 SSOT 为：
+
+```python
+src.workflow.runtime_evaluator.RUNTIME_POLICY_ABLATION_GROUPS
+```
+
+本地实验文档为：
+
+```text
+docs/experiment/algorithm-group-paper-mapping.md
+```
 
 ## 6. 测试建议
 
