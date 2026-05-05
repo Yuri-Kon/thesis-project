@@ -4,7 +4,19 @@ import json
 import math
 from typing import ClassVar, Literal, TypeGuard, cast
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+from src.models.budget_pressure import (
+    BUDGET_PRESSURE_MAX,
+    derive_budget_pressure,
+)
 
 RUNTIME_SCHEMA_VERSION = 1
 RUNTIME_STATE_CORE_FIELDS = (
@@ -287,6 +299,8 @@ class RuntimeStateSchema(RuntimeContractBase):
     recovery_margin: float = 0.6
     expected_remaining_cost: float = 1.0
     evidence_sufficiency: float = 0.5
+    budget_pressure: float | None = None
+    budget_cap: float | None = None
     last_update_source: str = "runtime_bootstrap"
     observation_summary: JsonObject = Field(default_factory=dict)
 
@@ -308,6 +322,26 @@ class RuntimeStateSchema(RuntimeContractBase):
             raise ValueError("expected_remaining_cost must be >= 0")
         return normalized
 
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= BUDGET_PRESSURE_MAX:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
+
+    @field_validator("budget_cap")
+    @classmethod
+    def _validate_budget_cap(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float(value, field_name="budget_cap")
+        if normalized <= 0.0:
+            raise ValueError("budget_cap must be > 0")
+        return normalized
+
     @field_validator("last_update_source")
     @classmethod
     def _validate_last_update_source(cls, value: str) -> str:
@@ -321,6 +355,15 @@ class RuntimeStateSchema(RuntimeContractBase):
     def _validate_observation_summary(cls, value: object) -> JsonObject:
         return _validate_json_mapping(value, field_name="observation_summary")
 
+    @model_validator(mode="after")
+    def _derive_budget_pressure(self) -> "RuntimeStateSchema":
+        if self.budget_pressure is None:
+            self.budget_pressure = derive_budget_pressure(
+                expected_remaining_cost=self.expected_remaining_cost,
+                budget_cap=self.budget_cap,
+            ).budget_pressure
+        return self
+
     @classmethod
     def from_snapshot_payload(cls, payload: object) -> "RuntimeStateSchema":
         """从新旧 snapshot.artifacts.runtime_state 载荷恢复状态契约。"""
@@ -333,15 +376,25 @@ class RuntimeStateSchema(RuntimeContractBase):
     def to_snapshot_payload(self) -> JsonObject:
         """输出 snapshot.artifacts.runtime_state 的稳定字段。"""
 
-        return cast(JsonObject, self.model_dump(exclude={"observation_summary"}))
+        return cast(
+            JsonObject,
+            self.model_dump(exclude={"observation_summary"}, exclude_none=True),
+        )
 
     def to_summary_payload(self) -> JsonObject:
         """输出 UI/CLI/Planner/EventLog 共用的轻量状态摘要。"""
 
-        return {
-            key: getattr(self, key)
-            for key in ("schema_version", *RUNTIME_STATE_CORE_FIELDS)
+        payload: JsonObject = {
+            "schema_version": self.schema_version,
+            "p_success": self.p_success,
+            "p_structural_failure": self.p_structural_failure,
+            "recovery_margin": self.recovery_margin,
+            "expected_remaining_cost": self.expected_remaining_cost,
+            "evidence_sufficiency": self.evidence_sufficiency,
+            "budget_pressure": self.budget_pressure,
+            "budget_cap": self.budget_cap,
         }
+        return {key: value for key, value in payload.items() if value is not None}
 
 
 class ObservationSource(BaseModel):
@@ -415,10 +468,18 @@ class ActionUtility(RuntimeContractBase):
     def _validate_utility(cls, value: float) -> float:
         return _validate_unit_interval(value, field_name="utility")
 
-    @field_validator("intervention_value", "budget_pressure")
+    @field_validator("intervention_value")
     @classmethod
     def _validate_unit_value(cls, value: float, info: ValidationInfo) -> float:
         return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float) -> float:
+        normalized = _validate_finite_float(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= BUDGET_PRESSURE_MAX:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
 
     @field_validator("hard_constraints", "source_refs")
     @classmethod
@@ -471,6 +532,8 @@ RUNTIME_SCHEMA_FIELD_MAPPINGS: dict[str, RuntimeSchemaFieldMapping] = {
         snapshot_fields=[
             "artifacts.runtime_cost",
             "artifacts.runtime_state.expected_remaining_cost",
+            "artifacts.runtime_state.budget_pressure",
+            "artifacts.runtime_state.budget_cap",
         ],
         event_fields=[
             "data.runtime_cost",
@@ -480,6 +543,8 @@ RUNTIME_SCHEMA_FIELD_MAPPINGS: dict[str, RuntimeSchemaFieldMapping] = {
             "metadata.cost_schema",
             "metadata.score_breakdown.cost",
             "metadata.runtime_state_summary.expected_remaining_cost",
+            "metadata.runtime_state_summary.budget_pressure",
+            "metadata.runtime_state_summary.budget_cap",
         ],
         ui_summary_fields=["score_breakdown.cost", "cost_estimate"],
         cli_summary_fields=["score_breakdown.cost", "cost_estimate"],
