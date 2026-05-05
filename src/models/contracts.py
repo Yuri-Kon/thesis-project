@@ -547,6 +547,7 @@ class ScoreSummary(BaseModel):
 
     value: float
     source: str
+    source_refs: list[str] = Field(default_factory=list)
 
     @field_validator("value")
     @classmethod
@@ -560,6 +561,14 @@ class ScoreSummary(BaseModel):
     @classmethod
     def _validate_source(cls, value: str) -> str:
         return _validate_non_empty_text(value, field_name="source")
+
+    @field_validator("source_refs")
+    @classmethod
+    def _validate_source_refs(cls, value: list[str]) -> list[str]:
+        return [
+            _validate_non_empty_text(item, field_name="source_refs")
+            for item in value
+        ]
 
 
 class RuntimeAdjustmentFactor(BaseModel):
@@ -591,6 +600,7 @@ class RuntimeAdjustmentSummary(BaseModel):
 
     value: float
     source: str
+    source_refs: list[str] = Field(default_factory=list)
     formula_version: str = "v1"
     shadow_only: bool = True
 
@@ -606,6 +616,14 @@ class RuntimeAdjustmentSummary(BaseModel):
     @classmethod
     def _validate_text(cls, value: str, info) -> str:
         return _validate_non_empty_text(value, field_name=info.field_name)
+
+    @field_validator("source_refs")
+    @classmethod
+    def _validate_source_refs(cls, value: list[str]) -> list[str]:
+        return [
+            _validate_non_empty_text(item, field_name="source_refs")
+            for item in value
+        ]
 
 
 class RerankReason(BaseModel):

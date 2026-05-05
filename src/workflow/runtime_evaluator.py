@@ -26,6 +26,13 @@ from src.models.runtime_schemas import (
     ActionUtility,
     RuntimeStateSchema,
 )
+from src.models.source_refs import (
+    SOURCE_REF_ACTION_UTILITY,
+    SOURCE_REF_DEFAULT_ACTION_UTILITY,
+    SOURCE_REF_RUNTIME_ADJUSTMENT,
+    SOURCE_REF_STATIC_SCORE,
+    as_source_refs,
+)
 
 __all__ = [
     "DYNAMIC_OBSERVATION_ONLY",
@@ -348,19 +355,19 @@ class RuntimeEvaluator:
                 action="continue",
                 utility=round(max(0.0, min(1.0, 0.38 * s + 0.14 * e_suff + 0.12 * r_margin - 0.22 * f_param - 0.14 * b)), 6),
                 budget_pressure=bp,
-                source_refs=["runtime_evaluator.action_utility.v1"],
+                source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
             ),
             "patch_local": ActionUtility(
                 action="patch_local",
                 utility=round(max(0.0, min(1.0, 0.20 * s + 0.24 * r_margin + 0.18 * lp + 0.12 * er_val - 0.14 * f_param - 0.12 * b)), 6),
                 budget_pressure=bp,
-                source_refs=["runtime_evaluator.action_utility.v1"],
+                source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
             ),
             "suffix_replan": ActionUtility(
                 action="suffix_replan",
                 utility=round(max(0.0, min(1.0, 0.18 * (1.0 - s) + 0.20 * f_param + 0.16 * (1.0 - r_margin) + 0.18 * pp + 0.14 * br + 0.14 * gr)), 6),
                 budget_pressure=bp,
-                source_refs=["runtime_evaluator.action_utility.v1"],
+                source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
             ),
             "stop": ActionUtility(
                 action="stop",
@@ -368,7 +375,7 @@ class RuntimeEvaluator:
                 budget_pressure=bp,
                 intervention_value=round(iv, 6),
                 terminal_reason="auto_stop: low success, high budget pressure, exhausted recovery margin",
-                source_refs=["runtime_evaluator.action_utility.v1"],
+                source_refs=as_source_refs(*SOURCE_REF_ACTION_UTILITY),
             ),
         }
 
@@ -420,7 +427,7 @@ class RuntimeEvaluator:
         return ActionUtility(
             action=action,
             utility=0.5,
-            source_refs=["runtime_evaluator.default.v1"],
+            source_refs=as_source_refs(*SOURCE_REF_DEFAULT_ACTION_UTILITY),
             metadata={"default_reason": reason},
         )
 
@@ -571,18 +578,25 @@ def _attach_rerank_metadata(
     static_score = ScoreSummary(
         value=round(overall, 6),
         source="score_breakdown.overall.static.v1",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     final_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"static_score+runtime_adjustment.{shadow_action}.v1",
+        source_refs=as_source_refs(
+            *SOURCE_REF_STATIC_SCORE,
+            *SOURCE_REF_RUNTIME_ADJUSTMENT,
+        ),
     )
     shadow_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"score_breakdown.overall+runtime_state.{shadow_action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
     )
     runtime_adjustment = RuntimeAdjustmentSummary(
         value=round(delta, 6),
         source=f"planner.runtime_adjustment.{shadow_action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=False,
     )

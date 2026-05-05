@@ -62,6 +62,11 @@ from src.models.validation import (
     validate_candidate_set_output,
     validate_plan_executability,
 )
+from src.models.source_refs import (
+    SOURCE_REF_RUNTIME_ADJUSTMENT,
+    SOURCE_REF_STATIC_SCORE,
+    as_source_refs,
+)
 from src.models.db import (
     InternalStatus,
     TaskRecord,
@@ -2460,6 +2465,7 @@ def _build_action_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2468,6 +2474,7 @@ def _build_static_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall.static.v1",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2476,6 +2483,7 @@ def _build_shadow_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall_passthrough",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2503,10 +2511,15 @@ def _build_shadow_passthrough_decision(
     final_score = ScoreSummary(
         value=static_value,
         source="static_score+runtime_adjustment.shadow_passthrough.v1",
+        source_refs=as_source_refs(
+            *SOURCE_REF_STATIC_SCORE,
+            *SOURCE_REF_RUNTIME_ADJUSTMENT,
+        ),
     )
     runtime_adjustment = RuntimeAdjustmentSummary(
         value=0.0,
         source="planner.runtime_adjustment.shadow_passthrough.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=True,
     )
@@ -2584,14 +2597,20 @@ def _build_runtime_shadow_decision(
     final_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"static_score+runtime_adjustment.{action}.v1",
+        source_refs=as_source_refs(
+            *SOURCE_REF_STATIC_SCORE,
+            *SOURCE_REF_RUNTIME_ADJUSTMENT,
+        ),
     )
     shadow_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"score_breakdown.overall+runtime_state.{action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
     )
     runtime_adjustment = RuntimeAdjustmentSummary(
         value=round(delta, 6),
         source=f"planner.runtime_adjustment.{action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=False,
     )
