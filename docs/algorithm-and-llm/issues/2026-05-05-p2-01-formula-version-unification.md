@@ -6,7 +6,7 @@
 - Scope: algorithm / versioning / traceability
 - Phase: CEBRA-WP P2 文档与表达增强
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P2-1 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -50,6 +50,14 @@ cebra_wp.v2
 ├─ posterior_score.v1
 ├─ action_utility.v1
 └─ runtime_adjustment.v1
+```
+
+当前实现总表位于：
+
+```text
+src/models/algorithm_versions.py
+docs/algorithm-and-llm/algorithm-version-registry.md
+docs/algorithm-and-llm/core-algorithm-theory-v2.md
 ```
 
 ## 6. 测试建议
