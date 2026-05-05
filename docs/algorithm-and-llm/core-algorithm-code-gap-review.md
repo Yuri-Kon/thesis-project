@@ -557,7 +557,7 @@ lite_belief_state
 
 ## 5. P2 差距
 
-### P2-1：公式版本号和文档版本号可以统一
+### P2-1：公式版本号和文档版本号可以统一（已补齐）
 
 当前有：
 
@@ -567,14 +567,22 @@ planner.runtime_adjustment.*.v1
 runtime_evaluator.action_utility.v1
 ```
 
-建议建立统一版本表：
+已建立三级版本表：
 
 ```text
-CEBRA-WP formula version: cebra_wp.v2
-static_score: static_score.v1
-action_utility: action_utility.v1
-posterior_score: posterior_score.v1
+cebra_wp.v2
+├─ static_score.v1
+├─ posterior_score.v1
+├─ runtime_adjustment.v1
+├─ action_utility.v1
+└─ action_bias.v1
 ```
+
+总表位置：
+
+- `src.models.algorithm_versions`
+- `docs/algorithm-and-llm/algorithm-version-registry.md`
+- `docs/algorithm-and-llm/core-algorithm-theory-v2.md` §0
 
 ### P2-2：候选解释可以更贴近论文术语
 
