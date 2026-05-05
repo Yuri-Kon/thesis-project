@@ -535,7 +535,7 @@ binding_evidence -> generic_objective proxy
 
 若未来要新增一等 `binding` component，必须作为 schema version 升级处理。
 
-### P1-7：实验配置与 runtime policy mode 需要对应理论消融
+### P1-7：实验配置与 runtime policy mode 需要对应理论消融（已补齐）
 
 `RuntimeEvaluator` 支持：
 
@@ -546,14 +546,16 @@ dynamic_observation_only
 lite_belief_state
 ```
 
-这是天然实验消融。建议 D2/D4 后续实验设计使用：
+这是天然实验消融。当前已固定代码 mode、论文组 ID、预期行为与重点指标的映射，
+代码侧 SSOT 为 `src.workflow.runtime_evaluator.RUNTIME_POLICY_ABLATION_GROUPS`，
+文档侧 SSOT 为 `docs/experiment/algorithm-group-paper-mapping.md`。
 
-| 模式 | 对应消融 |
-|---|---|
-| `static_top1` | 无 Top-K rerank |
-| `static_gate` | 只用静态过滤/静态评分 |
-| `dynamic_observation_only` | 有运行时观测但无 belief surrogate |
-| `lite_belief_state` | 完整 CEBRA-WP |
+| 代码 mode | 论文组 ID | 对应消融 |
+|---|---|---|
+| `static_top1` | `static_top1` | 静态单链基线 |
+| `static_gate` | `fixed_threshold_gate` | 静态门控基线 |
+| `dynamic_observation_only` | `dynamic_no_belief_state` | 动态观测但不使用 belief-state |
+| `lite_belief_state` | `lite_belief_state` | 完整 CEBRA-WP |
 
 ## 5. P2 差距
 
