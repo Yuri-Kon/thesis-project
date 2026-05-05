@@ -62,6 +62,11 @@ from src.models.validation import (
     validate_candidate_set_output,
     validate_plan_executability,
 )
+from src.models.source_refs import (
+    SOURCE_REF_RUNTIME_ADJUSTMENT,
+    SOURCE_REF_STATIC_SCORE,
+    as_source_refs,
+)
 from src.models.db import (
     InternalStatus,
     TaskRecord,
@@ -165,6 +170,20 @@ _SCORE_WEIGHT_KEY_ALIASES: dict[str, str] = {
     "readiness": "tool_readiness",
     "coverage": "tool_coverage",
 }
+_POSTERIOR_OBJECTIVE_SCHEMA_VERSION = "posterior_objective.v1"
+_POSTERIOR_SCORE_SCHEMA_VERSION = "posterior_score.v1"
+_POSTERIOR_OBJECTIVE_THRESHOLD = 0.30
+_POSTERIOR_OBJECTIVE_SOURCE_REFS = [
+    "sid:algo.posterior_objective_scoring",
+    "impl:posterior_score.v1",
+]
+_POSTERIOR_COMPONENT_KEYS = (
+    "generic_objective",
+    "stability",
+    "function",
+    "novelty",
+    "structure_quality",
+)
 
 _P0_CAPABILITY_REPLACEMENT_MATRIX: dict[str, tuple[str, ...]] = {
     # Requirement-2: P0 capability swap matrix (structure prediction core path)
@@ -2460,6 +2479,7 @@ def _build_action_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2468,6 +2488,7 @@ def _build_static_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall.static.v1",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2476,6 +2497,7 @@ def _build_shadow_score_summary(score_breakdown: dict[str, float]) -> dict[str, 
     summary = ScoreSummary(
         value=float(score_breakdown.get("overall", 0.0)),
         source="score_breakdown.overall_passthrough",
+        source_refs=as_source_refs(*SOURCE_REF_STATIC_SCORE),
     )
     return summary.model_dump()
 
@@ -2503,10 +2525,15 @@ def _build_shadow_passthrough_decision(
     final_score = ScoreSummary(
         value=static_value,
         source="static_score+runtime_adjustment.shadow_passthrough.v1",
+        source_refs=as_source_refs(
+            *SOURCE_REF_STATIC_SCORE,
+            *SOURCE_REF_RUNTIME_ADJUSTMENT,
+        ),
     )
     runtime_adjustment = RuntimeAdjustmentSummary(
         value=0.0,
         source="planner.runtime_adjustment.shadow_passthrough.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=True,
     )
@@ -2584,14 +2611,20 @@ def _build_runtime_shadow_decision(
     final_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"static_score+runtime_adjustment.{action}.v1",
+        source_refs=as_source_refs(
+            *SOURCE_REF_STATIC_SCORE,
+            *SOURCE_REF_RUNTIME_ADJUSTMENT,
+        ),
     )
     shadow_score = ScoreSummary(
         value=round(adjusted, 6),
         source=f"score_breakdown.overall+runtime_state.{action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
     )
     runtime_adjustment = RuntimeAdjustmentSummary(
         value=round(delta, 6),
         source=f"planner.runtime_adjustment.{action}.v1",
+        source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=False,
     )
@@ -2923,6 +2956,83 @@ def _patch_layer_rank(payload: Plan | PlanPatch) -> int:
     return 999
 
 
+def _bounded_optional_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return min(max(parsed, 0.0), 1.0)
+
+
+def _extract_posterior_objective(payload: Plan | PlanPatch) -> dict[str, object] | None:
+    metadata = payload.metadata if isinstance(payload.metadata, dict) else {}
+    raw = metadata.get("posterior_objective") or metadata.get("posterior_score")
+    if not isinstance(raw, dict):
+        return None
+    aggregate_score = _bounded_optional_float(raw.get("aggregate_score"))
+    evidence_sufficiency = _bounded_optional_float(raw.get("evidence_sufficiency"))
+    if aggregate_score is None or evidence_sufficiency is None:
+        return None
+    schema_version = raw.get("schema_version")
+    if schema_version == _POSTERIOR_OBJECTIVE_SCHEMA_VERSION:
+        normalized = dict(raw)
+        normalized["aggregate_score"] = aggregate_score
+        normalized["evidence_sufficiency"] = evidence_sufficiency
+        return normalized
+    if schema_version not in {_POSTERIOR_SCORE_SCHEMA_VERSION, None}:
+        return None
+    components = {
+        key: dict(raw[key])
+        for key in _POSTERIOR_COMPONENT_KEYS
+        if isinstance(raw.get(key), dict)
+    }
+    raw_component_weights = raw.get("component_weights")
+    raw_warnings = raw.get("warnings")
+    raw_evidence_refs = raw.get("evidence_refs")
+    raw_evidence_status = raw.get("evidence_status")
+    objective_type = raw.get("objective_type")
+    return {
+        "schema_version": _POSTERIOR_OBJECTIVE_SCHEMA_VERSION,
+        "aggregate_score": aggregate_score,
+        "components": components,
+        "component_weights": dict(raw_component_weights)
+        if isinstance(raw_component_weights, dict)
+        else {},
+        "evidence_sufficiency": evidence_sufficiency,
+        "evidence_status": raw_evidence_status
+        if isinstance(raw_evidence_status, str)
+        else "degraded",
+        "objective_type": objective_type if isinstance(objective_type, str) else None,
+        "objective_source": "posterior_objective",
+        "binding_proxy_component": "generic_objective"
+        if objective_type == "binding"
+        else None,
+        "warnings": list(raw_warnings) if isinstance(raw_warnings, list) else [],
+        "evidence_refs": list(raw_evidence_refs) if isinstance(raw_evidence_refs, list) else [],
+        "source_refs": list(_POSTERIOR_OBJECTIVE_SOURCE_REFS),
+    }
+
+
+def _resolve_objective_score(
+    prior_objective: float,
+    posterior: dict[str, object] | None,
+) -> tuple[float, str, float, str]:
+    if posterior is None:
+        return prior_objective, "prior_goal_fit", 0.5, "prior"
+    aggregate_score = _bounded_optional_float(posterior.get("aggregate_score"))
+    evidence_sufficiency = _bounded_optional_float(posterior.get("evidence_sufficiency"))
+    evidence_status_raw = posterior.get("evidence_status")
+    evidence_status = evidence_status_raw if isinstance(evidence_status_raw, str) else "degraded"
+    if aggregate_score is None or evidence_sufficiency is None:
+        return prior_objective, "prior_goal_fit", 0.5, "prior"
+    if evidence_sufficiency >= _POSTERIOR_OBJECTIVE_THRESHOLD:
+        return aggregate_score, "posterior_objective", evidence_sufficiency, evidence_status
+    blended = 0.70 * prior_objective + 0.30 * aggregate_score
+    return min(max(blended, 0.0), 1.0), "degraded_proxy", evidence_sufficiency, evidence_status
+
+
 def _score_payload(
     payload: Plan | PlanPatch,
     registry: Sequence[ToolSpec],
@@ -2958,9 +3068,17 @@ def _score_payload(
     recovery_complexity = max(0.0, min(1.0, 1.0 - fallback_depth))
 
     feasibility = min(1.0, max(0.0, 0.5 + 0.25 * tool_coverage + 0.25 * fallback_depth))
-    objective = min(
+    posterior = _extract_posterior_objective(payload)
+    prior_objective = min(
         1.0,
-        max(0.0, 1.0 - avg_cost * 0.3 + objective_bonus),
+        max(
+            0.0,
+            1.0 - avg_cost * 0.3 + (0.0 if posterior is not None else objective_bonus),
+        ),
+    )
+    objective, _objective_source, evidence_sufficiency, _evidence_status = _resolve_objective_score(
+        prior_objective,
+        posterior,
     )
     risk = max(0.0, 1.0 - avg_risk)
     cost = max(0.0, 1.0 - avg_cost)
@@ -2996,6 +3114,7 @@ def _score_payload(
         "tool_coverage": round(tool_coverage, 6),
         "fallback_depth": round(fallback_depth, 6),
         "recovery_complexity": round(recovery_complexity, 6),
+        "evidence_sufficiency": round(evidence_sufficiency, 6),
         "overall": round(overall, 6),
     }
 

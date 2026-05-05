@@ -252,6 +252,39 @@ def test_objective_ranker_emits_posterior_score_schema_and_degraded_evidence() -
     assert weights["structure_quality"] == 0.3
     assert metrics["evidence_sufficiency"] == posterior["evidence_sufficiency"]
     assert "posterior_scores" in outputs
+    posterior_objective = cast(dict[str, object], top_k[0]["posterior_objective"])
+    assert posterior_objective["schema_version"] == "posterior_objective.v1"
+    assert posterior_objective["aggregate_score"] == posterior["aggregate_score"]
+    assert posterior_objective["source_refs"] == [
+        "sid:algo.posterior_objective_scoring",
+        "impl:posterior_score.v1",
+    ]
+    assert outputs["posterior_objective"] == posterior_objective
+    assert "posterior_objectives" in outputs
+
+
+def test_objective_ranker_binding_objective_marks_generic_proxy() -> None:
+    adapter = ObjectiveRankerAdapter()
+
+    outputs, _ = adapter.run_local(
+        {
+            "objective_type": "binding",
+            "candidates": [
+                {
+                    "candidate_id": "binder",
+                    "plddt": 82.0,
+                    "binding_score": -9.0,
+                    "best_pose": {"affinity": -9.0},
+                }
+            ],
+        }
+    )
+
+    top_k = cast(list[dict[str, object]], outputs["top_k"])
+    posterior_objective = cast(dict[str, object], top_k[0]["posterior_objective"])
+    assert posterior_objective["objective_type"] == "binding"
+    assert posterior_objective["binding_proxy_component"] == "generic_objective"
+    assert posterior_objective["binding_proxy_fields"] == ["binding_score", "best_pose"]
 
 
 def test_foldseek_adapter_uses_api_by_default_and_emits_structure_similarity_schema(

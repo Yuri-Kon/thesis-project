@@ -16,6 +16,11 @@ from src.workflow.errors import FailureCode, FailureType, StepRunError
 __all__ = ["ObjectiveRankerAdapter"]
 
 _POSTERIOR_SCORE_SCHEMA_VERSION = "posterior_score.v1"
+_POSTERIOR_OBJECTIVE_SCHEMA_VERSION = "posterior_objective.v1"
+_POSTERIOR_OBJECTIVE_SOURCE_REFS = [
+    "sid:algo.posterior_objective_scoring",
+    "impl:posterior_score.v1",
+]
 _POSTERIOR_COMPONENTS = (
     "generic_objective",
     "stability",
@@ -309,6 +314,10 @@ def _score_candidate(
         evidence_refs=evidence_refs,
         warnings=warnings,
     )
+    posterior_objective = _normalize_posterior_objective(
+        posterior_score,
+        candidate=row,
+    )
     rank_reason = _rank_reason(
         candidate_id=candidate_id,
         objective_score=objective_score,
@@ -322,6 +331,7 @@ def _score_candidate(
         "objective_score": objective_score,
         "aggregate_score": objective_score,
         "posterior_score": posterior_score,
+        "posterior_objective": posterior_objective,
         "score_breakdown": score_breakdown,
         "component_scores": score_breakdown,
         "top_k_rank": index,
@@ -516,6 +526,68 @@ def _build_posterior_score(
     else:
         payload["evidence_status"] = "direct"
     return payload
+
+
+def _normalize_posterior_objective(
+    posterior_score: Dict[str, Any],
+    *,
+    candidate: Dict[str, Any],
+) -> Dict[str, Any]:
+    objective_type = posterior_score.get("objective_type")
+    evidence_sufficiency = _as_float(posterior_score.get("evidence_sufficiency"))
+    aggregate_score = _as_float(posterior_score.get("aggregate_score"))
+    components = {
+        key: dict(posterior_score[key])
+        for key in _POSTERIOR_COMPONENTS
+        if isinstance(posterior_score.get(key), dict)
+    }
+    raw_warnings = posterior_score.get("warnings")
+    warnings = [
+        item for item in raw_warnings if isinstance(item, str)
+    ] if isinstance(raw_warnings, list) else []
+    binding_proxy_fields: list[str] = []
+    binding_proxy_component: str | None = None
+    if objective_type == "binding":
+        binding_proxy_component = "generic_objective"
+        binding_proxy_fields = _present_fields(candidate, ("binding_score", "best_pose"))
+        binding_warning = (
+            "binding objective is represented through generic_objective proxy in v1"
+        )
+        if binding_warning not in warnings:
+            warnings.append(binding_warning)
+    raw_component_weights = posterior_score.get("component_weights")
+    component_weights = (
+        dict(raw_component_weights) if isinstance(raw_component_weights, dict) else {}
+    )
+    raw_evidence_refs = posterior_score.get("evidence_refs")
+    evidence_refs = (
+        list(raw_evidence_refs) if isinstance(raw_evidence_refs, list) else []
+    )
+    raw_evidence_status = posterior_score.get("evidence_status")
+    return {
+        "schema_version": _POSTERIOR_OBJECTIVE_SCHEMA_VERSION,
+        "aggregate_score": round(min(max(aggregate_score or 0.0, 0.0), 1.0), 6),
+        "components": components,
+        "component_weights": component_weights,
+        "evidence_sufficiency": round(
+            min(
+                max(
+                    evidence_sufficiency if evidence_sufficiency is not None else 0.0,
+                    0.0,
+                ),
+                1.0,
+            ),
+            6,
+        ),
+        "evidence_status": raw_evidence_status if isinstance(raw_evidence_status, str) else "degraded",
+        "objective_type": objective_type if isinstance(objective_type, str) else None,
+        "objective_source": "posterior_objective",
+        "binding_proxy_component": binding_proxy_component,
+        "binding_proxy_fields": binding_proxy_fields,
+        "warnings": warnings,
+        "evidence_refs": evidence_refs,
+        "source_refs": list(_POSTERIOR_OBJECTIVE_SOURCE_REFS),
+    }
 
 
 def _quality_score(candidate: Dict[str, Any]) -> float:

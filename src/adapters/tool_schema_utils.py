@@ -394,17 +394,24 @@ def build_objective_outputs(
         if isinstance(row.get("evidence_refs"), list) and isinstance(ref, dict)
     ]
     posterior_scores: dict[str, Dict[str, Any]] = {}
+    posterior_objectives: dict[str, Dict[str, Any]] = {}
     for index, row in enumerate(scored_candidates, start=1):
+        candidate_id = str(row.get("candidate_id") or f"candidate_{index}")
         posterior_score = row.get("posterior_score")
         if isinstance(posterior_score, dict):
-            posterior_scores[
-                str(row.get("candidate_id") or f"candidate_{index}")
-            ] = dict(posterior_score)
+            posterior_scores[candidate_id] = dict(posterior_score)
+        posterior_objective = row.get("posterior_objective")
+        if isinstance(posterior_objective, dict):
+            posterior_objectives[candidate_id] = dict(posterior_objective)
     top_posterior_score: Dict[str, Any] = {}
+    top_posterior_objective: Dict[str, Any] = {}
     if top_k_rows:
         raw_top_posterior = top_k_rows[0].get("posterior_score")
         if isinstance(raw_top_posterior, dict):
             top_posterior_score = dict(raw_top_posterior)
+        raw_top_posterior_objective = top_k_rows[0].get("posterior_objective")
+        if isinstance(raw_top_posterior_objective, dict):
+            top_posterior_objective = dict(raw_top_posterior_objective)
     component_weights: Dict[str, Any] = {}
     raw_component_weights = top_posterior_score.get("component_weights")
     if isinstance(raw_component_weights, dict):
@@ -421,6 +428,8 @@ def build_objective_outputs(
         "component_scores": component_scores,
         "posterior_score": top_posterior_score,
         "posterior_scores": posterior_scores,
+        "posterior_objective": top_posterior_objective,
+        "posterior_objectives": posterior_objectives,
         "aggregate_score": top_score,
         "component_weights": component_weights,
         "default_recommendation": default_recommendation,
