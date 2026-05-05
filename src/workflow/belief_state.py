@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from src.models.contracts import (
@@ -11,7 +12,14 @@ from src.models.contracts import (
 )
 from src.models.budget_pressure import derive_budget_pressure
 
-__all__ = ["extract_failure_context", "update_runtime_state"]
+__all__ = [
+    "BELIEF_STATE_UPDATE_RULES",
+    "BeliefStateUpdateRule",
+    "extract_failure_context",
+    "update_runtime_state",
+]
+
+type BeliefDelta = float | str
 
 _BASELINE_P_SUCCESS = 0.5
 _BASELINE_P_STRUCTURAL_FAILURE = 0.25
@@ -19,6 +27,151 @@ _BASELINE_RECOVERY_MARGIN = 0.6
 _BASELINE_EXPECTED_REMAINING_COST = 1.0
 _BASELINE_EVIDENCE_SUFFICIENCY = 0.5
 _STRUCTURAL_STAGE_IDS = {"S2", "S3", "S4"}
+
+
+@dataclass(frozen=True)
+class BeliefStateUpdateRule:
+    """Lite belief-state 更新规则的可引用表项。"""
+
+    signal: str
+    observation: str
+    p_success: BeliefDelta = "0"
+    p_structural_failure: BeliefDelta = "0"
+    recovery_margin: BeliefDelta = "0"
+    expected_remaining_cost: BeliefDelta = "0"
+    evidence_sufficiency: BeliefDelta = "via evidence_signal smoothing"
+    rationale: str = ""
+
+
+BELIEF_STATE_UPDATE_RULES: tuple[BeliefStateUpdateRule, ...] = (
+    BeliefStateUpdateRule(
+        signal="step_result.success",
+        observation="Any successful StepResult.",
+        p_success=0.12,
+        p_structural_failure=-0.08,
+        recovery_margin=0.06,
+        expected_remaining_cost="cost_reward += 0.35; no progress counters: c_t - 1.35",
+        rationale="A completed step improves chain viability and frees recovery budget.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.success@structural",
+        observation="Successful structural stage or structural tool.",
+        p_success=0.04,
+        p_structural_failure=-0.05,
+        rationale="Structural validation reduces latent structural-failure pressure.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.failed",
+        observation="Any failed StepResult.",
+        p_success=-0.18,
+        p_structural_failure=0.14,
+        recovery_margin=-0.12,
+        expected_remaining_cost="cost_penalty += 0.75; no progress counters: c_t + 1.25",
+        rationale="Failure makes the current suffix less trustworthy and more expensive.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.failed@structural",
+        observation="Failure at structural stage or structural tool.",
+        p_structural_failure=0.08,
+        rationale="Structural failures imply stronger need for suffix replanning.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.retry_exhausted",
+        observation="Step metrics mark retry_exhausted=true.",
+        p_success=-0.05,
+        recovery_margin=-0.06,
+        expected_remaining_cost="cost_penalty += 0.40",
+        rationale="Retry exhaustion consumes local recovery options.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.skipped",
+        observation="StepResult status is skipped.",
+        p_success=-0.02,
+        expected_remaining_cost="cost_penalty += 0.15",
+        rationale="A skipped step is weak negative evidence and small residual cost.",
+    ),
+    BeliefStateUpdateRule(
+        signal="safety_result.warn",
+        observation="SafetyResult action is warn; n_warn risk flags are present.",
+        p_success="-0.04 - 0.01*n_warn",
+        p_structural_failure=0.05,
+        recovery_margin=-0.03,
+        expected_remaining_cost="cost_penalty += 0.25",
+        rationale="Warnings reduce confidence without making the route terminal.",
+    ),
+    BeliefStateUpdateRule(
+        signal="safety_result.block",
+        observation="SafetyResult action is block; n_block risk flags are present.",
+        p_success="-0.18 - 0.02*n_block",
+        p_structural_failure="0.12 + 0.01*n_block",
+        recovery_margin=-0.16,
+        expected_remaining_cost="cost_penalty += 0.75",
+        rationale="Blocks represent strong negative evidence and high recovery pressure.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.patch_local",
+        observation="Failure context normalizes recovery_action to patch_local.",
+        p_success=-0.04,
+        recovery_margin=-0.07,
+        expected_remaining_cost="cost_penalty += 0.60",
+        rationale="Local patching keeps the prefix but consumes repair headroom.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.suffix_replan",
+        observation="Recovery action is suffix_replan or replan.",
+        p_success=-0.10,
+        p_structural_failure=0.08,
+        recovery_margin=-0.12,
+        expected_remaining_cost="cost_penalty += 1.20",
+        rationale="Suffix replanning admits that the current suffix is unreliable.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.stop",
+        observation="Recovery action is stop.",
+        p_success=-0.15,
+        recovery_margin="set to 0.0",
+        rationale="Stop consumes all remaining recovery margin by construction.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.retry_exhausted",
+        observation="Failure context carries retry_exhausted=true.",
+        p_success=-0.03,
+        recovery_margin=-0.04,
+        expected_remaining_cost="cost_penalty += 0.25",
+        rationale="Recovered failure context still records exhausted retry budget.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.progress",
+        observation="Objective ranker reports objective_progress=p.",
+        p_success="+0.04*clip(p,0,1)",
+        evidence_sufficiency="pre-smoothing e_t += 0.03*clip(p,0,1)",
+        rationale="Objective progress supports the current goal direction.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.sufficiency",
+        observation="Objective ranker reports objective_evidence_sufficiency=q.",
+        evidence_sufficiency="pre-smoothing e_t += 0.05*clip(q,0,1)",
+        rationale="Direct objective evidence increases evidence sufficiency.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.gap",
+        observation="Objective ranker reports objective_gap=g.",
+        recovery_margin="+0.02*clip(g,0,1)",
+        rationale="A visible objective gap leaves room for useful reranking decisions.",
+    ),
+    BeliefStateUpdateRule(
+        signal="evidence_signal",
+        observation="After all direct deltas, evidence_signal is estimated.",
+        evidence_sufficiency="clip(0.70*e_t + 0.30*evidence_signal)",
+        rationale="Evidence is smoothed to avoid overreacting to one observation.",
+    ),
+    BeliefStateUpdateRule(
+        signal="progress_counters",
+        observation="completed_steps and total_steps are available.",
+        expected_remaining_cost="max(total_steps - completed_steps + cost_penalty, 0)",
+        rationale="Explicit progress counters override heuristic one-step cost decay.",
+    ),
+)
 
 
 def update_runtime_state(
@@ -41,6 +194,9 @@ def update_runtime_state(
     
     调用方优先传入 ``RuntimeStateUpdateInput``，以固定更新器输入边界。
     保留原有关键字参数仅用于兼容既有调用路径。
+
+    更新规则以 ``BELIEF_STATE_UPDATE_RULES`` 暴露，供论文中的
+    ``B(x_t, o_t, h_t)`` 表格、测试和审计说明复用。
     """
 
     update = _coerce_update_input(
