@@ -519,8 +519,25 @@ pi_t^* = argmax_{pi ∈ Pi_t} S_static(pi)
 CEBRA-WP 不只输出单个 `pi_t^*`，还输出 Top-K：
 
 ```text
-TopK_t = top_k(Pi_t, U_pi)
+TopK_t = SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
 ```
+
+其中 `SelectDiverseTopK` 先按 `U_pi` 或 `S_static` 建立稳定排序，再按
+capability bucket 执行 round-robin 选择。等价地，可把它理解为在高分候选中加入
+能力覆盖约束：
+
+```text
+TopK_t = arg top-k under U_pi subject to capability_coverage(TopK_t)
+```
+
+这使 Top-K 不只是“分数最高的 k 个候选”，而是同时保留：
+
+- 不同 capability bucket 的替代路径；
+- 不同失败恢复路径；
+- 不同成本/风险层级下的候选解释空间。
+
+若候选缺少 capability bucket，或所有候选落在同一个 bucket，选择退化为稳定分数排序；
+工程 metadata 必须标记该退化路径，避免把纯排序误解释为 diversity 增益。
 
 并记录：
 
@@ -528,6 +545,7 @@ TopK_t = top_k(Pi_t, U_pi)
 - `runtime_adjustment`；
 - `final_score`；
 - `rerank_reason`；
+- `topk_diversity`；
 - `default_recommendation_reason`。
 
 这使 HITL 能看到为什么候选被推荐、为什么被 runtime rerank 改变。
@@ -735,7 +753,7 @@ Algorithm CEBRA-WP(g, C, K, h_t, o_t, x_t)
 24:     U_pi(pi,x_{t+1}) ← clip(S_static(pi)+Δ(pi,x_{t+1}),0,1)
 25: end for
 
-26: TopK_t ← SelectDiverseTopK(Pi_t, U_pi, k)
+26: TopK_t ← SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
 27: pi_t^* ← argmax_{pi∈TopK_t} U_pi(pi,x_{t+1})
 
 28: for each a in {continue, patch_local, suffix_replan, stop} do
