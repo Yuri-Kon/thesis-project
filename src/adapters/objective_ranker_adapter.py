@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from time import perf_counter
-from typing import Any, Dict, Literal, Tuple, override
+from typing import Any, Dict, Literal, Tuple, cast, override
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.adapters.tool_schema_utils import (
@@ -21,6 +22,10 @@ _POSTERIOR_OBJECTIVE_SOURCE_REFS = [
     "sid:algo.posterior_objective_scoring",
     "impl:posterior_score.v1",
 ]
+_BINDING_POLICY = "folded_into_generic_objective"
+_BINDING_PROXY_COMPONENT = "generic_objective"
+_BINDING_EVIDENCE_ROLE = "proxy"
+_BINDING_EVIDENCE_FIELDS = ("binding_score", "best_pose")
 _POSTERIOR_COMPONENTS = (
     "generic_objective",
     "stability",
@@ -507,6 +512,9 @@ def _build_posterior_score(
         warning = component.get("warning")
         if isinstance(warning, str) and warning not in posterior_warnings:
             posterior_warnings.append(warning)
+    binding_source_fields = _binding_source_fields_from_component(
+        components["generic_objective"],
+    )
     payload: Dict[str, Any] = {
         "schema_version": _POSTERIOR_SCORE_SCHEMA_VERSION,
         "objective_type": objective_type,
@@ -520,12 +528,76 @@ def _build_posterior_score(
         "evidence_refs": list(evidence_refs),
         "warnings": posterior_warnings,
         "evidence_sufficiency": round(min(direct_weight + (0.5 * proxy_weight), 1.0), 6),
+        "binding_policy": _BINDING_POLICY,
+        "binding_evidence": _binding_evidence_payload(binding_source_fields),
     }
     if posterior_warnings:
         payload["evidence_status"] = "degraded" if direct_weight < 0.8 else "partial"
     else:
         payload["evidence_status"] = "direct"
     return payload
+
+
+def _binding_source_fields_from_component(component: Mapping[str, object]) -> list[str]:
+    return _binding_source_fields_from_raw(component.get("source_fields"))
+
+
+def _binding_source_fields_from_raw(raw_fields: object) -> list[str]:
+    if not isinstance(raw_fields, list):
+        return []
+    source_fields: list[str] = []
+    for field in cast(list[object], raw_fields):
+        if isinstance(field, str) and field in _BINDING_EVIDENCE_FIELDS:
+            source_fields.append(field)
+    return source_fields
+
+
+def _binding_evidence_payload(source_fields: list[str]) -> dict[str, object]:
+    return {
+        "source": "|".join(source_fields) if source_fields else "not_present",
+        "role": _BINDING_EVIDENCE_ROLE,
+        "target_component": _BINDING_PROXY_COMPONENT,
+        "source_fields": list(source_fields),
+    }
+
+
+def _binding_source_fields_from_candidate(
+    candidate: Mapping[str, object],
+) -> list[str]:
+    return [
+        field
+        for field in _BINDING_EVIDENCE_FIELDS
+        if candidate.get(field) is not None
+    ]
+
+
+def _normalize_binding_evidence(
+    raw: object,
+    *,
+    candidate: Mapping[str, object],
+) -> dict[str, object]:
+    fallback = _binding_evidence_payload(
+        _binding_source_fields_from_candidate(candidate),
+    )
+    if not isinstance(raw, Mapping):
+        return fallback
+
+    raw_mapping = cast(Mapping[str, object], raw)
+    source_fields = _binding_source_fields_from_raw(raw_mapping.get("source_fields"))
+    if not source_fields:
+        source_fields = _binding_source_fields_from_raw(fallback.get("source_fields"))
+    raw_source = raw_mapping.get("source")
+    source = (
+        raw_source
+        if isinstance(raw_source, str) and raw_source
+        else fallback["source"]
+    )
+    return {
+        "source": source,
+        "role": _BINDING_EVIDENCE_ROLE,
+        "target_component": _BINDING_PROXY_COMPONENT,
+        "source_fields": source_fields,
+    }
 
 
 def _normalize_posterior_objective(
@@ -545,11 +617,17 @@ def _normalize_posterior_objective(
     warnings = [
         item for item in raw_warnings if isinstance(item, str)
     ] if isinstance(raw_warnings, list) else []
+    binding_evidence = _normalize_binding_evidence(
+        posterior_score.get("binding_evidence"),
+        candidate=candidate,
+    )
     binding_proxy_fields: list[str] = []
     binding_proxy_component: str | None = None
     if objective_type == "binding":
-        binding_proxy_component = "generic_objective"
-        binding_proxy_fields = _present_fields(candidate, ("binding_score", "best_pose"))
+        binding_proxy_component = _BINDING_PROXY_COMPONENT
+        binding_proxy_fields = _binding_source_fields_from_raw(
+            binding_evidence.get("source_fields"),
+        )
         binding_warning = (
             "binding objective is represented through generic_objective proxy in v1"
         )
@@ -582,6 +660,8 @@ def _normalize_posterior_objective(
         "evidence_status": raw_evidence_status if isinstance(raw_evidence_status, str) else "degraded",
         "objective_type": objective_type if isinstance(objective_type, str) else None,
         "objective_source": "posterior_objective",
+        "binding_policy": _BINDING_POLICY,
+        "binding_evidence": binding_evidence,
         "binding_proxy_component": binding_proxy_component,
         "binding_proxy_fields": binding_proxy_fields,
         "warnings": warnings,
