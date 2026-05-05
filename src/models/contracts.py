@@ -8,6 +8,8 @@ from typing import Any, TypeAlias, Dict, List, Optional, Literal, cast
 
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
+from src.models.budget_pressure import derive_budget_pressure
+
 JsonMap: TypeAlias = dict[str, object]
 
 
@@ -311,6 +313,7 @@ class RuntimeStateUpdateInput(BaseModel):
     failure_context: RuntimeFailureContext | None = None
     completed_steps: int | None = None
     total_steps: int | None = None
+    budget_cap: float | None = None
 
     @field_validator("completed_steps", "total_steps")
     @classmethod
@@ -328,6 +331,16 @@ class RuntimeStateUpdateInput(BaseModel):
             raise ValueError(f"{info.field_name} must be >= 0")
         return normalized
 
+    @field_validator("budget_cap")
+    @classmethod
+    def _validate_optional_budget_cap(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float_value(value, field_name="budget_cap")
+        if normalized <= 0.0:
+            raise ValueError("budget_cap must be > 0")
+        return normalized
+
     @model_validator(mode="after")
     def _validate_bounds_and_observation(self) -> "RuntimeStateUpdateInput":
         if (
@@ -342,9 +355,10 @@ class RuntimeStateUpdateInput(BaseModel):
             and self.failure_context is None
             and self.completed_steps is None
             and self.total_steps is None
+            and self.budget_cap is None
         ):
             raise ValueError(
-                "at least one observation or progress counter must be provided"
+                "at least one observation, progress counter, or budget cap must be provided"
             )
         return self
 
@@ -356,12 +370,14 @@ class RuntimeStateUpdateInput(BaseModel):
         failure_context: RuntimeFailureContext | None = None,
         completed_steps: int | None = None,
         total_steps: int | None = None,
+        budget_cap: float | None = None,
     ) -> "RuntimeStateUpdateInput":
         return cls(
             step_result=step_result,
             failure_context=failure_context,
             completed_steps=completed_steps,
             total_steps=total_steps,
+            budget_cap=budget_cap,
         )
 
     @classmethod
@@ -372,12 +388,14 @@ class RuntimeStateUpdateInput(BaseModel):
         failure_context: RuntimeFailureContext | None = None,
         completed_steps: int | None = None,
         total_steps: int | None = None,
+        budget_cap: float | None = None,
     ) -> "RuntimeStateUpdateInput":
         return cls(
             safety_result=safety_result,
             failure_context=failure_context,
             completed_steps=completed_steps,
             total_steps=total_steps,
+            budget_cap=budget_cap,
         )
 
     def to_replay_payload(self) -> Dict[str, Any]:
@@ -398,6 +416,8 @@ class RuntimeState(BaseModel):
     recovery_margin: float
     expected_remaining_cost: float
     evidence_sufficiency: float = 0.5
+    budget_pressure: float | None = None
+    budget_cap: float | None = None
     last_update_source: str
     observation_summary: Dict[str, Any] = Field(default_factory=dict)
 
@@ -427,6 +447,26 @@ class RuntimeState(BaseModel):
             raise ValueError("expected_remaining_cost must be >= 0")
         return normalized
 
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float_value(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= 1.5:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
+
+    @field_validator("budget_cap")
+    @classmethod
+    def _validate_budget_cap(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float_value(value, field_name="budget_cap")
+        if normalized <= 0.0:
+            raise ValueError("budget_cap must be > 0")
+        return normalized
+
     @field_validator("last_update_source")
     @classmethod
     def _validate_last_update_source(cls, value: str) -> str:
@@ -446,13 +486,24 @@ class RuntimeState(BaseModel):
             raise ValueError("observation_summary must be JSON-serializable") from exc
         return value
 
+    @model_validator(mode="after")
+    def _derive_budget_pressure(self) -> "RuntimeState":
+        if self.budget_pressure is None:
+            self.budget_pressure = derive_budget_pressure(
+                expected_remaining_cost=self.expected_remaining_cost,
+                budget_cap=self.budget_cap,
+            ).budget_pressure
+        return self
+
     def to_snapshot_payload(self) -> Dict[str, Any]:
         """Serialize the stable persisted fields for TaskSnapshot.artifacts."""
-        return self.model_dump(exclude={"observation_summary"})
+        return self.model_dump(exclude={"observation_summary"}, exclude_none=True)
 
     def to_summary_payload(self) -> Dict[str, Any]:
         """Serialize the candidate-facing runtime state summary."""
-        return RuntimeStateSummary.from_runtime_state(self).model_dump()
+        return RuntimeStateSummary.from_runtime_state(self).model_dump(
+            exclude_none=True
+        )
 
 
 class RuntimeStateSummary(BaseModel):
@@ -466,6 +517,8 @@ class RuntimeStateSummary(BaseModel):
     recovery_margin: float
     expected_remaining_cost: float
     evidence_sufficiency: float = 0.5
+    budget_pressure: float | None = None
+    budget_cap: float | None = None
 
     @field_validator("schema_version")
     @classmethod
@@ -493,6 +546,35 @@ class RuntimeStateSummary(BaseModel):
             raise ValueError("expected_remaining_cost must be >= 0")
         return normalized
 
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float_value(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= 1.5:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
+
+    @field_validator("budget_cap")
+    @classmethod
+    def _validate_budget_cap(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float_value(value, field_name="budget_cap")
+        if normalized <= 0.0:
+            raise ValueError("budget_cap must be > 0")
+        return normalized
+
+    @model_validator(mode="after")
+    def _derive_budget_pressure(self) -> "RuntimeStateSummary":
+        if self.budget_pressure is None:
+            self.budget_pressure = derive_budget_pressure(
+                expected_remaining_cost=self.expected_remaining_cost,
+                budget_cap=self.budget_cap,
+            ).budget_pressure
+        return self
+
     @classmethod
     def from_runtime_state(cls, runtime_state: RuntimeState) -> "RuntimeStateSummary":
         return cls(
@@ -502,6 +584,8 @@ class RuntimeStateSummary(BaseModel):
             recovery_margin=runtime_state.recovery_margin,
             expected_remaining_cost=runtime_state.expected_remaining_cost,
             evidence_sufficiency=runtime_state.evidence_sufficiency,
+            budget_pressure=runtime_state.budget_pressure,
+            budget_cap=runtime_state.budget_cap,
         )
 
 
@@ -1107,9 +1191,11 @@ def _sync_adapter_mode(
 
 def _normalize_runtime_state_summary(summary_payload: Any) -> Dict[str, Any]:
     if isinstance(summary_payload, RuntimeStateSummary):
-        return summary_payload.model_dump()
+        return summary_payload.model_dump(exclude_none=True)
     if isinstance(summary_payload, dict):
-        return RuntimeStateSummary.model_validate(summary_payload).model_dump()
+        return RuntimeStateSummary.model_validate(summary_payload).model_dump(
+            exclude_none=True
+        )
     raise ValueError(f"metadata.{RUNTIME_STATE_SUMMARY_METADATA_KEY} must be a mapping")
 
 
