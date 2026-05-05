@@ -180,7 +180,22 @@ class TestRuntimeState:
         assert state.schema_version == 1
         assert state.p_success == 0.8
         assert state.evidence_sufficiency == 0.5
+        assert state.budget_pressure == pytest.approx(1.5)
         assert state.observation_summary["completed_high_cost_steps"] == 1
+
+    def test_runtime_state_budget_pressure_uses_budget_cap(self):
+        state = RuntimeState(
+            p_success=0.8,
+            p_structural_failure=0.15,
+            recovery_margin=0.35,
+            expected_remaining_cost=4.5,
+            budget_cap=9.0,
+            last_update_source="step_result:S2",
+        )
+
+        assert state.expected_remaining_cost == pytest.approx(4.5)
+        assert state.budget_pressure == pytest.approx(0.5)
+        assert state.to_summary_payload()["budget_cap"] == pytest.approx(9.0)
 
     def test_runtime_state_rejects_invalid_probability(self):
         with pytest.raises(ValidationError):
@@ -209,6 +224,7 @@ class TestRuntimeState:
             "recovery_margin": 0.32,
             "expected_remaining_cost": 5.5,
             "evidence_sufficiency": 0.5,
+            "budget_pressure": 1.5,
         }
 
 
@@ -470,6 +486,7 @@ class TestCandidateSetContracts:
             "recovery_margin": 0.49,
             "expected_remaining_cost": 3.0,
             "evidence_sufficiency": 0.5,
+            "budget_pressure": 1.5,
         }
 
     def test_candidate_invalid_runtime_state_summary_rejected(
