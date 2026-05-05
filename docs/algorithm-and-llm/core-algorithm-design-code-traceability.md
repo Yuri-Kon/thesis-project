@@ -25,6 +25,11 @@
 
 ## 2. source_refs / SID 追踪规范（Issue #337）
 
+算法总版本为 `cebra_wp.v2`，子公式/schema 版本总表见
+`docs/algorithm-and-llm/algorithm-version-registry.md` 和代码侧
+`src.models.algorithm_versions`。`source_refs` 继续表达设计 SID 与实现引用，
+不替代 payload 内部的 `schema_version`。
+
 实现侧统一使用短字符串数组：
 
 ```python
