@@ -6,7 +6,7 @@
 - Scope: UI / debug / explanation surface
 - Phase: CEBRA-WP P2 文档与表达增强
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P2-4 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -65,3 +65,11 @@ static_score -> runtime_adjustment -> final_score -> selected_action
 - 展示层不破坏现有简洁性；
 - 核心理论对象可快速读懂；
 - 复杂字段仍保留给日志/详情页。
+
+## 8. 实现记录
+
+- API 为 pending action detail 和 candidate display 增加精简 `theory_objects` 摘要，只包含核心理论对象，不把完整 runtime metadata 树下发到 Inspector 使用面。
+- 前端新增 `TheoryObjectSummary`，在 Task Detail 的 Inspector 中稳定展示：
+  `static_score -> runtime_adjustment -> final_score -> selected_action`。
+- 支撑信号只展示 `action_utility`、`evidence_sufficiency`、`budget_pressure`。
+- 原有 Runtime JSON / Score JSON 仍保留在 Runtime Context 折叠区，快速 Inspector 不展开完整字段树。
