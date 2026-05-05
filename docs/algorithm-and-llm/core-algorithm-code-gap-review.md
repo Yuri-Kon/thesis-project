@@ -477,9 +477,20 @@ budget_pressure: 归一化 [0,1] 或 clipped [0,1.5]
 
 ### P1-5：Top-K diversity 的理论解释可以增强
 
-当前候选生成使用 `_select_diverse_top_k()`，这是很好的工程点。但理论 v2 只写了 Top-K，没有形式化 diversity 约束。
+状态：已补齐。理论 v2 已将 Top-K 写为：
 
-建议后续加入：
+```text
+TopK_t = SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
+```
+
+工程侧 `_select_diverse_top_k()` 继续使用 capability-bucket round-robin，
+并在候选 metadata 中写入 `topk_diversity`，记录 `strategy`、
+`selected_by`、`diversity_signals`、`selection_mode` 和退化原因。
+
+当前候选生成使用 `_select_diverse_top_k()`，这不再只是工程点，而是 CEBRA-WP
+保留替代路径、降低单一路径偏置的 Top-K 约束。
+
+等价的论文表述可写为：
 
 ```text
 TopK_t = arg top-k under U_pi with capability diversity constraint
