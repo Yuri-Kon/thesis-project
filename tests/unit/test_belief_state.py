@@ -108,6 +108,27 @@ def test_update_runtime_state_accepts_structured_update_input() -> None:
     assert state.evidence_sufficiency == 0.5015
 
 
+def test_update_runtime_state_derives_budget_pressure_from_budget_cap() -> None:
+    step_result = _build_failed_step_result()
+    update_input = RuntimeStateUpdateInput.from_step_result(
+        step_result=step_result,
+        failure_context=extract_failure_context(step_result),
+        completed_steps=1,
+        total_steps=4,
+        budget_cap=10.0,
+    )
+
+    state = update_runtime_state(
+        previous_state=None,
+        update_input=update_input,
+    )
+
+    assert state.expected_remaining_cost == pytest.approx(5.0)
+    assert state.budget_cap == pytest.approx(10.0)
+    assert state.budget_pressure == pytest.approx(0.5)
+    assert state.observation_summary["budget_pressure"] == pytest.approx(0.5)
+
+
 def test_runtime_state_consumes_objective_signal_without_overriding_safety_block() -> None:
     """objective gap/progress 可进入观测摘要，但安全阻断仍会降低成功概率。"""
 

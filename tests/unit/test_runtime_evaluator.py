@@ -26,6 +26,7 @@ from src.workflow.runtime_evaluator import (
     STATIC_GATE,
     STATIC_TOP1,
     RuntimeEvaluator,
+    compute_runtime_delta,
     evaluator_policy_trace,
     policy_disables_rerank,
 )
@@ -83,6 +84,8 @@ def _state(**overrides: float) -> RuntimeStateSchema:
         recovery_margin=overrides.get("recovery_margin", 0.6),
         expected_remaining_cost=overrides.get("expected_remaining_cost", 0.5),
         evidence_sufficiency=overrides.get("evidence_sufficiency", 0.65),
+        budget_cap=overrides.get("budget_cap"),
+        budget_pressure=overrides.get("budget_pressure"),
     )
 
 
@@ -263,6 +266,48 @@ class TestRerank:
         # 高 p_structural_failure + 高 cost pressure + 低 p_success → 负调整
         assert adj["value"] < -0.10
 
+    def test_runtime_delta_uses_budget_pressure_not_raw_remaining_cost(self) -> None:
+        low_pressure_delta, _, _, low_pressure_factors = compute_runtime_delta(
+            p_success=0.6,
+            p_structural_failure=0.2,
+            recovery_margin=0.6,
+            expected_remaining_cost=1.2,
+            evidence_sufficiency=0.6,
+            confidence=0.6,
+            risk=0.5,
+            cost=0.2,
+            fallback_depth=0.5,
+            feasibility=0.8,
+            candidate_kind="plan",
+            budget_cap=2.0,
+        )
+        high_pressure_delta, _, _, high_pressure_factors = compute_runtime_delta(
+            p_success=0.6,
+            p_structural_failure=0.2,
+            recovery_margin=0.6,
+            expected_remaining_cost=1.2,
+            evidence_sufficiency=0.6,
+            confidence=0.6,
+            risk=0.5,
+            cost=0.2,
+            fallback_depth=0.5,
+            feasibility=0.8,
+            candidate_kind="plan",
+            budget_cap=0.5,
+        )
+
+        assert low_pressure_delta > high_pressure_delta
+        assert any(
+            factor.signal == "budget_pressure"
+            and factor.source == "runtime_state.budget_pressure+score_breakdown.cost"
+            for factor in low_pressure_factors
+        )
+        assert any(
+            factor.signal == "budget_pressure"
+            and factor.source == "runtime_state.budget_pressure+score_breakdown.cost"
+            for factor in high_pressure_factors
+        )
+
     def test_delta_clamped_to_range(self) -> None:
         """delta 约束在 [-0.35, 0.35] 内。"""
         e = RuntimeEvaluator()
@@ -356,6 +401,24 @@ class TestActionUtility:
         )
         assert bad["stop"].utility > good["stop"].utility
         assert bad["continue"].utility < good["continue"].utility
+
+    def test_action_utility_derives_budget_pressure_from_budget_cap(self) -> None:
+        e = RuntimeEvaluator()
+        high_cap = e.compute_action_utilities(
+            _state_dict(expected_remaining_cost=1.2, budget_cap=2.0)
+        )
+        low_cap = e.compute_action_utilities(
+            _state_dict(expected_remaining_cost=1.2, budget_cap=0.5)
+        )
+
+        assert high_cap["continue"].budget_pressure == pytest.approx(0.6)
+        assert low_cap["continue"].budget_pressure == pytest.approx(1.5)
+        assert low_cap["stop"].utility > high_cap["stop"].utility
+        derived = low_cap["stop"].metadata["derived_features"]
+        assert derived["budget_pressure"]["source_fields"] == [
+            "runtime_state.expected_remaining_cost",
+            "runtime_state.budget_cap",
+        ]
 
     def test_patch_utility_scales_with_recovery(self) -> None:
         e = RuntimeEvaluator()

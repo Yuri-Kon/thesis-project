@@ -61,6 +61,11 @@ from src.models.contracts import (
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
+from src.models.budget_pressure import (
+    coerce_optional_budget_cap,
+    coerce_optional_budget_pressure,
+    derive_budget_pressure,
+)
 from src.models.validation import (
     CandidateExecutionValidationError,
     validate_candidate_set_output,
@@ -2590,6 +2595,15 @@ def _build_runtime_shadow_decision(
         runtime_state_summary.get("evidence_sufficiency"),
         default=0.5,
     )
+    budget_cap = coerce_optional_budget_cap(runtime_state_summary.get("budget_cap"))
+    budget_pressure = coerce_optional_budget_pressure(
+        runtime_state_summary.get("budget_pressure")
+    )
+    if budget_pressure is None:
+        budget_pressure = derive_budget_pressure(
+            expected_remaining_cost=expected_remaining_cost,
+            budget_cap=budget_cap,
+        ).budget_pressure
     overall = _safe_float(score_breakdown.get("overall"), default=0.0)
     confidence = _safe_float(score_breakdown.get("confidence"), default=overall)
     risk = _safe_float(score_breakdown.get("risk"), default=overall)
@@ -2611,6 +2625,8 @@ def _build_runtime_shadow_decision(
         feasibility=feasibility,
         candidate_kind=candidate_kind,
         replan_mode=replan_mode,
+        budget_pressure=budget_pressure,
+        budget_cap=budget_cap,
     )
 
     adjusted = max(0.0, min(1.0, overall + delta))
@@ -2647,6 +2663,8 @@ def _build_runtime_shadow_decision(
             "runtime_state.p_structural_failure",
             "runtime_state.recovery_margin",
             "runtime_state.expected_remaining_cost",
+            "runtime_state.budget_pressure",
+            "runtime_state.budget_cap",
             "runtime_state.evidence_sufficiency",
         ],
         candidate_metric_fields=[
@@ -2665,6 +2683,7 @@ def _build_runtime_shadow_decision(
         f"static_score={overall:.2f}, runtime_adjustment={delta:.2f}, final_score={adjusted:.2f}; "
         f"signals use p_success={p_success:.2f}, p_structural_failure={p_structural_failure:.2f}, "
         f"recovery_margin={recovery_margin:.2f}, expected_remaining_cost={expected_remaining_cost:.2f}, "
+        f"budget_pressure={budget_pressure:.2f}, "
         f"evidence_sufficiency={evidence_sufficiency:.2f}; "
         f"shadow_action={action} because {reason}."
     )

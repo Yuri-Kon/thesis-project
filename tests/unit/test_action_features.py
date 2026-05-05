@@ -111,6 +111,27 @@ def test_high_budget_pressure_does_not_default_to_high_budget_relief():
 
 
 @pytest.mark.unit
+def test_budget_pressure_uses_budget_cap_when_available():
+    high_cap = derive_action_features(
+        runtime_state={
+            "expected_remaining_cost": 1.2,
+            "budget_cap": 2.0,
+        }
+    )
+    low_cap = derive_action_features(
+        runtime_state={
+            "expected_remaining_cost": 1.2,
+            "budget_cap": 0.5,
+        }
+    )
+
+    assert high_cap.values["budget_pressure"] == pytest.approx(0.6)
+    assert low_cap.values["budget_pressure"] == pytest.approx(1.5)
+    assert "runtime_state.budget_cap" in high_cap.features["budget_pressure"].source_fields
+    assert high_cap.values["budget_relief"] == pytest.approx(low_cap.values["budget_relief"])
+
+
+@pytest.mark.unit
 def test_observed_values_take_priority():
     derivation = derive_action_features(
         runtime_state={

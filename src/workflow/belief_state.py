@@ -9,6 +9,7 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
+from src.models.budget_pressure import derive_budget_pressure
 
 __all__ = ["extract_failure_context", "update_runtime_state"]
 
@@ -29,6 +30,7 @@ def update_runtime_state(
     failure_context: RuntimeFailureContext | Mapping[str, Any] | None = None,
     completed_steps: int | None = None,
     total_steps: int | None = None,
+    budget_cap: float | None = None,
 ) -> RuntimeState:
     """以确定性规则更新 Lite 版运行时 belief-state。
 
@@ -48,12 +50,14 @@ def update_runtime_state(
         failure_context=failure_context,
         completed_steps=completed_steps,
         total_steps=total_steps,
+        budget_cap=budget_cap,
     )
     step_result = update.step_result
     safety_result = update.safety_result
     failure_context = update.failure_context
     completed_steps = update.completed_steps
     total_steps = update.total_steps
+    budget_cap = update.budget_cap
 
     state = previous_state or RuntimeState(
         p_success=_BASELINE_P_SUCCESS,
@@ -64,6 +68,7 @@ def update_runtime_state(
             total_steps=total_steps,
         ),
         evidence_sufficiency=_BASELINE_EVIDENCE_SUFFICIENCY,
+        budget_cap=budget_cap,
         last_update_source="runtime_bootstrap",
         observation_summary={},
     )
@@ -73,6 +78,7 @@ def update_runtime_state(
     recovery_margin = _clamp_unit_interval(state.recovery_margin)
     expected_remaining_cost = state.expected_remaining_cost
     evidence_sufficiency = _clamp_unit_interval(state.evidence_sufficiency)
+    budget_cap = budget_cap if budget_cap is not None else state.budget_cap
     observation_summary = dict(state.observation_summary)
     last_update_source = state.last_update_source
     cost_penalty = 0.0
@@ -213,7 +219,16 @@ def update_runtime_state(
         previous_value=evidence_sufficiency,
         evidence_signal=evidence_signal,
     )
+    budget_derivation = derive_budget_pressure(
+        expected_remaining_cost=expected_remaining_cost,
+        budget_cap=budget_cap,
+    )
     observation_summary["evidence_signal"] = _round_metric(evidence_signal)
+    observation_summary["budget_pressure"] = _round_metric(
+        budget_derivation.budget_pressure
+    )
+    if budget_cap is not None:
+        observation_summary["budget_cap"] = budget_cap
 
     return RuntimeState(
         p_success=_round_metric(_clamp_unit_interval(p_success)),
@@ -223,6 +238,8 @@ def update_runtime_state(
         recovery_margin=_round_metric(_clamp_unit_interval(recovery_margin)),
         expected_remaining_cost=_round_metric(max(expected_remaining_cost, 0.0)),
         evidence_sufficiency=_round_metric(evidence_sufficiency),
+        budget_pressure=_round_metric(budget_derivation.budget_pressure),
+        budget_cap=budget_cap,
         last_update_source=last_update_source,
         observation_summary=_drop_none_values(observation_summary),
     )
@@ -281,6 +298,7 @@ def _coerce_update_input(
     failure_context: RuntimeFailureContext | Mapping[str, Any] | None,
     completed_steps: int | None,
     total_steps: int | None,
+    budget_cap: float | None,
 ) -> RuntimeStateUpdateInput:
     if update_input is not None:
         return update_input
@@ -290,6 +308,7 @@ def _coerce_update_input(
         failure_context=_coerce_failure_context(failure_context),
         completed_steps=completed_steps,
         total_steps=total_steps,
+        budget_cap=budget_cap,
     )
 
 

@@ -65,6 +65,7 @@ def test_six_runtime_schemas_serialize_with_stable_defaults() -> None:
         "recovery_margin": 0.6,
         "expected_remaining_cost": 1.0,
         "evidence_sufficiency": 0.5,
+        "budget_pressure": 1.0,
     }
     assert StateSchema is RuntimeStateSchema
     assert observation.model_dump()["source_refs"][0]["source_type"] == "step_result"
@@ -80,7 +81,20 @@ def test_runtime_state_schema_restores_legacy_snapshot_payload() -> None:
     assert restored.p_success == pytest.approx(0.8)
     assert restored.p_structural_failure == pytest.approx(0.25)
     assert restored.evidence_sufficiency == pytest.approx(0.5)
+    assert restored.budget_pressure == pytest.approx(1.0)
     assert restored.to_snapshot_payload()["last_update_source"] == "runtime_bootstrap"
+
+
+def test_runtime_state_schema_derives_budget_pressure_from_budget_cap() -> None:
+    """预算压力使用预算上限归一化，原始剩余成本允许大于 1。"""
+
+    high_cap = RuntimeStateSchema(expected_remaining_cost=1.2, budget_cap=2.0)
+    low_cap = RuntimeStateSchema(expected_remaining_cost=1.2, budget_cap=0.5)
+
+    assert high_cap.expected_remaining_cost == pytest.approx(1.2)
+    assert high_cap.budget_pressure == pytest.approx(0.6)
+    assert low_cap.budget_pressure == pytest.approx(1.5)
+    assert low_cap.to_summary_payload()["budget_cap"] == pytest.approx(0.5)
 
 
 def test_observation_schema_rejects_unapproved_sources() -> None:
