@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Literal, cast
 
 from src.models.contracts import (
+    ActionBiasSummary,
     FINAL_SCORE_METADATA_KEY,
     RERANK_REASON_METADATA_KEY,
     RUNTIME_ADJUSTMENT_METADATA_KEY,
@@ -28,6 +29,7 @@ from src.models.runtime_schemas import (
     RuntimeStateSchema,
 )
 from src.models.source_refs import (
+    SOURCE_REF_ACTION_BIAS,
     SOURCE_REF_ACTION_UTILITY,
     SOURCE_REF_DEFAULT_ACTION_UTILITY,
     SOURCE_REF_RUNTIME_ADJUSTMENT,
@@ -61,6 +63,7 @@ _POLICY_MODES = frozenset(
     {STATIC_TOP1, STATIC_GATE, DYNAMIC_OBSERVATION_ONLY, LITE_BELIEF_STATE}
 )
 _RERANK_DISABLED_POLICIES = frozenset({STATIC_TOP1, STATIC_GATE})
+RuntimeActionName = Literal["continue", "patch_local", "suffix_replan", "stop"]
 
 # -- action space ------------------------------------------------------------
 _RUNTIME_ACTIONS = ("continue", "patch_local", "suffix_replan", "stop")
@@ -115,7 +118,7 @@ def compute_runtime_delta(
     feasibility: float,
     candidate_kind: str,
     replan_mode: str = "",
-) -> tuple[float, str, str, list[RuntimeAdjustmentFactor]]:
+) -> tuple[float, RuntimeActionName, str, list[RuntimeAdjustmentFactor]]:
     """计算单个候选的 runtime delta、shadow action、action reason 和因子列表。
 
     供 Planner shadow-rerank hooks 与 RuntimeEvaluator 共享公式。
@@ -555,7 +558,9 @@ def _apply_runtime_adjustment(
 
     return _attach_rerank_metadata(
         candidate, metadata, overall, delta, adjusted, rerank_reason,
-        action, action_reason,
+        action,
+        action_reason,
+        _build_action_bias(action, delta, factors),
     )
 
 
@@ -588,6 +593,7 @@ def _attach_passthrough_metadata(
     return _attach_rerank_metadata(
         candidate, metadata, overall, 0.0, overall, rerank_reason,
         "continue", "runtime_state is not available",
+        _build_action_bias("continue", 0.0, []),
     )
 
 
@@ -600,6 +606,7 @@ def _attach_rerank_metadata(
     rerank_reason: RerankReason,
     shadow_action: str,
     shadow_reason: str,
+    action_bias: ActionBiasSummary,
 ) -> PendingActionCandidate:
     static_score = ScoreSummary(
         value=round(overall, 6),
@@ -625,6 +632,7 @@ def _attach_rerank_metadata(
         source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=False,
+        action_bias=action_bias,
     )
 
     metadata[STATIC_SCORE_METADATA_KEY] = static_score.model_dump()
@@ -650,7 +658,7 @@ def _resolve_candidate_action_from_signals(
     p_structural_failure: float,
     recovery_margin: float,
     budget_pressure: float,
-) -> tuple[str, str]:
+) -> tuple[RuntimeActionName, str]:
     if p_success <= _STOP_P_SUCCESS_THRESHOLD and budget_pressure >= _STOP_BUDGET_PRESSURE_THRESHOLD and recovery_margin <= _STOP_RECOVERY_MARGIN_THRESHOLD:
         return ("stop", "success probability is low, budget pressure is high, and recovery headroom is nearly exhausted")
     if candidate_kind == "patch":
@@ -721,6 +729,19 @@ def _make_factor(
         source=source,
         contribution=round(contribution, 6),
         message=message,
+    )
+
+
+def _build_action_bias(
+    action: RuntimeActionName,
+    value: float,
+    factors: list[RuntimeAdjustmentFactor],
+) -> ActionBiasSummary:
+    return ActionBiasSummary(
+        action=action,
+        value=round(value, 6),
+        factors=factors,
+        source_refs=as_source_refs(*SOURCE_REF_ACTION_BIAS),
     )
 
 

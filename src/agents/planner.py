@@ -30,6 +30,7 @@ from src.agents.candidate_generator.recovery_complexity import (
 )
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    ActionBiasSummary,
     CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
@@ -66,6 +67,7 @@ from src.models.validation import (
     validate_plan_executability,
 )
 from src.models.source_refs import (
+    SOURCE_REF_ACTION_BIAS,
     SOURCE_REF_RUNTIME_ADJUSTMENT,
     SOURCE_REF_STATIC_SCORE,
     as_source_refs,
@@ -2539,6 +2541,7 @@ def _build_shadow_passthrough_decision(
         source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=True,
+        action_bias=_build_action_bias("continue", 0.0, []),
     )
     rerank_reason = RerankReason(
         code="shadow_passthrough",
@@ -2630,6 +2633,7 @@ def _build_runtime_shadow_decision(
         source_refs=as_source_refs(*SOURCE_REF_RUNTIME_ADJUSTMENT),
         formula_version="v1",
         shadow_only=False,
+        action_bias=_build_action_bias(action, delta, factors),
     )
     rerank_reason = RerankReason(
         code=f"shadow_{action}",
@@ -2689,6 +2693,19 @@ def _build_runtime_adjustment_factor(
         source=source,
         contribution=round(contribution, 6),
         message=message,
+    )
+
+
+def _build_action_bias(
+    action: Literal["continue", "patch_local", "suffix_replan", "stop"],
+    value: float,
+    factors: list[RuntimeAdjustmentFactor],
+) -> ActionBiasSummary:
+    return ActionBiasSummary(
+        action=action,
+        value=round(value, 6),
+        factors=factors,
+        source_refs=as_source_refs(*SOURCE_REF_ACTION_BIAS),
     )
 
 

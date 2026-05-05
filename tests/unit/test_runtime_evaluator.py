@@ -11,10 +11,12 @@ from src.models.contracts import (
     PendingActionCandidate,
     Plan,
     PlanStep,
+    RERANK_REASON_METADATA_KEY,
     RUNTIME_ADJUSTMENT_METADATA_KEY,
 )
 from src.models.runtime_schemas import RuntimeStateSchema
 from src.models.source_refs import (
+    SOURCE_REF_ACTION_BIAS,
     SOURCE_REF_ACTION_UTILITY,
     SOURCE_REF_RUNTIME_ADJUSTMENT,
 )
@@ -204,6 +206,49 @@ class TestRerank:
         assert "sid:planner.algorithm.runtime_adjustment_formula" in refs
         assert "impl:planner.runtime_adjustment.v1" in refs
         assert set(SOURCE_REF_RUNTIME_ADJUSTMENT).issubset(refs)
+        action_bias = adj["action_bias"]
+        assert isinstance(action_bias, dict)
+        assert action_bias["value"] == adj["value"]
+        assert action_bias["factors"] == metadata[RERANK_REASON_METADATA_KEY]["factors"]
+        bias_refs = cast(list[str], action_bias["source_refs"])
+        assert set(SOURCE_REF_ACTION_BIAS).issubset(bias_refs)
+
+    def test_action_bias_generated_for_patch_replan_and_stop(self) -> None:
+        evaluator = RuntimeEvaluator()
+        cases = [
+            (
+                _candidate("patch", kind="patch", fallback_depth=0.8),
+                _state(p_success=0.6, recovery_margin=0.6),
+                "patch_local",
+            ),
+            (
+                _candidate("replan", kind="replan", fallback_depth=0.8),
+                _state(p_success=0.6, recovery_margin=0.6),
+                "suffix_replan",
+            ),
+            (
+                _candidate("stop", fallback_depth=0.8),
+                _state(
+                    p_success=0.1,
+                    recovery_margin=0.1,
+                    expected_remaining_cost=1.2,
+                ),
+                "stop",
+            ),
+        ]
+
+        for candidate, state, expected_action in cases:
+            result = evaluator.evaluate_candidates([candidate], state)
+            metadata = dict(result.candidates[0].metadata)
+            adjustment = metadata[RUNTIME_ADJUSTMENT_METADATA_KEY]
+            rerank = metadata[RERANK_REASON_METADATA_KEY]
+            assert isinstance(adjustment, dict)
+            assert isinstance(rerank, dict)
+            action_bias = adjustment["action_bias"]
+            assert isinstance(action_bias, dict)
+            assert action_bias["action"] == expected_action
+            assert action_bias["value"] == adjustment["value"]
+            assert action_bias["factors"] == rerank["factors"]
 
     def test_high_risk_reduces_score(self) -> None:
         e = RuntimeEvaluator()

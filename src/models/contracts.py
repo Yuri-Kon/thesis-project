@@ -593,6 +593,33 @@ class RuntimeAdjustmentFactor(BaseModel):
         return _validate_finite_float_value(value, field_name="contribution")
 
 
+class ActionBiasSummary(BaseModel):
+    """ActionBias 理论对象的运行时元数据承载。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: Literal["continue", "patch_local", "suffix_replan", "stop"]
+    value: float
+    factors: List[RuntimeAdjustmentFactor] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator("value")
+    @classmethod
+    def _validate_value(cls, value: float) -> float:
+        normalized = _validate_finite_float_value(value, field_name="value")
+        if not -1.0 <= normalized <= 1.0:
+            raise ValueError("value must be between -1 and 1")
+        return normalized
+
+    @field_validator("source_refs")
+    @classmethod
+    def _validate_source_refs(cls, value: list[str]) -> list[str]:
+        return [
+            _validate_non_empty_text(item, field_name="source_refs")
+            for item in value
+        ]
+
+
 class RuntimeAdjustmentSummary(BaseModel):
     """运行时修正摘要。"""
 
@@ -603,6 +630,7 @@ class RuntimeAdjustmentSummary(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
     formula_version: str = "v1"
     shadow_only: bool = True
+    action_bias: ActionBiasSummary | None = None
 
     @field_validator("value")
     @classmethod

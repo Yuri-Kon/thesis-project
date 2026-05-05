@@ -34,6 +34,11 @@ SOURCE_REF_RUNTIME_ADJUSTMENT: Final[tuple[str, ...]] = (
     "impl:planner.runtime_adjustment.v1",
 )
 
+SOURCE_REF_ACTION_BIAS: Final[tuple[str, ...]] = (
+    "sid:planner.algorithm.runtime_adjustment_formula",
+    "impl:runtime_evaluator.compute_runtime_delta.v1",
+)
+
 SOURCE_REF_ACTION_UTILITY: Final[tuple[str, ...]] = (
     "sid:algo.schema.action_utility",
     "sid:algo.action_feature_derivation",

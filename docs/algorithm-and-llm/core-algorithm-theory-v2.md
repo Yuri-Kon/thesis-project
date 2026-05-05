@@ -435,6 +435,10 @@ bp_t = clip(c_t, 0, 1)
 - suffix_replan 在结构性失败压力高且保留前缀可行时加分；
 - stop 在低成功、高预算、低恢复余量时作为 terminal action，但对普通候选排序可施加保护性惩罚。
 
+实现中该理论对象由 `runtime_adjustment.action_bias` 承载，包含
+`action/value/factors/source_refs`，且 `action_bias.value` 与
+`runtime_adjustment.value` 保持一致。
+
 为了避免单次观测过度影响排序，限定：
 
 ```text
@@ -767,6 +771,7 @@ stop_auto ⇒ allow_auto_stop ∧ U_stop≥τ_stop ∧ s≤τ_s ∧ b≥τ_b ∧
 | `S_static` | `src/agents/planner.py::_score_payload()` | 已实现静态 score_breakdown |
 | `x_t` | `src/workflow/belief_state.py::update_runtime_state()` | 已实现五维 Lite belief-state |
 | `Δ(pi,x_t)` | `src/workflow/runtime_evaluator.py::compute_runtime_delta()` | 已实现 bounded runtime adjustment |
+| `ActionBias(pi,x_t)` | `metadata.runtime_adjustment.action_bias` | 已实现 action/value/factors/source_refs 统一承载 |
 | `U_pi` | `final_score = static_score + runtime_adjustment` | 已实现候选 rerank |
 | `U_a` | `RuntimeEvaluator.compute_action_utilities()` | 已实现四动作效用公式 |
 | hard priorities | `src/workflow/recovery.py::select_workflow_action()` | 已实现 safety/stop/patch/replan 规则 |
