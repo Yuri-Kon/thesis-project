@@ -12,6 +12,10 @@ from src.models.contracts import (
     RUNTIME_ADJUSTMENT_METADATA_KEY,
 )
 from src.models.runtime_schemas import RuntimeStateSchema
+from src.models.source_refs import (
+    SOURCE_REF_ACTION_UTILITY,
+    SOURCE_REF_RUNTIME_ADJUSTMENT,
+)
 from src.workflow.runtime_evaluator import (
     DYNAMIC_OBSERVATION_ONLY,
     LITE_BELIEF_STATE,
@@ -193,6 +197,10 @@ class TestRerank:
         assert isinstance(adj, dict)
         # 高 p_success 应产生正调整
         assert adj["value"] > 0.01
+        refs = cast(list[str], adj["source_refs"])
+        assert "sid:planner.algorithm.runtime_adjustment_formula" in refs
+        assert "impl:planner.runtime_adjustment.v1" in refs
+        assert set(SOURCE_REF_RUNTIME_ADJUSTMENT).issubset(refs)
 
     def test_high_risk_reduces_score(self) -> None:
         e = RuntimeEvaluator()
@@ -279,6 +287,11 @@ class TestActionUtility:
         assert set(utilities.keys()) == {"continue", "patch_local", "suffix_replan", "stop"}
         for u in utilities.values():
             assert 0.0 <= u.utility <= 1.0
+            assert "sid:algo.schema.action_utility" in u.source_refs
+            assert "impl:runtime_evaluator.action_utility.v1" in u.source_refs
+            assert set(SOURCE_REF_ACTION_UTILITY).issubset(u.source_refs)
+            assert any(ref.startswith("sid:") for ref in u.source_refs)
+            assert any(ref.startswith("impl:") for ref in u.source_refs)
 
     def test_stop_utility_higher_under_pressure(self) -> None:
         e = RuntimeEvaluator()

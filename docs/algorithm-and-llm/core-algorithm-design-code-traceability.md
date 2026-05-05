@@ -23,7 +23,30 @@
 - posterior objective scoring 已有实现，但与静态 planner objective 和 belief-state evidence 更新的关系还比较松散；
 - 理论依据目前主要是工程直觉，尚未映射到 POMDP/belief-state planning、budgeted/risk-sensitive planning、workflow recovery、LLM/tool-use planning、protein design objective 等文献。
 
-## 2. 设计 SID ↔ 代码路径矩阵
+## 2. source_refs / SID 追踪规范（Issue #337）
+
+实现侧统一使用短字符串数组：
+
+```python
+"source_refs": ["sid:<design-sid>", "impl:<implementation-ref>"]
+```
+
+常量集中在 `src/models/source_refs.py`，运行时 metadata 不编码文档路径、URL、长公式或 `sid:...:proposed` 后缀。尚未进入设计 SSOT 的 SID 通过同模块 `design_ref_status_for()` / `PROPOSED_DESIGN_REF_STATUS` 或本文集中标注 proposed 状态。
+
+| metadata 对象 | source refs 常量 | SID 状态 |
+|---|---|---|
+| `metadata.candidate_feasibility` | `SOURCE_REF_FEASIBILITY` = `sid:algo.adaptive.feasibility_filter`, `impl:candidate_generator.feasibility.v1` | `algo.adaptive.feasibility_filter` proposed |
+| `metadata.static_score` / `metadata.action_score` / `score_breakdown` | `SOURCE_REF_STATIC_SCORE` = `sid:algo.adaptive.optimization_objective`, `sid:planner.algorithm.candidate_scoring`, `impl:planner.score_breakdown.v1` | existing |
+| `posterior_score` / `metadata.posterior_objective` | `SOURCE_REF_POSTERIOR_OBJECTIVE` = `sid:algo.posterior_objective_scoring`, `impl:posterior_score.v1`, `impl:posterior_objective.v1` | `algo.posterior_objective_scoring` proposed |
+| `metadata.runtime_adjustment` / runtime final/shadow score | `SOURCE_REF_RUNTIME_ADJUSTMENT` = `sid:planner.algorithm.runtime_adjustment_formula`, `sid:planner.algorithm.runtime_reranking`, `impl:planner.runtime_adjustment.v1` | existing |
+| `ActionUtility.source_refs` | `SOURCE_REF_ACTION_UTILITY` = `sid:algo.schema.action_utility`, `sid:algo.action_feature_derivation`, `impl:runtime_evaluator.action_utility.v1`, `impl:workflow.action_features.v1` | `algo.schema.action_utility` existing; `algo.action_feature_derivation` proposed |
+| default `ActionUtility.source_refs` | `SOURCE_REF_DEFAULT_ACTION_UTILITY` = `sid:algo.schema.action_utility`, `impl:runtime_evaluator.default.v1` | existing |
+| recovery action selection metadata | `SOURCE_REF_ACTION_SELECTION` = `sid:algo.recovery_aware_action_selection`, `sid:planner.algorithm.action_priority_resolution`, `impl:recovery.select_workflow_action.v1` | `algo.recovery_aware_action_selection` proposed; `planner.algorithm.action_priority_resolution` existing |
+| terminal stop metadata | `SOURCE_REF_TERMINAL_STOP` = `sid:algo.terminal_stop_policy`, `sid:planner.algorithm.stop_semantics`, `impl:recovery.terminal_stop.v1` | `algo.terminal_stop_policy` proposed; `planner.algorithm.stop_semantics` existing |
+
+设计仓库 `../thesis-project.design` 未在本实现中修改；proposed SID 仍需后续设计同步。
+
+## 3. 设计 SID ↔ 代码路径矩阵
 
 | 设计 SID | 设计含义 | 主要代码位置 | 当前实现状态 | 对齐判断 |
 |---|---|---|---|---|
