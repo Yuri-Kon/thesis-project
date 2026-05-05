@@ -407,6 +407,39 @@ evidence_signal_t =
   + 0.30 · metric_completeness_t
 ```
 
+`B(x_t,o_t,h_t)` 的当前实现是确定性规则表，而不是学习到的
+Bayesian transition model。下表与 `src/workflow/belief_state.py`
+中的 `BELIEF_STATE_UPDATE_RULES` 对齐，可直接作为论文中 belief update
+的工程定义引用。表中 `n_warn` / `n_block` 表示对应安全标记数量；
+`p,q,g` 均先裁剪到 `[0,1]`；未列字段保持不变。
+
+| 观测信号 | 触发条件 | `Δs_t` | `Δf_t` | `Δr_t` | `c_t` 更新 | `e_t` 更新 | 解释 |
+|---|---|---:|---:|---:|---|---|---|
+| `step_result.success` | 任意步骤成功 | `+0.12` | `-0.08` | `+0.06` | `cost_reward += 0.35`；无进度计数时约为 `c_t - 1.35` | 进入平滑项 | 完成一步提高链路可行性并释放恢复余量 |
+| `step_result.success@structural` | 结构阶段或结构工具成功 | `+0.04` | `-0.05` | `0` | `0` | 进入平滑项 | 结构验证降低潜在结构失败压力 |
+| `step_result.failed` | 任意步骤失败 | `-0.18` | `+0.14` | `-0.12` | `cost_penalty += 0.75`；无进度计数时约为 `c_t + 1.25` | 进入平滑项 | 失败降低当前后缀可信度并增加剩余成本暴露 |
+| `step_result.failed@structural` | 结构阶段或结构工具失败 | `0` | `+0.08` | `0` | `0` | 进入平滑项 | 结构失败更强地指向 suffix replan |
+| `step_result.retry_exhausted` | 步骤 metrics 标记 retry exhausted | `-0.05` | `0` | `-0.06` | `cost_penalty += 0.40` | 进入平滑项 | retry 耗尽会消耗局部恢复空间 |
+| `step_result.skipped` | 步骤被跳过 | `-0.02` | `0` | `0` | `cost_penalty += 0.15` | 进入平滑项 | skipped 是弱负证据与小成本残留 |
+| `safety_result.warn` | SafetyAgent 返回 warn | `-0.04 - 0.01 n_warn` | `+0.05` | `-0.03` | `cost_penalty += 0.25` | candidate agreement `-0.08` 后进入平滑项 | 安全警告降低信心但不终止路线 |
+| `safety_result.block` | SafetyAgent 返回 block | `-0.18 - 0.02 n_block` | `+0.12 + 0.01 n_block` | `-0.16` | `cost_penalty += 0.75` | candidate agreement `-0.18` 后进入平滑项 | 安全阻断是强负证据和高恢复压力 |
+| `failure_context.patch_local` | 恢复动作归一化为 `patch_local` | `-0.04` | `0` | `-0.07` | `cost_penalty += 0.60` | candidate agreement `+0.04` 后进入平滑项 | 局部修补保留前缀但消耗修复余量 |
+| `failure_context.suffix_replan` | 恢复动作为 `suffix_replan` 或 `replan` | `-0.10` | `+0.08` | `-0.12` | `cost_penalty += 1.20` | candidate agreement `-0.08` 后进入平滑项 | 后缀重规划承认当前后缀不可靠 |
+| `failure_context.stop` | 恢复动作为 `stop` | `-0.15` | `0` | 设为 `0` | `0` | candidate agreement `-0.08` 后进入平滑项 | stop 在语义上耗尽恢复余量 |
+| `failure_context.retry_exhausted` | 失败上下文记录 retry exhausted | `-0.03` | `0` | `-0.04` | `cost_penalty += 0.25` | 进入平滑项 | 恢复上下文继续保留 retry 耗尽的成本 |
+| `objective_evidence.progress` | objective ranker 给出进展 `p` | `+0.04p` | `0` | `0` | `0` | 平滑前 `e_t += 0.03p` | 目标进展支持当前目标方向 |
+| `objective_evidence.sufficiency` | objective ranker 给出证据充分度 `q` | `0` | `0` | `0` | `0` | 平滑前 `e_t += 0.05q` | 直接目标证据提升证据充分度 |
+| `objective_evidence.gap` | objective ranker 给出目标差距 `g` | `0` | `0` | `+0.02g` | `0` | 进入平滑项 | 可见目标差距保留有用重排空间 |
+| `evidence_signal` | 汇总 cheap validation、candidate agreement、metric completeness | `0` | `0` | `0` | `0` | `clip(0.70e_t + 0.30 evidence_signal)` | 证据采用平滑更新，避免单次观测过度影响 |
+| `progress_counters` | 有 `completed_steps,total_steps` | `0` | `0` | `0` | `max(total_steps - completed_steps + cost_penalty,0)` | 进入平滑项 | 显式进度覆盖启发式一步成本衰减 |
+
+最后统一执行：
+
+```text
+s_{t+1}, f_{t+1}, r_{t+1}, e_{t+1} ∈ [0,1]
+c_{t+1} = max(c_{t+1}, 0)
+```
+
 ### 5.4 状态解释
 
 | 状态 | 增加意味着 | 降低意味着 | 决策影响 |
