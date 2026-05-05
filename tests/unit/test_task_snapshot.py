@@ -245,6 +245,7 @@ def test_build_task_snapshot_persists_runtime_state_with_stable_keys():
         "recovery_margin": 0.41,
         "expected_remaining_cost": 12.5,
         "evidence_sufficiency": 0.63,
+        "budget_pressure": 1.5,
         "last_update_source": "safety:post_step",
     }
     assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
@@ -257,6 +258,7 @@ def test_build_task_snapshot_persists_runtime_state_with_stable_keys():
         "recovery_margin": 0.41,
         "expected_remaining_cost": 12.5,
         "evidence_sufficiency": 0.63,
+        "budget_pressure": 1.5,
     }
 
 
@@ -288,11 +290,13 @@ def test_build_task_snapshot_waiting_bootstraps_runtime_state_when_missing():
         "recovery_margin": 0.6,
         "expected_remaining_cost": 1.0,
         "evidence_sufficiency": 0.5,
+        "budget_pressure": 1.0,
         "last_update_source": "runtime_bootstrap",
     }
     assert snapshot.artifacts[RUNTIME_OBSERVATION_SUMMARY_ARTIFACT_KEY] == {
         "completed_steps": 0,
         "evidence_signal": 0.5,
+        "budget_pressure": 1.0,
     }
     assert snapshot.artifacts[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.5)
 

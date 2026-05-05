@@ -149,6 +149,7 @@ def test_restore_context_from_snapshot_backfills_partial_runtime_state_payload()
         "remaining_steps": 1,
         "completed_ratio": 0.5,
         "evidence_signal": 0.465,
+        "budget_pressure": 1.0,
         "selected_candidate_id": "patch_a",
     }
 
