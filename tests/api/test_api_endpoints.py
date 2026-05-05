@@ -1317,6 +1317,19 @@ class TestAPIEndpoints:
                         "affected_steps": ["S1"],
                         "recovery_semantics": "preserve completed prefix",
                         "runtime_state_summary": candidate_runtime_state,
+                        "static_score": {
+                            "value": 0.82,
+                            "source": "score_breakdown.overall.static.v1",
+                        },
+                        "runtime_adjustment": {
+                            "value": 0.07,
+                            "source": "planner.runtime_adjustment.patch_local.v1",
+                            "formula_version": "v1",
+                        },
+                        "final_score": {
+                            "value": 0.89,
+                            "source": "static_score+runtime_adjustment.patch_local.v1",
+                        },
                         "default_recommendation_reason": {
                             "code": "runtime_ranked_first",
                             "message": "highest runtime-adjusted score",
@@ -1336,6 +1349,18 @@ class TestAPIEndpoints:
                     "default_recommendation_reason": {
                         "code": "runtime_gate",
                         "message": "runtime gate selected patch_local",
+                    },
+                    "selected_action": "patch_local",
+                    "budget_pressure": 0.74,
+                    "evidence_sufficiency": 0.68,
+                    "action_utilities": {
+                        "patch_local": {
+                            "action": "patch_local",
+                            "utility": 0.81,
+                            "budget_pressure": 0.74,
+                            "intervention_value": 0.25,
+                            "source": "runtime_evaluator.action_utility.v1",
+                        },
                     },
                     "evidence_refs": [
                         {"kind": "runtime_state", "ref": "snapshot.latest"}
@@ -1363,6 +1388,17 @@ class TestAPIEndpoints:
         assert data["runtime_state_summary"]["p_success"] == pytest.approx(0.61)
         assert data["workflow_action_reason"] == "runtime gate selected patch_local"
         assert data["evidence_refs"][0]["ref"] == "snapshot.latest"
+        theory = data["theory_objects"]
+        assert theory["static_score"]["value"] == pytest.approx(0.82)
+        assert theory["runtime_adjustment"]["value"] == pytest.approx(0.07)
+        assert theory["final_score"]["value"] == pytest.approx(0.89)
+        assert theory["selected_action"] == "patch_local"
+        assert theory["action_utility"]["utility"] == pytest.approx(0.81)
+        assert theory["evidence_sufficiency"] == pytest.approx(0.68)
+        assert theory["budget_pressure"] == pytest.approx(0.74)
+        candidate_theory = data["candidates"][0]["theory_objects"]
+        assert candidate_theory["selected_action"] == "patch_local"
+        assert "factors" not in theory["runtime_adjustment"]
         assert data["score_breakdown"]["overall"] == pytest.approx(0.91)
 
         candidate = data["candidates"][0]
