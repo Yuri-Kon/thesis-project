@@ -37,10 +37,15 @@ ScoredRow = tuple[PendingActionCandidate, SortKey, SortKey, str]
 RankedRow = tuple[PendingActionCandidate, SortKey, str]
 
 CANDIDATE_FEASIBILITY_METADATA_KEY = "candidate_feasibility"
+TOPK_DIVERSITY_METADATA_KEY = "topk_diversity"
 _SOFT_FEASIBILITY_REASONS = {"io_not_closed", "tool_unavailable"}
 _FEASIBILITY_SOURCE_REFS = [
     "sid:algo.adaptive.feasibility_filter",
     "impl:candidate_generator.feasibility.v1",
+]
+_TOPK_DIVERSITY_SOURCE_REFS = [
+    "sid:planner.contracts.candidate_schema",
+    "impl:candidate_generator.topk_diversity.v1",
 ]
 _FEASIBILITY_DESIGN_REF_STATUS = {
     "sid:algo.adaptive.feasibility_filter": "proposed",
@@ -120,6 +125,31 @@ def _feasibility_explanation(reason: str | None, filter_class: str) -> str:
             f"requires HITL because {reason}."
         )
     return f"Candidate is hard infeasible and excluded from Top-K because {reason}."
+
+
+def _normalize_capability_bucket(value: str | None) -> str:
+    if value is None:
+        return "unknown"
+    normalized = value.strip()
+    return normalized or "unknown"
+
+
+def _topk_diversity_explanation(
+    *,
+    capability_bucket: str,
+    diversity_degraded: bool,
+    fallback_reason: str | None,
+) -> str:
+    if diversity_degraded:
+        reason = fallback_reason or "insufficient_diversity_signal"
+        return (
+            "Selected by score ranking fallback because Top-K diversity could "
+            f"not distinguish capability buckets: {reason}."
+        )
+    return (
+        "Selected by capability-bucket round-robin to preserve an alternative "
+        f"path for capability {capability_bucket}."
+    )
 
 
 class CandidateGenerator:
@@ -219,7 +249,14 @@ class CandidateGenerator:
             )
             selected_rows = sorted(selected_rows, key=lambda row: row[1])
 
-        candidates = [row[0] for row in selected_rows]
+        candidates = self._attach_topk_diversity_metadata(
+            selected_rows=selected_rows,
+            available_rows=available_rows,
+            top_k=request.top_k,
+            ranking_basis=(
+                "final_score" if runtime_state_summary is not None else "static_score"
+            ),
+        )
         static_candidates = [row[0] for row in static_selected_rows]
         default_candidate = self._first_default_recommendation_candidate(candidates)
         static_default_candidate = self._first_default_recommendation_candidate(
@@ -454,6 +491,75 @@ class CandidateGenerator:
                 break
         return selected
 
+    def _attach_topk_diversity_metadata(
+        self,
+        *,
+        selected_rows: Sequence[RankedRow],
+        available_rows: Sequence[ScoredRow],
+        top_k: int,
+        ranking_basis: str,
+    ) -> list[PendingActionCandidate]:
+        selected_capabilities = [
+            _normalize_capability_bucket(row[2]) for row in selected_rows
+        ]
+        available_capabilities = [
+            _normalize_capability_bucket(row[3]) for row in available_rows
+        ]
+        unique_available_capabilities = sorted(set(available_capabilities))
+        unique_selected_capabilities = sorted(set(selected_capabilities))
+        missing_diversity_signal = all(
+            capability == "unknown" for capability in available_capabilities
+        )
+        diversity_degraded = (
+            missing_diversity_signal or len(unique_available_capabilities) <= 1
+        )
+        if missing_diversity_signal:
+            fallback_reason = "missing_capability_bucket"
+        elif diversity_degraded:
+            fallback_reason = "single_capability_bucket"
+        else:
+            fallback_reason = None
+
+        candidates: list[PendingActionCandidate] = []
+        for selection_rank, row in enumerate(selected_rows, start=1):
+            candidate = row[0]
+            capability_bucket = _normalize_capability_bucket(row[2])
+            metadata = dict(candidate.metadata or {})
+            metadata[TOPK_DIVERSITY_METADATA_KEY] = {
+                "schema_version": "topk_diversity.v1",
+                "strategy": "capability_coverage",
+                "selected_by": "_select_diverse_top_k",
+                "ranking_basis": ranking_basis,
+                "selection_mode": (
+                    "score_ranking_fallback"
+                    if diversity_degraded
+                    else "capability_bucket_round_robin"
+                ),
+                "selection_rank": selection_rank,
+                "requested_top_k": top_k,
+                "available_candidate_count": len(available_rows),
+                "selected_candidate_count": len(selected_rows),
+                "capability_bucket": capability_bucket,
+                "covered_capabilities": unique_selected_capabilities,
+                "available_capabilities": unique_available_capabilities,
+                "diversity_signals": [
+                    "candidate.capability_id",
+                    "candidate.metadata.capability_bucket",
+                    "score_breakdown.overall",
+                    "metadata.final_score",
+                ],
+                "diversity_degraded": diversity_degraded,
+                "fallback_reason": fallback_reason,
+                "source_refs": list(_TOPK_DIVERSITY_SOURCE_REFS),
+                "explanation": _topk_diversity_explanation(
+                    capability_bucket=capability_bucket,
+                    diversity_degraded=diversity_degraded,
+                    fallback_reason=fallback_reason,
+                ),
+            }
+            candidates.append(candidate.model_copy(update={"metadata": metadata}))
+        return candidates
+
     def _build_explanation(
         self,
         *,
@@ -472,7 +578,7 @@ class CandidateGenerator:
             f"{request.candidate_kind} Top-K generated by CandidateGenerator "
             f"(requested={request.top_k}, returned={len(candidates)}). "
             f"Ranking uses {ranking_basis} desc + stable tie-break; "
-            "selection uses capability-bucket round-robin."
+            "selection uses SelectDiverseTopK capability-bucket round-robin."
         )
         if default_candidate is not None:
             explanation = (
