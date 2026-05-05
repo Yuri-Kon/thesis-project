@@ -195,7 +195,7 @@ S_static(pi) = Σ_k w_k score_k(pi)
 | `G_prior` | `score_breakdown.objective` | 当前主要是低成本偏好 + objective_ranker bonus，需增强 |
 | `C_norm` | `1 - score_breakdown.cost` | 成本越高，cost score 越低 |
 | `R_norm` | `1 - score_breakdown.risk` | 风险越高，risk score 越低 |
-| `Rec` | `score_breakdown.recovery_complexity` | 当前等价于 `1 - fallback_depth` |
+| `Rec` | `score_breakdown.recovery_complexity` | 定义为 `1 - recoverability`，其中 `recoverability = 0.30*retry_budget_ratio + 0.30*local_patchability + 0.25*prefix_preservability + 0.15*evidence_reusability`；`fallback_depth` 仅作为 `retry_budget_ratio` 的兼容输入 |
 | `Q` | `confidence/tool_readiness/tool_coverage/fallback_depth` | 工程可靠性补充项 |
 | `S_static` | `score_breakdown.overall` / `static_score` | 静态总分 |
 

@@ -23,6 +23,12 @@ OBSERVATION_SOURCE_TYPES = (
     "budget",
     "hitl_decision",
 )
+RECOVERY_COMPONENT_WEIGHTS = {
+    "retry_budget_ratio": 0.30,
+    "local_patchability": 0.30,
+    "prefix_preservability": 0.25,
+    "evidence_reusability": 0.15,
+}
 
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | JsonObject | JsonArray
@@ -35,6 +41,7 @@ __all__ = [
     "ObservationSchema",
     "ObservationSource",
     "RecoverySchema",
+    "RECOVERY_COMPONENT_WEIGHTS",
     "RiskSchema",
     "RuntimeSchemaFieldMapping",
     "RuntimeStateSchema",
@@ -255,12 +262,7 @@ class RecoverySchema(RuntimeContractBase):
 
         return round(
             _weighted_sum(
-                {
-                    "retry_budget_ratio": 0.30,
-                    "local_patchability": 0.30,
-                    "prefix_preservability": 0.25,
-                    "evidence_reusability": 0.15,
-                },
+                RECOVERY_COMPONENT_WEIGHTS,
                 {
                     "retry_budget_ratio": self.retry_budget_ratio,
                     "local_patchability": self.local_patchability,

@@ -17,6 +17,10 @@ from src.agents.candidate_generator.models import (
     RuntimeShadowDecisionLike,
     ToolSpecLike,
 )
+from src.agents.candidate_generator.recovery_complexity import (
+    RECOVERY_COMPLEXITY_METADATA_KEY,
+    derive_recovery_complexity,
+)
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
@@ -78,6 +82,7 @@ class CandidateBuilder:
             payload.payload,
             request.registry,
             score_weights=score_weights,
+            runtime_state_summary=runtime_state_summary,
         )
         score_breakdown = self._apply_generation_score_adjustments(
             score_breakdown,
@@ -93,6 +98,7 @@ class CandidateBuilder:
             adapter_mode=adapter_mode,
             score_breakdown=score_breakdown,
             score_weights=score_weights,
+            runtime_state_summary=runtime_state_summary,
         )
         shadow = self._build_shadow_metadata(
             payload=payload,
@@ -142,7 +148,10 @@ class CandidateBuilder:
         adapter_mode: str,
         score_breakdown: dict[str, float],
         score_weights: dict[str, float],
+        runtime_state_summary: Metadata | None,
     ) -> Metadata:
+        payload_metadata = object_mapping(cast(object, payload.payload.metadata))
+        posterior_metadata = objective_metadata_from_payload_metadata(payload_metadata)
         metadata: Metadata = {
             "candidate_kind": request.candidate_kind,
             "capability_bucket": capability_id,
@@ -167,6 +176,11 @@ class CandidateBuilder:
             ACTION_SCORE_METADATA_KEY: self._hooks.build_action_score_summary(
                 score_breakdown
             ),
+            RECOVERY_COMPLEXITY_METADATA_KEY: derive_recovery_complexity(
+                fallback_depth=score_breakdown.get("fallback_depth"),
+                runtime_state=runtime_state_summary,
+                candidate_summary=_recovery_candidate_summary(posterior_metadata),
+            ).to_metadata(),
         }
         metadata.update(
             self._hooks.candidate_readiness_metadata(
@@ -174,8 +188,6 @@ class CandidateBuilder:
                 capability_id=capability_id,
             )
         )
-        payload_metadata = object_mapping(cast(object, payload.payload.metadata))
-        posterior_metadata = objective_metadata_from_payload_metadata(payload_metadata)
         metadata.update(posterior_metadata)
         planner_route = payload_metadata.get("planner_route")
         if isinstance(planner_route, dict):
@@ -274,6 +286,8 @@ class CandidateBuilder:
 def _bounded_optional_float(value: object) -> float | None:
     if isinstance(value, bool):
         return None
+    if not isinstance(value, int | float | str):
+        return None
     try:
         parsed = float(value)
     except (TypeError, ValueError):
@@ -284,13 +298,16 @@ def _bounded_optional_float(value: object) -> float | None:
 def _normalize_posterior_objective(raw: object) -> Metadata | None:
     if not isinstance(raw, Mapping):
         return None
-    aggregate_score = _bounded_optional_float(raw.get("aggregate_score"))
-    evidence_sufficiency = _bounded_optional_float(raw.get("evidence_sufficiency"))
+    raw_mapping = cast(Mapping[str, object], raw)
+    aggregate_score = _bounded_optional_float(raw_mapping.get("aggregate_score"))
+    evidence_sufficiency = _bounded_optional_float(
+        raw_mapping.get("evidence_sufficiency")
+    )
     if aggregate_score is None or evidence_sufficiency is None:
         return None
-    schema_version = raw.get("schema_version")
+    schema_version = raw_mapping.get("schema_version")
     if schema_version == _POSTERIOR_OBJECTIVE_SCHEMA_VERSION:
-        normalized = object_mapping(cast(object, raw))
+        normalized = object_mapping(cast(object, raw_mapping))
         normalized["aggregate_score"] = aggregate_score
         normalized["evidence_sufficiency"] = evidence_sufficiency
         return normalized
@@ -298,14 +315,14 @@ def _normalize_posterior_objective(raw: object) -> Metadata | None:
         return None
     components: Metadata = {}
     for key in _POSTERIOR_COMPONENT_KEYS:
-        component = raw.get(key)
+        component = raw_mapping.get(key)
         if isinstance(component, Mapping):
             components[key] = object_mapping(cast(object, component))
-    raw_component_weights = raw.get("component_weights")
-    raw_warnings = raw.get("warnings")
-    raw_evidence_refs = raw.get("evidence_refs")
-    raw_evidence_status = raw.get("evidence_status")
-    objective_type = raw.get("objective_type")
+    raw_component_weights = raw_mapping.get("component_weights")
+    raw_warnings = raw_mapping.get("warnings")
+    raw_evidence_refs = raw_mapping.get("evidence_refs")
+    raw_evidence_status = raw_mapping.get("evidence_status")
+    objective_type = raw_mapping.get("objective_type")
     return {
         "schema_version": _POSTERIOR_OBJECTIVE_SCHEMA_VERSION,
         "aggregate_score": aggregate_score,
@@ -322,8 +339,12 @@ def _normalize_posterior_objective(raw: object) -> Metadata | None:
         "binding_proxy_component": "generic_objective"
         if objective_type == "binding"
         else None,
-        "warnings": list(raw_warnings) if isinstance(raw_warnings, list) else [],
-        "evidence_refs": list(raw_evidence_refs) if isinstance(raw_evidence_refs, list) else [],
+        "warnings": list(cast(list[object], raw_warnings))
+        if isinstance(raw_warnings, list)
+        else [],
+        "evidence_refs": list(cast(list[object], raw_evidence_refs))
+        if isinstance(raw_evidence_refs, list)
+        else [],
         "source_refs": list(_POSTERIOR_OBJECTIVE_SOURCE_REFS),
     }
 
@@ -354,3 +375,10 @@ def objective_metadata_from_payload_metadata(payload_metadata: Metadata) -> Meta
         if isinstance(raw_evidence_status, str)
         else "degraded",
     }
+
+
+def _recovery_candidate_summary(objective_metadata: Metadata) -> Metadata:
+    posterior = objective_metadata.get("posterior_objective")
+    if isinstance(posterior, Mapping):
+        return {"posterior_objective": object_mapping(cast(object, posterior))}
+    return {}

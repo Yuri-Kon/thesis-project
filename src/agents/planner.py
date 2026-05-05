@@ -25,6 +25,9 @@ from src.agents.candidate_generator import (
     CandidatePayload,
     TopKResult,
 )
+from src.agents.candidate_generator.recovery_complexity import (
+    derive_recovery_complexity,
+)
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
     CAPABILITY_READINESS_METADATA_KEY,
@@ -3038,6 +3041,7 @@ def _score_payload(
     registry: Sequence[ToolSpec],
     *,
     score_weights: dict[str, float] | None = None,
+    runtime_state_summary: Mapping[str, object] | None = None,
 ) -> dict[str, float]:
     registry_map = {spec.id: spec for spec in registry}
     tool_ids = _extract_payload_tool_ids(payload)
@@ -3065,10 +3069,18 @@ def _score_payload(
     )
     tool_coverage = _tool_coverage_score(tool_ids, capabilities)
     fallback_depth = _fallback_depth_score(tool_ids, registry_map, registry)
-    recovery_complexity = max(0.0, min(1.0, 1.0 - fallback_depth))
-
     feasibility = min(1.0, max(0.0, 0.5 + 0.25 * tool_coverage + 0.25 * fallback_depth))
     posterior = _extract_posterior_objective(payload)
+    candidate_summary: dict[str, object] = {}
+    if posterior is not None:
+        candidate_summary["posterior_objective"] = posterior
+    recovery_derivation = derive_recovery_complexity(
+        fallback_depth=fallback_depth,
+        runtime_state=runtime_state_summary,
+        candidate_summary=candidate_summary,
+    )
+    recovery_score_values = recovery_derivation.score_values()
+    recovery_complexity = recovery_derivation.recovery_complexity
     prior_objective = min(
         1.0,
         max(
@@ -3113,6 +3125,17 @@ def _score_payload(
         "tool_readiness": round(tool_readiness, 6),
         "tool_coverage": round(tool_coverage, 6),
         "fallback_depth": round(fallback_depth, 6),
+        "recoverability": round(recovery_score_values["recoverability"], 6),
+        "retry_budget_ratio": round(recovery_score_values["retry_budget_ratio"], 6),
+        "local_patchability": round(recovery_score_values["local_patchability"], 6),
+        "prefix_preservability": round(
+            recovery_score_values["prefix_preservability"],
+            6,
+        ),
+        "evidence_reusability": round(
+            recovery_score_values["evidence_reusability"],
+            6,
+        ),
         "recovery_complexity": round(recovery_complexity, 6),
         "evidence_sufficiency": round(evidence_sufficiency, 6),
         "overall": round(overall, 6),
