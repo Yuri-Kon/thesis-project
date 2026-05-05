@@ -322,14 +322,14 @@ class TestActionUtility:
         for u in utilities.values():
             assert 0.0 <= u.utility <= 1.0
 
-    def test_select_action_returns_best(self) -> None:
+    def test_compatibility_select_action_returns_best(self) -> None:
         e = RuntimeEvaluator()
         state = _state_dict(p_success=0.8, p_structural_failure=0.1)
         candidates = [_candidate("a", overall=0.85)]
         action = e.select_action(candidates, state)
         assert action.action in ("continue", "patch_local")
 
-    def test_safety_blocked_escalates_to_replan(self) -> None:
+    def test_compatibility_select_action_safety_blocked_escalates_to_replan(self) -> None:
         e = RuntimeEvaluator()
         action = e.select_action(
             [_candidate("a", overall=0.7)],
@@ -339,7 +339,7 @@ class TestActionUtility:
         assert action.action == "suffix_replan"
         assert "safety_block_disables_continue" in action.hard_constraints
 
-    def test_auto_stop_when_thresholds_met(self) -> None:
+    def test_compatibility_select_action_auto_stop_when_thresholds_met(self) -> None:
         e = RuntimeEvaluator()
         state = _state_dict(
             p_success=0.1,
@@ -357,8 +357,8 @@ class TestActionUtility:
         assert action.action == "stop"
         assert action.terminal_reason is not None
 
-    def test_stop_requires_significant_margin(self) -> None:
-        """stop 需要比第二选择高至少 0.06 才覆盖。"""
+    def test_compatibility_select_action_stop_requires_significant_margin(self) -> None:
+        """select_action 仅作为兼容 helper 验证既有 stop 行为。"""
         e = RuntimeEvaluator()
         # 中庸状态，stop 与 continue 接近
         state = _state_dict(p_success=0.5, p_structural_failure=0.3)

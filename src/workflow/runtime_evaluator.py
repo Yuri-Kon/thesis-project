@@ -272,7 +272,10 @@ class RuntimeEvaluator:
         allow_auto_stop: bool = False,
         safety_blocked: bool = False,
     ) -> ActionUtility:
-        """从候选列表与运行时状态中选择最优动作。
+        """兼容性动作选择 helper。
+
+        Workflow 级动作选择由 ``recovery.select_workflow_action()`` 负责；
+        本方法不得作为 PlanRunner 恢复决策边界。
 
         硬约束优先级:
         1. safety_block → 候选被阻止，禁止 continue
