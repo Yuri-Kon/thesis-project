@@ -14,13 +14,17 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.models.contracts import (
     ProteinDesignTask,
+    ACTION_UTILITY_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
+    FINAL_SCORE_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
     PendingActionStatus,
+    RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
+    STATIC_SCORE_METADATA_KEY,
     TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
@@ -289,6 +293,7 @@ class PendingActionCandidateDisplay(BaseModel):
     score_breakdown: Dict[str, float] = Field(default_factory=dict)
     runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
     workflow_action_reason: Optional[str] = None
+    theory_objects: Dict[str, Any] = Field(default_factory=dict)
     evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
     tool: PendingActionToolDisplay
 
@@ -304,6 +309,7 @@ class PendingActionDetail(BaseModel):
     recommendation_summary: str
     runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
     workflow_action_reason: Optional[str] = None
+    theory_objects: Dict[str, Any] = Field(default_factory=dict)
     evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
     score_breakdown: Dict[str, float] = Field(default_factory=dict)
     candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
@@ -581,6 +587,65 @@ def _message_from_reason(value: Any) -> str | None:
     return _normalize_text(value)
 
 
+def _compact_numeric_summary(value: Any, *, keys: tuple[str, ...]) -> dict[str, Any]:
+    payload = _dict_or_empty(value)
+    if not payload:
+        return {}
+
+    summary: dict[str, Any] = {}
+    for key in keys:
+        raw = payload.get(key)
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            summary[key] = float(raw)
+    for key in ("source", "formula_version", "shadow_only", "action"):
+        raw = payload.get(key)
+        if isinstance(raw, (str, bool)):
+            summary[key] = raw
+    return summary
+
+
+def _score_summary_from_score_breakdown(
+    score_breakdown: dict[str, float],
+) -> dict[str, Any]:
+    overall = score_breakdown.get("overall")
+    if not isinstance(overall, (int, float)) or isinstance(overall, bool):
+        return {}
+    return {
+        "value": float(overall),
+        "source": "score_breakdown.overall",
+    }
+
+
+def _selected_action_utility(
+    pending_evidence: dict[str, Any],
+    selected_action: str | None,
+) -> dict[str, Any]:
+    action_utilities = _dict_or_empty(pending_evidence.get("action_utilities"))
+    if selected_action:
+        summary = _compact_numeric_summary(
+            action_utilities.get(selected_action),
+            keys=("utility", "value", "budget_pressure", "intervention_value"),
+        )
+        if summary:
+            return summary
+    explicit = _compact_numeric_summary(
+        pending_evidence.get(ACTION_UTILITY_METADATA_KEY),
+        keys=("utility", "value", "budget_pressure", "intervention_value"),
+    )
+    if explicit:
+        return explicit
+    if len(action_utilities) == 1:
+        only_key, only_value = next(iter(action_utilities.items()))
+        summary = _compact_numeric_summary(
+            only_value,
+            keys=("utility", "value", "budget_pressure", "intervention_value"),
+        )
+        if summary:
+            summary.setdefault("action", only_key)
+            return summary
+    return {}
+
+
 def _workflow_evidence_from_pending_action(
     pending_action: PendingAction,
 ) -> dict[str, Any]:
@@ -621,6 +686,109 @@ def _candidate_evidence_refs(
         _list_of_dicts(metadata.get("evidence_refs"))
         or _list_of_dicts(pending_evidence.get("evidence_refs"))
     )
+
+
+def _candidate_theory_objects(
+    candidate: PendingActionCandidate,
+    pending_action: PendingAction,
+    pending_evidence: dict[str, Any],
+) -> dict[str, Any]:
+    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
+    waiting_summary = _dict_or_empty(
+        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    )
+    runtime_summary = _candidate_runtime_state_summary(candidate, pending_evidence)
+    selected_action = (
+        _normalize_text(pending_evidence.get("selected_action"))
+        or _normalize_text(pending_action.metadata.get("workflow_action"))
+        or _normalize_text(waiting_summary.get("selected_action"))
+    )
+
+    static_score = (
+        _compact_numeric_summary(metadata.get(STATIC_SCORE_METADATA_KEY), keys=("value",))
+        or _compact_numeric_summary(
+            waiting_summary.get(STATIC_SCORE_METADATA_KEY),
+            keys=("value",),
+        )
+        or _score_summary_from_score_breakdown(candidate.score_breakdown)
+    )
+    runtime_adjustment = (
+        _compact_numeric_summary(
+            metadata.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
+            keys=("value",),
+        )
+        or _compact_numeric_summary(
+            waiting_summary.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
+            keys=("value",),
+        )
+        or _compact_numeric_summary(
+            pending_evidence.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
+            keys=("value",),
+        )
+    )
+    final_score = (
+        _compact_numeric_summary(metadata.get(FINAL_SCORE_METADATA_KEY), keys=("value",))
+        or _compact_numeric_summary(
+            waiting_summary.get(FINAL_SCORE_METADATA_KEY),
+            keys=("value",),
+        )
+    )
+
+    theory: dict[str, Any] = {}
+    for key, value in (
+        ("static_score", static_score),
+        ("runtime_adjustment", runtime_adjustment),
+        ("final_score", final_score),
+    ):
+        if value:
+            theory[key] = value
+    if selected_action:
+        theory["selected_action"] = selected_action
+
+    action_utility = _selected_action_utility(pending_evidence, selected_action)
+    if action_utility:
+        theory["action_utility"] = action_utility
+
+    for key in ("evidence_sufficiency", "budget_pressure"):
+        raw = pending_evidence.get(key, runtime_summary.get(key))
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            theory[key] = float(raw)
+    return theory
+
+
+def _pending_theory_objects(
+    pending_action: PendingAction,
+    pending_evidence: dict[str, Any],
+    candidates: list[PendingActionCandidateDisplay],
+) -> dict[str, Any]:
+    if candidates:
+        default_candidate = next((item for item in candidates if item.is_default), None)
+        selected_candidate = default_candidate or candidates[0]
+        theory = dict(selected_candidate.theory_objects)
+    else:
+        theory = {}
+
+    waiting_summary = _dict_or_empty(
+        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
+    )
+    selected_action = (
+        _normalize_text(pending_evidence.get("selected_action"))
+        or _normalize_text(pending_action.metadata.get("workflow_action"))
+        or _normalize_text(waiting_summary.get("selected_action"))
+    )
+    if selected_action:
+        theory["selected_action"] = selected_action
+
+    action_utility = _selected_action_utility(pending_evidence, selected_action)
+    if action_utility:
+        theory["action_utility"] = action_utility
+
+    runtime_summary = _pending_runtime_state_summary(pending_action, pending_evidence)
+    for key in ("evidence_sufficiency", "budget_pressure"):
+        raw = pending_evidence.get(key, runtime_summary.get(key))
+        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+            theory[key] = float(raw)
+    return theory
 
 
 def _candidate_affected_steps(candidate: PendingActionCandidate) -> list[str]:
@@ -740,6 +908,11 @@ def _build_pending_action_detail(
                     candidate,
                     pending_evidence,
                 ),
+                theory_objects=_candidate_theory_objects(
+                    candidate,
+                    pending_action,
+                    pending_evidence,
+                ),
                 evidence_refs=_candidate_evidence_refs(candidate, pending_evidence),
                 tool=tool_display,
             )
@@ -774,6 +947,11 @@ def _build_pending_action_detail(
         workflow_action_reason=_pending_workflow_action_reason(
             pending_action,
             pending_evidence,
+        ),
+        theory_objects=_pending_theory_objects(
+            pending_action,
+            pending_evidence,
+            candidates,
         ),
         evidence_refs=_list_of_dicts(pending_evidence.get("evidence_refs")),
         score_breakdown=(
