@@ -247,6 +247,25 @@ G_post(pi;g,o_t) = Σ_{m∈M(g)} λ_m(g) · ρ_m(o_t) · q_m(pi,o_t)
 - `ρ_m(o_t) ∈ [0,1]`：证据可靠性权重；
 - `o_t`：当前已获得观测。
 
+当前 `posterior_score.v1` 的显式 component 集合为：
+
+```text
+M_v1 = {generic_objective, stability, function, novelty, structure_quality}
+```
+
+`binding` 在 v1 中不是独立 component。若任务目标为 binding/interface quality，
+其权重通过 `objective_type="binding"` 映射到上述 component，实际 binding 观测
+`binding_score` / `best_pose` 作为 `generic_objective` 的 proxy evidence 进入
+`G_post`。因此 posterior payload 必须显式记录：
+
+```python
+"binding_policy": "folded_into_generic_objective"
+"binding_evidence": {"source": "binding_score|best_pose", "role": "proxy"}
+```
+
+若未来版本要把 `binding` 拆为独立 component，必须同步升级
+`posterior_score` / `posterior_objective` schema version，并重新定义权重与论文公式。
+
 ### 4.2 证据可靠性
 
 定义证据状态：
