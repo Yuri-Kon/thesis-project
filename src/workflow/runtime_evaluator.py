@@ -23,6 +23,11 @@ from src.models.contracts import (
     RuntimeAdjustmentSummary,
     ScoreSummary,
 )
+from src.models.budget_pressure import (
+    coerce_optional_budget_cap,
+    coerce_optional_budget_pressure,
+    derive_budget_pressure,
+)
 from src.models.runtime_schemas import (
     ActionUtility,
     JsonObject,
@@ -118,13 +123,21 @@ def compute_runtime_delta(
     feasibility: float,
     candidate_kind: str,
     replan_mode: str = "",
+    budget_pressure: float | None = None,
+    budget_cap: float | None = None,
 ) -> tuple[float, RuntimeActionName, str, list[RuntimeAdjustmentFactor]]:
     """计算单个候选的 runtime delta、shadow action、action reason 和因子列表。
 
     供 Planner shadow-rerank hooks 与 RuntimeEvaluator 共享公式。
     """
-    budget_pressure = min(max(expected_remaining_cost, 0.0), 1.5)
-    cost_pressure = min(budget_pressure, 1.0)
+    explicit_budget_pressure = coerce_optional_budget_pressure(budget_pressure)
+    if explicit_budget_pressure is None:
+        explicit_budget_pressure = derive_budget_pressure(
+            expected_remaining_cost=expected_remaining_cost,
+            budget_cap=budget_cap,
+        ).budget_pressure
+    budget_pressure_value = explicit_budget_pressure
+    cost_pressure = min(budget_pressure_value, 1.0)
     margin_signal = max(-1.0, min(recovery_margin, 1.0))
 
     action, action_reason = _resolve_candidate_action_from_signals(
@@ -133,7 +146,7 @@ def compute_runtime_delta(
         p_success=p_success,
         p_structural_failure=p_structural_failure,
         recovery_margin=recovery_margin,
-        budget_pressure=budget_pressure,
+        budget_pressure=budget_pressure_value,
     )
 
     evidence_effect = 0.18 * (p_success - 0.5) * confidence
@@ -171,13 +184,13 @@ def compute_runtime_delta(
             "score_breakdown.feasibility", replan_bonus,
             "Feasible suffix replacement preserves validated prefix value."))
         factors.append(_make_factor("cost", "cost_pressure",
-            "runtime_state.expected_remaining_cost", replan_penalty,
+            "runtime_state.budget_pressure", replan_penalty,
             "Suffix replan still carries residual budget pressure."))
     elif action == "stop":
         penalty = -(0.12 + 0.06 * cost_pressure)
         delta += penalty
         factors.append(_make_factor("policy", "stop_guard",
-            "runtime_state.p_success+runtime_state.expected_remaining_cost",
+            "runtime_state.p_success+runtime_state.budget_pressure",
             penalty,
             "Stop guard applies when success is low and cost pressure is already high."))
 
@@ -372,7 +385,7 @@ class RuntimeEvaluator:
             "action_feature_source_refs": list(derivation.source_refs),
         }
 
-        bp = round(min(max(b, 0.0), 1.0), 6)
+        bp = round(min(max(b, 0.0), 1.5), 6)
         return {
             "continue": ActionUtility(
                 action="continue",
@@ -507,6 +520,8 @@ def _apply_runtime_adjustment(
     recovery_margin = _safe_clip(state.get("recovery_margin"), 0.6)
     evidence_sufficiency = _safe_clip(state.get("evidence_sufficiency"), 0.5)
     expected_remaining_cost = max(_safe_float(state.get("expected_remaining_cost"), 1.0), 0.0)
+    budget_cap = coerce_optional_budget_cap(state.get("budget_cap"))
+    budget_pressure = coerce_optional_budget_pressure(state.get("budget_pressure"))
 
     confidence = float(score_breakdown.get("confidence", overall))
     risk = float(score_breakdown.get("risk", overall))
@@ -529,6 +544,8 @@ def _apply_runtime_adjustment(
         feasibility=feasibility,
         candidate_kind=candidate_kind,
         replan_mode=str(metadata.get("replan_mode", "")),
+        budget_pressure=budget_pressure,
+        budget_cap=budget_cap,
     )
 
     adjusted = max(_SCORE_CLAMP_MIN, min(_SCORE_CLAMP_MAX, overall + delta))
@@ -545,6 +562,8 @@ def _apply_runtime_adjustment(
             "runtime_state.p_structural_failure",
             "runtime_state.recovery_margin",
             "runtime_state.expected_remaining_cost",
+            "runtime_state.budget_pressure",
+            "runtime_state.budget_cap",
             "runtime_state.evidence_sufficiency",
         ],
         candidate_metric_fields=[
@@ -708,8 +727,8 @@ def _build_adjustment_factors(
             "Recovery headroom and fallback depth shape the shadow rerank bonus.",
         ),
         _make_factor(
-            "cost", "expected_remaining_cost",
-            "runtime_state.expected_remaining_cost+score_breakdown.cost",
+            "cost", "budget_pressure",
+            "runtime_state.budget_pressure+score_breakdown.cost",
             cost_effect,
             "Remaining cost pressure penalizes expensive suffixes.",
         ),
