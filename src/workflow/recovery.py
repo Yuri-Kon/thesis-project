@@ -31,6 +31,8 @@ from src.models.contracts import (
 )
 from src.models.db import ExternalStatus, InternalStatus
 from src.models.event_log import EventLog, EventType
+from src.models.runtime_schemas import ActionUtility
+from src.models.source_refs import SOURCE_REF_ACTION_SELECTION, as_source_refs
 from src.storage.log_store import DEFAULT_LOG_DIR, read_event_logs
 from src.storage.snapshot_store import read_latest_snapshot, DEFAULT_SNAPSHOT_DIR
 from src.workflow.belief_state import update_runtime_state
@@ -160,6 +162,7 @@ class WorkflowActionSelectorInput:
     suggested_action: str | None = None
     suggested_reason: str | None = None
     runtime_policy: str | None = None
+    action_utilities: dict[str, ActionUtility] | None = None
 
 
 @dataclass(frozen=True)
@@ -310,17 +313,14 @@ def select_workflow_action(
         and "patch_local" in allowed_actions
         and s6_default_action == "patch"
         and (
-            local_patchability is None
+            (
+                local_patchability >= 0.55
+                and recovery_margin >= 0.30
+            )
             or (
-                (
-                    local_patchability >= 0.55
-                    and recovery_margin >= 0.30
-                )
-                or (
-                    phase == "patch"
-                    and local_patchability >= 0.65
-                    and recovery_margin >= 0.15
-                )
+                phase == "patch"
+                and local_patchability >= 0.65
+                and recovery_margin >= 0.15
             )
         )
         and not (
@@ -373,10 +373,16 @@ def select_workflow_action(
             basis = "default_continue"
 
     route = resolve_workflow_action_route(action)
-    evaluator = RuntimeEvaluator(policy_mode=runtime_policy)
-    action_utilities = evaluator.compute_action_utilities(
-        runtime_summary or {}
-    ) if runtime_summary else {}
+    if selector_input.action_utilities is not None:
+        action_utilities = dict(selector_input.action_utilities)
+        action_utility_source = "input"
+    elif runtime_summary:
+        evaluator = RuntimeEvaluator(policy_mode=runtime_policy)
+        action_utilities = evaluator.compute_action_utilities(runtime_summary)
+        action_utility_source = "computed"
+    else:
+        action_utilities = {}
+        action_utility_source = "missing"
     return WorkflowActionSelectorResult(
         action=action,
         mapped_flow=route.mapped_flow,
@@ -384,6 +390,11 @@ def select_workflow_action(
         evidence_source={
             "phase": phase,
             "basis": basis,
+            "selected_action": action,
+            "selected_action_mapped_flow": route.mapped_flow,
+            "selection_basis": basis,
+            "hard_priority_applied": basis == "hard_priority",
+            "hard_priority_reason": reason if basis == "hard_priority" else None,
             "stage_id": normalized_stage_id,
             "failure_code": normalized_failure_code,
             "failure_type": (
@@ -403,6 +414,8 @@ def select_workflow_action(
             "runtime_policy": runtime_policy,
             "belief_state_enabled": not observation_only,
             "runtime_state_summary": runtime_summary or None,
+            "action_utility_source": action_utility_source,
+            "source_refs": as_source_refs(*SOURCE_REF_ACTION_SELECTION),
             "action_utilities": {
                 a: u.model_dump() for a, u in action_utilities.items()
             },
