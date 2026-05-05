@@ -455,7 +455,8 @@ benchmark/evaluation metrics -> objective_score and evidence_sufficiency calibra
 当前代码已有：
 
 ```text
-components = generic_objective, stability, novelty, function, binding, structure_quality
+components = generic_objective, stability, novelty, function, structure_quality
+binding_policy = folded_into_generic_objective
 status = direct | proxy | degraded
 aggregate_score = sum component_weight * effective_score
 ```

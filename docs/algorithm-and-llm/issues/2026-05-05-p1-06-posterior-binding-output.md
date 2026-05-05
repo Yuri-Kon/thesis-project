@@ -6,7 +6,7 @@
 - Scope: algorithm / posterior objective / evidence semantics
 - Phase: CEBRA-WP P1 规划与实现准备
 - Body language: Chinese
-- 状态：待实现
+- 状态：已实现
 - 本文件定位：P1-6 的唯一实现参考来源；进入编码前以本文为准。
 
 ## 1. 背景
@@ -71,6 +71,8 @@ posterior_score["binding_policy"] = "folded_into_generic_objective"
 posterior_score["binding_evidence"] = {
     "source": "binding_score|best_pose",
     "role": "proxy",
+    "target_component": "generic_objective",
+    "source_fields": ["binding_score", "best_pose"],
 }
 ```
 
