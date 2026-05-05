@@ -879,6 +879,10 @@ stop_auto ⇒ allow_auto_stop ∧ U_stop≥τ_stop ∧ s≤τ_s ∧ b≥τ_b ∧
 
 ## 9. 与当前代码的理论映射
 
+本节给出核心实现概览；更细的“理论对象 / 公式版本 / 文献 / 代码字段 / 正文状态”
+矩阵维护在 `docs/algorithm-and-llm/theory-background-paper-code-map.md`，用于论文写作和
+实现审查时反查。
+
 | 理论模块 | 实现位置 | 当前状态 |
 |---|---|---|
 | `GenerateCandidates` | `src/agents/candidate_generator/generator.py` | 已实现 Plan/Patch/Replan Top-K |

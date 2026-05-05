@@ -4,6 +4,9 @@
 - 对应计划项：D3 `core-algorithm-literature-map.md`
 - 目标：为“面向高代价蛋白质设计工作流的约束化、证据感知、恢复感知自适应工具链规划算法（CEBRA-WP）”建立文献地图。
 - 检索说明：Semantic Scholar 与 arXiv API 在本轮出现 429/timeout，因此优先使用 arXiv/Nature 页面直接核验代表性论文元数据；最终论文 BibTeX 仍建议在定稿前统一核对 DOI、会议/期刊版本和版本号。
+- P2-3 补充：稳定的“理论对象 -> 文献 -> 代码落点 -> 正文状态”矩阵见
+  `docs/algorithm-and-llm/theory-background-paper-code-map.md`。本文保留分组综述与写作建议，
+  映射矩阵作为 issue、论文正文和实现审查的共同索引。
 
 ## 1. CEBRA-WP 需要支撑的理论命题
 
@@ -476,6 +479,9 @@ G(pi;g,o_t) = sum_m lambda_m(g) * rho_m(o_t) * q_m(pi,o_t)
 - `G` 可作为 static objective 或 posterior objective。
 
 ## 9. 文献到算法组件的详细映射
+
+完整代码落点、schema/version 和正文采用状态见
+`theory-background-paper-code-map.md`；下表保留概览写法。
 
 | CEBRA-WP 组件 | 最相关文献组 | 支撑点 | 论文写法 |
 |---|---|---|---|
