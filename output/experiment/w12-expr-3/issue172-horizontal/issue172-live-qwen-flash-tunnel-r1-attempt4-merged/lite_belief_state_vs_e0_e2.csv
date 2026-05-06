@@ -1,0 +1,4 @@
+group_id,label,scope,success_rate,first_pass_success_rate,duration_ms_mean,high_cost_call_mean,waiting_chain_complete_rate,failure_traceable_rate,patch_events_mean,replan_events_mean
+E0,E0,external,1.0,1.0,251000.0,0.0,1.0,1.0,0.0,0.0
+E1,E1,external,1.0,1.0,255921.72242857143,0.0,1.0,1.0,0.0,0.0
+E2,E2,external,1.0,1.0,260428.57142857142,0.0,1.0,1.0,0.0,0.0

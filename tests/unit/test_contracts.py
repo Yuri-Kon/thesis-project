@@ -180,7 +180,22 @@ class TestRuntimeState:
         assert state.schema_version == 1
         assert state.p_success == 0.8
         assert state.evidence_sufficiency == 0.5
+        assert state.budget_pressure == pytest.approx(1.5)
         assert state.observation_summary["completed_high_cost_steps"] == 1
+
+    def test_runtime_state_budget_pressure_uses_budget_cap(self):
+        state = RuntimeState(
+            p_success=0.8,
+            p_structural_failure=0.15,
+            recovery_margin=0.35,
+            expected_remaining_cost=4.5,
+            budget_cap=9.0,
+            last_update_source="step_result:S2",
+        )
+
+        assert state.expected_remaining_cost == pytest.approx(4.5)
+        assert state.budget_pressure == pytest.approx(0.5)
+        assert state.to_summary_payload()["budget_cap"] == pytest.approx(9.0)
 
     def test_runtime_state_rejects_invalid_probability(self):
         with pytest.raises(ValidationError):
@@ -209,6 +224,7 @@ class TestRuntimeState:
             "recovery_margin": 0.32,
             "expected_remaining_cost": 5.5,
             "evidence_sufficiency": 0.5,
+            "budget_pressure": 1.5,
         }
 
 
@@ -347,16 +363,49 @@ class TestCandidateSetContracts:
             payload=sample_plan,
             metadata={
                 "tool_id": "nim_esmfold",
+                "adapter_id": "nim_esmfold",
                 "capability_id": "structure_prediction",
                 "io_type": "sequence_to_structure",
                 "adapter_mode": "remote",
+                "execution_mode": "nvidia_nim",
+                "provider": "nvidia_nim",
+                "endpoint_type": "nim",
             },
         )
 
         assert candidate.tool_id == "nim_esmfold"
+        assert candidate.adapter_id == "nim_esmfold"
         assert candidate.capability_id == "structure_prediction"
         assert candidate.io_type == "sequence_to_structure"
         assert candidate.adapter_mode == "remote"
+        assert candidate.execution_mode == "nvidia_nim"
+        assert candidate.provider == "nvidia_nim"
+        assert candidate.endpoint_type == "nim"
+
+    def test_step_result_invocation_metadata_syncs_to_metrics(self):
+        result = StepResult(
+            task_id="task_contract_step",
+            step_id="S2",
+            tool="openfold",
+            status="success",
+            inputs={},
+            outputs={"pdb_path": "x.pdb"},
+            metrics={
+                "adapter_id": "openfold",
+                "execution_mode": "openfold3_rest",
+                "provider": "openfold3_rest",
+                "endpoint_type": "rest",
+                "job_id": "of3_job_1",
+            },
+            timestamp="2026-04-27T00:00:00+00:00",
+        )
+
+        assert result.tool_id == "openfold"
+        assert result.adapter_id == "openfold"
+        assert result.execution_mode == "openfold3_rest"
+        assert result.remote_job_id == "of3_job_1"
+        assert result.metrics["tool_id"] == "openfold"
+        assert result.metrics["remote_job_id"] == "of3_job_1"
 
     def test_candidate_tool_metadata_conflict_rejected(self, sample_plan: Plan):
         with pytest.raises(ValueError, match="metadata\\.tool_id must match tool_id"):
@@ -437,6 +486,7 @@ class TestCandidateSetContracts:
             "recovery_margin": 0.49,
             "expected_remaining_cost": 3.0,
             "evidence_sufficiency": 0.5,
+            "budget_pressure": 1.5,
         }
 
     def test_candidate_invalid_runtime_state_summary_rejected(

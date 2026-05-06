@@ -1,0 +1,664 @@
+from __future__ import annotations
+
+import json
+import math
+from typing import ClassVar, Literal, TypeGuard, cast
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
+
+from src.models.budget_pressure import (
+    BUDGET_PRESSURE_MAX,
+    derive_budget_pressure,
+)
+
+RUNTIME_SCHEMA_VERSION = 1
+RUNTIME_STATE_CORE_FIELDS = (
+    "p_success",
+    "p_structural_failure",
+    "recovery_margin",
+    "expected_remaining_cost",
+    "evidence_sufficiency",
+)
+RUNTIME_ACTIONS = ("continue", "patch_local", "suffix_replan", "stop")
+OBSERVATION_SOURCE_TYPES = (
+    "step_result",
+    "safety_result",
+    "patch_history",
+    "replan_history",
+    "budget",
+    "hitl_decision",
+)
+RECOVERY_COMPONENT_WEIGHTS = {
+    "retry_budget_ratio": 0.30,
+    "local_patchability": 0.30,
+    "prefix_preservability": 0.25,
+    "evidence_reusability": 0.15,
+}
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
+
+__all__ = [
+    "ActionUtility",
+    "CostSchema",
+    "ObservationSchema",
+    "ObservationSource",
+    "RecoverySchema",
+    "RECOVERY_COMPONENT_WEIGHTS",
+    "RiskSchema",
+    "RuntimeSchemaFieldMapping",
+    "RuntimeStateSchema",
+    "StateSchema",
+    "runtime_schema_field_mappings",
+]
+
+
+def _validate_unit_interval(value: float, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"{field_name} must be finite")
+    if not 0.0 <= normalized <= 1.0:
+        raise ValueError(f"{field_name} must be between 0 and 1")
+    return normalized
+
+
+def _validate_finite_float(value: float, *, field_name: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be numeric")
+    normalized = float(value)
+    if not math.isfinite(normalized):
+        raise ValueError(f"{field_name} must be finite")
+    return normalized
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(dict[object, object], value).items()
+        )
+    return False
+
+
+def _validate_json_mapping(value: object, *, field_name: str) -> JsonObject:
+    if not isinstance(value, dict):
+        raise ValueError(f"{field_name} must be a mapping")
+    normalized: JsonObject = {}
+    for key, item in cast(dict[object, object], value).items():
+        if not isinstance(key, str):
+            raise ValueError(f"{field_name} keys must be strings")
+        if not _is_json_value(item):
+            raise ValueError(f"{field_name} must be JSON-serializable")
+        normalized[key] = item
+    try:
+        _ = json.dumps(normalized, ensure_ascii=True)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be JSON-serializable") from exc
+    return normalized
+
+
+def _weighted_sum(weights: dict[str, float], values: dict[str, float]) -> float:
+    return sum(weights[name] * values[name] for name in weights)
+
+
+def _validation_field_name(info: ValidationInfo) -> str:
+    return info.field_name or "value"
+
+
+class RuntimeContractBase(BaseModel):
+    """运行时契约模型的公共基类。"""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    schema_version: int = Field(default=RUNTIME_SCHEMA_VERSION)
+
+    @field_validator("schema_version")
+    @classmethod
+    def _validate_schema_version(cls, value: int) -> int:
+        if value != RUNTIME_SCHEMA_VERSION:
+            raise ValueError(f"schema_version must be {RUNTIME_SCHEMA_VERSION}")
+        return value
+
+
+class CostSchema(RuntimeContractBase):
+    """运行时成本契约，对齐 Cost Schema 的五类标准化成本分量。"""
+
+    compute_cost: float = 0.0
+    latency_cost: float = 0.0
+    opportunity_cost: float = 0.0
+    recovery_cost: float = 0.0
+    human_cost: float = 0.0
+    remaining_cost_prior: float | None = None
+    expected_remaining_cost: float | None = None
+    source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "compute_cost",
+        "latency_cost",
+        "opportunity_cost",
+        "recovery_cost",
+        "human_cost",
+    )
+    @classmethod
+    def _validate_cost_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    @field_validator("remaining_cost_prior", "expected_remaining_cost")
+    @classmethod
+    def _validate_optional_non_negative(
+        cls,
+        value: float | None,
+        info: ValidationInfo,
+    ) -> float | None:
+        if value is None:
+            return None
+        field_name = _validation_field_name(info)
+        normalized = _validate_finite_float(value, field_name=field_name)
+        if normalized < 0.0:
+            raise ValueError(f"{field_name} must be >= 0")
+        return normalized
+
+    def weighted_cost(self) -> float:
+        """返回设计文档定义的加权成本分。"""
+
+        return round(
+            _weighted_sum(
+                {
+                    "compute_cost": 0.35,
+                    "latency_cost": 0.25,
+                    "opportunity_cost": 0.20,
+                    "recovery_cost": 0.15,
+                    "human_cost": 0.05,
+                },
+                {
+                    "compute_cost": self.compute_cost,
+                    "latency_cost": self.latency_cost,
+                    "opportunity_cost": self.opportunity_cost,
+                    "recovery_cost": self.recovery_cost,
+                    "human_cost": self.human_cost,
+                },
+            ),
+            6,
+        )
+
+
+class RiskSchema(RuntimeContractBase):
+    """运行时风险契约，对齐 Risk Schema 的四类标准化风险分量。"""
+
+    structural_risk: float = 0.0
+    execution_risk: float = 0.0
+    safety_risk: float = 0.0
+    coupling_risk: float = 0.0
+    hard_blocked: bool = False
+    infeasible_reason: str | None = None
+    source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "structural_risk",
+        "execution_risk",
+        "safety_risk",
+        "coupling_risk",
+    )
+    @classmethod
+    def _validate_risk_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    def weighted_risk(self) -> float:
+        """返回设计文档定义的加权风险分。"""
+
+        if self.hard_blocked:
+            return 1.0
+        return round(
+            _weighted_sum(
+                {
+                    "structural_risk": 0.45,
+                    "execution_risk": 0.25,
+                    "safety_risk": 0.20,
+                    "coupling_risk": 0.10,
+                },
+                {
+                    "structural_risk": self.structural_risk,
+                    "execution_risk": self.execution_risk,
+                    "safety_risk": self.safety_risk,
+                    "coupling_risk": self.coupling_risk,
+                },
+            ),
+            6,
+        )
+
+
+class RecoverySchema(RuntimeContractBase):
+    """运行时恢复契约，对齐 Recovery Schema。"""
+
+    retry_budget_ratio: float = 0.0
+    local_patchability: float = 0.0
+    prefix_preservability: float = 0.0
+    evidence_reusability: float = 0.0
+    recovery_margin: float | None = None
+    source_refs: list[str] = Field(default_factory=list)
+
+    @field_validator(
+        "retry_budget_ratio",
+        "local_patchability",
+        "prefix_preservability",
+        "evidence_reusability",
+    )
+    @classmethod
+    def _validate_recovery_component(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_optional_recovery_margin(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        return _validate_unit_interval(value, field_name="recovery_margin")
+
+    def recoverability(self) -> float:
+        """返回设计文档定义的恢复性分。"""
+
+        return round(
+            _weighted_sum(
+                RECOVERY_COMPONENT_WEIGHTS,
+                {
+                    "retry_budget_ratio": self.retry_budget_ratio,
+                    "local_patchability": self.local_patchability,
+                    "prefix_preservability": self.prefix_preservability,
+                    "evidence_reusability": self.evidence_reusability,
+                },
+            ),
+            6,
+        )
+
+    def recovery_complexity(self) -> float:
+        """返回恢复复杂度，定义为 1 - recoverability。"""
+
+        return round(1.0 - self.recoverability(), 6)
+
+
+class RuntimeStateSchema(RuntimeContractBase):
+    """Lite runtime state 契约，固定第一版五个核心状态量。"""
+
+    p_success: float = 0.5
+    p_structural_failure: float = 0.25
+    recovery_margin: float = 0.6
+    expected_remaining_cost: float = 1.0
+    evidence_sufficiency: float = 0.5
+    budget_pressure: float | None = None
+    budget_cap: float | None = None
+    last_update_source: str = "runtime_bootstrap"
+    observation_summary: JsonObject = Field(default_factory=dict)
+
+    @field_validator("p_success", "p_structural_failure", "evidence_sufficiency")
+    @classmethod
+    def _validate_probability(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    @field_validator("recovery_margin")
+    @classmethod
+    def _validate_recovery_margin(cls, value: float) -> float:
+        return _validate_unit_interval(value, field_name="recovery_margin")
+
+    @field_validator("expected_remaining_cost")
+    @classmethod
+    def _validate_expected_remaining_cost(cls, value: float) -> float:
+        normalized = _validate_finite_float(value, field_name="expected_remaining_cost")
+        if normalized < 0.0:
+            raise ValueError("expected_remaining_cost must be >= 0")
+        return normalized
+
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= BUDGET_PRESSURE_MAX:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
+
+    @field_validator("budget_cap")
+    @classmethod
+    def _validate_budget_cap(cls, value: float | None) -> float | None:
+        if value is None:
+            return None
+        normalized = _validate_finite_float(value, field_name="budget_cap")
+        if normalized <= 0.0:
+            raise ValueError("budget_cap must be > 0")
+        return normalized
+
+    @field_validator("last_update_source")
+    @classmethod
+    def _validate_last_update_source(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("last_update_source must not be empty")
+        return normalized
+
+    @field_validator("observation_summary")
+    @classmethod
+    def _validate_observation_summary(cls, value: object) -> JsonObject:
+        return _validate_json_mapping(value, field_name="observation_summary")
+
+    @model_validator(mode="after")
+    def _derive_budget_pressure(self) -> "RuntimeStateSchema":
+        if self.budget_pressure is None:
+            self.budget_pressure = derive_budget_pressure(
+                expected_remaining_cost=self.expected_remaining_cost,
+                budget_cap=self.budget_cap,
+            ).budget_pressure
+        return self
+
+    @classmethod
+    def from_snapshot_payload(cls, payload: object) -> "RuntimeStateSchema":
+        """从新旧 snapshot.artifacts.runtime_state 载荷恢复状态契约。"""
+
+        if not isinstance(payload, dict):
+            raise ValueError("runtime_state snapshot payload must be a mapping")
+        payload_dict = cast(dict[object, object], payload)
+        return cls.model_validate(payload_dict)
+
+    def to_snapshot_payload(self) -> JsonObject:
+        """输出 snapshot.artifacts.runtime_state 的稳定字段。"""
+
+        return cast(
+            JsonObject,
+            self.model_dump(exclude={"observation_summary"}, exclude_none=True),
+        )
+
+    def to_summary_payload(self) -> JsonObject:
+        """输出 UI/CLI/Planner/EventLog 共用的轻量状态摘要。"""
+
+        payload: JsonObject = {
+            "schema_version": self.schema_version,
+            "p_success": self.p_success,
+            "p_structural_failure": self.p_structural_failure,
+            "recovery_margin": self.recovery_margin,
+            "expected_remaining_cost": self.expected_remaining_cost,
+            "evidence_sufficiency": self.evidence_sufficiency,
+            "budget_pressure": self.budget_pressure,
+            "budget_cap": self.budget_cap,
+        }
+        return {key: value for key, value in payload.items() if value is not None}
+
+
+class ObservationSource(BaseModel):
+    """运行时观测来源引用，只允许来自设计文档指定来源。"""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    source_type: Literal[
+        "step_result",
+        "safety_result",
+        "patch_history",
+        "replan_history",
+        "budget",
+        "hitl_decision",
+    ]
+    ref: str
+    fields: list[str] = Field(default_factory=list)
+
+    @field_validator("ref")
+    @classmethod
+    def _validate_ref(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("ref must not be empty")
+        return normalized
+
+
+class ObservationSchema(RuntimeContractBase):
+    """运行时观测契约，承载状态更新可消费的标准化观测。"""
+
+    quality_obs: JsonObject = Field(default_factory=dict)
+    failure_obs: JsonObject = Field(default_factory=dict)
+    safety_obs: JsonObject = Field(default_factory=dict)
+    budget_obs: JsonObject = Field(default_factory=dict)
+    agreement_obs: JsonObject = Field(default_factory=dict)
+    progress_obs: JsonObject = Field(default_factory=dict)
+    source_refs: list[ObservationSource] = Field(default_factory=list)
+
+    @field_validator(
+        "quality_obs",
+        "failure_obs",
+        "safety_obs",
+        "budget_obs",
+        "agreement_obs",
+        "progress_obs",
+    )
+    @classmethod
+    def _validate_observation_mapping(
+        cls,
+        value: object,
+        info: ValidationInfo,
+    ) -> JsonObject:
+        return _validate_json_mapping(value, field_name=_validation_field_name(info))
+
+
+class ActionUtility(RuntimeContractBase):
+    """动作效用契约，供 RuntimeEvaluator、EventLog 与 UI/CLI 复用。"""
+
+    action: Literal["continue", "patch_local", "suffix_replan", "stop"]
+    utility: float
+    hard_constraints: list[str] = Field(default_factory=list)
+    tie_break_reason: str | None = None
+    intervention_value: float = 0.0
+    budget_pressure: float = 0.0
+    terminal_reason: str | None = None
+    source_refs: list[str] = Field(default_factory=list)
+    metadata: JsonObject = Field(default_factory=dict)
+
+    @field_validator("utility")
+    @classmethod
+    def _validate_utility(cls, value: float) -> float:
+        return _validate_unit_interval(value, field_name="utility")
+
+    @field_validator("intervention_value")
+    @classmethod
+    def _validate_unit_value(cls, value: float, info: ValidationInfo) -> float:
+        return _validate_unit_interval(value, field_name=_validation_field_name(info))
+
+    @field_validator("budget_pressure")
+    @classmethod
+    def _validate_budget_pressure(cls, value: float) -> float:
+        normalized = _validate_finite_float(value, field_name="budget_pressure")
+        if not 0.0 <= normalized <= BUDGET_PRESSURE_MAX:
+            raise ValueError("budget_pressure must be between 0 and 1.5")
+        return normalized
+
+    @field_validator("hard_constraints", "source_refs")
+    @classmethod
+    def _validate_string_list(cls, value: list[str], info: ValidationInfo) -> list[str]:
+        normalized: list[str] = []
+        field_name = _validation_field_name(info)
+        for item in value:
+            text = item.strip()
+            if not text:
+                raise ValueError(f"{field_name} items must not be empty")
+            normalized.append(text)
+        return normalized
+
+    @field_validator("tie_break_reason", "terminal_reason")
+    @classmethod
+    def _validate_optional_text(
+        cls,
+        value: str | None,
+        info: ValidationInfo,
+    ) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError(f"{info.field_name} must not be empty")
+        return normalized
+
+    @field_validator("metadata")
+    @classmethod
+    def _validate_metadata(cls, value: object) -> JsonObject:
+        return _validate_json_mapping(value, field_name="metadata")
+
+
+class RuntimeSchemaFieldMapping(BaseModel):
+    """运行时契约字段到各消费面的稳定映射。"""
+
+    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
+
+    schema_name: str
+    snapshot_fields: list[str] = Field(default_factory=list)
+    event_fields: list[str] = Field(default_factory=list)
+    planner_metadata_fields: list[str] = Field(default_factory=list)
+    ui_summary_fields: list[str] = Field(default_factory=list)
+    cli_summary_fields: list[str] = Field(default_factory=list)
+
+
+RUNTIME_SCHEMA_FIELD_MAPPINGS: dict[str, RuntimeSchemaFieldMapping] = {
+    "cost": RuntimeSchemaFieldMapping(
+        schema_name="cost",
+        snapshot_fields=[
+            "artifacts.runtime_cost",
+            "artifacts.runtime_state.expected_remaining_cost",
+            "artifacts.runtime_state.budget_pressure",
+            "artifacts.runtime_state.budget_cap",
+        ],
+        event_fields=[
+            "data.runtime_cost",
+            "data.score_breakdown.cost",
+        ],
+        planner_metadata_fields=[
+            "metadata.cost_schema",
+            "metadata.score_breakdown.cost",
+            "metadata.runtime_state_summary.expected_remaining_cost",
+            "metadata.runtime_state_summary.budget_pressure",
+            "metadata.runtime_state_summary.budget_cap",
+        ],
+        ui_summary_fields=["score_breakdown.cost", "cost_estimate"],
+        cli_summary_fields=["score_breakdown.cost", "cost_estimate"],
+    ),
+    "risk": RuntimeSchemaFieldMapping(
+        schema_name="risk",
+        snapshot_fields=[
+            "artifacts.runtime_risk",
+            "artifacts.runtime_state.p_structural_failure",
+        ],
+        event_fields=[
+            "data.runtime_risk",
+            "data.score_breakdown.risk",
+        ],
+        planner_metadata_fields=[
+            "metadata.risk_schema",
+            "metadata.score_breakdown.risk",
+            "metadata.runtime_state_summary.p_structural_failure",
+        ],
+        ui_summary_fields=["score_breakdown.risk", "risk_level"],
+        cli_summary_fields=["score_breakdown.risk", "risk_level"],
+    ),
+    "recovery": RuntimeSchemaFieldMapping(
+        schema_name="recovery",
+        snapshot_fields=[
+            "artifacts.recovery_history",
+            "artifacts.runtime_recovery",
+            "artifacts.runtime_state.recovery_margin",
+        ],
+        event_fields=[
+            "data.patch",
+            "data.recovery",
+            "data.runtime_recovery",
+        ],
+        planner_metadata_fields=[
+            "metadata.recovery_schema",
+            "metadata.recovery_semantics",
+            "metadata.runtime_state_summary.recovery_margin",
+        ],
+        ui_summary_fields=["recovery_semantics", "affected_steps"],
+        cli_summary_fields=["recovery_semantics", "affected_steps"],
+    ),
+    "state": RuntimeSchemaFieldMapping(
+        schema_name="state",
+        snapshot_fields=[
+            "artifacts.runtime_state",
+            "artifacts.runtime_state_summary",
+            "artifacts.runtime_observation_summary",
+        ],
+        event_fields=[
+            "data.runtime_state_summary",
+            "data.waiting_runtime_summary.runtime_state_summary",
+        ],
+        planner_metadata_fields=[
+            "metadata.runtime_state_summary",
+            "metadata.waiting_runtime_summary.runtime_state_summary",
+        ],
+        ui_summary_fields=["runtime_state_summary"],
+        cli_summary_fields=["runtime_state_summary"],
+    ),
+    "observation": RuntimeSchemaFieldMapping(
+        schema_name="observation",
+        snapshot_fields=[
+            "artifacts.runtime_observation_summary",
+            "artifacts.recovery_history",
+        ],
+        event_fields=[
+            "data.evidence_refs",
+            "data.workflow_action_evidence",
+        ],
+        planner_metadata_fields=[
+            "metadata.workflow_action_evidence",
+            "metadata.rerank_reason",
+        ],
+        ui_summary_fields=["evidence_refs", "workflow_action_reason"],
+        cli_summary_fields=["evidence_refs", "workflow_action_reason"],
+    ),
+    "action_utility": RuntimeSchemaFieldMapping(
+        schema_name="action_utility",
+        snapshot_fields=[
+            "artifacts.waiting_runtime_summary.action_utility",
+            "artifacts.decision_summary.terminal_reason",
+        ],
+        event_fields=[
+            "data.action_utility",
+            "data.workflow_action_reason",
+            "data.terminal_reason",
+        ],
+        planner_metadata_fields=[
+            "metadata.action_utility",
+            "metadata.workflow_action_reason",
+            "metadata.waiting_runtime_summary.action_score",
+        ],
+        ui_summary_fields=[
+            "default_suggestion",
+            "workflow_action_reason",
+            "score_breakdown",
+        ],
+        cli_summary_fields=[
+            "default_suggestion",
+            "workflow_action_reason",
+            "score_breakdown",
+        ],
+    ),
+}
+
+
+def runtime_schema_field_mappings() -> dict[str, JsonObject]:
+    """返回 snapshot/event/planner/UI/CLI 的运行时契约字段映射。"""
+
+    return {
+        name: cast(JsonObject, mapping.model_dump())
+        for name, mapping in RUNTIME_SCHEMA_FIELD_MAPPINGS.items()
+    }
+
+
+StateSchema = RuntimeStateSchema

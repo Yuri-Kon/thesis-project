@@ -22,7 +22,10 @@ def test_build_step_trace_data_contains_quality_gate_summary() -> None:
         failure_type="non_retryable",
         error_message="all rejected",
         error_details={"failure_code": "S3_ALL_CANDIDATES_REJECTED"},
-        inputs={},
+        inputs={
+            "sequence": "protgpt2.output.sequence",
+            "pdb_path": "openfold.output.pdb_path",
+        },
         outputs={
             "stage_id": "S3",
             "pass_count": 0,
@@ -49,6 +52,10 @@ def test_build_step_trace_data_contains_quality_gate_summary() -> None:
     assert data["stage_id"] == "S3"
     assert data["quality_gate"]["fail_count"] == 2
     assert data["quality_gate"]["failed_samples"][0]["candidate_id"] == "cand_1"
+    assert data["input_summary"]["sequence"]["symbolic_reference_like"] is True
+    assert data["input_summary"]["sequence"]["valid_aa_chars"] is False
+    assert data["input_summary"]["pdb_path"]["symbolic_reference_like"] is True
+    assert data["input_summary"]["pdb_path"]["exists"] is False
 
 
 def test_update_runtime_state_with_success_step_is_deterministic() -> None:

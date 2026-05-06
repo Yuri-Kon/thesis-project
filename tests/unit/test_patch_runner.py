@@ -318,8 +318,7 @@ def test_patch_runner_enters_waiting_replan_on_patch_error(sample_task):
     planner = FailingPlanner()
     patch_runner = PatchRunner(step_runner=step_runner, planner_agent=planner)
 
-    with pytest.raises(RuntimeError):
-        patch_runner.run_step_with_patch(plan, 0, context, record=record)
+    outcome = patch_runner.run_step_with_patch(plan, 0, context, record=record)
 
     assert context.status == InternalStatus.WAITING_REPLAN
     assert record.status == ExternalStatus.WAITING_REPLAN_CONFIRM
@@ -327,3 +326,6 @@ def test_patch_runner_enters_waiting_replan_on_patch_error(sample_task):
     assert record.pending_action.action_type == PendingActionType.REPLAN_CONFIRM
     assert record.pending_action.status == PendingActionStatus.PENDING
     assert record.pending_action.explanation
+    assert outcome.step_results
+    recovery = outcome.step_results[0].metrics.get("recovery")
+    assert recovery["upgrade_reason"] == "patch_failed"

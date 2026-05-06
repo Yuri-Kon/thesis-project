@@ -1,0 +1,41 @@
+[
+  {
+    "group_id": "E0",
+    "label": "E0",
+    "scope": "external",
+    "success_rate": 1.0,
+    "first_pass_success_rate": 1.0,
+    "duration_ms_mean": 251000.0,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  },
+  {
+    "group_id": "E1",
+    "label": "E1",
+    "scope": "external",
+    "success_rate": 0.8571428571428571,
+    "first_pass_success_rate": 0.8571428571428571,
+    "duration_ms_mean": 224428.57142857142,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  },
+  {
+    "group_id": "E2",
+    "label": "E2",
+    "scope": "external",
+    "success_rate": 1.0,
+    "first_pass_success_rate": 1.0,
+    "duration_ms_mean": 260428.57142857142,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  }
+]

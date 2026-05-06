@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import TypeGuard, cast, override
 
 from src.adapters.base_tool_adapter import BaseToolAdapter
 from src.models.contracts import PlanStep
@@ -16,35 +17,53 @@ from src.tools.visualization.pipeline import (
 
 __all__ = ["VisualizationToolAdapter"]
 
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
+
 
 class VisualizationToolAdapter(BaseToolAdapter):
     """Adapter for structure visualization toolchain."""
 
-    tool_id = "visualize_structure"
-    adapter_id = "visualization_tool"
+    tool_id: str = "visualize_structure"
+    adapter_id: str | None = "visualization_tool"
 
     def __init__(self) -> None:
-        self._last_context: dict[str, Any] = {}
+        self._last_context: JsonObject = {}
 
-    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> Dict[str, Any]:
-        resolved: Dict[str, Any] = {}
-        for key, val in step.inputs.items():
+    @override
+    def resolve_inputs(self, step: PlanStep, context: WorkflowContext) -> JsonObject:
+        resolved: JsonObject = {}
+        for key, val in _json_items(cast(object, step.inputs)):
             if isinstance(val, str) and "." in val:
                 step_id, field = val.split(".", 1)
                 if step_id and step_id.startswith("S"):
                     if not context.has_step_result(step_id):
+                        message = (
+                            f"Failed to resolve input reference '{val}' for step {step.id!r}: "
+                            f"step '{step_id}' not found in context"
+                        )
                         raise ValueError(
-                            f"Failed to resolve input reference '{val}' "
-                            f"for step '{step.id}': step '{step_id}' not found in context"
+                            message
                         )
                     try:
-                        resolved_value = context.get_step_output(step_id, field)
+                        resolved_value = cast(
+                            object,
+                            context.get_step_output(step_id, field),
+                        )
                     except KeyError as exc:
+                        message = (
+                            f"Failed to resolve input reference '{val}' for step {step.id!r}: "
+                            f"field '{field}' not found in step '{step_id}' outputs"
+                        )
                         raise ValueError(
-                            f"Failed to resolve input reference '{val}' "
-                            f"for step '{step.id}': field '{field}' not found in step '{step_id}' outputs"
+                            message
                         ) from exc
-                    resolved[key] = resolved_value
+                    if _is_json_value(resolved_value):
+                        resolved[key] = resolved_value
+                    else:
+                        resolved[key] = str(resolved_value)
                     continue
             resolved[key] = val
 
@@ -67,7 +86,8 @@ class VisualizationToolAdapter(BaseToolAdapter):
         }
         return resolved
 
-    def run_local(self, inputs: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    @override
+    def run_local(self, inputs: Mapping[str, object]) -> tuple[JsonObject, JsonObject]:
         pdb_ref_value = inputs.get("pdb_id") or inputs.get("pdb_path")
         if isinstance(pdb_ref_value, Path):
             pdb_ref = str(pdb_ref_value)
@@ -81,7 +101,7 @@ class VisualizationToolAdapter(BaseToolAdapter):
             )
 
         out_dir_value = inputs.get("out_dir", "output/visualization")
-        out_dir = Path(out_dir_value)
+        out_dir = Path(str(out_dir_value))
         reuse_cache = bool(inputs.get("reuse_cache", True))
 
         self._log_event(
@@ -131,22 +151,22 @@ class VisualizationToolAdapter(BaseToolAdapter):
             "TOOL_END",
             artifacts=_artifact_payload(artifacts),
         )
-        outputs = {
+        outputs: JsonObject = {
             "metrics_json_path": str(artifacts.metrics_json_path),
             "plotly_html_path": str(artifacts.plotly_html_path),
             "report_html_path": str(artifacts.report_html_path),
             "assets_dir": str(artifacts.assets_dir),
             "summary_stats": artifacts.summary_stats,
         }
-        metrics = {
+        metrics: JsonObject = {
             "exec_type": "visualization_pipeline",
             "artifact_count": 4,
         }
         return outputs, metrics
 
-    def _log_event(self, event: str, **payload: Any) -> None:
+    def _log_event(self, event: str, **payload: JsonValue) -> None:
         task_id = self._last_context.get("task_id")
-        if not task_id:
+        if not isinstance(task_id, str) or not task_id:
             return
         append_event(
             task_id,
@@ -162,7 +182,7 @@ class VisualizationToolAdapter(BaseToolAdapter):
         )
 
 
-def _artifact_payload(artifacts: VisualizationArtifacts) -> dict[str, str]:
+def _artifact_payload(artifacts: VisualizationArtifacts) -> JsonObject:
     return {
         "metrics_json_path": str(artifacts.metrics_json_path),
         "plotly_html_path": str(artifacts.plotly_html_path),
@@ -176,9 +196,40 @@ def _extract_plan_version(context: WorkflowContext) -> str | None:
     plan = context.plan
     if plan is None:
         return None
-    if isinstance(plan.metadata, dict):
-        value = plan.metadata.get("plan_version")
-        if value is None:
-            return None
-        return str(value)
-    return None
+    metadata = _as_json_object(cast(object, plan.metadata))
+    if metadata is None:
+        return None
+    value = metadata.get("plan_version")
+    if value is None:
+        return None
+    return str(value)
+
+
+def _json_items(value: object) -> list[tuple[str, JsonValue]]:
+    payload = _as_json_object(value)
+    if payload is None:
+        return []
+    return list(payload.items())
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    result: JsonObject = {}
+    for key, item in cast(Mapping[object, object], value).items():
+        if isinstance(key, str) and _is_json_value(item):
+            result[key] = item
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False

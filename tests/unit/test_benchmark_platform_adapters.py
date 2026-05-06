@@ -22,6 +22,8 @@ def test_issue199_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
     assert (output_dir / "issue199_platform_adapter_report.md").exists()
     assert (output_dir / "inspect_ai" / "inspect_react_samples.jsonl").exists()
     assert (output_dir / "inspect_ai" / "inspect_issue199_react_smoke.py").exists()
+    assert (output_dir / "mlflow" / "mlflow_react_samples.jsonl").exists()
+    assert (output_dir / "mlflow" / "mlflow_issue199_react_eval.py").exists()
     assert (output_dir / "promptfoo" / "promptfooconfig.yaml").exists()
     assert (output_dir / "promptfoo" / "promptfoo_react_provider.py").exists()
     assert (output_dir / "standardized" / "normalized_run.sample.json").exists()
@@ -42,20 +44,32 @@ def test_issue199_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
             encoding="utf-8"
         )
     )
+    mlflow_manifest = json.loads(
+        (output_dir / "mlflow" / "mlflow_eval_manifest.json").read_text(
+            encoding="utf-8"
+        )
+    )
     inspect_samples = (output_dir / "inspect_ai" / "inspect_react_samples.jsonl").read_text(
+        encoding="utf-8"
+    )
+    mlflow_script = (output_dir / "mlflow" / "mlflow_issue199_react_eval.py").read_text(
         encoding="utf-8"
     )
     assert "prompts:" in promptfoo_config
     assert "provider_alias: baseline" in promptfoo_config
     assert "metric: quality_rubric" in promptfoo_config
     assert "issue199_adapter_contract" in inspect_task
+    assert "mlflow.set_experiment" in mlflow_script
     assert "Allowlisted tools:" in inspect_samples
     assert "protgpt2" in inspect_samples
     assert "## Validation Coverage" in report_text
     assert "Inspect AI" in report_text
+    assert "MLflow" in report_text
     assert "promptfoo" in report_text
     assert "inspect info version" in inspect_manifest["suggested_commands"][0]
     assert "uv tool run --from inspect-ai --with openai inspect eval" in inspect_manifest["suggested_commands"][1]
+    assert "mlflow --version" in mlflow_manifest["suggested_commands"][0]
+    assert "uv run --with mlflow python" in mlflow_manifest["suggested_commands"][1]
 
 
 def test_promptfoo_payload_uses_provider_catalog_and_budget_fields() -> None:
@@ -65,14 +79,14 @@ def test_promptfoo_payload_uses_provider_catalog_and_budget_fields() -> None:
         catalog_path=Path("configs/llm_providers.json"),
         max_plan_steps=3,
         max_high_cost_steps=1,
-        high_cost_tool_ids=["esmfold", "openfold2", "protein_mpnn"],
+        high_cost_tool_ids=["esmfold", "openfold", "protein_mpnn"],
         allowed_tool_ids=[
             "protgpt2",
             "biopython_qc",
             "dssp",
             "objective_ranker",
             "esmfold",
-            "openfold2",
+            "openfold",
             "protein_mpnn",
         ],
         task_id="issue199-react-smoke-001",
@@ -107,4 +121,5 @@ def test_standardized_evidence_sample_has_adapter_artifacts(tmp_path: Path) -> N
 
     artifact_ids = {row["artifact_id"] for row in evidence_index["artifacts"]}
     assert "inspect-react-task" in artifact_ids
+    assert "mlflow-tracking-eval" in artifact_ids
     assert "promptfoo-regression-suite" in artifact_ids

@@ -39,6 +39,9 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
 
     tool_id = "esmfold"
     adapter_id = "esmfold_remote"
+    execution_mode = "rest"
+    provider = "remote_model_service"
+    endpoint_type = "rest"
 
     def __init__(
         self,
@@ -270,7 +273,13 @@ class RemoteESMFoldAdapter(BaseToolAdapter):
         metrics = {
             "exec_type": "remote",
             "duration_ms": duration_ms,
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.execution_mode,
+            "provider": self.provider,
+            "endpoint_type": self.endpoint_type,
             "job_id": job_id,
+            "remote_job_id": job_id,
             "resumed": resumed,
         }
 

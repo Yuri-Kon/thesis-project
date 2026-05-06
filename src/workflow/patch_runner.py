@@ -186,19 +186,29 @@ class PatchRunner:
                 task_constraints=context.task.constraints,
             )
         except Exception as exc:
+            recovery_meta = _extract_recovery_metadata(
+                plan_patch=None,
+                selected_candidate=selected_candidate,
+                source_step=step,
+            )
+            _attach_recovery_upgrade_meta(
+                result,
+                recovery_meta,
+                upgrade_reason="patch_failed",
+            )
             _emit_recovery_escalation_event(
                 context,
                 step_id=step.id,
                 reason="patch_failed",
                 detail=f"patch candidate generation failed: {exc}",
-                recovery=_extract_recovery_metadata(
-                    plan_patch=None,
-                    selected_candidate=selected_candidate,
-                    source_step=step,
-                ),
+                recovery=recovery_meta,
             )
             _enter_replan_waiting(context, record, reason="patch_failed")
-            raise
+            return PatchRunOutcome(
+                plan=plan,
+                step_results=[result],
+                next_step_index=step_index + 1,
+            )
 
         if gate.requires_hitl:
             recovery_meta = _extract_recovery_metadata(
@@ -624,6 +634,11 @@ def _extract_recovery_metadata(
         "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
         "io_type": selected_candidate.io_type if selected_candidate else None,
         "adapter_mode": selected_candidate.adapter_mode if selected_candidate else None,
+        "adapter_id": selected_candidate.adapter_id if selected_candidate else None,
+        "execution_mode": selected_candidate.execution_mode if selected_candidate else None,
+        "provider": selected_candidate.provider if selected_candidate else None,
+        "endpoint_type": selected_candidate.endpoint_type if selected_candidate else None,
+        "remote_job_id": selected_candidate.remote_job_id if selected_candidate else None,
     }
     for key in (
         "runtime_state_summary",

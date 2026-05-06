@@ -631,10 +631,39 @@ def _emit_decision_applied_event(
                 if selected_candidate
                 else candidate_meta.get("adapter_mode")
             ),
+            "adapter_id": (
+                selected_candidate.adapter_id
+                if selected_candidate
+                else candidate_meta.get("adapter_id")
+            ),
+            "execution_mode": (
+                selected_candidate.execution_mode
+                if selected_candidate
+                else candidate_meta.get("execution_mode")
+            ),
+            "provider": (
+                selected_candidate.provider
+                if selected_candidate
+                else candidate_meta.get("provider")
+            ),
+            "endpoint_type": (
+                selected_candidate.endpoint_type
+                if selected_candidate
+                else candidate_meta.get("endpoint_type")
+            ),
+            "remote_job_id": (
+                selected_candidate.remote_job_id
+                if selected_candidate
+                else candidate_meta.get("remote_job_id")
+            ),
             "waiting_runtime_summary": extract_pending_action_waiting_summary(context),
             "action_score": candidate_meta.get("action_score"),
             "shadow_score": candidate_meta.get("shadow_score"),
             "evidence_source": candidate_meta.get("default_recommendation_reason"),
+            "execution_mode": candidate_meta.get("execution_mode"),
+            "provider": candidate_meta.get("provider"),
+            "endpoint_type": candidate_meta.get("endpoint_type"),
+            "remote_job_id": candidate_meta.get("remote_job_id"),
             "terminal_policy": candidate_meta.get("terminal_policy"),
             "terminal_reason": candidate_meta.get("terminal_reason"),
             "runtime_policy": runtime_trace["runtime_policy"],

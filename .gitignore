@@ -1,5 +1,4 @@
-# Master 分支专用
-
+# dev 分支用
 # 需要忽略的文件
 
 # 1. Latex编译生成文件
@@ -85,6 +84,7 @@ venv/
 .env
 .env.*
 *.egg-info/
+node_modules/
 
 # 11. 日志与中间数据 
 
@@ -100,17 +100,16 @@ data/inputs/tmp/
 nf/work/
 nf/.nextflow/
 
-# 13. 不需要上传到master的文件
-docs/
-!docs/
-docs/*
-!docs/algorithm-and-llm/
-docs/algorithm-and-llm/*
-!docs/algorithm-and-llm/requirement2-similarity-secondary-structure-tools.md
-plan/
+# 13. 不需要上传到dev的文件
 shared/
 drafts/
 .idea/
 data/
 work/
 .nextflow.log.*
+tmp/
+.envrc
+.env
+*.env
+.superpowers/
+.worktrees/

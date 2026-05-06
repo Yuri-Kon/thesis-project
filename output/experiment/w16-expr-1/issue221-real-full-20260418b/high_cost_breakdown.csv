@@ -1,0 +1,5 @@
+group_id,high_cost_calls_total,high_cost_failures_total,high_cost_rule_hits
+static_top1,2.0,0.0,{'heavy_objective_evaluation': 2}
+fixed_threshold_gate,0.0,0.0,{}
+dynamic_no_belief_state,0.0,0.0,{}
+lite_belief_state,0.0,0.0,{}

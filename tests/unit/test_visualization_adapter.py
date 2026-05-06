@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from src.adapters.registry import ADAPTER_REGISTRY, register_adapter
 from src.agents.planner import PlannerAgent, ToolSpec
 from src.models.contracts import Plan, PlanStep, now_iso
@@ -88,11 +86,11 @@ def test_invalid_pdb_ref_enters_waiting_replan(sample_task, tmp_path: Path) -> N
     step_runner = RecordingStepRunner()
     patch_runner = PatchRunner(step_runner=step_runner, planner_agent=FailingPlanner())
 
-    with pytest.raises(RuntimeError):
-        patch_runner.run_step_with_patch(plan, 0, context, record=record)
+    outcome = patch_runner.run_step_with_patch(plan, 0, context, record=record)
 
     assert context.status == InternalStatus.WAITING_REPLAN
     assert record.status == ExternalStatus.WAITING_REPLAN_CONFIRM
+    assert outcome.step_results
     assert step_runner.last_result is not None
     assert step_runner.last_result.status == "failed"
     assert step_runner.last_result.error_message

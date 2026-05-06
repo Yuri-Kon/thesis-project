@@ -32,7 +32,7 @@
       "dssp",
       "objective_ranker",
       "esmfold",
-      "openfold2",
+      "openfold",
       "protein_mpnn"
     ],
     "allowed_capability_ids": [
@@ -45,7 +45,7 @@
     ],
     "high_cost_tool_ids": [
       "esmfold",
-      "openfold2",
+      "openfold",
       "protein_mpnn"
     ],
     "enforcement_rule": "External baseline runs must stay within the same allowlist and carry the whitelist version into every normalized artifact."
@@ -71,7 +71,7 @@
     "catalog_path": "configs/llm_providers.json",
     "allowed_aliases": [
       "baseline",
-      "qwen-plus",
+      "qwen-flash",
       "deepseek-chat",
       "glm-5",
       "openai",
@@ -93,6 +93,12 @@
       "role": "lightweight_regression",
       "status": "ready_for_local_cli",
       "install_hint": "npx promptfoo@latest --version"
+    },
+    "tracking": {
+      "platform_id": "mlflow",
+      "role": "tracking_and_artifact_record",
+      "status": "scaffolded_for_issue172",
+      "install_hint": "uv tool run --from mlflow mlflow --version"
     },
     "external_baseline": {
       "baseline_id": "react_style_external",
@@ -136,10 +142,17 @@
     },
     {
       "action_id": "confirm_remote_tool_services",
-      "summary": "Confirm PLM REST / OpenFold2 REST endpoints if the allowlist run needs remote tools.",
+      "summary": "Confirm PLM REST / OpenFold3 REST endpoints if the allowlist run needs remote tools.",
       "owner": "user",
       "stage": "before_live_run",
       "details": "Default ports remain 8100 and 8200, but the final URL must be fixed in the run environment and reused by external baselines."
+    },
+    {
+      "action_id": "confirm_mlflow_tracking_uri",
+      "summary": "Decide whether MLflow should use the local file backend or an explicit shared tracking URI before live tracking runs.",
+      "owner": "user",
+      "stage": "before_live_run",
+      "details": "If unset, the generated MLflow scaffold defaults to a file:// tracking store under output/experiment/.../mlflow/mlruns."
     },
     {
       "action_id": "confirm_promptfoo_provider_override",

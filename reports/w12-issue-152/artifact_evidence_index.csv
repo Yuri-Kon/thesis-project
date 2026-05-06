@@ -1,15 +1,21 @@
 issue,artifact_type,path,exists,role
-148,training_summary,output/training/w12-issue-148/v0.3.0-rc1/issue148-p0-p1/training_summary.json,yes,训练摘要与版本冻结
+148,training_summary,output/training/w12-issue-148/v0.3.0-rc1/issue148-p0-p1/training_summary.json,no,历史训练摘要路径；当前工作区未保留该 JSON
 148,model_card,output/training/w12-issue-148/v0.3.0-rc1/issue148-p0-p1/model_card.md,yes,模型适用范围与已知限制
-149,release_benchmark_json,output/experiment/w12-expr-2/issue149-offline-benchmark/release_benchmark.json,yes,离线门禁与基线对比
+149,release_benchmark_report,output/experiment/w12-expr-2/issue149-offline-benchmark/release-benchmark.md,yes,离线门禁与基线对比报告
 150,runtime_fallback_config,configs/runtime/w12_issue150_dual_route_fallback.json,yes,回退默认配置与熔断开关
 150,runtime_runbook,scripts/w12-issue-150-dual-route-fallback.md,yes,双路回退使用说明
-151,demo_summary,output/demo/w12-issue-151/demo-summary.json,yes,端到端演示摘要
+151,demo_summary,output/demo/w12-issue-151/demo-summary.json,no,历史 demo 摘要路径；当前工作区未保留该 JSON
 151,release_validation,output/demo/w12-issue-151/release-validation.md,yes,RC Gate-D 演示验证
-171,vertical_report,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_report.md,yes,A0-A6 纵向实验摘要
-171,vertical_summary_csv,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,yes,统一指标总表
-173,governance_summary,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json,yes,治理指标 JSON
+171,vertical_report,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_report.md,no,历史 A0-A6 纵向实验摘要路径；当前工作区未保留该批次文件
+171,vertical_summary_csv,output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv,no,历史统一指标总表路径；当前工作区未保留该批次文件
+173,governance_summary,output/experiment/w12-expr-2/issue173-governance-review/governance_metrics_summary.json,no,历史治理指标 JSON 路径；当前工作区未保留该 JSON
 173,governance_report,output/experiment/w12-expr-2/issue173-governance-review/governance-report.md,yes,治理复核报告
 174,midterm_chapter,reports/w12-issue-174/midterm_experiment_chapter.md,yes,中期实验章节草稿（当前可交子集）
 174,figure_index,reports/w12-issue-174/figure_table_index.csv,yes,图表证据索引
-172,horizontal_comparison,deferred,no,外部平台依赖，当前窗口延期
+174,evidence_pack_handoff,reports/w12-issue-174/evidence-pack-handoff.md,yes,W16 evidence pack 交接说明、路径索引、限制项与 #152/#225 后续入口
+172,horizontal_comparison,output/experiment/w12-expr-3/issue172-horizontal/issue172-live-qwen-flash-tunnel-r1-attempt4-merged/horizontal_metrics_summary.csv,yes,E0/E1/E2 横向对照结果表；#174 可引用为外部范式对照证据
+172,horizontal_evidence_index,output/experiment/w12-expr-3/issue172-horizontal/issue172-live-qwen-flash-tunnel-r1-attempt4-merged/evidence_index.json,yes,横向对照 run config/event log/snapshot/report 追溯索引
+221,w16_internal_matrix,output/experiment/w16-expr-1/issue221-real-full-20260418b/matrix_metrics_summary.csv,yes,W16 内部四组主结果 summary fallback
+221,w16_internal_traceability,output/experiment/w16-expr-1/issue221-real-full-20260418b/run_traceability_index.csv,yes,W16 内部矩阵 run 级追溯索引
+223,w16_case_rerun_pack,output/experiment/w16-expr-1/issue270-rerun-waiting-replan-20260420/evidence_index.json,yes,W16 案例/失败分析补充批次证据索引
+224,w16_evidence_template,docs/evidence/issue-224/evidence-index.json,yes,W16 evidence pack artifact 与 traceability 模板

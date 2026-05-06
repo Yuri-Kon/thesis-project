@@ -1,0 +1,50 @@
+[
+  {
+    "run_id": "issue270-rerun-20260419b_fixed_threshold_gate_secondary_balance_r01",
+    "group_id": "fixed_threshold_gate",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:WAITING_REPLAN",
+      "abnormal:terminal_or_waiting_status:WAITING_REPLAN",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-20260419b/run_configs/issue270-rerun-20260419b_fixed_threshold_gate_secondary_balance_r01.json"
+  },
+  {
+    "run_id": "issue270-rerun-20260419b_dynamic_no_belief_state_secondary_balance_r01",
+    "group_id": "dynamic_no_belief_state",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:WAITING_REPLAN",
+      "abnormal:terminal_or_waiting_status:WAITING_REPLAN",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-20260419b/run_configs/issue270-rerun-20260419b_dynamic_no_belief_state_secondary_balance_r01.json"
+  },
+  {
+    "run_id": "issue270-rerun-20260419b_lite_belief_state_high_solubility_r02",
+    "group_id": "lite_belief_state",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:WAITING_REPLAN",
+      "abnormal:terminal_or_waiting_status:WAITING_REPLAN",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w16-expr-1/issue270-rerun-20260419b/run_configs/issue270-rerun-20260419b_lite_belief_state_high_solubility_r02.json"
+  }
+]

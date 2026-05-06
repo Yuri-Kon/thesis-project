@@ -1,0 +1,1 @@
+{"run_id": "issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02", "task_id": "issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02", "group_id": "E1", "replicate": 2, "reason": "terminal_or_waiting_status:FAILED", "final_status": "FAILED", "event_log_path": "data/logs/issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02.jsonl"}

@@ -1,0 +1,1 @@
+{"snapshot_id": "snapshot_0e94e3c1", "task_id": "issue221-real-full-20260418b_static_top1_enzyme_like_fold_r01", "state": "DONE", "plan_version": null, "step_index": 4, "artifacts": {}, "current_step_index": 4, "completed_step_ids": ["S1", "S2", "S3", "S4"], "pending_action_id": null, "created_at": "2026-04-18T04:01:57+00:00"}

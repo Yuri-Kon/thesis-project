@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import cast
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,11 @@ from .contracts import (
     Decision,
     now_iso,
 )
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 # 任务 & 步骤状态定义
 
@@ -114,27 +119,27 @@ class TaskRecord(BaseModel):
 
     id: str
     status: ExternalStatus
-    internal_status: Optional[InternalStatus] = None
+    internal_status: InternalStatus | None = None
     created_at: str = Field(default_factory=now_iso)
     updated_at: str = Field(default_factory=now_iso)
 
     # 为了方便查询和可视化，直接展开一些字段
     goal: str
-    constraints: Dict = Field(default_factory=dict)
-    metadata: Dict = Field(default_factory=dict)
+    constraints: JsonObject = Field(default_factory=dict)
+    metadata: JsonObject = Field(default_factory=dict)
 
     # 计划和结果保存为 JSON 格式，后端可序列化为 TEXT / JSONB 等
-    plan: Optional[Plan] = None
-    design_result: Optional[DesignResult] = None
+    plan: Plan | None = None
+    design_result: DesignResult | None = None
 
     # 若处于 WAITING_*，记录当前待决策对象
-    pending_action: Optional[PendingAction] = None
+    pending_action: PendingAction | None = None
 
     # 决策记录（用于审计和回放）
-    decisions: List[Decision] = Field(default_factory=list)
+    decisions: list[Decision] = Field(default_factory=list)
 
     # 安全事件汇总
-    safety_events: List[SafetyResult] = Field(default_factory=list)
+    safety_events: list[SafetyResult] = Field(default_factory=list)
 
 
 class StepRecord(BaseModel):
@@ -147,15 +152,15 @@ class StepRecord(BaseModel):
     status: StepStatus
 
     # 执行时间
-    started_at: Optional[str] = None
-    finished_at: Optional[str] = None
+    started_at: str | None = None
+    finished_at: str | None = None
 
     # 度量和风险摘要，细节留在 StepResult 里
-    metrics: Dict = Field(default_factory=dict)
-    risk_flags: Dict = Field(default_factory=dict)
+    metrics: JsonObject = Field(default_factory=dict)
+    risk_flags: JsonObject = Field(default_factory=dict)
 
     # 挂上上一版本的 StepResult 以便详细追溯
-    last_result: Optional[StepResult] = None
+    last_result: StepResult | None = None
 
 
 # 从运行期上下文推导状态的帮助函数
@@ -163,10 +168,10 @@ class StepRecord(BaseModel):
 
 def derive_task_status(
     task: ProteinDesignTask,
-    plan: Optional[Plan],
-    step_results: Dict[str, StepResult],
-    safety_events: List[SafetyResult],
-    design_result: Optional[DesignResult],
+    plan: Plan | None,
+    step_results: dict[str, StepResult],
+    safety_events: list[SafetyResult],
+    design_result: DesignResult | None,
 ) -> InternalStatus:
     """根据当前上下文粗略推导 InternalStatus
 
@@ -174,6 +179,8 @@ def derive_task_status(
     - 只返回 CREATED / PLANNED / RUNNING / DONE / FAILED 这五种状态
     - 细粒度状态由工作流显式设置，不在这里推导
     """
+
+    _ = task
 
     # 已有最终结果 ⇒ DONE
     if design_result is not None:
@@ -222,7 +229,7 @@ def step_result_to_record(result: StepResult) -> StepRecord:
         status=step_status,
         started_at=None,
         finished_at=result.timestamp,
-        metrics=result.metrics,
+        metrics=cast(JsonObject, result.metrics),
         risk_flags={
             "max_level": max((flag.level for flag in result.risk_flags), default="ok")
         }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Mapping
 
 from src.models.contracts import (
@@ -9,8 +10,16 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
+from src.models.budget_pressure import derive_budget_pressure
 
-__all__ = ["extract_failure_context", "update_runtime_state"]
+__all__ = [
+    "BELIEF_STATE_UPDATE_RULES",
+    "BeliefStateUpdateRule",
+    "extract_failure_context",
+    "update_runtime_state",
+]
+
+type BeliefDelta = float | str
 
 _BASELINE_P_SUCCESS = 0.5
 _BASELINE_P_STRUCTURAL_FAILURE = 0.25
@@ -18,6 +27,151 @@ _BASELINE_RECOVERY_MARGIN = 0.6
 _BASELINE_EXPECTED_REMAINING_COST = 1.0
 _BASELINE_EVIDENCE_SUFFICIENCY = 0.5
 _STRUCTURAL_STAGE_IDS = {"S2", "S3", "S4"}
+
+
+@dataclass(frozen=True)
+class BeliefStateUpdateRule:
+    """Lite belief-state 更新规则的可引用表项。"""
+
+    signal: str
+    observation: str
+    p_success: BeliefDelta = "0"
+    p_structural_failure: BeliefDelta = "0"
+    recovery_margin: BeliefDelta = "0"
+    expected_remaining_cost: BeliefDelta = "0"
+    evidence_sufficiency: BeliefDelta = "via evidence_signal smoothing"
+    rationale: str = ""
+
+
+BELIEF_STATE_UPDATE_RULES: tuple[BeliefStateUpdateRule, ...] = (
+    BeliefStateUpdateRule(
+        signal="step_result.success",
+        observation="Any successful StepResult.",
+        p_success=0.12,
+        p_structural_failure=-0.08,
+        recovery_margin=0.06,
+        expected_remaining_cost="cost_reward += 0.35; no progress counters: c_t - 1.35",
+        rationale="A completed step improves chain viability and frees recovery budget.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.success@structural",
+        observation="Successful structural stage or structural tool.",
+        p_success=0.04,
+        p_structural_failure=-0.05,
+        rationale="Structural validation reduces latent structural-failure pressure.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.failed",
+        observation="Any failed StepResult.",
+        p_success=-0.18,
+        p_structural_failure=0.14,
+        recovery_margin=-0.12,
+        expected_remaining_cost="cost_penalty += 0.75; no progress counters: c_t + 1.25",
+        rationale="Failure makes the current suffix less trustworthy and more expensive.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.failed@structural",
+        observation="Failure at structural stage or structural tool.",
+        p_structural_failure=0.08,
+        rationale="Structural failures imply stronger need for suffix replanning.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.retry_exhausted",
+        observation="Step metrics mark retry_exhausted=true.",
+        p_success=-0.05,
+        recovery_margin=-0.06,
+        expected_remaining_cost="cost_penalty += 0.40",
+        rationale="Retry exhaustion consumes local recovery options.",
+    ),
+    BeliefStateUpdateRule(
+        signal="step_result.skipped",
+        observation="StepResult status is skipped.",
+        p_success=-0.02,
+        expected_remaining_cost="cost_penalty += 0.15",
+        rationale="A skipped step is weak negative evidence and small residual cost.",
+    ),
+    BeliefStateUpdateRule(
+        signal="safety_result.warn",
+        observation="SafetyResult action is warn; n_warn risk flags are present.",
+        p_success="-0.04 - 0.01*n_warn",
+        p_structural_failure=0.05,
+        recovery_margin=-0.03,
+        expected_remaining_cost="cost_penalty += 0.25",
+        rationale="Warnings reduce confidence without making the route terminal.",
+    ),
+    BeliefStateUpdateRule(
+        signal="safety_result.block",
+        observation="SafetyResult action is block; n_block risk flags are present.",
+        p_success="-0.18 - 0.02*n_block",
+        p_structural_failure="0.12 + 0.01*n_block",
+        recovery_margin=-0.16,
+        expected_remaining_cost="cost_penalty += 0.75",
+        rationale="Blocks represent strong negative evidence and high recovery pressure.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.patch_local",
+        observation="Failure context normalizes recovery_action to patch_local.",
+        p_success=-0.04,
+        recovery_margin=-0.07,
+        expected_remaining_cost="cost_penalty += 0.60",
+        rationale="Local patching keeps the prefix but consumes repair headroom.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.suffix_replan",
+        observation="Recovery action is suffix_replan or replan.",
+        p_success=-0.10,
+        p_structural_failure=0.08,
+        recovery_margin=-0.12,
+        expected_remaining_cost="cost_penalty += 1.20",
+        rationale="Suffix replanning admits that the current suffix is unreliable.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.stop",
+        observation="Recovery action is stop.",
+        p_success=-0.15,
+        recovery_margin="set to 0.0",
+        rationale="Stop consumes all remaining recovery margin by construction.",
+    ),
+    BeliefStateUpdateRule(
+        signal="failure_context.retry_exhausted",
+        observation="Failure context carries retry_exhausted=true.",
+        p_success=-0.03,
+        recovery_margin=-0.04,
+        expected_remaining_cost="cost_penalty += 0.25",
+        rationale="Recovered failure context still records exhausted retry budget.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.progress",
+        observation="Objective ranker reports objective_progress=p.",
+        p_success="+0.04*clip(p,0,1)",
+        evidence_sufficiency="pre-smoothing e_t += 0.03*clip(p,0,1)",
+        rationale="Objective progress supports the current goal direction.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.sufficiency",
+        observation="Objective ranker reports objective_evidence_sufficiency=q.",
+        evidence_sufficiency="pre-smoothing e_t += 0.05*clip(q,0,1)",
+        rationale="Direct objective evidence increases evidence sufficiency.",
+    ),
+    BeliefStateUpdateRule(
+        signal="objective_evidence.gap",
+        observation="Objective ranker reports objective_gap=g.",
+        recovery_margin="+0.02*clip(g,0,1)",
+        rationale="A visible objective gap leaves room for useful reranking decisions.",
+    ),
+    BeliefStateUpdateRule(
+        signal="evidence_signal",
+        observation="After all direct deltas, evidence_signal is estimated.",
+        evidence_sufficiency="clip(0.70*e_t + 0.30*evidence_signal)",
+        rationale="Evidence is smoothed to avoid overreacting to one observation.",
+    ),
+    BeliefStateUpdateRule(
+        signal="progress_counters",
+        observation="completed_steps and total_steps are available.",
+        expected_remaining_cost="max(total_steps - completed_steps + cost_penalty, 0)",
+        rationale="Explicit progress counters override heuristic one-step cost decay.",
+    ),
+)
 
 
 def update_runtime_state(
@@ -29,6 +183,7 @@ def update_runtime_state(
     failure_context: RuntimeFailureContext | Mapping[str, Any] | None = None,
     completed_steps: int | None = None,
     total_steps: int | None = None,
+    budget_cap: float | None = None,
 ) -> RuntimeState:
     """以确定性规则更新 Lite 版运行时 belief-state。
 
@@ -39,6 +194,9 @@ def update_runtime_state(
     
     调用方优先传入 ``RuntimeStateUpdateInput``，以固定更新器输入边界。
     保留原有关键字参数仅用于兼容既有调用路径。
+
+    更新规则以 ``BELIEF_STATE_UPDATE_RULES`` 暴露，供论文中的
+    ``B(x_t, o_t, h_t)`` 表格、测试和审计说明复用。
     """
 
     update = _coerce_update_input(
@@ -48,12 +206,14 @@ def update_runtime_state(
         failure_context=failure_context,
         completed_steps=completed_steps,
         total_steps=total_steps,
+        budget_cap=budget_cap,
     )
     step_result = update.step_result
     safety_result = update.safety_result
     failure_context = update.failure_context
     completed_steps = update.completed_steps
     total_steps = update.total_steps
+    budget_cap = update.budget_cap
 
     state = previous_state or RuntimeState(
         p_success=_BASELINE_P_SUCCESS,
@@ -64,6 +224,7 @@ def update_runtime_state(
             total_steps=total_steps,
         ),
         evidence_sufficiency=_BASELINE_EVIDENCE_SUFFICIENCY,
+        budget_cap=budget_cap,
         last_update_source="runtime_bootstrap",
         observation_summary={},
     )
@@ -73,6 +234,7 @@ def update_runtime_state(
     recovery_margin = _clamp_unit_interval(state.recovery_margin)
     expected_remaining_cost = state.expected_remaining_cost
     evidence_sufficiency = _clamp_unit_interval(state.evidence_sufficiency)
+    budget_cap = budget_cap if budget_cap is not None else state.budget_cap
     observation_summary = dict(state.observation_summary)
     last_update_source = state.last_update_source
     cost_penalty = 0.0
@@ -106,6 +268,26 @@ def update_runtime_state(
             if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
                 p_success += 0.04
                 p_structural_failure -= 0.05
+            objective_signal = _extract_objective_signal(step_result)
+            if objective_signal:
+                observation_summary.update(objective_signal)
+                progress = _as_float(objective_signal.get("objective_progress"))
+                gap = _as_float(objective_signal.get("objective_gap"))
+                if progress is not None:
+                    p_success += 0.04 * _clamp_unit_interval(progress)
+                    evidence_sufficiency += 0.03 * _clamp_unit_interval(progress)
+                objective_evidence = _as_float(
+                    objective_signal.get("objective_evidence_sufficiency")
+                )
+                if objective_evidence is not None:
+                    evidence_sufficiency += 0.05 * _clamp_unit_interval(
+                        objective_evidence
+                    )
+                if gap is not None:
+                    recovery_margin += 0.02 * _clamp_unit_interval(gap)
+            structure_similarity_signal = _extract_structure_similarity_signal(step_result)
+            if structure_similarity_signal:
+                observation_summary.update(structure_similarity_signal)
         elif step_result.status == "failed":
             p_success -= 0.18
             p_structural_failure += 0.14
@@ -193,7 +375,16 @@ def update_runtime_state(
         previous_value=evidence_sufficiency,
         evidence_signal=evidence_signal,
     )
+    budget_derivation = derive_budget_pressure(
+        expected_remaining_cost=expected_remaining_cost,
+        budget_cap=budget_cap,
+    )
     observation_summary["evidence_signal"] = _round_metric(evidence_signal)
+    observation_summary["budget_pressure"] = _round_metric(
+        budget_derivation.budget_pressure
+    )
+    if budget_cap is not None:
+        observation_summary["budget_cap"] = budget_cap
 
     return RuntimeState(
         p_success=_round_metric(_clamp_unit_interval(p_success)),
@@ -203,6 +394,8 @@ def update_runtime_state(
         recovery_margin=_round_metric(_clamp_unit_interval(recovery_margin)),
         expected_remaining_cost=_round_metric(max(expected_remaining_cost, 0.0)),
         evidence_sufficiency=_round_metric(evidence_sufficiency),
+        budget_pressure=_round_metric(budget_derivation.budget_pressure),
+        budget_cap=budget_cap,
         last_update_source=last_update_source,
         observation_summary=_drop_none_values(observation_summary),
     )
@@ -261,6 +454,7 @@ def _coerce_update_input(
     failure_context: RuntimeFailureContext | Mapping[str, Any] | None,
     completed_steps: int | None,
     total_steps: int | None,
+    budget_cap: float | None,
 ) -> RuntimeStateUpdateInput:
     if update_input is not None:
         return update_input
@@ -270,6 +464,7 @@ def _coerce_update_input(
         failure_context=_coerce_failure_context(failure_context),
         completed_steps=completed_steps,
         total_steps=total_steps,
+        budget_cap=budget_cap,
     )
 
 
@@ -398,6 +593,8 @@ def _estimate_candidate_agreement(
             agreement += 0.12
             if _is_structural_step(stage_id=stage_id, tool_id=step_result.tool):
                 agreement += 0.08
+            if _extract_structure_similarity_signal(step_result):
+                agreement += 0.08
         elif step_result.status == "failed":
             agreement -= 0.18
     if safety_result is not None:
@@ -490,6 +687,76 @@ def _is_structural_step(*, stage_id: str | None, tool_id: str) -> bool:
     )
 
 
+def _extract_objective_signal(step_result: StepResult) -> dict[str, Any]:
+    metrics = step_result.metrics
+    outputs = step_result.outputs
+    capability_id = _as_non_empty_text(outputs.get("capability_id"))
+    tool_key = step_result.tool.strip().lower()
+    if capability_id != "objective_scoring" and tool_key != "objective_ranker":
+        return {}
+
+    progress = _as_float(metrics.get("objective_progress"))
+    if progress is None:
+        progress = _as_float(outputs.get("objective_score"))
+    gap = _as_float(metrics.get("objective_gap"))
+    top_candidate_id = _as_non_empty_text(metrics.get("top_candidate_id"))
+    if top_candidate_id is None:
+        top_candidate_id = _as_non_empty_text(outputs.get("default_recommendation"))
+    objective_evidence = _as_float(metrics.get("evidence_sufficiency"))
+    if objective_evidence is None:
+        posterior_score = outputs.get("posterior_score")
+        if isinstance(posterior_score, dict):
+            objective_evidence = _as_float(posterior_score.get("evidence_sufficiency"))
+
+    payload: dict[str, Any] = {
+        "objective_progress": (
+            _round_metric(_clamp_unit_interval(progress))
+            if progress is not None
+            else None
+        ),
+        "objective_gap": _round_metric(max(gap, 0.0)) if gap is not None else None,
+        "objective_top_candidate_id": top_candidate_id,
+        "objective_warning_count": metrics.get("warning_count"),
+        "objective_evidence_sufficiency": (
+            _round_metric(_clamp_unit_interval(objective_evidence))
+            if objective_evidence is not None
+            else None
+        ),
+    }
+    return _drop_none_values(payload)
+
+
+def _extract_structure_similarity_signal(step_result: StepResult) -> dict[str, Any]:
+    outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
+    capability_id = _as_non_empty_text(outputs.get("capability_id"))
+    tool_key = step_result.tool.strip().lower()
+    if capability_id != "structure_similarity_search" and tool_key != "foldseek":
+        return {}
+
+    hit_count = _as_float(outputs.get("hit_count"))
+    top_hit = outputs.get("top_hit")
+    top_tm_score = None
+    top_coverage = None
+    if isinstance(top_hit, dict):
+        top_tm_score = _as_float(top_hit.get("tm_score"))
+        top_coverage = _as_float(top_hit.get("coverage"))
+    return _drop_none_values(
+        {
+            "structure_similarity_hit_count": int(hit_count) if hit_count is not None else None,
+            "structure_similarity_top_tm_score": (
+                _round_metric(_clamp_unit_interval(top_tm_score))
+                if top_tm_score is not None
+                else None
+            ),
+            "structure_similarity_top_coverage": (
+                _round_metric(_clamp_unit_interval(top_coverage))
+                if top_coverage is not None
+                else None
+            ),
+        }
+    )
+
+
 def _clamp_unit_interval(value: float) -> float:
     if value < 0.0:
         return 0.0
@@ -511,6 +778,19 @@ def _as_non_empty_text(value: Any) -> str | None:
 
 def _as_bool(value: Any) -> bool:
     return bool(value)
+
+
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _drop_none_values(payload: Mapping[str, Any]) -> dict[str, Any]:

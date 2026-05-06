@@ -1,0 +1,105 @@
+{
+  "issue_id": 172,
+  "generated_at": "2026-04-22T02:03:59+00:00",
+  "run_id": "issue172-live-minimax-m27-tunnel-r3_E1_binding_scaffold_r01",
+  "task_id": "issue172-live-minimax-m27-tunnel-r3_E1_binding_scaffold_r01",
+  "group": {
+    "id": "E1",
+    "label": "ToT-style 多分支",
+    "canonical_label": "ToT-style",
+    "comparison_order": 1,
+    "baseline_family": "tot_style_external",
+    "agent_style": "multi_branch_selection",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "runtime_policy": "static_single_candidate",
+      "plan_top_k": 3,
+      "patch_top_k": 1,
+      "replan_top_k": 1
+    },
+    "decision_policy": {
+      "max_patch_accepts": 0,
+      "max_replan_accepts": 0
+    }
+  },
+  "task": {
+    "task_key": "binding_scaffold",
+    "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+    "display_name": "Binding Scaffold",
+    "difficulty": "hard",
+    "budget_tier": "high_cost_sensitive",
+    "rationale": "Pocket exposure and function-oriented constraints increase dependence on structure mapping and heavy evaluation.",
+    "constraints": {
+      "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+      "length_range": [
+        45,
+        95
+      ]
+    },
+    "metadata": {}
+  },
+  "goal": "Generate a scaffold with exposed pocket for small-molecule binding.\n\nExternal baseline style hint: Use a ToT-style multi-branch baseline. Explore up to 3 candidate branches before selecting the most promising plan.",
+  "constraints": {
+    "goal_type": "de_novo_design",
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "max_plan_steps": 3,
+    "max_high_cost_steps": 1,
+    "max_llm_calls": 1,
+    "max_tool_calls": 3,
+    "max_wall_clock_seconds": 180,
+    "runtime_policy": "static_single_candidate",
+    "plan_top_k": 3,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+    "length_range": [
+      45,
+      95
+    ],
+    "runtime_fallback": {
+      "enable_dual_route": false,
+      "force_external_only": true,
+      "fallback_capability": "external_horizontal_baseline"
+    }
+  },
+  "metadata": {
+    "issue": 172,
+    "experiment_track": "external_horizontal_baselines",
+    "owner": "issue172",
+    "issue_id": 172,
+    "experiment": "w12_issue172_horizontal",
+    "group_id": "E1",
+    "group_label": "ToT-style 多分支",
+    "canonical_label": "ToT-style",
+    "baseline_family": "tot_style_external",
+    "agent_style": "multi_branch_selection",
+    "task_key": "binding_scaffold",
+    "replicate": 1,
+    "freeze_id": "issue199-platform-freeze-20260412",
+    "dataset_version": "issue170-remote-batch3-20260316",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty": "hard",
+    "budget_tier": "high_cost_sensitive",
+    "tool_whitelist_version": "issue199-tool-whitelist-v1",
+    "budget_version": "issue199-budget-v1",
+    "decision_policy": {
+      "max_patch_accepts": 0,
+      "max_replan_accepts": 0
+    }
+  },
+  "lineage": {
+    "freeze_id": "issue199-platform-freeze-20260412",
+    "dataset_version": "issue170-remote-batch3-20260316",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "platform_freeze_config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+    "platform_freeze_config_hash": "01c206415967",
+    "task_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "task_freeze_config_hash": "04ceb6102ddc",
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}

@@ -3,9 +3,14 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, List, Mapping, Optional
+from typing import cast
 
 from src.models.contracts import TaskSnapshot
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 
 def _resolve_default_snapshot_dir() -> Path:
@@ -29,16 +34,16 @@ def append_snapshot(
     """追加写入 TaskSnapshot 到 jsonl 文件"""
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     path = snapshot_dir / f"{snapshot.task_id}.jsonl"
-    payload: Mapping[str, Any] = snapshot.model_dump()
+    payload = cast(JsonObject, snapshot.model_dump(mode="json"))
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
+        _ = handle.write(json.dumps(payload, ensure_ascii=True) + "\n")
 
 
 def read_snapshots(
     task_id: str,
     *,
     snapshot_dir: Path = DEFAULT_SNAPSHOT_DIR,
-) -> List[TaskSnapshot]:
+) -> list[TaskSnapshot]:
     """读取指定任务的所有快照
 
     Args:
@@ -53,13 +58,13 @@ def read_snapshots(
     if not path.exists():
         return []
 
-    snapshots: List[TaskSnapshot] = []
+    snapshots: list[TaskSnapshot] = []
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
-            payload = json.loads(line)
+            payload = _load_json(line)
             snapshot = TaskSnapshot.model_validate(payload)
             snapshots.append(snapshot)
 
@@ -70,7 +75,7 @@ def read_latest_snapshot(
     task_id: str,
     *,
     snapshot_dir: Path = DEFAULT_SNAPSHOT_DIR,
-) -> Optional[TaskSnapshot]:
+) -> TaskSnapshot | None:
     """读取指定任务的最新快照
 
     Args:
@@ -84,3 +89,7 @@ def read_latest_snapshot(
     if not snapshots:
         return None
     return snapshots[-1]
+
+
+def _load_json(line: str) -> object:
+    return cast(object, json.loads(line))

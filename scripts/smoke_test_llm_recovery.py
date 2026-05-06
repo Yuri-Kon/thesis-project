@@ -25,7 +25,7 @@ from src.models.contracts import (
 )
 
 DEFAULT_CONFIG_PATH = project_root / "configs" / "llm_providers.json"
-DEFAULT_PROVIDERS = ("qwen-plus", "deepseek-chat", "glm-5", "nemotron")
+DEFAULT_PROVIDERS = ("qwen-flash", "deepseek-chat", "glm-5", "nemotron")
 RECOVERY_REGISTRY = [
     ToolSpec(
         id="protgpt2",

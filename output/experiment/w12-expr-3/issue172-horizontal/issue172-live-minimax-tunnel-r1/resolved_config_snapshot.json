@@ -1,0 +1,438 @@
+{
+  "config": {
+    "issue_id": 172,
+    "experiment_name": "w16-issue172-horizontal-baselines",
+    "description": "Unified external horizontal experiment for ReAct-style, ToT-style, and Reflexion-style baselines under the frozen issue199 fairness contract and issue209 task set.",
+    "platform_freeze_config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+    "task_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "internal_reference_summary_path": "output/experiment/w12-expr-2/issue171-remote-batch3-r3/vertical_metrics_summary.csv",
+    "output_root": "output/experiment/w12-expr-3/issue172-horizontal",
+    "repeats": 2,
+    "repeat_policy": {
+      "by_budget_tier": {
+        "high_cost_sensitive": 1,
+        "standard": 2,
+        "low_cost_first": 2
+      }
+    },
+    "artifact_policy": {
+      "all_runs_required": [
+        "run_config_path",
+        "event_log_path"
+      ],
+      "success_runs_required": [
+        "snapshot_path",
+        "report_path"
+      ],
+      "waiting_runs_required": [
+        "snapshot_path"
+      ],
+      "failed_runs_required": []
+    },
+    "rerun_policy": {
+      "max_attempts": 2
+    },
+    "offline_thresholds": {
+      "schema_valid_rate": 0.995,
+      "executable_plan_rate": 0.95,
+      "patch_minimality_hit_rate": 0.8,
+      "suffix_replan_prefix_preservation_rate": 1.0
+    },
+    "requirement2_capability_map": {
+      "sequence_core": [
+        "sequence_generation",
+        "sequence_design"
+      ],
+      "quality_qc": [
+        "quality_qc"
+      ],
+      "objective_scoring": [
+        "objective_scoring"
+      ],
+      "structure_prediction": [
+        "structure_prediction"
+      ],
+      "secondary_structure": [
+        "secondary_structure_annotation"
+      ]
+    },
+    "base_constraints": {
+      "goal_type": "de_novo_design",
+      "safety_level": 1,
+      "prefer_remote": false,
+      "structure_prediction_tool_override": "openfold",
+      "structure_prediction_execution_mode": "openfold3_rest",
+      "secondary_structure_annotation_tool_override": "biopython_qc",
+      "max_plan_steps": 3,
+      "max_high_cost_steps": 1,
+      "max_llm_calls": 1,
+      "max_tool_calls": 3,
+      "max_wall_clock_seconds": 180
+    },
+    "base_metadata": {
+      "issue": 172,
+      "experiment_track": "external_horizontal_baselines",
+      "owner": "issue172"
+    },
+    "groups": [
+      {
+        "id": "E0",
+        "label": "ReAct-style 单轨迹",
+        "canonical_label": "ReAct-style",
+        "comparison_order": 0,
+        "baseline_family": "react_style_external",
+        "agent_style": "single_trajectory",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "static_single_candidate",
+          "plan_top_k": 1,
+          "patch_top_k": 1,
+          "replan_top_k": 1
+        },
+        "decision_policy": {
+          "max_patch_accepts": 0,
+          "max_replan_accepts": 0
+        }
+      },
+      {
+        "id": "E1",
+        "label": "ToT-style 多分支",
+        "canonical_label": "ToT-style",
+        "comparison_order": 1,
+        "baseline_family": "tot_style_external",
+        "agent_style": "multi_branch_selection",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "static_single_candidate",
+          "plan_top_k": 3,
+          "patch_top_k": 1,
+          "replan_top_k": 1
+        },
+        "decision_policy": {
+          "max_patch_accepts": 0,
+          "max_replan_accepts": 0
+        }
+      },
+      {
+        "id": "E2",
+        "label": "Reflexion-style 反思恢复",
+        "canonical_label": "Reflexion-style",
+        "comparison_order": 2,
+        "baseline_family": "reflexion_style_external",
+        "agent_style": "reflection_recovery",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "dynamic_observation_only",
+          "plan_top_k": 1,
+          "patch_top_k": 3,
+          "replan_top_k": 3
+        },
+        "decision_policy": {
+          "max_patch_accepts": 1,
+          "max_replan_accepts": 1
+        }
+      }
+    ]
+  },
+  "resolved_matrix": {
+    "freeze_id": "issue199-platform-freeze-20260412",
+    "dataset_version": "issue170-remote-batch3-20260316",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "tool_whitelist": {
+      "tool_whitelist_version": "issue199-tool-whitelist-v1",
+      "allowed_tool_ids": [
+        "protgpt2",
+        "biopython_qc",
+        "dssp",
+        "objective_ranker",
+        "esmfold",
+        "openfold",
+        "protein_mpnn"
+      ],
+      "allowed_capability_ids": [
+        "sequence_generation",
+        "quality_qc",
+        "secondary_structure_annotation",
+        "objective_scoring",
+        "structure_prediction",
+        "sequence_design"
+      ],
+      "high_cost_tool_ids": [
+        "esmfold",
+        "openfold",
+        "protein_mpnn"
+      ],
+      "enforcement_rule": "External baseline runs must stay within the same allowlist and carry the whitelist version into every normalized artifact."
+    },
+    "budget_contract": {
+      "budget_version": "issue199-budget-v1",
+      "smoke_defaults": {
+        "max_plan_steps": 3,
+        "max_high_cost_steps": 1,
+        "max_llm_calls": 1,
+        "max_tool_calls": 3,
+        "max_wall_clock_seconds": 180
+      },
+      "carry_to_issue172": [
+        "max_plan_steps",
+        "max_high_cost_steps",
+        "max_llm_calls",
+        "max_tool_calls",
+        "max_wall_clock_seconds"
+      ]
+    },
+    "provider_allowlist": {
+      "catalog_path": "configs/llm_providers.json",
+      "allowed_aliases": [
+        "baseline",
+        "qwen-flash",
+        "deepseek-chat",
+        "glm-5",
+        "openai",
+        "nemotron"
+      ],
+      "default_promptfoo_provider_alias": "baseline",
+      "default_inspect_model": "openai-api/deepseek/deepseek-chat"
+    },
+    "platforms": {
+      "primary": {
+        "platform_id": "inspect_ai",
+        "role": "primary_platform",
+        "baseline_family": "react_style_external",
+        "status": "scaffolded_for_issue172",
+        "install_hint": "uv tool run --from 'inspect-ai[openai]' inspect info version"
+      },
+      "regression": {
+        "platform_id": "promptfoo",
+        "role": "lightweight_regression",
+        "status": "ready_for_local_cli",
+        "install_hint": "npx promptfoo@latest --version"
+      },
+      "tracking": {
+        "platform_id": "mlflow",
+        "role": "tracking_and_artifact_record",
+        "status": "scaffolded_for_issue172",
+        "install_hint": "uv tool run --from mlflow mlflow --version"
+      },
+      "external_baseline": {
+        "baseline_id": "react_style_external",
+        "owner_issue": 172,
+        "notes": "Issue #199 only prepares the adapter package and reproducibility bundle."
+      }
+    },
+    "metrics_contract": {
+      "effect": [
+        "success_rate",
+        "first_pass_success_rate",
+        "executable_plan_rate"
+      ],
+      "cost": [
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "high_cost_failure_mean"
+      ],
+      "recovery": [
+        "patch_events_mean",
+        "replan_events_mean",
+        "suffix_replan_events_mean",
+        "patch_minimality_hit_rate",
+        "suffix_replan_prefix_preservation_rate"
+      ],
+      "governance": [
+        "waiting_chain_complete_rate",
+        "failure_traceable_rate"
+      ],
+      "task_stratification_key": "difficulty"
+    },
+    "high_cost_rules": [
+      {
+        "rule_id": "structure_mapping",
+        "label": "结构映射",
+        "stage_ids": [
+          "S2"
+        ],
+        "tool_ids": [
+          "esmfold",
+          "nim_esmfold",
+          "openfold3"
+        ],
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_tier": "high",
+        "rationale": "Structure prediction calls consume the main high-cost model budget."
+      },
+      {
+        "rule_id": "structure_refinement",
+        "label": "结构条件下的序列精修",
+        "stage_ids": [
+          "S4"
+        ],
+        "tool_ids": [
+          "protein_mpnn"
+        ],
+        "capability_ids": [
+          "sequence_design"
+        ],
+        "cost_tier": "high",
+        "rationale": "Iterative backbone-conditioned sequence refinement is expensive and recovery-heavy."
+      },
+      {
+        "rule_id": "heavy_objective_evaluation",
+        "label": "重型目标评估",
+        "stage_ids": [
+          "S5"
+        ],
+        "tool_ids": [],
+        "capability_ids": [
+          "objective_scoring"
+        ],
+        "cost_tier": "medium_high",
+        "rationale": "Heavy multi-objective scoring or remote property evaluation adds significant evaluation cost."
+      }
+    ],
+    "groups": [
+      {
+        "id": "E0",
+        "label": "ReAct-style 单轨迹",
+        "canonical_label": "ReAct-style",
+        "comparison_order": 0,
+        "baseline_family": "react_style_external",
+        "agent_style": "single_trajectory",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "static_single_candidate",
+          "plan_top_k": 1,
+          "patch_top_k": 1,
+          "replan_top_k": 1
+        },
+        "decision_policy": {
+          "max_patch_accepts": 0,
+          "max_replan_accepts": 0
+        }
+      },
+      {
+        "id": "E1",
+        "label": "ToT-style 多分支",
+        "canonical_label": "ToT-style",
+        "comparison_order": 1,
+        "baseline_family": "tot_style_external",
+        "agent_style": "multi_branch_selection",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "static_single_candidate",
+          "plan_top_k": 3,
+          "patch_top_k": 1,
+          "replan_top_k": 1
+        },
+        "decision_policy": {
+          "max_patch_accepts": 0,
+          "max_replan_accepts": 0
+        }
+      },
+      {
+        "id": "E2",
+        "label": "Reflexion-style 反思恢复",
+        "canonical_label": "Reflexion-style",
+        "comparison_order": 2,
+        "baseline_family": "reflexion_style_external",
+        "agent_style": "reflection_recovery",
+        "supports_current_repo": true,
+        "constraint_overrides": {
+          "runtime_policy": "dynamic_observation_only",
+          "plan_top_k": 1,
+          "patch_top_k": 3,
+          "replan_top_k": 3
+        },
+        "decision_policy": {
+          "max_patch_accepts": 1,
+          "max_replan_accepts": 1
+        }
+      }
+    ],
+    "tasks": [
+      {
+        "task_key": "enzyme_like_fold",
+        "prompt": "Design a compact enzyme-like fold with stable core.",
+        "display_name": "Enzyme-Like Fold",
+        "difficulty": "medium",
+        "budget_tier": "standard",
+        "rationale": "Requires stable fold formation and balanced structural evidence, but objective pressure is moderate.",
+        "constraints": {
+          "prompt": "Design a compact enzyme-like fold with stable core.",
+          "length_range": [
+            40,
+            80
+          ]
+        },
+        "metadata": {}
+      },
+      {
+        "task_key": "binding_scaffold",
+        "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+        "display_name": "Binding Scaffold",
+        "difficulty": "hard",
+        "budget_tier": "high_cost_sensitive",
+        "rationale": "Pocket exposure and function-oriented constraints increase dependence on structure mapping and heavy evaluation.",
+        "constraints": {
+          "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+          "length_range": [
+            45,
+            95
+          ]
+        },
+        "metadata": {}
+      },
+      {
+        "task_key": "high_solubility",
+        "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+        "display_name": "High Solubility",
+        "difficulty": "easy",
+        "budget_tier": "low_cost_first",
+        "rationale": "Primary objective is comparatively soft and can often be filtered earlier with cheaper evidence.",
+        "constraints": {
+          "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+          "length_range": [
+            35,
+            75
+          ]
+        },
+        "metadata": {}
+      },
+      {
+        "task_key": "secondary_balance",
+        "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+        "display_name": "Secondary Balance",
+        "difficulty": "medium",
+        "budget_tier": "standard",
+        "rationale": "Requires both sequence exploration and structure verification, but without the strongest downstream function pressure.",
+        "constraints": {
+          "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+          "length_range": [
+            50,
+            90
+          ]
+        },
+        "metadata": {}
+      }
+    ],
+    "platform_freeze": {
+      "config_path": "configs/experiments/issue199_benchmark_platform_adapters.json",
+      "config_hash": "01c206415967"
+    },
+    "task_freeze": {
+      "config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+      "config_hash": "04ceb6102ddc"
+    }
+  },
+  "args": {
+    "config_path": "configs/experiments/w16_issue172_horizontal_experiment.json",
+    "output_root": "output/experiment/w12-expr-3/issue172-horizontal",
+    "run_id": "issue172-live-minimax-tunnel-r1",
+    "repeats_override": null,
+    "max_runs": null,
+    "dry_run": false,
+    "provider_alias": "minimax-m2.5"
+  }
+}
