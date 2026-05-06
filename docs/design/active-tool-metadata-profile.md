@@ -17,7 +17,7 @@
 ## 2. 元数据字段
 <!-- SID:tools.metadata.schema -->
 
-每个工具应至少具备以下字段，均标准化到 `[0, 1]`：
+每个工具应至少具备以下字段，均标准化到 $[0,1]$：
 
 - `compute_cost_prior`
 - `latency_cost_prior`
@@ -42,9 +42,9 @@
 
 ### 3.1 成本先验
 
-- 本地轻量解析、QC、规则打分：`0.10 ~ 0.30`
-- 单次远程或 GPU 结构预测：`0.55 ~ 0.80`
-- 迭代式精修、远程大模型结构映射：`0.70 ~ 0.90`
+- 本地轻量解析、QC、规则打分：$0.10 \sim 0.30$
+- 单次远程或 GPU 结构预测：$0.55 \sim 0.80$
+- 迭代式精修、远程大模型结构映射：$0.70 \sim 0.90$
 
 ### 3.2 风险先验
 
@@ -83,19 +83,31 @@
 
 ### 5.1 单步标准成本
 
-`step_cost = 0.40 * compute_cost_prior + 0.25 * latency_cost_prior + 0.20 * failure_impact_prior + 0.15 * human_dependency_prior`
+$$
+\operatorname{step\_cost}
+= 0.40\,\operatorname{compute\_cost\_prior}
++ 0.25\,\operatorname{latency\_cost\_prior}
++ 0.20\,\operatorname{failure\_impact\_prior}
++ 0.15\,\operatorname{human\_dependency\_prior}
+$$
 
 ### 5.2 单步标准风险
 
-`step_risk = 0.45 * structural_risk_prior + 0.25 * execution_risk_prior + 0.20 * safety_risk_prior + 0.10 * coupling_risk_prior`
+$$
+\operatorname{step\_risk}
+= 0.45\,\operatorname{structural\_risk\_prior}
++ 0.25\,\operatorname{execution\_risk\_prior}
++ 0.20\,\operatorname{safety\_risk\_prior}
++ 0.10\,\operatorname{coupling\_risk\_prior}
+$$
 
 ### 5.3 低成本证据层
 
 满足以下条件的工具可被视为“证据层工具”：
 
-- `high_cost_flag = no`
-- `evidence_role in {cheap_validation, sequence_similarity}`
-- `step_cost <= 0.25`
+- $\operatorname{high\_cost\_flag}=\text{no}$
+- $\operatorname{evidence\_role}\in\{\text{cheap\_validation},\text{sequence\_similarity}\}$
+- $\operatorname{step\_cost}\le 0.25$
 
 当前明确属于证据层的工具：
 
@@ -109,7 +121,7 @@
 
 ### 6.1 规划层
 
-- `high_cost_flag = yes` 的工具不得在证据不足时被连续串接过深
+- $\operatorname{high\_cost\_flag}=\text{yes}$ 的工具不得在证据不足时被连续串接过深
 - 在存在低成本验证替代层时，应优先插入证据层再进入高代价步骤
 
 ### 6.2 恢复层

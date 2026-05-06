@@ -1257,7 +1257,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 224,
+        "line": 227,
         "marker": "<!-- SID:planner.contracts.io_overview -->"
       },
       "level": "Block",
@@ -1279,7 +1279,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 273,
+        "line": 276,
         "marker": "<!-- SID:algo.adaptive.problem_formulation -->"
       },
       "level": "Section",
@@ -1301,7 +1301,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 332,
+        "line": 337,
         "marker": "<!-- SID:algo.adaptive.optimization_objective -->"
       },
       "level": "Block",
@@ -1334,7 +1334,7 @@
       "stability": "stable",
       "locator": {
         "type": "comment",
-        "line": 395,
+        "line": 402,
         "marker": "<!-- SID:algo.posterior.objective_scoring -->"
       }
     },
@@ -1345,7 +1345,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 488,
+        "line": 501,
         "marker": "<!-- SID:planner.algorithm.tool_retrieval -->"
       },
       "level": "Block",
@@ -1364,7 +1364,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 569,
+        "line": 582,
         "marker": "<!-- SID:planner.algorithm.candidate_scoring -->"
       },
       "level": "Block",
@@ -1396,7 +1396,7 @@
       "stability": "stable",
       "locator": {
         "type": "comment",
-        "line": 628,
+        "line": 641,
         "marker": "<!-- SID:planner.algorithm.topk_diversity -->"
       }
     },
@@ -1407,7 +1407,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 654,
+        "line": 668,
         "marker": "<!-- SID:planner.algorithm.runtime_state_estimation -->"
       },
       "level": "Block",
@@ -1430,7 +1430,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 702,
+        "line": 716,
         "marker": "<!-- SID:planner.algorithm.runtime_reranking -->"
       },
       "level": "Block",
@@ -1452,7 +1452,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 749,
+        "line": 764,
         "marker": "<!-- SID:planner.algorithm.runtime_action_selection -->"
       },
       "level": "Block",
@@ -1475,7 +1475,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 804,
+        "line": 819,
         "marker": "<!-- SID:planner.algorithm.hitl_gate -->"
       },
       "level": "Block",
@@ -1496,7 +1496,7 @@
       "path": "docs/design/core-algorithm-spec.md",
       "locator": {
         "type": "comment",
-        "line": 826,
+        "line": 841,
         "marker": "<!-- SID:planner.algorithm.decision_application -->"
       },
       "level": "Block",
@@ -1613,7 +1613,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 154,
+        "line": 172,
         "marker": "<!-- SID:algo.schemas.overview -->"
       }
     },
@@ -1635,7 +1635,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 159,
+        "line": 177,
         "marker": "<!-- SID:algo.schema.cost -->"
       }
     },
@@ -1657,7 +1657,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 227,
+        "line": 278,
         "marker": "<!-- SID:algo.schema.risk -->"
       }
     },
@@ -1678,7 +1678,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 253,
+        "line": 323,
         "marker": "<!-- SID:algo.schema.recovery -->"
       }
     },
@@ -1700,7 +1700,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 280,
+        "line": 372,
         "marker": "<!-- SID:algo.schema.state -->"
       }
     },
@@ -1722,7 +1722,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 303,
+        "line": 401,
         "marker": "<!-- SID:algo.schema.observation -->"
       }
     },
@@ -1746,7 +1746,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 368,
+        "line": 466,
         "marker": "<!-- SID:algo.schema.action_utility -->"
       }
     },
@@ -1769,7 +1769,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 409,
+        "line": 521,
         "marker": "<!-- SID:planner.algorithm.runtime_update_rules -->"
       }
     },
@@ -1792,7 +1792,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 519,
+        "line": 693,
         "marker": "<!-- SID:planner.algorithm.runtime_adjustment_formula -->"
       }
     },
@@ -1815,7 +1815,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 610,
+        "line": 794,
         "marker": "<!-- SID:planner.algorithm.action_priority_resolution -->"
       }
     },
@@ -1838,7 +1838,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 641,
+        "line": 825,
         "marker": "<!-- SID:planner.algorithm.stop_semantics -->"
       }
     },
@@ -1861,7 +1861,7 @@
       "path": "docs/design/runtime-adaptation-formalization.md",
       "locator": {
         "type": "comment",
-        "line": 696,
+        "line": 880,
         "marker": "<!-- SID:impl.runtime.integration_guidelines -->"
       }
     },
@@ -3326,7 +3326,7 @@
       "path": "docs/design/active-tool-metadata-profile.md",
       "locator": {
         "type": "comment",
-        "line": 108,
+        "line": 120,
         "marker": "<!-- SID:tools.metadata.usage_rules -->"
       }
     },

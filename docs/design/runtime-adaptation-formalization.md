@@ -83,20 +83,20 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 1. `p_success`
    - 含义：继续当前链路后最终成功完成任务的估计概率
-   - 取值范围：`[0, 1]`
+   - 取值范围：$[0,1]$
 2. `p_structural_failure`
    - 含义：当前链路遭遇结构性失败、低质量结构结果或后续必然升级到 replan 的估计概率
-   - 取值范围：`[0, 1]`
+   - 取值范围：$[0,1]$
 3. `recovery_margin`
    - 含义：不丢失有效前缀的前提下，系统继续恢复的余量
-   - 取值范围：`[0, 1]`
+   - 取值范围：$[0,1]$
 4. `expected_remaining_cost`
    - 含义：从当前时刻到任务终止的剩余成本暴露
-   - 取值范围：非负实数，可大于 `1`
+   - 取值范围：非负实数，可大于 $1$
    - 说明：该字段保留原始剩余成本估计，不直接承担预算压力语义
 5. `evidence_sufficiency`
    - 含义：当前是否已经积累到足够证据支持继续进入更昂贵步骤
-   - 取值范围：`[0, 1]`
+   - 取值范围：$[0,1]$
 
 ### 3.3 不持久化、按需派生的量
 
@@ -120,27 +120,45 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 若任务显式给出预算上限 `budget_cap`：
 
-`budget_pressure = clip(expected_remaining_cost / max(budget_cap, 0.1), 0, 1.5)`
+$$
+\operatorname{budget\_pressure}
+= \operatorname{clip}\left(
+\frac{\operatorname{expected\_remaining\_cost}}{\max(\operatorname{budget\_cap},0.1)},
+0,1.5
+\right)
+$$
 
 若任务未给出预算上限：
 
-`budget_pressure = clip(expected_remaining_cost, 0, 1.5)`
+$$
+\operatorname{budget\_pressure}
+= \operatorname{clip}(\operatorname{expected\_remaining\_cost},0,1.5)
+$$
 
 因此：
 
 - `expected_remaining_cost` 是可持久化的剩余成本估计；
 - `budget_pressure` 是按当前预算上下文派生的归一化压力；
-- 动作效用与 stop guard 使用 `budget_pressure`，不得把 `expected_remaining_cost` 直接误解释为 `[0,1]` 压力。
+- 动作效用与 stop guard 使用 `budget_pressure`，不得把 `expected_remaining_cost` 直接误解释为 $[0,1]$ 压力。
 
 #### `intervention_value`
 
 `intervention_value` 用于估计“此时让人介入是否可能改善结果”，定义为：
 
-`intervention_value = clip(0.30 * uncertainty + 0.25 * manual_salvageability + 0.25 * artifact_salience + 0.20 * decision_gap, 0, 1)`
+$$
+\operatorname{intervention\_value}
+= \operatorname{clip}\left(
+0.30\,\operatorname{uncertainty}
++ 0.25\,\operatorname{manual\_salvageability}
++ 0.25\,\operatorname{artifact\_salience}
++ 0.20\,\operatorname{decision\_gap},
+0,1
+\right)
+$$
 
 其中：
 
-- `uncertainty = 1 - abs(best_score - second_best_score)`
+- $\operatorname{uncertainty}=1-\lvert\operatorname{best\_score}-\operatorname{second\_best\_score}\rvert$
 - `manual_salvageability`：人是否有现实改写空间，如参数、工具白名单、预算、结构模板
 - `artifact_salience`：当前是否已有足够 artifact 供人判断
 - `decision_gap`：候选之间差距是否小到值得人工判断
@@ -158,13 +176,20 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 ### 4.1 Cost Schema
 <!-- SID:algo.schema.cost -->
 
-### 4.1.1 成本组成
+#### 4.1.1 成本组成
 
 成本不等于单纯的 wall-clock 时间，而是剩余资源暴露。定义：
 
-`Cost = 0.35 * ComputeCost + 0.25 * LatencyCost + 0.20 * OpportunityCost + 0.15 * RecoveryCost + 0.05 * HumanCost`
+$$
+\operatorname{Cost}
+= 0.35\,\operatorname{ComputeCost}
++ 0.25\,\operatorname{LatencyCost}
++ 0.20\,\operatorname{OpportunityCost}
++ 0.15\,\operatorname{RecoveryCost}
++ 0.05\,\operatorname{HumanCost}
+$$
 
-各项均标准化到 `[0, 1]`：
+各项均标准化到 $[0,1]$：
 
 - `ComputeCost`
   - GPU/CPU/远程模型资源暴露
@@ -177,7 +202,7 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 - `HumanCost`
   - 触发 HITL 后的额外认知与时间成本
 
-### 4.1.2 单步成本先验
+#### 4.1.2 单步成本先验
 
 对每个工具 `tool_j` 定义先验元数据：
 
@@ -190,23 +215,48 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 则单步标准成本定义为：
 
-`step_cost_j = 0.40 * compute_cost_prior_j + 0.25 * latency_cost_prior_j + 0.20 * failure_impact_prior_j + 0.15 * human_dependency_prior_j`
+$$
+\operatorname{step\_cost}_j
+= 0.40\,\operatorname{compute\_cost\_prior}_j
++ 0.25\,\operatorname{latency\_cost\_prior}_j
++ 0.20\,\operatorname{failure\_impact\_prior}_j
++ 0.15\,\operatorname{human\_dependency\_prior}_j
+$$
 
-### 4.1.3 候选剩余成本先验
+#### 4.1.3 候选剩余成本先验
 
-令 `R(pi)` 为候选 `pi` 在当前时刻尚未执行的步骤集合，`m_j` 为阶段乘子：
+令 $R(\pi)$ 为候选 $\pi$ 在当前时刻尚未执行的步骤集合，$m_j$ 为阶段乘子：
 
-- 高代价步骤：`m_j = 1.25`
-- 低成本证据步骤：`m_j = 0.80`
-- 其他步骤：`m_j = 1.00`
+- 高代价步骤：$m_j=1.25$
+- 低成本证据步骤：$m_j=0.80$
+- 其他步骤：$m_j=1.00$
 
 则：
 
-`remaining_cost_prior(pi) = clip((Σ_{j in R(pi)} m_j * step_cost_j) / max(|R(pi)|, 1), 0, 1)`
+$$
+\operatorname{remaining\_cost\_prior}(\pi)
+= \operatorname{clip}\left(
+\frac{\sum_{j \in R(\pi)} m_j\,\operatorname{step\_cost}_j}
+{\max(\lvert R(\pi)\rvert,1)},
+0,1
+\right)
+$$
 
-### 4.1.4 在线剩余成本
+#### 4.1.4 在线剩余成本
 
-`expected_remaining_cost_t = clip(0.60 * expected_remaining_cost_{t-1} + 0.40 * (remaining_cost_prior_t + 0.25 * recovery_penalty_t + 0.20 * observed_overrun_t - 0.20 * completed_credit_t), 0, 1.5)`
+$$
+\operatorname{expected\_remaining\_cost}_t
+= \operatorname{clip}\left(
+0.60\,\operatorname{expected\_remaining\_cost}_{t-1}
++ 0.40\left(
+\operatorname{remaining\_cost\_prior}_t
++ 0.25\,\operatorname{recovery\_penalty}_t
++ 0.20\,\operatorname{observed\_overrun}_t
+- 0.20\,\operatorname{completed\_credit}_t
+\right),
+0,1.5
+\right)
+$$
 
 解释：
 
@@ -217,44 +267,64 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 实现层允许采用更直接的计数式更新：
 
-```text
-expected_remaining_cost_t = max(total_steps - completed_steps + cost_penalty, 0)
-```
+$$
+\operatorname{expected\_remaining\_cost}_t
+= \max(\operatorname{total\_steps}-\operatorname{completed\_steps}+\operatorname{cost\_penalty},0)
+$$
 
 或在缺少显式进度计数时使用启发式一步衰减/惩罚。无论使用哪种方式，持久化字段都保持非负成本尺度；预算压力由本节派生公式单独计算。
 
 ### 4.2 Risk Schema
 <!-- SID:algo.schema.risk -->
 
-### 4.2.1 风险组成
+#### 4.2.1 风险组成
 
 风险与成本分离。成本回答“贵不贵”，风险回答“坏结果概率高不高”。
 
 定义：
 
-`Risk = 0.45 * StructuralRisk + 0.25 * ExecutionRisk + 0.20 * SafetyRisk + 0.10 * CouplingRisk`
+$$
+\operatorname{Risk}
+= 0.45\,\operatorname{StructuralRisk}
++ 0.25\,\operatorname{ExecutionRisk}
++ 0.20\,\operatorname{SafetyRisk}
++ 0.10\,\operatorname{CouplingRisk}
+$$
 
-### 4.2.2 候选风险聚合
+#### 4.2.2 候选风险聚合
 
 对于候选 `pi`，每个剩余步骤都有 `step_risk_j`：
 
-`step_risk_j = 0.45 * structural_risk_prior_j + 0.25 * execution_risk_prior_j + 0.20 * safety_risk_prior_j + 0.10 * coupling_risk_prior_j`
+$$
+\operatorname{step\_risk}_j
+= 0.45\,\operatorname{structural\_risk\_prior}_j
++ 0.25\,\operatorname{execution\_risk\_prior}_j
++ 0.20\,\operatorname{safety\_risk\_prior}_j
++ 0.10\,\operatorname{coupling\_risk\_prior}_j
+$$
 
 候选整体风险：
 
-`risk(pi) = clip(0.60 * max_j(step_risk_j) + 0.40 * mean_j(step_risk_j), 0, 1)`
+$$
+\operatorname{risk}(\pi)
+= \operatorname{clip}\left(
+0.60\,\max_j(\operatorname{step\_risk}_j)
++ 0.40\,\operatorname{mean}_j(\operatorname{step\_risk}_j),
+0,1
+\right)
+$$
 
 硬覆盖规则：
 
-- 若 `SafetyResult.action = block`，则 `risk(pi) = 1.0`
+- 若 `SafetyResult.action = block`，则 $\operatorname{risk}(\pi)=1.0$
 - 若候选存在未闭合 I/O 或 schema 违规，则不进入风险打分，直接判 infeasible
 
 ### 4.3 Recovery Schema
 <!-- SID:algo.schema.recovery -->
 
-### 4.3.1 恢复性组成
+#### 4.3.1 恢复性组成
 
-定义以下恢复因子，均标准化到 `[0, 1]`：
+定义以下恢复因子，均标准化到 $[0,1]$：
 
 - `retry_budget_ratio`
 - `local_patchability`
@@ -263,13 +333,35 @@ expected_remaining_cost_t = max(total_steps - completed_steps + cost_penalty, 0)
 
 定义恢复性与恢复复杂度：
 
-`recoverability = 0.30 * retry_budget_ratio + 0.30 * local_patchability + 0.25 * prefix_preservability + 0.15 * evidence_reusability`
+$$
+\operatorname{recoverability}
+= 0.30\,\operatorname{retry\_budget\_ratio}
++ 0.30\,\operatorname{local\_patchability}
++ 0.25\,\operatorname{prefix\_preservability}
++ 0.15\,\operatorname{evidence\_reusability}
+$$
 
-`recovery_complexity = 1 - recoverability`
+$$
+\operatorname{recovery\_complexity}=1-\operatorname{recoverability}
+$$
 
-### 4.3.2 恢复余量
+#### 4.3.2 恢复余量
 
-`recovery_margin_t = clip(0.50 * recovery_margin_{t-1} + 0.50 * (0.35 * local_patchability_t + 0.30 * prefix_preservability_t + 0.20 * retry_budget_ratio_t + 0.15 * evidence_reusability_t - 0.25 * p_structural_failure_t - 0.20 * budget_pressure_t), 0, 1)`
+$$
+\operatorname{recovery\_margin}_t
+= \operatorname{clip}\left(
+0.50\,\operatorname{recovery\_margin}_{t-1}
++ 0.50\left(
+0.35\,\operatorname{local\_patchability}_t
++ 0.30\,\operatorname{prefix\_preservability}_t
++ 0.20\,\operatorname{retry\_budget\_ratio}_t
++ 0.15\,\operatorname{evidence\_reusability}_t
+- 0.25\,p_{\text{structural\_failure},t}
+- 0.20\,\operatorname{budget\_pressure}_t
+\right),
+0,1
+\right)
+$$
 
 解释：
 
@@ -279,30 +371,36 @@ expected_remaining_cost_t = max(total_steps - completed_steps + cost_penalty, 0)
 ### 4.4 State Schema
 <!-- SID:algo.schema.state -->
 
-### 4.4.1 状态向量
+#### 4.4.1 状态向量
 
 Lite belief-state 记为：
 
-`x_t = [p_success, p_structural_failure, recovery_margin, expected_remaining_cost, evidence_sufficiency]`
+$$
+x_t = [p_{\text{success}},p_{\text{structural\_failure}},\operatorname{recovery\_margin},\operatorname{expected\_remaining\_cost},\operatorname{evidence\_sufficiency}]
+$$
 
-### 4.4.2 初始化
+#### 4.4.2 初始化
 
-对默认推荐候选 `pi*`：
+对默认推荐候选 $\pi^\ast$：
 
-- `p_success_0 = clip(static_score(pi*), 0.15, 0.85)`
-- `p_structural_failure_0 = clip(risk(pi*), 0.10, 0.90)`
-- `recovery_margin_0 = clip(1 - recovery_complexity(pi*), 0.10, 0.90)`
-- `expected_remaining_cost_0 = remaining_cost_prior(pi*)`
-- `evidence_sufficiency_0 = cheap_evidence_coverage(pi*)`
+$$
+\begin{aligned}
+p_{\text{success},0} &= \operatorname{clip}(\operatorname{static\_score}(\pi^\ast),0.15,0.85),\\
+p_{\text{structural\_failure},0} &= \operatorname{clip}(\operatorname{risk}(\pi^\ast),0.10,0.90),\\
+\operatorname{recovery\_margin}_0 &= \operatorname{clip}(1-\operatorname{recovery\_complexity}(\pi^\ast),0.10,0.90),\\
+\operatorname{expected\_remaining\_cost}_0 &= \operatorname{remaining\_cost\_prior}(\pi^\ast),\\
+\operatorname{evidence\_sufficiency}_0 &= \operatorname{cheap\_evidence\_coverage}(\pi^\ast).
+\end{aligned}
+$$
 
 其中：
 
-- `cheap_evidence_coverage(pi*)` 反映是否在高代价步骤前插入了低成本验证层
+- $\operatorname{cheap\_evidence\_coverage}(\pi^\ast)$ 反映是否在高代价步骤前插入了低成本验证层
 
 ### 4.5 Observation Schema
 <!-- SID:algo.schema.observation -->
 
-### 4.5.1 观测来源
+#### 4.5.1 观测来源
 
 运行时观测 `o_t` 仅允许来自：
 
@@ -315,7 +413,7 @@ Lite belief-state 记为：
 - 已完成步骤与剩余后缀
 - HITL 决策记录
 
-### 4.5.2 标准化观测分量
+#### 4.5.2 标准化观测分量
 
 建议提取以下标准化观测：
 
@@ -332,7 +430,7 @@ Lite belief-state 记为：
 - `progress_obs_t`
   - 已完成高代价步骤、是否保留成功前缀
 
-### 4.5.3 阶段特异观测
+#### 4.5.3 阶段特异观测
 
 #### S1 序列探索
 
@@ -367,7 +465,7 @@ Lite belief-state 记为：
 ### 4.6 Action-Utility Schema
 <!-- SID:algo.schema.action_utility -->
 
-### 4.6.1 动作空间
+#### 4.6.1 动作空间
 
 第一版动作空间限定为：
 
@@ -378,25 +476,39 @@ Lite belief-state 记为：
 
 `expand_candidates`、`shrink_candidates`、`request_hitl`、`full_replan` 视为后续扩展动作。
 
-### 4.6.2 动作效用
+#### 4.6.2 动作效用
 
 令：
 
-- `b = budget_pressure`
-- `s = p_success`
-- `f = p_structural_failure`
-- `r = recovery_margin`
-- `e = evidence_sufficiency`
+$$
+b=\operatorname{budget\_pressure},\quad
+s=p_{\text{success}},\quad
+f=p_{\text{structural\_failure}},\quad
+r=\operatorname{recovery\_margin},\quad
+e=\operatorname{evidence\_sufficiency}
+$$
 
 则：
 
-`U_continue = 0.38 * s + 0.14 * e + 0.12 * r - 0.22 * f - 0.14 * b`
-
-`U_patch_local = 0.20 * s + 0.24 * r + 0.18 * local_patchability + 0.12 * evidence_reusability - 0.14 * f - 0.12 * b`
-
-`U_suffix_replan = 0.18 * (1 - s) + 0.20 * f + 0.16 * (1 - r) + 0.18 * prefix_preservability + 0.14 * budget_relief + 0.14 * goal_realignment`
-
-`U_stop = 0.32 * (1 - s) + 0.24 * b + 0.18 * (1 - r) + 0.16 * safety_terminality + 0.10 * (1 - intervention_value)`
+$$
+\begin{aligned}
+U_{\text{continue}} &=
+0.38s + 0.14e + 0.12r - 0.22f - 0.14b,\\
+U_{\text{patch\_local}} &=
+0.20s + 0.24r + 0.18\,\operatorname{local\_patchability}
++ 0.12\,\operatorname{evidence\_reusability}
+- 0.14f - 0.12b,\\
+U_{\text{suffix\_replan}} &=
+0.18(1-s) + 0.20f + 0.16(1-r)
++ 0.18\,\operatorname{prefix\_preservability}
++ 0.14\,\operatorname{budget\_relief}
++ 0.14\,\operatorname{goal\_realignment},\\
+U_{\text{stop}} &=
+0.32(1-s) + 0.24b + 0.18(1-r)
++ 0.16\,\operatorname{safety\_terminality}
++ 0.10(1-\operatorname{intervention\_value}).
+\end{aligned}
+$$
 
 解释：
 
@@ -412,48 +524,108 @@ Lite belief-state 记为：
 
 令：
 
-- `success_signal_t in [0, 1]`
-- `failure_signal_t in [0, 1]`
-- `budget_penalty_t = clip(budget_pressure_t, 0, 1)`
+$$
+\operatorname{success\_signal}_t\in[0,1],\quad
+\operatorname{failure\_signal}_t\in[0,1],\quad
+\operatorname{budget\_penalty}_t=\operatorname{clip}(\operatorname{budget\_pressure}_t,0,1)
+$$
 
 定义：
 
-`logit(p_success_t) = clip(logit(p_success_{t-1}) + 1.20 * success_signal_t - 1.40 * failure_signal_t - 0.60 * budget_penalty_t, -3.5, 3.5)`
+$$
+\operatorname{logit}(p_{\text{success},t})
+= \operatorname{clip}\left(
+\operatorname{logit}(p_{\text{success},t-1})
++ 1.20\,\operatorname{success\_signal}_t
+- 1.40\,\operatorname{failure\_signal}_t
+- 0.60\,\operatorname{budget\_penalty}_t,
+-3.5,3.5
+\right)
+$$
 
-`p_success_t = sigmoid(logit(p_success_t))`
+$$
+p_{\text{success},t}
+= \operatorname{sigmoid}\left(\operatorname{logit}(p_{\text{success},t})\right)
+$$
 
 建议将 `success_signal_t` 分解为：
 
-`success_signal_t = 0.35 * quality_pass + 0.25 * objective_progress + 0.20 * prefix_stability + 0.20 * cheap_gate_success`
+$$
+\operatorname{success\_signal}_t
+= 0.35\,\operatorname{quality\_pass}
++ 0.25\,\operatorname{objective\_progress}
++ 0.20\,\operatorname{prefix\_stability}
++ 0.20\,\operatorname{cheap\_gate\_success}
+$$
 
 建议将 `failure_signal_t` 分解为：
 
-`failure_signal_t = 0.35 * hard_failure + 0.25 * retry_exhausted + 0.20 * safety_warn_block + 0.20 * cost_overrun`
+$$
+\operatorname{failure\_signal}_t
+= 0.35\,\operatorname{hard\_failure}
++ 0.25\,\operatorname{retry\_exhausted}
++ 0.20\,\operatorname{safety\_warn\_block}
++ 0.20\,\operatorname{cost\_overrun}
+$$
 
 ### 5.2 `p_structural_failure`
 
 令：
 
-- `structural_failure_signal_t in [0, 1]`
-- `structural_recovery_signal_t in [0, 1]`
+$$
+\operatorname{structural\_failure\_signal}_t\in[0,1],\quad
+\operatorname{structural\_recovery\_signal}_t\in[0,1]
+$$
 
 定义：
 
-`logit(p_structural_failure_t) = clip(logit(p_structural_failure_{t-1}) + 1.50 * structural_failure_signal_t - 1.00 * structural_recovery_signal_t, -3.5, 3.5)`
+$$
+\operatorname{logit}(p_{\text{structural\_failure},t})
+= \operatorname{clip}\left(
+\operatorname{logit}(p_{\text{structural\_failure},t-1})
++ 1.50\,\operatorname{structural\_failure\_signal}_t
+- 1.00\,\operatorname{structural\_recovery\_signal}_t,
+-3.5,3.5
+\right)
+$$
 
-`p_structural_failure_t = sigmoid(logit(p_structural_failure_t))`
+$$
+p_{\text{structural\_failure},t}
+= \operatorname{sigmoid}\left(\operatorname{logit}(p_{\text{structural\_failure},t})\right)
+$$
 
 建议：
 
-`structural_failure_signal_t = 0.45 * low_structure_confidence + 0.25 * qc_structural_reject + 0.20 * repeated_structure_failure + 0.10 * safety_structure_flag`
+$$
+\operatorname{structural\_failure\_signal}_t
+= 0.45\,\operatorname{low\_structure\_confidence}
++ 0.25\,\operatorname{qc\_structural\_reject}
++ 0.20\,\operatorname{repeated\_structure\_failure}
++ 0.10\,\operatorname{safety\_structure\_flag}
+$$
 
-`structural_recovery_signal_t = 0.60 * high_conf_structure_success + 0.40 * stable_refinement_gain`
+$$
+\operatorname{structural\_recovery\_signal}_t
+= 0.60\,\operatorname{high\_conf\_structure\_success}
++ 0.40\,\operatorname{stable\_refinement\_gain}
+$$
 
 ### 5.3 `evidence_sufficiency`
 
 定义：
 
-`evidence_sufficiency_t = clip(0.70 * evidence_sufficiency_{t-1} + 0.30 * (0.40 * cheap_validation_coverage + 0.30 * candidate_agreement + 0.30 * metric_completeness), 0, 1)`
+$$
+\operatorname{evidence\_sufficiency}_t
+= \operatorname{clip}\left(
+0.70\,\operatorname{evidence\_sufficiency}_{t-1}
++ 0.30\left(
+0.40\,\operatorname{cheap\_validation\_coverage}
++ 0.30\,\operatorname{candidate\_agreement}
++ 0.30\,\operatorname{metric\_completeness}
+\right),
+0,1
+\right)
+$$
 
 解释：
 
@@ -463,57 +635,59 @@ Lite belief-state 记为：
 
 ### 5.4 当前实现的确定性更新表
 
-为保持工程可审计性，当前 `B(x_t,o_t,h_t)` 采用确定性规则表，而不是学习到的 Bayesian transition model。通用形式为：
+为保持工程可审计性，当前 $B(x_t,o_t,h_t)$ 采用确定性规则表，而不是学习到的 Bayesian transition model。通用形式为：
 
-```text
-x_{t+1} = B(x_t,o_t,h_t)
-```
+$$
+x_{t+1}=B(x_t,o_t,h_t)
+$$
 
 当前实现可等价表示为：
 
-```text
-s_{t+1} = clip(s_t + delta_s(o_t,h_t))
-f_{t+1} = clip(f_t + delta_f(o_t,h_t))
-r_{t+1} = clip(r_t + delta_r(o_t,h_t))
-c_{t+1} = max(0, C_update(c_t,o_t,h_t))
-e_{t+1} = clip(0.70 * e_t + 0.30 * evidence_signal_t)
-```
+$$
+\begin{aligned}
+s_{t+1} &= \operatorname{clip}(s_t+\delta_s(o_t,h_t)),\\
+f_{t+1} &= \operatorname{clip}(f_t+\delta_f(o_t,h_t)),\\
+r_{t+1} &= \operatorname{clip}(r_t+\delta_r(o_t,h_t)),\\
+c_{t+1} &= \max(0,\operatorname{C\_update}(c_t,o_t,h_t)),\\
+e_{t+1} &= \operatorname{clip}(0.70e_t+0.30\,\operatorname{evidence\_signal}_t).
+\end{aligned}
+$$
 
 其中：
 
-```text
-evidence_signal_t =
-    0.40 * cheap_validation_coverage_t
-  + 0.30 * candidate_agreement_t
-  + 0.30 * metric_completeness_t
-```
+$$
+\operatorname{evidence\_signal}_t
+= 0.40\,\operatorname{cheap\_validation\_coverage}_t
++ 0.30\,\operatorname{candidate\_agreement}_t
++ 0.30\,\operatorname{metric\_completeness}_t
+$$
 
-下表与实现中的 `BELIEF_STATE_UPDATE_RULES` 对齐。表中 `n_warn` / `n_block` 表示对应安全标记数量；`p,q,g` 均先裁剪到 `[0,1]`；未列字段保持不变。
+下表与实现中的 `BELIEF_STATE_UPDATE_RULES` 对齐。表中 $n_{\text{warn}}$ / $n_{\text{block}}$ 表示对应安全标记数量；$p,q,g$ 均先裁剪到 $[0,1]$；未列字段保持不变。
 
-| 观测信号 | 触发条件 | `delta_s` | `delta_f` | `delta_r` | `c_t` 更新 | `e_t` 更新 | 解释 |
+| 观测信号 | 触发条件 | $\delta_s$ | $\delta_f$ | $\delta_r$ | $c_t$ 更新 | $e_t$ 更新 | 解释 |
 | --- | --- | ---: | ---: | ---: | --- | --- | --- |
-| `step_result.success` | 任意步骤成功 | `+0.12` | `-0.08` | `+0.06` | `cost_reward += 0.35`；无进度计数时约为 `c_t - 1.35` | 进入平滑项 | 完成一步提高链路可行性并释放恢复余量 |
-| `step_result.success@structural` | 结构阶段或结构工具成功 | `+0.04` | `-0.05` | `0` | `0` | 进入平滑项 | 结构验证降低潜在结构失败压力 |
-| `step_result.failed` | 任意步骤失败 | `-0.18` | `+0.14` | `-0.12` | `cost_penalty += 0.75`；无进度计数时约为 `c_t + 1.25` | 进入平滑项 | 失败降低当前后缀可信度并增加剩余成本暴露 |
-| `step_result.failed@structural` | 结构阶段或结构工具失败 | `0` | `+0.08` | `0` | `0` | 进入平滑项 | 结构失败更强地指向 suffix replan |
-| `step_result.retry_exhausted` | 步骤 metrics 标记 retry exhausted | `-0.05` | `0` | `-0.06` | `cost_penalty += 0.40` | 进入平滑项 | retry 耗尽会消耗局部恢复空间 |
-| `step_result.skipped` | 步骤被跳过 | `-0.02` | `0` | `0` | `cost_penalty += 0.15` | 进入平滑项 | skipped 是弱负证据与小成本残留 |
-| `safety_result.warn` | SafetyAgent 返回 warn | `-0.04 - 0.01*n_warn` | `+0.05` | `-0.03` | `cost_penalty += 0.25` | candidate agreement `-0.08` 后进入平滑项 | 安全警告降低信心但不终止路线 |
-| `safety_result.block` | SafetyAgent 返回 block | `-0.18 - 0.02*n_block` | `+0.12 + 0.01*n_block` | `-0.16` | `cost_penalty += 0.75` | candidate agreement `-0.18` 后进入平滑项 | 安全阻断是强负证据和高恢复压力 |
-| `failure_context.patch_local` | 恢复动作归一化为 `patch_local` | `-0.04` | `0` | `-0.07` | `cost_penalty += 0.60` | candidate agreement `+0.04` 后进入平滑项 | 局部修补保留前缀但消耗修复余量 |
-| `failure_context.suffix_replan` | 恢复动作为 `suffix_replan` 或 `replan` | `-0.10` | `+0.08` | `-0.12` | `cost_penalty += 1.20` | candidate agreement `-0.08` 后进入平滑项 | 后缀重规划承认当前后缀不可靠 |
-| `failure_context.stop` | 恢复动作为 `stop` | `-0.15` | `0` | 设为 `0` | `0` | candidate agreement `-0.08` 后进入平滑项 | stop 在语义上耗尽恢复余量 |
-| `objective_evidence.progress` | objective ranker 给出进展 `p` | `+0.04*p` | `0` | `0` | `0` | 平滑前 `e_t += 0.03*p` | 目标进展支持当前目标方向 |
-| `objective_evidence.sufficiency` | objective ranker 给出证据充分度 `q` | `0` | `0` | `0` | `0` | 平滑前 `e_t += 0.05*q` | 直接目标证据提升证据充分度 |
-| `objective_evidence.gap` | objective ranker 给出目标差距 `g` | `0` | `0` | `+0.02*g` | `0` | 进入平滑项 | 可见目标差距保留有用重排空间 |
-| `progress_counters` | 有 `completed_steps,total_steps` | `0` | `0` | `0` | `max(total_steps - completed_steps + cost_penalty, 0)` | 进入平滑项 | 显式进度覆盖启发式一步成本衰减 |
+| `step_result.success` | 任意步骤成功 | $+0.12$ | $-0.08$ | $+0.06$ | $\operatorname{cost\_reward}\mathrel{+}=0.35$；无进度计数时约为 $c_t-1.35$ | 进入平滑项 | 完成一步提高链路可行性并释放恢复余量 |
+| `step_result.success@structural` | 结构阶段或结构工具成功 | $+0.04$ | $-0.05$ | $0$ | $0$ | 进入平滑项 | 结构验证降低潜在结构失败压力 |
+| `step_result.failed` | 任意步骤失败 | $-0.18$ | $+0.14$ | $-0.12$ | $\operatorname{cost\_penalty}\mathrel{+}=0.75$；无进度计数时约为 $c_t+1.25$ | 进入平滑项 | 失败降低当前后缀可信度并增加剩余成本暴露 |
+| `step_result.failed@structural` | 结构阶段或结构工具失败 | $0$ | $+0.08$ | $0$ | $0$ | 进入平滑项 | 结构失败更强地指向 suffix replan |
+| `step_result.retry_exhausted` | 步骤 metrics 标记 retry exhausted | $-0.05$ | $0$ | $-0.06$ | $\operatorname{cost\_penalty}\mathrel{+}=0.40$ | 进入平滑项 | retry 耗尽会消耗局部恢复空间 |
+| `step_result.skipped` | 步骤被跳过 | $-0.02$ | $0$ | $0$ | $\operatorname{cost\_penalty}\mathrel{+}=0.15$ | 进入平滑项 | skipped 是弱负证据与小成本残留 |
+| `safety_result.warn` | SafetyAgent 返回 warn | $-0.04-0.01n_{\text{warn}}$ | $+0.05$ | $-0.03$ | $\operatorname{cost\_penalty}\mathrel{+}=0.25$ | candidate agreement $-0.08$ 后进入平滑项 | 安全警告降低信心但不终止路线 |
+| `safety_result.block` | SafetyAgent 返回 block | $-0.18-0.02n_{\text{block}}$ | $+0.12+0.01n_{\text{block}}$ | $-0.16$ | $\operatorname{cost\_penalty}\mathrel{+}=0.75$ | candidate agreement $-0.18$ 后进入平滑项 | 安全阻断是强负证据和高恢复压力 |
+| `failure_context.patch_local` | 恢复动作归一化为 `patch_local` | $-0.04$ | $0$ | $-0.07$ | $\operatorname{cost\_penalty}\mathrel{+}=0.60$ | candidate agreement $+0.04$ 后进入平滑项 | 局部修补保留前缀但消耗修复余量 |
+| `failure_context.suffix_replan` | 恢复动作为 `suffix_replan` 或 `replan` | $-0.10$ | $+0.08$ | $-0.12$ | $\operatorname{cost\_penalty}\mathrel{+}=1.20$ | candidate agreement $-0.08$ 后进入平滑项 | 后缀重规划承认当前后缀不可靠 |
+| `failure_context.stop` | 恢复动作为 `stop` | $-0.15$ | $0$ | 设为 $0$ | $0$ | candidate agreement $-0.08$ 后进入平滑项 | stop 在语义上耗尽恢复余量 |
+| `objective_evidence.progress` | objective ranker 给出进展 `p` | $+0.04p$ | $0$ | $0$ | $0$ | 平滑前 $e_t\mathrel{+}=0.03p$ | 目标进展支持当前目标方向 |
+| `objective_evidence.sufficiency` | objective ranker 给出证据充分度 `q` | $0$ | $0$ | $0$ | $0$ | 平滑前 $e_t\mathrel{+}=0.05q$ | 直接目标证据提升证据充分度 |
+| `objective_evidence.gap` | objective ranker 给出目标差距 `g` | $0$ | $0$ | $+0.02g$ | $0$ | 进入平滑项 | 可见目标差距保留有用重排空间 |
+| `progress_counters` | 有 `completed_steps,total_steps` | $0$ | $0$ | $0$ | $\max(\operatorname{total\_steps}-\operatorname{completed\_steps}+\operatorname{cost\_penalty},0)$ | 进入平滑项 | 显式进度覆盖启发式一步成本衰减 |
 
 最后统一执行：
 
-```text
-s_{t+1}, f_{t+1}, r_{t+1}, e_{t+1} in [0,1]
-c_{t+1} >= 0
-```
+$$
+s_{t+1},f_{t+1},r_{t+1},e_{t+1}\in[0,1],
+\qquad c_{t+1}\ge 0
+$$
 
 ## 6. `runtime_adjustment` 公式
 <!-- SID:planner.algorithm.runtime_adjustment_formula -->
@@ -531,33 +705,35 @@ c_{t+1} >= 0
 
 记：
 
-- `s_t = p_success`
-- `f_t = p_structural_failure`
-- `r_t = recovery_margin`
-- `c_t = expected_remaining_cost`
-- `e_t = evidence_sufficiency`
-- `bp_t = clip(budget_pressure, 0, 1)`
+$$
+s_t=p_{\text{success}},\quad
+f_t=p_{\text{structural\_failure}},\quad
+r_t=\operatorname{recovery\_margin},\quad
+c_t=\operatorname{expected\_remaining\_cost},\quad
+e_t=\operatorname{evidence\_sufficiency},\quad
+bp_t=\operatorname{clip}(\operatorname{budget\_pressure},0,1)
+$$
 
 定义：
 
-```text
-Delta(pi,x_t) =
-    k_s * (s_t - 0.5) * Conf(pi)
-  + k_e * (2e_t - 1) * max(Conf(pi), F_s(pi))
-  - k_f * f_t * (1 - RiskScore(pi))
-  + k_r * r_t * RecoveryScore(pi)
-  - k_c * bp_t * (1 - CostScore(pi))
-  + k_a * ActionBias(pi,x_t)
-```
+$$
+\Delta(\pi,x_t)
+= k_s(s_t-0.5)\operatorname{Conf}(\pi)
++ k_e(2e_t-1)\max(\operatorname{Conf}(\pi),F_s(\pi))
+- k_f f_t(1-\operatorname{RiskScore}(\pi))
++ k_r r_t\operatorname{RecoveryScore}(\pi)
+- k_c bp_t(1-\operatorname{CostScore}(\pi))
++ k_a\operatorname{ActionBias}(\pi,x_t)
+$$
 
 其中：
 
-- `Conf(pi)`：候选自身置信度或工程可靠性；
-- `F_s(pi)`：软可行性分数；
-- `RiskScore(pi) = 1 - R_norm(pi)`；
-- `CostScore(pi) = 1 - C_norm(pi)`；
-- `RecoveryScore(pi) = 1 - Rec(pi)`；
-- `ActionBias(pi,x_t)`：根据候选类型、恢复余量、预算压力和前缀保留价值形成的小幅偏置。
+- $\operatorname{Conf}(\pi)$：候选自身置信度或工程可靠性；
+- $F_s(\pi)$：软可行性分数；
+- $\operatorname{RiskScore}(\pi)=1-R_{\text{norm}}(\pi)$；
+- $\operatorname{CostScore}(\pi)=1-C_{\text{norm}}(\pi)$；
+- $\operatorname{RecoveryScore}(\pi)=1-\operatorname{Rec}(\pi)$；
+- $\operatorname{ActionBias}(\pi,x_t)$：根据候选类型、恢复余量、预算压力和前缀保留价值形成的小幅偏置。
 
 `ActionBias` 的解释语义：
 
@@ -574,30 +750,38 @@ Delta(pi,x_t) =
 
 每个 factor 同时保留工程解释 `message` 与论文展示层可用的理论字段：
 
-```text
-term in {recovery_margin, budget_pressure, evidence_sufficiency, ActionBias, recoverability, ...}
-formula_ref in {Eq.(runtime_delta), Eq.(ActionBias)}
-```
+$$
+\operatorname{term}\in
+\{\operatorname{recovery\_margin},\operatorname{budget\_pressure},
+\operatorname{evidence\_sufficiency},\operatorname{ActionBias},
+\operatorname{recoverability},\ldots\}
+$$
+
+$$
+\operatorname{formula\_ref}\in
+\{\operatorname{Eq.(runtime\_delta)},\operatorname{Eq.(ActionBias)}\}
+$$
 
 为避免单次观测过度影响排序：
 
-```text
-Delta(pi,x_t) in [-0.35, 0.35]
-```
+$$
+\Delta(\pi,x_t)\in[-0.35,0.35]
+$$
 
 最终：
 
-```text
-U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
-```
+$$
+U_\pi(\pi,x_t)
+= \operatorname{clip}\left(S_{\text{static}}(\pi)+\Delta(\pi,x_t),0,1\right)
+$$
 
 ### 6.3 常量来源
 
 常量取值遵循以下原则：
 
-- 绝对值不超过 `0.18` 的项是“二级修正项”
-- `0.10 ~ 0.18` 范围用于状态主修正
-- `-0.35 ~ 0.35` 的总截断范围保证 static score 仍是主导项
+- 绝对值不超过 $0.18$ 的项是“二级修正项”
+- $0.10 \sim 0.18$ 范围用于状态主修正
+- $[-0.35,0.35]$ 的总截断范围保证 static score 仍是主导项
 - 风险与预算惩罚项略强于正向奖励项，以符合高代价科研工作流中的保守偏好
 
 换言之，常量不是来自统计学习，而是来自如下可解释约束：
@@ -629,13 +813,13 @@ U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
 在无硬覆盖时采用如下 tie-break：
 
 1. `patch_local` 优先于 `suffix_replan`
-   - 条件：`local_patchability >= 0.55` 且 `recovery_margin >= 0.30`
+- 条件：$\operatorname{local\_patchability}\ge 0.55$ 且 $\operatorname{recovery\_margin}\ge 0.30$
 2. `suffix_replan` 优先于 `full_replan`
-   - 条件：`prefix_preservability >= 0.40`
+- 条件：$\operatorname{prefix\_preservability}\ge 0.40$
 3. `stop` 只能在以下条件同时满足时压过 `suffix_replan`
-   - `U_stop >= 0.68`
-   - `U_stop - second_best >= 0.06`
-   - `intervention_value <= 0.35`
+   - $U_{\text{stop}}\ge 0.68$
+   - $U_{\text{stop}}-\operatorname{second\_best}\ge 0.06$
+   - $\operatorname{intervention\_value}\le 0.35$
 
 ## 8. `stop` 的系统语义
 <!-- SID:planner.algorithm.stop_semantics -->
@@ -683,12 +867,12 @@ U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
 
 仅当以下条件满足时允许自动 stop：
 
-- `allow_auto_stop = true`
-- `U_stop >= 0.72`
-- `p_success <= 0.20`
-- `budget_pressure >= 0.85`
-- `recovery_margin <= 0.20`
-- `intervention_value <= 0.25`
+- $\operatorname{allow\_auto\_stop}=\text{true}$
+- $U_{\text{stop}}\ge 0.72$
+- $p_{\text{success}}\le 0.20$
+- $\operatorname{budget\_pressure}\ge 0.85$
+- $\operatorname{recovery\_margin}\le 0.20$
+- $\operatorname{intervention\_value}\le 0.25$
 
 否则必须走 HITL。
 

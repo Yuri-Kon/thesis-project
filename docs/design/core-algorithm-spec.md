@@ -187,15 +187,18 @@ cebra_wp.v2
 
 定义硬可行性谓词：
 
-```text
-F_h(pi,C,K,h_t) in {0,1}
-```
+$$
+F_h(\pi,\mathcal{C},K,h_t) \in \{0,1\}
+$$
 
-若 `F_h = 0`，候选不得进入自动执行排序。`F_h` 至少包含：
+若 $F_h=0$，候选不得进入自动执行排序。$F_h$ 至少包含：
 
-```text
-F_h = F_tool and F_schema and F_io and F_safety and F_budget_hard and F_availability
-```
+$$
+F_h =
+F_{\text{tool}} \land F_{\text{schema}} \land F_{\text{io}}
+\land F_{\text{safety}} \land F_{\text{budget-hard}}
+\land F_{\text{availability}}
+$$
 
 其中：
 
@@ -208,9 +211,9 @@ F_h = F_tool and F_schema and F_io and F_safety and F_budget_hard and F_availabi
 
 过滤后的候选集合：
 
-```text
-Pi_t = { pi in Pi_raw,t | F_h(pi,C,K,h_t)=1 }
-```
+$$
+\Pi_t = \{\pi \in \Pi_{\text{raw},t}\mid F_h(\pi,\mathcal{C},K,h_t)=1\}
+$$
 
 工程上允许保留 `degraded_feasible` 候选用于解释或 HITL：
 
@@ -288,7 +291,7 @@ Planner 输出分为两类：
 形式化输出：
 
 - 当前候选工具链集合 `Pi_t`
-- 默认推荐链 `pi*`
+- 默认推荐链 $\pi^\ast$
 - 或局部修补 `patch`
 - 或后缀重规划 `suffix_replan`
 - 或终止建议 `stop`
@@ -302,16 +305,18 @@ Planner 输出分为两类：
 
 的工作流级动态规划问题。
 
-与普通 LLM planner 的差异是：CEBRA-WP 不直接执行单条 `LLM(g,C,K)` 输出，而是在每个关键决策点维护如下闭环：
+与普通 LLM planner 的差异是：CEBRA-WP 不直接执行单条 $\operatorname{LLM}(g,\mathcal{C},K)$ 输出，而是在每个关键决策点维护如下闭环：
 
-```text
-Pi_raw,t = GenerateCandidates(g,C,K,h_t)
-Pi_t = FeasibilityFilter(Pi_raw,t,C,K,h_t)
-S_static(pi) = StaticUtility(pi,g,C,K)
-x_{t+1} = BeliefUpdate(x_t,o_t,h_t)
-U_pi(pi,x_t) = RuntimeCandidateUtility(S_static(pi),x_t)
-a_t = RecoveryAwareActionSelection(x_t,Pi_t,h_t)
-```
+$$
+\begin{aligned}
+\Pi_{\text{raw},t} &= \operatorname{GenerateCandidates}(g,\mathcal{C},K,h_t),\\
+\Pi_t &= \operatorname{FeasibilityFilter}(\Pi_{\text{raw},t},\mathcal{C},K,h_t),\\
+S_{\text{static}}(\pi) &= \operatorname{StaticUtility}(\pi,g,\mathcal{C},K),\\
+x_{t+1} &= \operatorname{BeliefUpdate}(x_t,o_t,h_t),\\
+U_\pi(\pi,x_t) &= \operatorname{RuntimeCandidateUtility}(S_{\text{static}}(\pi),x_t),\\
+a_t &= \operatorname{RecoveryAwareActionSelection}(x_t,\Pi_t,h_t).
+\end{aligned}
+$$
 
 ### 4.1 为什么必须使用运行时状态
 
@@ -342,34 +347,36 @@ a_t = RecoveryAwareActionSelection(x_t,Pi_t,h_t)
 
 定义候选静态效用：
 
-```text
-S_static(pi) =
-    w_f   F_s(pi)
-  + w_g   G(pi;g,o_t)
-  - w_c   C_norm(pi)
-  - w_r   R_norm(pi)
-  - w_rec Rec(pi)
-  + w_q   Q(pi)
-```
+$$
+S_{\text{static}}(\pi)
+= w_f F_s(\pi)
++ w_g G(\pi;g,o_t)
+- w_c C_{\text{norm}}(\pi)
+- w_r R_{\text{norm}}(\pi)
+- w_{\text{rec}}\operatorname{Rec}(\pi)
++ w_q Q(\pi)
+$$
 
 其中：
 
-- `F_s(pi)` 是软可行性分数，不等同于硬可行性谓词 `F_h`；
-- `G(pi;g,o_t)` 是目标匹配度；无后验观测时退化为 `G_prior`，有目标证据时使用 `G_post`；
-- `C_norm(pi)` 是归一化成本；
-- `R_norm(pi)` 是归一化风险；
-- `Rec(pi)` 是恢复复杂度；
-- `Q(pi)` 是工程可靠性项，例如工具 readiness、coverage 与 fallback depth；
+- $F_s(\pi)$ 是软可行性分数，不等同于硬可行性谓词 $F_h$；
+- $G(\pi;g,o_t)$ 是目标匹配度；无后验观测时退化为 $G_{\text{prior}}$，有目标证据时使用 $G_{\text{post}}$；
+- $C_{\text{norm}}(\pi)$ 是归一化成本；
+- $R_{\text{norm}}(\pi)$ 是归一化风险；
+- $\operatorname{Rec}(\pi)$ 是恢复复杂度；
+- $Q(\pi)$ 是工程可靠性项，例如工具 readiness、coverage 与 fallback depth；
 - 任一静态 infeasible 候选必须直接淘汰。
 
 为便于实现，也可以把负项改写为正向分数：
 
-```text
-CostScore(pi) = 1 - C_norm(pi)
-RiskScore(pi) = 1 - R_norm(pi)
-RecoveryScore(pi) = 1 - Rec(pi)
-S_static(pi) = sum_k w_k score_k(pi)
-```
+$$
+\begin{aligned}
+\operatorname{CostScore}(\pi) &= 1 - C_{\text{norm}}(\pi),\\
+\operatorname{RiskScore}(\pi) &= 1 - R_{\text{norm}}(\pi),\\
+\operatorname{RecoveryScore}(\pi) &= 1 - \operatorname{Rec}(\pi),\\
+S_{\text{static}}(\pi) &= \sum_k w_k\,\operatorname{score}_k(\pi).
+\end{aligned}
+$$
 
 ### 5.2 六类 Schema
 
@@ -396,41 +403,45 @@ S_static(pi) = sum_k w_k score_k(pi)
 
 蛋白设计目标通常是多目标的，包括结构质量、稳定性、novelty、功能位点保留、binding/interface quality、developability 与安全性等。不同目标的证据质量不同，因此 CEBRA-WP 使用 evidence-weighted posterior goal fit：
 
-```text
-G_post(pi;g,o_t) = sum_{m in M(g)} lambda_m(g) * rho_m(o_t) * q_m(pi,o_t)
-```
+$$
+G_{\text{post}}(\pi;g,o_t)
+= \sum_{m \in M(g)} \lambda_m(g)\,\rho_m(o_t)\,q_m(\pi,o_t)
+$$
 
 其中：
 
-- `M(g)`：任务目标相关的评价维度集合；
-- `lambda_m(g)`：目标维度权重；
-- `q_m(pi,o_t) in [0,1]`：第 `m` 个目标的归一化分数；
-- `rho_m(o_t) in [0,1]`：证据可靠性权重；
-- `o_t`：当前已获得观测。
+- $M(g)$：任务目标相关的评价维度集合；
+- $\lambda_m(g)$：目标维度权重；
+- $q_m(\pi,o_t)\in[0,1]$：第 $m$ 个目标的归一化分数；
+- $\rho_m(o_t)\in[0,1]$：证据可靠性权重；
+- $o_t$：当前已获得观测。
 
 证据状态分为：
 
-```text
-z_m in {direct, proxy, degraded, missing}
-```
+$$
+z_m \in \{\text{direct},\text{proxy},\text{degraded},\text{missing}\}
+$$
 
 对应可靠性：
 
-```text
-rho_m =
-  1.00       if z_m = direct
-  rho_proxy  if z_m = proxy
-  rho_degraded if z_m = degraded
-  0.00       if z_m = missing and no fallback allowed
-```
+$$
+\rho_m =
+\begin{cases}
+1.00, & z_m=\text{direct},\\
+\rho_{\text{proxy}}, & z_m=\text{proxy},\\
+\rho_{\text{degraded}}, & z_m=\text{degraded},\\
+0.00, & z_m=\text{missing 且无可用 fallback}.
+\end{cases}
+$$
 
 当前 `posterior_score.v1` 的显式 component 集合为：
 
-```text
-M_v1 = {generic_objective, stability, function, novelty, structure_quality}
-```
+$$
+M_{\text{v1}} =
+\{\text{generic\_objective},\text{stability},\text{function},\text{novelty},\text{structure\_quality}\}
+$$
 
-`binding` 在 v1 中不是独立 component。若任务目标为 binding/interface quality，其权重通过 `objective_type = "binding"` 映射到上述 component，实际 binding 观测 `binding_score` / `best_pose` 作为 `generic_objective` 的 proxy evidence 进入 `G_post`。payload 必须显式记录：
+`binding` 在 v1 中不是独立 component。若任务目标为 binding/interface quality，其权重通过 `objective_type = "binding"` 映射到上述 component，实际 binding 观测 `binding_score` / `best_pose` 作为 `generic_objective` 的 proxy evidence 进入 $G_{\text{post}}$。payload 必须显式记录：
 
 ```text
 binding_policy = "folded_into_generic_objective"
@@ -441,10 +452,12 @@ binding_evidence = {"source": "binding_score|best_pose", "role": "proxy"}
 
 整体证据充分度定义为：
 
-```text
-E(o_t) = sum_m lambda_m(g) * rho_m(o_t)
-e_t = clip(E(o_t), 0, 1)
-```
+$$
+\begin{aligned}
+E(o_t) &= \sum_m \lambda_m(g)\,\rho_m(o_t),\\
+e_t &= \operatorname{clip}(E(o_t),0,1).
+\end{aligned}
+$$
 
 它进入 Lite belief-state 的 `evidence_sufficiency`。
 
@@ -587,13 +600,13 @@ Replan 的目标是：
 
 | 理论符号 | 实现近似字段 | 说明 |
 | --- | --- | --- |
-| `F_s` | `score_breakdown.feasibility` | 由 tool coverage、readiness 与 fallback depth 近似 |
-| `G_prior` / `G_post` | `score_breakdown.objective`, `posterior_objective` | 初始阶段用先验目标匹配；执行后可用证据加权后验目标 |
-| `C_norm` | `1 - score_breakdown.cost` | 成本越高，cost score 越低 |
-| `R_norm` | `1 - score_breakdown.risk` | 风险越高，risk score 越低 |
-| `Rec` | `score_breakdown.recovery_complexity` | `1 - recoverability` |
-| `Q` | `confidence`, `tool_readiness`, `tool_coverage`, `fallback_depth` | 工程可靠性补充项 |
-| `S_static` | `score_breakdown.overall` / `static_score` | 静态总分 |
+| $F_s$ | `score_breakdown.feasibility` | 由 tool coverage、readiness 与 fallback depth 近似 |
+| $G_{\text{prior}}$ / $G_{\text{post}}$ | `score_breakdown.objective`, `posterior_objective` | 初始阶段用先验目标匹配；执行后可用证据加权后验目标 |
+| $C_{\text{norm}}$ | $1-\operatorname{score\_breakdown.cost}$ | 成本越高，cost score 越低 |
+| $R_{\text{norm}}$ | $1-\operatorname{score\_breakdown.risk}$ | 风险越高，risk score 越低 |
+| $\operatorname{Rec}$ | `score_breakdown.recovery_complexity` | $1-\operatorname{recoverability}$ |
+| $Q$ | `confidence`, `tool_readiness`, `tool_coverage`, `fallback_depth` | 工程可靠性补充项 |
+| $S_{\text{static}}$ | `score_breakdown.overall` / `static_score` | 静态总分 |
 
 ### 9.2 `score_breakdown`
 
@@ -618,24 +631,25 @@ Replan 的目标是：
 
 推荐固定映射：
 
-- `value < 0.33 -> low`
-- `0.33 <= value < 0.66 -> medium`
-- `value >= 0.66 -> high`
+- $\operatorname{value}<0.33 \rightarrow \text{low}$
+- $0.33 \le \operatorname{value} < 0.66 \rightarrow \text{medium}$
+- $\operatorname{value} \ge 0.66 \rightarrow \text{high}$
 
 这些阈值必须在实现中作为常量或配置项固定。
 
 ### 9.4 Top-K diversity
 <!-- SID:planner.algorithm.topk_diversity -->
 
-CEBRA-WP 不只输出单个 `pi_t*`，还输出 Top-K：
+CEBRA-WP 不只输出单个 $\pi_t^\ast$，还输出 Top-K：
 
-```text
-TopK_t = SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
-```
+$$
+\operatorname{TopK}_t =
+\operatorname{SelectDiverseTopK}(\Pi_t,U_\pi,k,\operatorname{capability\_coverage})
+$$
 
 选择规则：
 
-- 先按 `U_pi` 或 `S_static` 建立稳定排序；
+- 先按 $U_\pi$ 或 $S_{\text{static}}$ 建立稳定排序；
 - 再按 capability bucket 执行 round-robin 选择；
 - 当候选缺少 capability bucket 或全部落入同一 bucket 时，退化为稳定分数排序；
 - 退化路径必须写入 metadata，避免把纯排序误解释为 diversity 增益。
@@ -657,17 +671,17 @@ Top-K metadata 至少应记录：
 
 CEBRA-WP v2 的 Lite belief-state 采用 5 维核心状态：
 
-```text
-x_t = (s_t, f_t, r_t, c_t, e_t)
-```
+$$
+x_t = (s_t,f_t,r_t,c_t,e_t)
+$$
 
 其中：
 
-- `s_t = p_success`：当前工作流最终成功概率的代理估计；
-- `f_t = p_structural_failure`：结构性失败压力；
-- `r_t = recovery_margin`：恢复余量；
-- `c_t = expected_remaining_cost`：预期剩余成本，保持原始非负成本尺度，可大于 1；
-- `e_t = evidence_sufficiency`：当前证据充分度。
+- $s_t=p_{\text{success}}$：当前工作流最终成功概率的代理估计；
+- $f_t=p_{\text{structural\_failure}}$：结构性失败压力；
+- $r_t=\operatorname{recovery\_margin}$：恢复余量；
+- $c_t=\operatorname{expected\_remaining\_cost}$：预期剩余成本，保持原始非负成本尺度，可大于 1；
+- $e_t=\operatorname{evidence\_sufficiency}$：当前证据充分度。
 
 说明：
 
@@ -711,33 +725,34 @@ x_t = (s_t, f_t, r_t, c_t, e_t)
 
 运行时重排序遵循：
 
-```text
-U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
-```
+$$
+U_\pi(\pi,x_t)
+= \operatorname{clip}\left(S_{\text{static}}(\pi)+\Delta(\pi,x_t),0,1\right)
+$$
 
 其中：
 
 - `static_score` 是静态评分器输出；
-- `Delta(pi,x_t)` 是运行时状态与候选形状共同作用的有界修正项；
-- `Delta(pi,x_t)` 只作用于已通过可执行性校验的候选。
+- $\Delta(\pi,x_t)$ 是运行时状态与候选形状共同作用的有界修正项；
+- $\Delta(\pi,x_t)$ 只作用于已通过可执行性校验的候选。
 
 无 runtime state 时退化为：
 
-```text
-pi_t* = argmax_{pi in Pi_t} S_static(pi)
-```
+$$
+\pi_t^\ast = \arg\max_{\pi \in \Pi_t} S_{\text{static}}(\pi)
+$$
 
 有 runtime state 时：
 
-```text
-pi_t* = argmax_{pi in Pi_t} U_pi(pi,x_t)
-```
+$$
+\pi_t^\ast = \arg\max_{\pi \in \Pi_t} U_\pi(\pi,x_t)
+$$
 
 ### 11.3 设计约束
 
 运行时重排序必须满足：
 
-- 不改变 `feasibility = 0` 候选的淘汰结果
+- 不改变 $\operatorname{feasibility}=0$ 候选的淘汰结果
 - 不用 runtime 项覆盖静态 I/O / schema / safety 违规
 - 总修正范围有限，防止 runtime 项吞掉静态排序
 
@@ -779,19 +794,19 @@ pi_t* = argmax_{pi in Pi_t} U_pi(pi,x_t)
    - 当前候选直接淘汰
 3. `retry_exhausted` 且局部可修
    - `patch_local` 先于 `suffix_replan`
-4. `prefix_preservability >= 0.40`
+4. $\operatorname{prefix\_preservability}\ge 0.40$
    - `suffix_replan` 先于 `full_replan`
 
 ### 12.4 `stop` 的选择门槛
 
 只有满足以下条件时才允许自动 stop：
 
-- `allow_auto_stop = true`
-- `U_stop >= 0.72`
-- `p_success <= 0.20`
-- `budget_pressure >= 0.85`
-- `recovery_margin <= 0.20`
-- `intervention_value <= 0.25`
+- $\operatorname{allow\_auto\_stop}=\text{true}$
+- $U_{\text{stop}}\ge 0.72$
+- $p_{\text{success}}\le 0.20$
+- $\operatorname{budget\_pressure}\ge 0.85$
+- $\operatorname{recovery\_margin}\le 0.20$
+- $\operatorname{intervention\_value}\le 0.25$
 
 否则：
 
@@ -808,14 +823,14 @@ pi_t* = argmax_{pi in Pi_t} U_pi(pi,x_t)
 完成候选生成与排序后，只要满足以下任一条件，就进入 HITL：
 
 1. 系统配置要求确认
-2. `risk >= risk_threshold`
-3. `cost >= cost_threshold`
+2. $\operatorname{risk}\ge \operatorname{risk\_threshold}$
+3. $\operatorname{cost}\ge \operatorname{cost\_threshold}$
 4. `SafetyAgent.action = block`
 5. 推荐动作为 `stop`，但不满足自动 stop 条件
 
 ### 13.2 输出要求
 
-- 默认 `K = 3`
+- 默认 $K=3$
 - 候选按 `final_score` 排序
 - 必须给出 `default_suggestion`
 - 必须给出对候选集总体差异的解释

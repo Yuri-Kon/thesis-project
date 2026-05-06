@@ -69,17 +69,20 @@ ______________________________________________________________________
 
 ### 3.3 优化目标
 
-在约束集合 `C` 下，选择最优候选 `c*`：
+在约束集合 $\mathcal{C}$ 下，选择最优候选 $c^\ast$：
 
-`c* = argmax U_pi(c, x_t | C, runtime_context)`
+$$
+c^\ast = \arg\max_c U_\pi(c,x_t\mid \mathcal{C},\operatorname{runtime\_context})
+$$
 
-其中 `U_pi` 由静态候选效用和有界运行时修正组成：
+其中 $U_\pi$ 由静态候选效用和有界运行时修正组成：
 
-```text
-U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
-```
+$$
+U_\pi(\pi,x_t)
+= \operatorname{clip}\left(S_{\text{static}}(\pi)+\Delta(\pi,x_t),0,1\right)
+$$
 
-`S_static` 由软可行性、目标匹配、成本、风险、恢复复杂度和工程可靠性组成；`Delta` 由 Lite belief-state、预算压力、证据充分度和 `ActionBias` 共同决定。
+$S_{\text{static}}$ 由软可行性、目标匹配、成本、风险、恢复复杂度和工程可靠性组成；$\Delta$ 由 Lite belief-state、预算压力、证据充分度和 $\operatorname{ActionBias}$ 共同决定。
 
 ______________________________________________________________________
 
