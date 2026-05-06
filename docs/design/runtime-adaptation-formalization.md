@@ -13,6 +13,7 @@
 - 运行时观测到状态更新的正式映射
 
 本文档是 [core-algorithm-spec.md](./core-algorithm-spec.md) 的支持性细化说明；算法 SSOT 仍以 `core-algorithm-spec.md` 为准。
+理论对象、代表文献与代码落点的稳定映射见 [core-algorithm-theory-map.md](./core-algorithm-theory-map.md)。
 
 ## 2. 设计依据与建模立场
 <!-- SID:algo.runtime.design_basis -->
@@ -91,8 +92,8 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
    - 取值范围：`[0, 1]`
 4. `expected_remaining_cost`
    - 含义：从当前时刻到任务终止的剩余成本暴露
-   - 标准化范围：`[0, 1.5]`
-   - `1.0` 表示“约等于一个完整高代价后缀的标准暴露”
+   - 取值范围：非负实数，可大于 `1`
+   - 说明：该字段保留原始剩余成本估计，不直接承担预算压力语义
 5. `evidence_sufficiency`
    - 含义：当前是否已经积累到足够证据支持继续进入更昂贵步骤
    - 取值范围：`[0, 1]`
@@ -125,6 +126,12 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 `budget_pressure = clip(expected_remaining_cost, 0, 1.5)`
 
+因此：
+
+- `expected_remaining_cost` 是可持久化的剩余成本估计；
+- `budget_pressure` 是按当前预算上下文派生的归一化压力；
+- 动作效用与 stop guard 使用 `budget_pressure`，不得把 `expected_remaining_cost` 直接误解释为 `[0,1]` 压力。
+
 #### `intervention_value`
 
 `intervention_value` 用于估计“此时让人介入是否可能改善结果”，定义为：
@@ -148,7 +155,7 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 
 以下六类 schema 共同构成 Lite belief-state 与运行时动作选择的最小形式化接口：`cost`、`risk`、`recovery`、`state`、`observation`、`action_utility`。
 
-## 4.1 Cost Schema
+### 4.1 Cost Schema
 <!-- SID:algo.schema.cost -->
 
 ### 4.1.1 成本组成
@@ -208,7 +215,15 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 - `observed_overrun_t`：当前步骤已发生显著超时、重试或队列等待
 - `completed_credit_t`：完成高代价关键步骤后，后续暴露下降
 
-## 4.2 Risk Schema
+实现层允许采用更直接的计数式更新：
+
+```text
+expected_remaining_cost_t = max(total_steps - completed_steps + cost_penalty, 0)
+```
+
+或在缺少显式进度计数时使用启发式一步衰减/惩罚。无论使用哪种方式，持久化字段都保持非负成本尺度；预算压力由本节派生公式单独计算。
+
+### 4.2 Risk Schema
 <!-- SID:algo.schema.risk -->
 
 ### 4.2.1 风险组成
@@ -234,7 +249,7 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 - 若 `SafetyResult.action = block`，则 `risk(pi) = 1.0`
 - 若候选存在未闭合 I/O 或 schema 违规，则不进入风险打分，直接判 infeasible
 
-## 4.3 Recovery Schema
+### 4.3 Recovery Schema
 <!-- SID:algo.schema.recovery -->
 
 ### 4.3.1 恢复性组成
@@ -261,7 +276,7 @@ Lite belief-state 只保留对动作选择真正必要的隐状态，不试图�
 - 高 `local_patchability`、高 `prefix_preservability`、高 `retry_budget_ratio` 提高恢复余量
 - 高结构性失败压力和高预算压力降低恢复余量
 
-## 4.4 State Schema
+### 4.4 State Schema
 <!-- SID:algo.schema.state -->
 
 ### 4.4.1 状态向量
@@ -284,7 +299,7 @@ Lite belief-state 记为：
 
 - `cheap_evidence_coverage(pi*)` 反映是否在高代价步骤前插入了低成本验证层
 
-## 4.5 Observation Schema
+### 4.5 Observation Schema
 <!-- SID:algo.schema.observation -->
 
 ### 4.5.1 观测来源
@@ -349,7 +364,7 @@ Lite belief-state 记为：
 - 是否达到 objective threshold
 - 多指标分歧
 
-## 4.6 Action-Utility Schema
+### 4.6 Action-Utility Schema
 <!-- SID:algo.schema.action_utility -->
 
 ### 4.6.1 动作空间
@@ -393,7 +408,7 @@ Lite belief-state 记为：
 ## 5. 运行时状态更新
 <!-- SID:planner.algorithm.runtime_update_rules -->
 
-## 5.1 `p_success`
+### 5.1 `p_success`
 
 令：
 
@@ -415,7 +430,7 @@ Lite belief-state 记为：
 
 `failure_signal_t = 0.35 * hard_failure + 0.25 * retry_exhausted + 0.20 * safety_warn_block + 0.20 * cost_overrun`
 
-## 5.2 `p_structural_failure`
+### 5.2 `p_structural_failure`
 
 令：
 
@@ -434,7 +449,7 @@ Lite belief-state 记为：
 
 `structural_recovery_signal_t = 0.60 * high_conf_structure_success + 0.40 * stable_refinement_gain`
 
-## 5.3 `evidence_sufficiency`
+### 5.3 `evidence_sufficiency`
 
 定义：
 
@@ -446,10 +461,64 @@ Lite belief-state 记为：
 - 如果 Top-K 差距很大且存在廉价验证信号，`candidate_agreement` 升高；
 - 如果高代价步骤前没有任何廉价门禁，`cheap_validation_coverage` 下降。
 
+### 5.4 当前实现的确定性更新表
+
+为保持工程可审计性，当前 `B(x_t,o_t,h_t)` 采用确定性规则表，而不是学习到的 Bayesian transition model。通用形式为：
+
+```text
+x_{t+1} = B(x_t,o_t,h_t)
+```
+
+当前实现可等价表示为：
+
+```text
+s_{t+1} = clip(s_t + delta_s(o_t,h_t))
+f_{t+1} = clip(f_t + delta_f(o_t,h_t))
+r_{t+1} = clip(r_t + delta_r(o_t,h_t))
+c_{t+1} = max(0, C_update(c_t,o_t,h_t))
+e_{t+1} = clip(0.70 * e_t + 0.30 * evidence_signal_t)
+```
+
+其中：
+
+```text
+evidence_signal_t =
+    0.40 * cheap_validation_coverage_t
+  + 0.30 * candidate_agreement_t
+  + 0.30 * metric_completeness_t
+```
+
+下表与实现中的 `BELIEF_STATE_UPDATE_RULES` 对齐。表中 `n_warn` / `n_block` 表示对应安全标记数量；`p,q,g` 均先裁剪到 `[0,1]`；未列字段保持不变。
+
+| 观测信号 | 触发条件 | `delta_s` | `delta_f` | `delta_r` | `c_t` 更新 | `e_t` 更新 | 解释 |
+| --- | --- | ---: | ---: | ---: | --- | --- | --- |
+| `step_result.success` | 任意步骤成功 | `+0.12` | `-0.08` | `+0.06` | `cost_reward += 0.35`；无进度计数时约为 `c_t - 1.35` | 进入平滑项 | 完成一步提高链路可行性并释放恢复余量 |
+| `step_result.success@structural` | 结构阶段或结构工具成功 | `+0.04` | `-0.05` | `0` | `0` | 进入平滑项 | 结构验证降低潜在结构失败压力 |
+| `step_result.failed` | 任意步骤失败 | `-0.18` | `+0.14` | `-0.12` | `cost_penalty += 0.75`；无进度计数时约为 `c_t + 1.25` | 进入平滑项 | 失败降低当前后缀可信度并增加剩余成本暴露 |
+| `step_result.failed@structural` | 结构阶段或结构工具失败 | `0` | `+0.08` | `0` | `0` | 进入平滑项 | 结构失败更强地指向 suffix replan |
+| `step_result.retry_exhausted` | 步骤 metrics 标记 retry exhausted | `-0.05` | `0` | `-0.06` | `cost_penalty += 0.40` | 进入平滑项 | retry 耗尽会消耗局部恢复空间 |
+| `step_result.skipped` | 步骤被跳过 | `-0.02` | `0` | `0` | `cost_penalty += 0.15` | 进入平滑项 | skipped 是弱负证据与小成本残留 |
+| `safety_result.warn` | SafetyAgent 返回 warn | `-0.04 - 0.01*n_warn` | `+0.05` | `-0.03` | `cost_penalty += 0.25` | candidate agreement `-0.08` 后进入平滑项 | 安全警告降低信心但不终止路线 |
+| `safety_result.block` | SafetyAgent 返回 block | `-0.18 - 0.02*n_block` | `+0.12 + 0.01*n_block` | `-0.16` | `cost_penalty += 0.75` | candidate agreement `-0.18` 后进入平滑项 | 安全阻断是强负证据和高恢复压力 |
+| `failure_context.patch_local` | 恢复动作归一化为 `patch_local` | `-0.04` | `0` | `-0.07` | `cost_penalty += 0.60` | candidate agreement `+0.04` 后进入平滑项 | 局部修补保留前缀但消耗修复余量 |
+| `failure_context.suffix_replan` | 恢复动作为 `suffix_replan` 或 `replan` | `-0.10` | `+0.08` | `-0.12` | `cost_penalty += 1.20` | candidate agreement `-0.08` 后进入平滑项 | 后缀重规划承认当前后缀不可靠 |
+| `failure_context.stop` | 恢复动作为 `stop` | `-0.15` | `0` | 设为 `0` | `0` | candidate agreement `-0.08` 后进入平滑项 | stop 在语义上耗尽恢复余量 |
+| `objective_evidence.progress` | objective ranker 给出进展 `p` | `+0.04*p` | `0` | `0` | `0` | 平滑前 `e_t += 0.03*p` | 目标进展支持当前目标方向 |
+| `objective_evidence.sufficiency` | objective ranker 给出证据充分度 `q` | `0` | `0` | `0` | `0` | 平滑前 `e_t += 0.05*q` | 直接目标证据提升证据充分度 |
+| `objective_evidence.gap` | objective ranker 给出目标差距 `g` | `0` | `0` | `+0.02*g` | `0` | 进入平滑项 | 可见目标差距保留有用重排空间 |
+| `progress_counters` | 有 `completed_steps,total_steps` | `0` | `0` | `0` | `max(total_steps - completed_steps + cost_penalty, 0)` | 进入平滑项 | 显式进度覆盖启发式一步成本衰减 |
+
+最后统一执行：
+
+```text
+s_{t+1}, f_{t+1}, r_{t+1}, e_{t+1} in [0,1]
+c_{t+1} >= 0
+```
+
 ## 6. `runtime_adjustment` 公式
 <!-- SID:planner.algorithm.runtime_adjustment_formula -->
 
-## 6.1 设计原则
+### 6.1 设计原则
 
 `runtime_adjustment` 必须满足：
 
@@ -458,43 +527,71 @@ Lite belief-state 记为：
 - 上下界有限，避免 runtime 项压过静态可执行性和任务匹配项
 - 能分解成“状态项 + 候选形状项”
 
-## 6.2 统一公式
+### 6.2 统一公式
 
 记：
 
-- `b = clip(budget_pressure, 0, 1)`
-- `s = p_success`
-- `f = p_structural_failure`
-- `r = recovery_margin`
-- `e = evidence_sufficiency`
+- `s_t = p_success`
+- `f_t = p_structural_failure`
+- `r_t = recovery_margin`
+- `c_t = expected_remaining_cost`
+- `e_t = evidence_sufficiency`
+- `bp_t = clip(budget_pressure, 0, 1)`
 
-定义基础状态项：
+定义：
 
-`base_runtime_term = 0.18 * (2s - 1) - 0.16 * f - 0.14 * b + 0.14 * r + 0.10 * (2e - 1)`
+```text
+Delta(pi,x_t) =
+    k_s * (s_t - 0.5) * Conf(pi)
+  + k_e * (2e_t - 1) * max(Conf(pi), F_s(pi))
+  - k_f * f_t * (1 - RiskScore(pi))
+  + k_r * r_t * RecoveryScore(pi)
+  - k_c * bp_t * (1 - CostScore(pi))
+  + k_a * ActionBias(pi,x_t)
+```
 
-### PlanCandidate
+其中：
 
-`plan_term = 0.10 * cheap_gate_gain - 0.12 * remaining_high_cost_exposure - 0.06 * novel_tool_penalty + 0.06 * tool_reliability_gain`
+- `Conf(pi)`：候选自身置信度或工程可靠性；
+- `F_s(pi)`：软可行性分数；
+- `RiskScore(pi) = 1 - R_norm(pi)`；
+- `CostScore(pi) = 1 - C_norm(pi)`；
+- `RecoveryScore(pi) = 1 - Rec(pi)`；
+- `ActionBias(pi,x_t)`：根据候选类型、恢复余量、预算压力和前缀保留价值形成的小幅偏置。
 
-### PatchCandidate
+`ActionBias` 的解释语义：
 
-`patch_term = 0.16 * patch_locality + 0.10 * tool_reliability_gain + 0.08 * budget_relief - 0.08 * patch_span_penalty - 0.06 * high_cost_exposure`
+- patch 候选在 fallback/recovery 充足时加分；
+- suffix_replan 在结构性失败压力高且保留前缀可行时加分；
+- stop 是 terminal action；对普通候选排序只能以受保护方式影响，不得绕过 stop guard。
 
-### ReplanCandidate
+实现中该理论对象由 `metadata.runtime_adjustment.action_bias` 承载，包含：
 
-`replan_term = 0.16 * prefix_preservation_ratio + 0.12 * budget_relief + 0.10 * risk_relief - 0.10 * full_reset_penalty - 0.06 * novel_tool_penalty`
+- `action`
+- `value`
+- `factors`
+- `source_refs`
 
-因此：
+每个 factor 同时保留工程解释 `message` 与论文展示层可用的理论字段：
 
-- `runtime_adjustment_plan = clip(base_runtime_term + plan_term, -0.35, 0.35)`
-- `runtime_adjustment_patch = clip(base_runtime_term + patch_term, -0.35, 0.35)`
-- `runtime_adjustment_replan = clip(base_runtime_term + replan_term, -0.35, 0.35)`
+```text
+term in {recovery_margin, budget_pressure, evidence_sufficiency, ActionBias, recoverability, ...}
+formula_ref in {Eq.(runtime_delta), Eq.(ActionBias)}
+```
+
+为避免单次观测过度影响排序：
+
+```text
+Delta(pi,x_t) in [-0.35, 0.35]
+```
 
 最终：
 
-`final_score = clip(static_score + runtime_adjustment, 0, 1)`
+```text
+U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
+```
 
-## 6.3 常量来源
+### 6.3 常量来源
 
 常量取值遵循以下原则：
 
@@ -512,7 +609,7 @@ Lite belief-state 记为：
 ## 7. 优先级冲突处理
 <!-- SID:planner.algorithm.action_priority_resolution -->
 
-### 7.1 硬约束优先级
+#### 7.1 硬约束优先级
 
 以下情况优先于效用比较：
 
@@ -527,7 +624,7 @@ Lite belief-state 记为：
 3. 终止态与 WAITING 语义
    - 任何自动动作不得跳过 snapshot / event log / pending action 规则
 
-### 7.2 软冲突优先级
+#### 7.2 软冲突优先级
 
 在无硬覆盖时采用如下 tie-break：
 
@@ -543,7 +640,7 @@ Lite belief-state 记为：
 ## 8. `stop` 的系统语义
 <!-- SID:planner.algorithm.stop_semantics -->
 
-### 8.1 基本语义
+#### 8.1 基本语义
 
 `stop` 表示：
 
@@ -551,7 +648,7 @@ Lite belief-state 记为：
 - 推荐终止进一步高代价执行；
 - 该终止应被当作一种“带理由的控制动作”，而不是异常。
 
-### 8.2 与现有架构的兼容设计
+#### 8.2 与现有架构的兼容设计
 
 第一版不强制新增 FSM 状态。
 
@@ -563,12 +660,12 @@ Lite belief-state 记为：
 
 即：
 
-- `replan_mode = suffix_replan`
+- `replan_mode = terminal_stop`
 - `terminal_policy = stop`
 - `preserve_prefix_until_step_index` 可保留已验证前缀
 - `accept(stop)` 后写入终止快照并进入 `FAILED`
 
-### 8.3 为什么不默认映射到 `CANCELLED`
+#### 8.3 为什么不默认映射到 `CANCELLED`
 
 `CANCELLED` 表示用户主动终止；
 `stop` 表示系统根据成本、风险与恢复性做出的“止损建议”。
@@ -582,7 +679,7 @@ Lite belief-state 记为：
   - `unsafe_to_continue`
   - `recovery_exhausted`
 
-### 8.4 自动 stop 规则
+#### 8.4 自动 stop 规则
 
 仅当以下条件满足时允许自动 stop：
 
@@ -598,7 +695,7 @@ Lite belief-state 记为：
 ## 9. 工程实现建议
 <!-- SID:impl.runtime.integration_guidelines -->
 
-### 9.1 持久化字段
+#### 9.1 持久化字段
 
 建议持久化：
 
@@ -614,7 +711,7 @@ Lite belief-state 记为：
 - `runtime_action_summary`
   - 最近一次动作建议及其证据
 
-### 9.2 审计字段
+#### 9.2 审计字段
 
 候选与事件中建议增加：
 

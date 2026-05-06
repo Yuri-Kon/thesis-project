@@ -1,19 +1,50 @@
 ---
 doc_key: algo
-version: 2.0
+version: 2.1
 status: stable
 depends_on: [arch, agent, workflow, tools, impl]
 ---
 
 # core-algorithm-spec
 
-> 版本：v1.0
+> 版本：v2.0 / `cebra_wp.v2`
 > 角色：本项目核心算法的单一真源（SSOT）
-> 依据：`../thesis-research-notes/notes/new-algorithm*`
+> 方法名：CEBRA-WP, Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning
 > 配套文档：
 > - `runtime-adaptation-formalization.md`
 > - `active-tool-metadata-profile.md`
+> - `core-algorithm-theory-map.md`
 > - `../experiment/algorithm-group-paper-mapping.md`
+
+---
+
+## 0. 版本体系
+<!-- SID:algo.version.registry -->
+
+本文档定义算法总版本 `cebra_wp.v2`。总版本不替代各 payload 的 `schema_version`，而是把当前论文算法使用的子公式、schema 与实现引用归档到同一版本下：
+
+```text
+cebra_wp.v2
+├─ static_score.v1
+├─ posterior_score.v1
+├─ runtime_adjustment.v1
+├─ action_utility.v1
+└─ action_bias.v1
+```
+
+| 子公式 | schema / payload 版本 | 主要实现引用 |
+| --- | --- | --- |
+| `static_score.v1` | `score_breakdown.v1` | `impl:planner.score_breakdown.v1` |
+| `posterior_score.v1` | `posterior_score.v1`, `posterior_objective.v1` | `impl:posterior_score.v1`, `impl:posterior_objective.v1` |
+| `runtime_adjustment.v1` | `runtime_adjustment.v1` | `impl:planner.runtime_adjustment.v1` |
+| `action_utility.v1` | `action_utility.v1`, `action_features.v1` | `impl:runtime_evaluator.action_utility.v1`, `impl:workflow.action_features.v1` |
+| `action_bias.v1` | `action_bias.v1` | `impl:runtime_evaluator.compute_runtime_delta.v1` |
+
+维护规则：
+
+- 若字段语义、公式含义或 payload 兼容性发生变化，必须先升级对应子版本；
+- 若只调整解释文本、注释或图示，不升级算法总版本；
+- 代码侧版本 registry 以 `src.models.algorithm_versions` 为实现入口，设计侧以本文档为语义真源。
 
 ---
 
@@ -22,9 +53,9 @@ depends_on: [arch, agent, workflow, tools, impl]
 
 ### 1.1 本文档覆盖的内容
 
-本文档定义本项目的核心算法：
+本文档定义本项目的核心算法 CEBRA-WP：
 
-**面向高代价蛋白质设计工作流的自适应工具链规划算法**
+**面向高代价蛋白质设计工作流的约束化、证据感知、信念引导、恢复自适应工具链规划算法**
 
 该算法研究的不是“从多个工具里选一个最匹配工具”，而是：
 
@@ -39,8 +70,10 @@ depends_on: [arch, agent, workflow, tools, impl]
 - 问题建模
 - 候选与输出契约
 - 静态评分
+- posterior objective scoring
 - Lite belief-state 的角色
 - 运行时重排序
+- Top-K diversity
 - 动作选择
 - `stop` 的算法语义
 - HITL 与 Decision 应用逻辑
@@ -111,6 +144,7 @@ depends_on: [arch, agent, workflow, tools, impl]
 - `risk_level`
 - `cost_estimate`
 - `explanation`
+- `source_refs`
 
 推荐追加以下运行时解释字段：
 
@@ -119,6 +153,8 @@ depends_on: [arch, agent, workflow, tools, impl]
 - `suggested_action`
 - `action_utility`
 - `runtime_state_summary`
+- `posterior_objective`
+- `topk_diversity`
 
 说明：
 
@@ -145,6 +181,42 @@ depends_on: [arch, agent, workflow, tools, impl]
 - 已验证前缀仍然作为审计资产保留
 - 若人接受该候选，则任务进入 `FAILED`
 - `CANCELLED` 仅用于用户主动取消，不由算法自动触发
+
+### 2.4 硬可行性与 degraded feasible
+<!-- SID:algo.adaptive.feasibility_filter -->
+
+定义硬可行性谓词：
+
+```text
+F_h(pi,C,K,h_t) in {0,1}
+```
+
+若 `F_h = 0`，候选不得进入自动执行排序。`F_h` 至少包含：
+
+```text
+F_h = F_tool and F_schema and F_io and F_safety and F_budget_hard and F_availability
+```
+
+其中：
+
+- `F_tool`：候选中所有工具必须存在于工具能力图；
+- `F_schema`：输入输出字段必须满足工具 schema；
+- `F_io`：跨步骤引用必须闭合；
+- `F_safety`：候选不能违反安全等级或 safety block；
+- `F_budget_hard`：不能超过不可突破预算或成本上限；
+- `F_availability`：关键工具必须可用。
+
+过滤后的候选集合：
+
+```text
+Pi_t = { pi in Pi_raw,t | F_h(pi,C,K,h_t)=1 }
+```
+
+工程上允许保留 `degraded_feasible` 候选用于解释或 HITL：
+
+- `degraded_feasible` 表示候选未完全满足理想证据、readiness 或 fallback 条件，但未触犯硬禁令；
+- `degraded_feasible` 候选必须带 `requires_hitl = true` 或等价保护字段；
+- `degraded_feasible` 不得在无 HITL 或无显式策略授权时静默自动执行。
 
 ---
 
@@ -207,10 +279,11 @@ Planner 输出分为两类：
 形式化输入：
 
 - 设计目标 `g`
-- 约束集合 `c`
+- 约束集合 `C`
 - 工具能力图 `K`
-- 当前执行上下文 `x_t`
+- 当前执行历史 `h_t`
 - 当前运行时观测 `o_t`
+- 当前运行时 belief-state `x_t`
 
 形式化输出：
 
@@ -228,6 +301,17 @@ Planner 输出分为两类：
 - `recovery-aware`
 
 的工作流级动态规划问题。
+
+与普通 LLM planner 的差异是：CEBRA-WP 不直接执行单条 `LLM(g,C,K)` 输出，而是在每个关键决策点维护如下闭环：
+
+```text
+Pi_raw,t = GenerateCandidates(g,C,K,h_t)
+Pi_t = FeasibilityFilter(Pi_raw,t,C,K,h_t)
+S_static(pi) = StaticUtility(pi,g,C,K)
+x_{t+1} = BeliefUpdate(x_t,o_t,h_t)
+U_pi(pi,x_t) = RuntimeCandidateUtility(S_static(pi),x_t)
+a_t = RecoveryAwareActionSelection(x_t,Pi_t,h_t)
+```
 
 ### 4.1 为什么必须使用运行时状态
 
@@ -256,15 +340,36 @@ Planner 输出分为两类：
 - 更低恢复复杂度
 - 更合理的人机分工
 
-定义候选效用：
+定义候选静态效用：
 
-`Utility(pi, x_t) = alpha * Feasibility + beta * GoalFit - gamma * Cost - delta * Risk - eta * RecoveryComplexity - zeta * HumanInterventionCost`
+```text
+S_static(pi) =
+    w_f   F_s(pi)
+  + w_g   G(pi;g,o_t)
+  - w_c   C_norm(pi)
+  - w_r   R_norm(pi)
+  - w_rec Rec(pi)
+  + w_q   Q(pi)
+```
 
 其中：
 
-- `Feasibility` 是硬约束；
-- `GoalFit`、`Cost`、`Risk`、`RecoveryComplexity`、`HumanInterventionCost` 是联合决策变量；
+- `F_s(pi)` 是软可行性分数，不等同于硬可行性谓词 `F_h`；
+- `G(pi;g,o_t)` 是目标匹配度；无后验观测时退化为 `G_prior`，有目标证据时使用 `G_post`；
+- `C_norm(pi)` 是归一化成本；
+- `R_norm(pi)` 是归一化风险；
+- `Rec(pi)` 是恢复复杂度；
+- `Q(pi)` 是工程可靠性项，例如工具 readiness、coverage 与 fallback depth；
 - 任一静态 infeasible 候选必须直接淘汰。
+
+为便于实现，也可以把负项改写为正向分数：
+
+```text
+CostScore(pi) = 1 - C_norm(pi)
+RiskScore(pi) = 1 - R_norm(pi)
+RecoveryScore(pi) = 1 - Rec(pi)
+S_static(pi) = sum_k w_k score_k(pi)
+```
 
 ### 5.2 六类 Schema
 
@@ -283,6 +388,65 @@ Planner 输出分为两类：
 - [active-tool-metadata-profile.md](./active-tool-metadata-profile.md)
 
 本文档只保留其在算法层的使用语义。
+
+---
+
+### 5.3 证据感知后验目标评分
+<!-- SID:algo.posterior.objective_scoring -->
+
+蛋白设计目标通常是多目标的，包括结构质量、稳定性、novelty、功能位点保留、binding/interface quality、developability 与安全性等。不同目标的证据质量不同，因此 CEBRA-WP 使用 evidence-weighted posterior goal fit：
+
+```text
+G_post(pi;g,o_t) = sum_{m in M(g)} lambda_m(g) * rho_m(o_t) * q_m(pi,o_t)
+```
+
+其中：
+
+- `M(g)`：任务目标相关的评价维度集合；
+- `lambda_m(g)`：目标维度权重；
+- `q_m(pi,o_t) in [0,1]`：第 `m` 个目标的归一化分数；
+- `rho_m(o_t) in [0,1]`：证据可靠性权重；
+- `o_t`：当前已获得观测。
+
+证据状态分为：
+
+```text
+z_m in {direct, proxy, degraded, missing}
+```
+
+对应可靠性：
+
+```text
+rho_m =
+  1.00       if z_m = direct
+  rho_proxy  if z_m = proxy
+  rho_degraded if z_m = degraded
+  0.00       if z_m = missing and no fallback allowed
+```
+
+当前 `posterior_score.v1` 的显式 component 集合为：
+
+```text
+M_v1 = {generic_objective, stability, function, novelty, structure_quality}
+```
+
+`binding` 在 v1 中不是独立 component。若任务目标为 binding/interface quality，其权重通过 `objective_type = "binding"` 映射到上述 component，实际 binding 观测 `binding_score` / `best_pose` 作为 `generic_objective` 的 proxy evidence 进入 `G_post`。payload 必须显式记录：
+
+```text
+binding_policy = "folded_into_generic_objective"
+binding_evidence = {"source": "binding_score|best_pose", "role": "proxy"}
+```
+
+若未来版本把 `binding` 拆为独立 component，必须同步升级 `posterior_score` / `posterior_objective` schema version，并重新定义权重与论文公式。
+
+整体证据充分度定义为：
+
+```text
+E(o_t) = sum_m lambda_m(g) * rho_m(o_t)
+e_t = clip(E(o_t), 0, 1)
+```
+
+它进入 Lite belief-state 的 `evidence_sufficiency`。
 
 ---
 
@@ -419,6 +583,18 @@ Replan 的目标是：
 - `recovery_penalty`
 - `stability_bonus`
 
+理论符号与当前实现字段的对应关系：
+
+| 理论符号 | 实现近似字段 | 说明 |
+| --- | --- | --- |
+| `F_s` | `score_breakdown.feasibility` | 由 tool coverage、readiness 与 fallback depth 近似 |
+| `G_prior` / `G_post` | `score_breakdown.objective`, `posterior_objective` | 初始阶段用先验目标匹配；执行后可用证据加权后验目标 |
+| `C_norm` | `1 - score_breakdown.cost` | 成本越高，cost score 越低 |
+| `R_norm` | `1 - score_breakdown.risk` | 风险越高，risk score 越低 |
+| `Rec` | `score_breakdown.recovery_complexity` | `1 - recoverability` |
+| `Q` | `confidence`, `tool_readiness`, `tool_coverage`, `fallback_depth` | 工程可靠性补充项 |
+| `S_static` | `score_breakdown.overall` / `static_score` | 静态总分 |
+
 ### 9.2 `score_breakdown`
 
 每个候选必须至少输出：
@@ -430,6 +606,14 @@ Replan 的目标是：
 - `recovery_complexity`
 - `overall`
 
+推荐同时输出：
+
+- `static_score`
+- `recoverability`
+- `candidate_feasibility`
+- `posterior_objective`（若已有 objective evidence）
+- `source_refs`
+
 ### 9.3 风险和成本等级映射
 
 推荐固定映射：
@@ -440,6 +624,30 @@ Replan 的目标是：
 
 这些阈值必须在实现中作为常量或配置项固定。
 
+### 9.4 Top-K diversity
+<!-- SID:planner.algorithm.topk_diversity -->
+
+CEBRA-WP 不只输出单个 `pi_t*`，还输出 Top-K：
+
+```text
+TopK_t = SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
+```
+
+选择规则：
+
+- 先按 `U_pi` 或 `S_static` 建立稳定排序；
+- 再按 capability bucket 执行 round-robin 选择；
+- 当候选缺少 capability bucket 或全部落入同一 bucket 时，退化为稳定分数排序；
+- 退化路径必须写入 metadata，避免把纯排序误解释为 diversity 增益。
+
+Top-K metadata 至少应记录：
+
+- `strategy`
+- `coverage_fields`
+- `selected_bucket`
+- `degraded_to_score_sort`
+- `source_refs`
+
 ---
 
 ## 10. Lite Belief-State
@@ -447,17 +655,24 @@ Replan 的目标是：
 
 ### 10.1 状态变量
 
-第一版 Lite belief-state 采用 5 维核心状态：
+CEBRA-WP v2 的 Lite belief-state 采用 5 维核心状态：
 
-- `p_success`
-- `p_structural_failure`
-- `recovery_margin`
-- `expected_remaining_cost`
-- `evidence_sufficiency`
+```text
+x_t = (s_t, f_t, r_t, c_t, e_t)
+```
+
+其中：
+
+- `s_t = p_success`：当前工作流最终成功概率的代理估计；
+- `f_t = p_structural_failure`：结构性失败压力；
+- `r_t = recovery_margin`：恢复余量；
+- `c_t = expected_remaining_cost`：预期剩余成本，保持原始非负成本尺度，可大于 1；
+- `e_t = evidence_sufficiency`：当前证据充分度。
 
 说明：
 
 - `intervention_value` 不进入持久化主状态，而作为派生量；
+- `budget_pressure` 不进入持久化主状态，而从 `expected_remaining_cost` 和预算上限派生；
 - 这样既能表达“现在该不该继续”，又能维持状态边界稳定。
 
 ### 10.2 初始化来源
@@ -496,13 +711,27 @@ Replan 的目标是：
 
 运行时重排序遵循：
 
-`final_score = clip(static_score + runtime_adjustment, 0, 1)`
+```text
+U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
+```
 
 其中：
 
 - `static_score` 是静态评分器输出；
-- `runtime_adjustment` 是运行时状态与候选形状共同作用的有界修正项；
-- `runtime_adjustment` 只作用于已通过可执行性校验的候选。
+- `Delta(pi,x_t)` 是运行时状态与候选形状共同作用的有界修正项；
+- `Delta(pi,x_t)` 只作用于已通过可执行性校验的候选。
+
+无 runtime state 时退化为：
+
+```text
+pi_t* = argmax_{pi in Pi_t} S_static(pi)
+```
+
+有 runtime state 时：
+
+```text
+pi_t* = argmax_{pi in Pi_t} U_pi(pi,x_t)
+```
 
 ### 11.3 设计约束
 
@@ -537,6 +766,8 @@ Replan 的目标是：
 - `p_success` 尚可、故障局部化时，优先 `patch_local`
 - `p_structural_failure` 高、`recovery_margin` 低时，优先 `suffix_replan`
 - `p_success` 低、预算压力高、人工帮助价值低时，允许 `stop`
+
+动作效用的正式公式见 [runtime-adaptation-formalization.md](./runtime-adaptation-formalization.md)。本文档只固定动作空间、硬优先级和 HITL 边界。
 
 ### 12.3 硬优先级
 
@@ -628,6 +859,31 @@ Replan 的目标是：
 
 ## 15. 算法验收约束
 
+CEBRA-WP 的完整决策流程必须满足以下伪代码结构：
+
+```text
+Algorithm CEBRA-WP(g, C, K, h_t, o_t, x_t)
+
+1:  Pi_raw,t <- GenerateCandidates(g, C, K, h_t)
+2:  Pi_t <- FeasibilityFilter(Pi_raw,t, C, K, h_t)
+3:  if Pi_t is empty and degraded_feasible candidates exist then
+4:      Pi_t <- degraded_feasible candidates
+5:      mark candidates as requiring HITL confirmation
+6:  end if
+7:  for each pi in Pi_t do
+8:      S_static(pi) <- StaticUtility(pi, g, C, K)
+9:  end for
+10: x_{t+1} <- BeliefUpdate(x_t, o_t, h_t)
+11: for each pi in Pi_t do
+12:     Delta(pi,x_{t+1}) <- RuntimeAdjustment(pi, x_{t+1})
+13:     U_pi(pi,x_{t+1}) <- clip(S_static(pi)+Delta(pi,x_{t+1}),0,1)
+14: end for
+15: TopK_t <- SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
+16: compute U_a for continue / patch_local / suffix_replan / stop
+17: a_t <- ApplyHardPrioritiesAndSelectAction(U_a, x_{t+1}, h_t, C)
+18: return Decision_t with candidates, selected_action, explanations, evidence_refs
+```
+
 以下约束必须可测试：
 
 1. 候选可执行性
@@ -637,6 +893,11 @@ Replan 的目标是：
 5. `suffix_replan` 的前缀保持
 6. `stop` 语义的可追溯性
 7. runtime adjustment 的常量、阈值、优先级冲突处理可复现
+8. 硬不可行候选不会自动执行
+9. runtime adjustment 有界，不会覆盖静态可执行性
+10. `degraded_feasible` 候选默认进入 HITL 或解释路径
+11. Top-K diversity 退化路径有 metadata 标记
+12. posterior objective 不被表述为湿实验真值
 
 ---
 
@@ -646,9 +907,14 @@ Replan 的目标是：
 
 **在相近或更好的成功率下，Lite belief-state 驱动的动态工具链规划，能够更少地进入无效高代价调用，并更合理地分配 `patch / suffix_replan / stop`。**
 
+推荐英文贡献表述：
+
+> We propose CEBRA-WP, a constraint- and evidence-aware, belief-guided, recovery-adaptive workflow planning algorithm for orchestrating expensive protein design tools. Instead of committing to a single LLM-generated tool chain, CEBRA-WP generates a bounded Top-K candidate set, filters infeasible candidates using task constraints and a tool capability graph, estimates static workflow utility from goal fit, cost, risk, recoverability, and engineering reliability, and maintains a low-dimensional deterministic belief surrogate during execution.
+
 实验分组与论文叙事的正式映射见：
 
 - [../experiment/algorithm-group-paper-mapping.md](../experiment/algorithm-group-paper-mapping.md)
+- [core-algorithm-theory-map.md](./core-algorithm-theory-map.md)
 
 ---
 

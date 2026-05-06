@@ -31,6 +31,7 @@
 - `high_cost_flag`
 - `evidence_role`
   - `cheap_validation`
+  - `sequence_similarity`
   - `core_generation`
   - `high_cost_projection`
   - `refinement`
@@ -72,6 +73,8 @@
 | `nim_esmfold` | `structure_prediction` | 0.60 | 0.72 | 0.74 | 0.25 | 0.68 | 0.62 | 0.42 | 0.14 | 0.40 | yes | `high_cost_projection` | 远程结构预测，网络与配额带来更高执行与耦合风险。 |
 | `openfold` | `structure_prediction` | 0.82 | 0.78 | 0.80 | 0.30 | 0.58 | 0.60 | 0.46 | 0.12 | 0.42 | yes | `high_cost_projection` | 更重的结构预测路径，应默认视为高暴露工具。 |
 | `biopython_qc` | `quality_qc` | 0.12 | 0.12 | 0.30 | 0.08 | 0.90 | 0.18 | 0.10 | 0.06 | 0.08 | no | `cheap_validation` | 低成本质量门禁，是 evidence layer 的核心工具。 |
+| `mmseqs2` | `sequence_similarity` | 0.24 | 0.22 | 0.34 | 0.10 | 0.80 | 0.18 | 0.18 | 0.06 | 0.14 | no | `sequence_similarity` | 序列相似性检索，提供 novelty / homology proxy evidence。 |
+| `blastp` | `sequence_similarity` | 0.20 | 0.18 | 0.32 | 0.10 | 0.84 | 0.16 | 0.14 | 0.06 | 0.12 | no | `sequence_similarity` | 轻量序列相似性 fallback，适合在 requirement-2 统计对齐中使用。 |
 | `dssp` | `quality_qc` / `secondary_structure_annotation` | 0.22 | 0.20 | 0.35 | 0.10 | 0.82 | 0.20 | 0.16 | 0.06 | 0.12 | no | `cheap_validation` | 二级结构与质量补充，适合作为低成本验证和 fallback。 |
 | `objective_ranker` | `objective_scoring` | 0.28 | 0.24 | 0.44 | 0.12 | 0.84 | 0.18 | 0.14 | 0.06 | 0.12 | no | `objective_scoring` | 中低成本打分器，主要风险在目标偏差与分数不稳定。 |
 
@@ -91,12 +94,14 @@
 满足以下条件的工具可被视为“证据层工具”：
 
 - `high_cost_flag = no`
-- `evidence_role = cheap_validation`
+- `evidence_role in {cheap_validation, sequence_similarity}`
 - `step_cost <= 0.25`
 
 当前明确属于证据层的工具：
 
 - `biopython_qc`
+- `mmseqs2`
+- `blastp`
 - `dssp`
 
 ## 6. 使用规则

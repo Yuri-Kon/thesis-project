@@ -10,12 +10,16 @@
 > 配套细化文档：
 > - `docs/design/runtime-adaptation-formalization.md`
 > - `docs/design/active-tool-metadata-profile.md`
+> - `docs/design/core-algorithm-theory-map.md`
 > - `docs/experiment/algorithm-group-paper-mapping.md`
 
 ## 1. 核心命题
 
-本项目的核心命题是：
-**如何在科研工业设计验证环境中，准确生成可执行、可验证、可恢复、可审计的工作流。**
+本项目的核心算法是 CEBRA-WP：
+**面向高代价蛋白质设计工作流的约束化、证据感知、信念引导、恢复自适应规划算法。**
+
+核心命题是：
+**如何在科研工业设计验证环境中，生成可执行、可验证、可恢复、可审计，并能根据运行时证据动态修正的工作流。**
 
 这里的“准确生成”不是指语言表述正确，而是指生成的工作流必须同时满足：
 
@@ -23,7 +27,9 @@
 - 可执行：工具可用、I/O 闭包、参数合法；
 - 可恢复：失败后可按 `retry -> patch -> replan` 继续推进；
 - 可审计：关键分叉点可进入 `WAITING_*` 并留痕；
-- 可复现：相同输入与配置可稳定复现关键路径。
+- 可复现：相同输入与配置可稳定复现关键路径；
+- 证据感知：posterior objective 区分 direct / proxy / degraded / missing evidence；
+- 恢复自适应：使用 Lite belief-state 与动作效用在 `continue / patch_local / suffix_replan / stop` 之间做受保护选择。
 
 ______________________________________________________________________
 
@@ -65,9 +71,15 @@ ______________________________________________________________________
 
 在约束集合 `C` 下，选择最优候选 `c*`：
 
-`c* = argmax Score(c | C, runtime_context)`
+`c* = argmax U_pi(c, x_t | C, runtime_context)`
 
-其中 `Score` 由多目标组成：成功概率、风险、成本、恢复代价、可解释性。
+其中 `U_pi` 由静态候选效用和有界运行时修正组成：
+
+```text
+U_pi(pi,x_t) = clip(S_static(pi) + Delta(pi,x_t), 0, 1)
+```
+
+`S_static` 由软可行性、目标匹配、成本、风险、恢复复杂度和工程可靠性组成；`Delta` 由 Lite belief-state、预算压力、证据充分度和 `ActionBias` 共同决定。
 
 ______________________________________________________________________
 
