@@ -13,7 +13,7 @@
 | `arch` | architecture.md | 总体架构、分层设计、核心契约（PendingAction/Decision/TaskSnapshot/Plan） |
 | `fsm` | architecture.md | 有限状态机（FSM）状态定义与转换规则 |
 | `agent` | agent-design.md | 四类 Agent 的接口、职责边界、数据结构契约 |
-| `planner` | agent-design.md（接口）<br>core-algorithm-spec.md（算法依据）<br>runtime-adaptation-formalization.md（运行时形式化） | PlannerAgent 接口定义在 agent-design.md；候选评分与动作选择依据在 core-algorithm-spec.md；belief-state、schema、runtime_adjustment 与 stop 形式化在 runtime-adaptation-formalization.md |
+| `planner` | agent-design.md（接口）<br>core-algorithm-spec.md（算法依据）<br>runtime-adaptation-formalization.md（运行时形式化） | PlannerAgent 接口定义在 agent-design.md；候选评分、硬可行性、posterior objective、Top-K diversity 与动作选择依据在 core-algorithm-spec.md；belief-state、schema、runtime_adjustment、ActionBias 与 stop 形式化在 runtime-adaptation-formalization.md |
 | `executor` | agent-design.md | ExecutorAgent 接口与职责边界 |
 | `safety` | agent-design.md | SafetyAgent 接口与职责边界 |
 | `summarizer` | agent-design.md | SummarizerAgent 接口与职责边界 |
@@ -25,7 +25,7 @@
 | `storage` | system-implementation-design.md | 数据存储与持久化 |
 | `kg` | system-implementation-design.md | ProteinToolKG 知识图谱模式与实现落点 |
 | `impl` | system-implementation-design.md | 实现层总览、技术栈与运行时落点 |
-| `algo` | core-algorithm-spec.md（算法依据）<br>runtime-adaptation-formalization.md（公式与 schema） | 核心问题建模、候选结构和主流程在 core-algorithm-spec.md；belief-state、六类 schema 与 runtime 公式在 runtime-adaptation-formalization.md |
+| `algo` | core-algorithm-spec.md（算法依据）<br>runtime-adaptation-formalization.md（公式与 schema）<br>core-algorithm-theory-map.md（理论/文献/代码映射） | 核心问题建模、候选结构、硬可行性、posterior objective、Top-K diversity 和主流程在 core-algorithm-spec.md；belief-state、六类 schema、runtime 公式与 ActionBias 在 runtime-adaptation-formalization.md；理论对象、代表文献与代码落点在 core-algorithm-theory-map.md |
 | `experiment` | algorithm-group-paper-mapping.md | 历史实现组、外部对照组与论文主结果组的统一映射 |
 | `hitl` | hitl-extension.md（差分索引）<br>architecture.md（核心契约）<br>agent-design.md（Agent 行为） | HITL 是跨文档概念：契约在 architecture.md，行为边界在 agent-design.md，hitl-extension.md 负责差分汇总 |
 
@@ -90,6 +90,7 @@
 | `SID:planner.contracts.io_overview` | Planner 输入输出契约 | Block |
 | `SID:planner.algorithm.tool_retrieval` | 工具检索算法 | Block |
 | `SID:planner.algorithm.candidate_scoring` | 候选方案评分规则 | Block |
+| `SID:planner.algorithm.topk_diversity` | Top-K diversity | Block |
 | `SID:planner.algorithm.runtime_state_estimation` | 运行时状态估计（Lite belief-state） | Block |
 | `SID:planner.algorithm.runtime_reranking` | 运行时重排序与预算感知裁剪 | Block |
 | `SID:planner.algorithm.runtime_action_selection` | 动作选择与恢复感知控制 | Block |
@@ -206,10 +207,13 @@
 
 | SID | 说明 | 粒度 |
 |-----|------|------|
+| `SID:algo.version.registry` | CEBRA-WP v2 算法版本体系 | Section |
 | `SID:algo.scope.overview` | 算法规范范围说明 | Section |
 | `SID:algo.definitions.overview` | 算法定义总览 | Section |
+| `SID:algo.adaptive.feasibility_filter` | 硬可行性与 degraded feasible | Block |
 | `SID:algo.adaptive.problem_formulation` | 高代价工作流中的自适应规划问题 | Section |
 | `SID:algo.adaptive.optimization_objective` | 优化目标与效用分解 | Block |
+| `SID:algo.posterior.objective_scoring` | 证据感知后验目标评分 | Block |
 | `SID:algo.runtime.formalization` | 运行时自适应形式化 | Section |
 | `SID:algo.runtime.scope` | 文档目的与适用范围 | Section |
 | `SID:algo.runtime.design_basis` | 建模立场与设计依据 | Block |
@@ -220,6 +224,10 @@
 | `SID:algo.schema.state` | State Schema | Block |
 | `SID:algo.schema.observation` | Observation Schema | Block |
 | `SID:algo.schema.action_utility` | Action-Utility Schema | Block |
+| `SID:algo.theory_map.overview` | CEBRA-WP 理论对象、文献与代码映射 | Section |
+| `SID:algo.theory_map.formula_matrix` | 核心公式覆盖矩阵 | Block |
+| `SID:algo.theory_map.literature_buckets` | 分桶映射 | Block |
+| `SID:algo.theory_map.code_reverse_index` | 代码字段反查索引 | Block |
 
 ### `api` Domain（SSOT: system-implementation-design.md）
 
@@ -350,6 +358,7 @@
 
 | 版本 | 日期 | 变更说明 |
 |------|------|----------|
+| 1.6 | 2026-05-06 | 同步 CEBRA-WP v2：新增算法版本、硬可行性、posterior objective、Top-K diversity、ActionBias 与理论/文献/代码映射 SSOT |
 | 1.5 | 2026-04-05 | 将 interface 域扩展为总纲 + Web 落地 + CLI 落地三份文档；新增 Web 主工作台、结构可视化、模型调用工作台与 CLI 无头工作流相关 SID |
 | 1.4 | 2026-03-29 | 新增 interface 域及 interaction-entry-surfaces.md，定义 Web/CLI 双入口定位、最小 CLI 闭环与双入口协同边界 |
 | 1.3 | 2026-03-29 | 纳入 runtime-adaptation-formalization、active-tool-metadata-profile 与 algorithm-group-paper-mapping；新增 experiment 域并对齐 planning/execution/observability 的 SSOT 入口 |

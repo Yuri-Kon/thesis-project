@@ -1,6 +1,6 @@
 {
-  "version": "1.7",
-  "generated_at": "2026-04-27",
+  "version": "1.8",
+  "generated_at": "2026-05-06",
   "description": "Topic-based views for design specifications, providing minimum injectable context for implementation phases",
   "topics": {
     "hitl": {
@@ -285,6 +285,14 @@
           "rationale": "Plan/Patch/Replan 候选的统一模式"
         },
         {
+          "sid": "algo.adaptive.feasibility_filter",
+          "title": "硬可行性与 degraded feasible",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "硬可行性与 degraded feasible 保护规则"
+        },
+        {
           "sid": "planner.contracts.plan_candidate",
           "title": "PlanCandidate 模式定义",
           "doc_key": "algo",
@@ -317,12 +325,36 @@
           "rationale": "规划目标与效用拆解"
         },
         {
+          "sid": "algo.posterior.objective_scoring",
+          "title": "证据感知后验目标评分",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "posterior objective 与证据可靠性定义"
+        },
+        {
           "sid": "planner.algorithm.candidate_scoring",
           "title": "候选方案评分规则",
           "doc_key": "algo",
           "path": "docs/design/core-algorithm-spec.md",
           "priority": "critical",
           "rationale": "静态候选评分的基准规则"
+        },
+        {
+          "sid": "planner.algorithm.topk_diversity",
+          "title": "Top-K diversity",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "Top-K 候选覆盖与退化排序规则"
+        },
+        {
+          "sid": "algo.theory_map.formula_matrix",
+          "title": "核心公式覆盖矩阵",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "理论对象、设计 SID、代码落点与文献的统一反查"
         },
         {
           "sid": "planner.algorithm.runtime_reranking",
@@ -403,11 +435,19 @@
           "path": "docs/design/runtime-adaptation-formalization.md",
           "priority": "high",
           "rationale": "动作冲突时的优先级与 tie-break"
+        },
+        {
+          "sid": "algo.version.registry",
+          "title": "算法版本体系",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "CEBRA-WP v2 与子公式版本的入口"
         }
       ],
-      "total_specs": 21,
-      "critical_specs": 11,
-      "high_specs": 10
+      "total_specs": 26,
+      "critical_specs": 13,
+      "high_specs": 13
     },
     "execution": {
       "title": "Task Execution",
@@ -1091,11 +1131,59 @@
           "path": "docs/algorithm-and-llm/train-llm.md",
           "priority": "high",
           "rationale": "Planner 模型能力约束、训练路线与验收指标"
+        },
+        {
+          "sid": "algo.version.registry",
+          "title": "算法版本体系",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "算法版本与子公式 registry"
+        },
+        {
+          "sid": "algo.adaptive.feasibility_filter",
+          "title": "硬可行性与 degraded feasible",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "硬约束过滤是核心算法前置边界"
+        },
+        {
+          "sid": "algo.posterior.objective_scoring",
+          "title": "证据感知后验目标评分",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "证据加权目标评分"
+        },
+        {
+          "sid": "planner.algorithm.topk_diversity",
+          "title": "Top-K diversity",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "high",
+          "rationale": "Top-K diversity 策略"
+        },
+        {
+          "sid": "algo.theory_map.formula_matrix",
+          "title": "核心公式覆盖矩阵",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "论文理论对象、文献和代码落点映射"
+        },
+        {
+          "sid": "algo.theory_map.code_reverse_index",
+          "title": "代码字段反查索引",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "代码字段到理论对象反查"
         }
       ],
-      "total_specs": 2,
-      "critical_specs": 0,
-      "high_specs": 2
+      "total_specs": 8,
+      "critical_specs": 2,
+      "high_specs": 6
     },
     "experiment": {
       "title": "Experiment Narrative Mapping",
@@ -1436,8 +1524,8 @@
           "rationale": "模型调用工作台需要展示失败类型与恢复动作"
         }
       ],
-      "total_specs": 19,
-      "critical_specs": 8,
+      "total_specs": 20,
+      "critical_specs": 9,
       "high_specs": 10,
       "medium_specs": 1
     },
@@ -1595,12 +1683,63 @@
       "critical_specs": 6,
       "high_specs": 10,
       "medium_specs": 2
+    },
+    "algorithm_theory": {
+      "title": "CEBRA-WP Theory Map",
+      "description": "CEBRA-WP 理论对象、公式版本、文献依据与代码落点的可追踪视图",
+      "use_case": "论文方法章节、相关工作和实现审查需要统一定位理论对象时注入",
+      "specs": [
+        {
+          "sid": "algo.version.registry",
+          "title": "算法版本体系",
+          "doc_key": "algo",
+          "path": "docs/design/core-algorithm-spec.md",
+          "priority": "critical",
+          "rationale": "算法总版本与子公式版本入口"
+        },
+        {
+          "sid": "algo.theory_map.overview",
+          "title": "CEBRA-WP 理论对象、文献与代码映射",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "理论映射文档使用规则"
+        },
+        {
+          "sid": "algo.theory_map.formula_matrix",
+          "title": "核心公式覆盖矩阵",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "critical",
+          "rationale": "核心公式覆盖矩阵"
+        },
+        {
+          "sid": "algo.theory_map.literature_buckets",
+          "title": "分桶映射",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "理论背景分桶"
+        },
+        {
+          "sid": "algo.theory_map.code_reverse_index",
+          "title": "代码字段反查索引",
+          "doc_key": "algo_theory_map",
+          "path": "docs/design/core-algorithm-theory-map.md",
+          "priority": "high",
+          "rationale": "代码字段反查索引"
+        }
+      ],
+      "total_specs": 5,
+      "critical_specs": 2,
+      "high_specs": 3
     }
   },
   "summary": {
-    "total_topics": 14,
+    "total_topics": 15,
     "total_unique_specs": 149,
-    "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范"
+    "note": "部分 SID 出现在多个主题中，因为它们是跨关注点的共享规范",
+    "total_references": 197
   },
   "usage_guide": {
     "for_claude_code_skills": "Claude Code Skills 可通过 topic 参数选择相应的规范集合，仅注入该主题的最小可用上下文",
