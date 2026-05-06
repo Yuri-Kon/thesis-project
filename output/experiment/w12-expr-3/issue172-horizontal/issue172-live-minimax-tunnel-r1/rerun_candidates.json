@@ -1,0 +1,297 @@
+[
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_enzyme_like_fold_r02",
+    "group_id": "E0",
+    "task_key": "enzyme_like_fold",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_enzyme_like_fold_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_binding_scaffold_r01",
+    "group_id": "E0",
+    "task_key": "binding_scaffold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_binding_scaffold_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_high_solubility_r01",
+    "group_id": "E0",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_high_solubility_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_high_solubility_r02",
+    "group_id": "E0",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_high_solubility_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_secondary_balance_r01",
+    "group_id": "E0",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_secondary_balance_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E0_secondary_balance_r02",
+    "group_id": "E0",
+    "task_key": "secondary_balance",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E0_secondary_balance_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_enzyme_like_fold_r01",
+    "group_id": "E1",
+    "task_key": "enzyme_like_fold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_enzyme_like_fold_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_enzyme_like_fold_r02",
+    "group_id": "E1",
+    "task_key": "enzyme_like_fold",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_enzyme_like_fold_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_binding_scaffold_r01",
+    "group_id": "E1",
+    "task_key": "binding_scaffold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_binding_scaffold_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_high_solubility_r01",
+    "group_id": "E1",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_high_solubility_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_high_solubility_r02",
+    "group_id": "E1",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_high_solubility_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_secondary_balance_r01",
+    "group_id": "E1",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_secondary_balance_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E1_secondary_balance_r02",
+    "group_id": "E1",
+    "task_key": "secondary_balance",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E1_secondary_balance_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_enzyme_like_fold_r01",
+    "group_id": "E2",
+    "task_key": "enzyme_like_fold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_enzyme_like_fold_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_enzyme_like_fold_r02",
+    "group_id": "E2",
+    "task_key": "enzyme_like_fold",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_enzyme_like_fold_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_binding_scaffold_r01",
+    "group_id": "E2",
+    "task_key": "binding_scaffold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_binding_scaffold_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_high_solubility_r01",
+    "group_id": "E2",
+    "task_key": "high_solubility",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_high_solubility_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_high_solubility_r02",
+    "group_id": "E2",
+    "task_key": "high_solubility",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_high_solubility_r02.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_secondary_balance_r01",
+    "group_id": "E2",
+    "task_key": "secondary_balance",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_secondary_balance_r01.json"
+  },
+  {
+    "run_id": "issue172-live-minimax-tunnel-r1_E2_secondary_balance_r02",
+    "group_id": "E2",
+    "task_key": "secondary_balance",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:CANCELLED",
+      "abnormal:terminal_or_waiting_status:CANCELLED",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w12-expr-3/issue172-horizontal/issue172-live-minimax-tunnel-r1/run_configs/issue172-live-minimax-tunnel-r1_E2_secondary_balance_r02.json"
+  }
+]

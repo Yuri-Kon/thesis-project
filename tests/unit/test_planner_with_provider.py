@@ -6,7 +6,9 @@ from typing import Dict, List
 from src.agents.planner import PlannerAgent, ToolSpec
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.baseline_provider import BaselineProvider
-from src.models.contracts import ProteinDesignTask, Plan
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
+from src.models.contracts import ProteinDesignTask, Plan, PatchRequest, StepResult, now_iso
+import src.agents.planner as planner_module
 
 
 @pytest.fixture(autouse=True)
@@ -120,6 +122,42 @@ class TestPlannerWithoutProvider:
         assert plan.steps[0].inputs["sequence"] == sample_task.constraints["sequence"]
 
 
+def test_planner_logs_provider_validation_failure(sample_task, monkeypatch):
+    events = []
+
+    class BrokenProvider(BaseProvider):
+        def __init__(self):
+            self.config = ProviderConfig(model_name="broken-provider")
+
+        def call_planner(self, task, tool_registry):
+            del task, tool_registry
+            raise ProviderPayloadValidationError(
+                candidate_kind="plan",
+                failure_type="SYNTAX_INVALID",
+                issues=[
+                    {
+                        "code": "REFERENCE_SYNTAX_INVALID",
+                        "path": "$.steps[1].inputs.sequence",
+                        "message": "reference token is not compliant",
+                    }
+                ],
+                attempts=3,
+            )
+
+    monkeypatch.setattr(planner_module, "append_event", lambda task_id, event: events.append((task_id, event)))
+    planner = PlannerAgent(llm_provider=BrokenProvider())
+
+    with pytest.raises(ProviderPayloadValidationError):
+        planner.plan(sample_task)
+
+    assert events
+    task_id, event = events[0]
+    assert task_id == sample_task.task_id
+    assert event["event"] == "PROVIDER_VALIDATION_FAILED"
+    assert event["failure_code"] == "SYNTAX_INVALID"
+    assert event["data"]["provider_name"] == "broken-provider"
+
+
 class TestPlannerWithBaselineProvider:
     """使用 BaselineProvider 测试 PlannerAgent"""
 
@@ -197,6 +235,406 @@ class TestPlannerWithMockProvider:
         assert provider.received_task == sample_task
         assert provider.received_registry is not None
         assert len(provider.received_registry) > 0
+
+    def test_provider_plan_normalizes_semantically_wrong_reference_fields(self, sample_task):
+        class WrongRefProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="wrong-ref")
+
+            def call_planner(self, task, tool_registry):
+                del tool_registry
+                return {
+                    "task_id": task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "S1.candidates"},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S3",
+                            "tool": "objective_ranker",
+                            "inputs": {"candidates": "S1.sequence"},
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": task.constraints,
+                    "metadata": {},
+                }
+
+        planner = PlannerAgent(llm_provider=WrongRefProvider())
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["candidates"] == "S1.candidates"
+
+    def test_provider_plan_normalizes_tool_name_and_step_alias_references(self, sample_task):
+        class WrongRefProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="wrong-ref-alias")
+
+            def call_planner(self, task, tool_registry):
+                del tool_registry
+                return {
+                    "task_id": task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "protgpt2.sequence"},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S3",
+                            "tool": "biopython_qc",
+                            "inputs": {
+                                "sequence": "step_1.sequence",
+                                "pdb_path": "openfold.output.pdb_path",
+                            },
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": task.constraints,
+                    "metadata": {},
+                }
+
+        planner = PlannerAgent(llm_provider=WrongRefProvider())
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+
+    def test_provider_plan_normalizes_named_placeholders_to_prior_step_outputs(self, sample_task):
+        class PlaceholderProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="placeholder-ref")
+
+            def call_planner(self, task, tool_registry):
+                del task, tool_registry
+                return {
+                    "task_id": sample_task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": sample_task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "<generated_sequence>"},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S3",
+                            "tool": "biopython_qc",
+                            "inputs": {
+                                "sequence": "<generated_sequence>",
+                                "pdb_path": "<predicted_pdb>",
+                            },
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": sample_task.constraints,
+                    "metadata": {},
+                }
+
+        planner = PlannerAgent(llm_provider=PlaceholderProvider())
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+
+    def test_provider_plan_normalizes_dollar_placeholders_to_prior_step_outputs(self, sample_task):
+        class PlaceholderProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="placeholder-dollar-ref")
+
+            def call_planner(self, task, tool_registry):
+                del task, tool_registry
+                return {
+                    "task_id": sample_task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": sample_task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "$CANDIDATES"},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S3",
+                            "tool": "biopython_qc",
+                            "inputs": {
+                                "sequence": "$CANDIDATES",
+                                "pdb_path": "$STEP_2",
+                            },
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S4",
+                            "tool": "objective_ranker",
+                            "inputs": {"candidates": "$CANDIDATES"},
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": sample_task.constraints,
+                    "metadata": {},
+                }
+
+        planner = PlannerAgent(llm_provider=PlaceholderProvider())
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+        assert plan.steps[3].inputs["candidates"] == "S1.candidates"
+
+    def test_provider_plan_normalizes_bare_placeholder_tokens(self, sample_task):
+        class PlaceholderProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="placeholder-bare-ref")
+
+            def call_planner(self, task, tool_registry):
+                del task, tool_registry
+                return {
+                    "task_id": sample_task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": sample_task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "CANDIDATES"},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S3",
+                            "tool": "biopython_qc",
+                            "inputs": {
+                                "sequence": "CANDIDATES",
+                                "pdb_path": "auto",
+                            },
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": sample_task.constraints,
+                    "metadata": {},
+                }
+
+        planner = PlannerAgent(llm_provider=PlaceholderProvider())
+        plan = planner.plan(sample_task)
+
+        assert plan.steps[1].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["sequence"] == "S1.sequence"
+        assert plan.steps[2].inputs["pdb_path"] == "S2.pdb_path"
+
+    def test_provider_patch_normalizes_semantically_wrong_reference_fields(self, sample_task):
+        class WrongPatchProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="wrong-patch")
+
+            def call_planner(self, task, tool_registry):
+                del tool_registry
+                return {
+                    "task_id": task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "S1.sequence"},
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": task.constraints,
+                    "metadata": {},
+                }
+
+            def call_patch(self, request, tool_registry):
+                del request, tool_registry
+                return {
+                    "task_id": sample_task.task_id,
+                    "operations": [
+                        {
+                            "op": "replace_step",
+                            "target": "S2",
+                            "step": {
+                                "id": "S2",
+                                "tool": "nim_esmfold",
+                                "inputs": {"sequence": "S1.candidates"},
+                                "metadata": {},
+                            },
+                        }
+                    ],
+                    "metadata": {"from_tool": "openfold", "to_tool": "nim_esmfold"},
+                }
+
+        provider = WrongPatchProvider()
+        planner = PlannerAgent(llm_provider=provider)
+        plan = planner.plan(sample_task)
+        previous = StepResult(
+            task_id=sample_task.task_id,
+            step_id="S1",
+            tool="protgpt2",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={"sequence": "ACDEFGHIK", "candidates": [{"sequence": "ACDEFGHIK"}]},
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+        failed = StepResult(
+            task_id=sample_task.task_id,
+            step_id="S2",
+            tool="openfold",
+            status="failed",
+            failure_type="TOOL_ERROR",
+            error_message="boom",
+            error_details={},
+            outputs={},
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+        request = PatchRequest(
+            task_id=sample_task.task_id,
+            original_plan=plan,
+            context_step_results=[previous, failed],
+            safety_events=[],
+            reason="unit-test",
+        )
+
+        topk = planner.patch_top_k(request, k=1)
+        patch = topk.candidates[0].structured_payload
+
+        assert patch.operations[0].step.inputs["sequence"] == "S1.sequence"
+
+    def test_provider_patch_normalizes_tool_name_and_step_alias_references(self, sample_task):
+        class WrongPatchProvider(BaseProvider):
+            def __init__(self):
+                self.config = ProviderConfig(model_name="wrong-patch-alias")
+
+            def call_planner(self, task, tool_registry):
+                del tool_registry
+                return {
+                    "task_id": task.task_id,
+                    "steps": [
+                        {
+                            "id": "S1",
+                            "tool": "protgpt2",
+                            "inputs": {"goal": task.goal},
+                            "metadata": {},
+                        },
+                        {
+                            "id": "S2",
+                            "tool": "openfold",
+                            "inputs": {"sequence": "S1.sequence"},
+                            "metadata": {},
+                        },
+                    ],
+                    "constraints": task.constraints,
+                    "metadata": {},
+                }
+
+            def call_patch(self, request, tool_registry):
+                del request, tool_registry
+                return {
+                    "task_id": sample_task.task_id,
+                    "operations": [
+                        {
+                            "op": "replace_step",
+                            "target": "step_2",
+                            "step": {
+                                "id": "step_2",
+                                "tool": "nim_esmfold",
+                                "inputs": {"sequence": "protgpt2.output.sequence"},
+                                "metadata": {},
+                            },
+                        }
+                    ],
+                    "metadata": {"from_tool": "openfold", "to_tool": "nim_esmfold"},
+                }
+
+        provider = WrongPatchProvider()
+        planner = PlannerAgent(llm_provider=provider)
+        plan = planner.plan(sample_task)
+        previous = StepResult(
+            task_id=sample_task.task_id,
+            step_id="S1",
+            tool="protgpt2",
+            status="success",
+            failure_type=None,
+            error_message=None,
+            error_details={},
+            outputs={"sequence": "ACDEFGHIK", "candidates": [{"sequence": "ACDEFGHIK"}]},
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+        failed = StepResult(
+            task_id=sample_task.task_id,
+            step_id="S2",
+            tool="openfold",
+            status="failed",
+            failure_type="TOOL_ERROR",
+            error_message="boom",
+            error_details={},
+            outputs={},
+            metrics={},
+            risk_flags=[],
+            logs_path=None,
+            timestamp=now_iso(),
+        )
+        request = PatchRequest(
+            task_id=sample_task.task_id,
+            original_plan=plan,
+            context_step_results=[previous, failed],
+            safety_events=[],
+            reason="unit-test",
+        )
+
+        topk = planner.patch_top_k(request, k=1)
+        patch = topk.candidates[0].structured_payload
+
+        assert patch.operations[0].target == "S2"
+        assert patch.operations[0].step.id == "S2"
+        assert patch.operations[0].step.inputs["sequence"] == "S1.sequence"
 
     def test_plan_with_custom_tool_registry(self, sample_task, mock_provider):
         """PlannerAgent 应该拒绝不在默认 KG 中的自定义工具"""

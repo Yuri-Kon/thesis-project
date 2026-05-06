@@ -1,138 +1,48 @@
 # CLAUDE.md
 
-Instructions for Claude Code when operating in this repository.
+Claude Code operational guidance for this repository.
+AGENTS.md defines Codex-common rules; this file adds Claude-specific differences only.
 
-This file defines **Claude-specific operational guidance only**.
-It does NOT define system architecture or behavioral rules.
+## 1. Priority
 
-All system-level invariants are defined in `AGENT_CONTRACT.md`
-and MUST be respected.
+1. `AGENT_CONTRACT.md` — system invariants
+2. `../thesis-project.design/docs/design/` — architectural authority
+3. `AGENTS.md` — common operational rules
+4. This file — Claude-specific additions
 
----
+Conflicts are resolved in this order.
 
-## 0. Mandatory Reading (Before Any Code Change)
-
-Before editing or generating code, Claude MUST read and comply with:
-
-1. `AGENT_CONTRACT.md`  
-   → Defines non-negotiable system invariants
-
-2. Authoritative design specs (retrieved in minimal slices):
-   - Prefer precise spec fragments (SID/topic/ref) over full-document reads
-   - Use only the fragments needed for the requested change
-
-If any instruction conflicts:
-**AGENT_CONTRACT.md and design documents take precedence.**
-
----
-
-## 1. Role of Claude Code in This Project
-
-Claude acts as a **controlled coding assistant**.
-
-Claude is expected to:
-- implement user-requested changes precisely,
-- respect existing architecture and contracts,
-- reason carefully about side effects,
-- explain changes clearly.
-
-Claude MUST NOT:
-- reinterpret system design,
-- introduce new agent behaviors or FSM states,
-- perform architectural refactors unless explicitly instructed.
-
-Claude should assume the system is **intentionally constrained**.
-
----
-
-## 2. Scope Discipline
-
-Claude should only modify:
-- files explicitly mentioned by the user, or
-- files strictly required to complete the requested task.
-
-If a change may affect:
-- FSM transitions,
-- agent responsibility boundaries,
-- execution or recovery semantics,
-
-Claude MUST pause and ask for confirmation
-before proceeding.
-
----
-
-## 3. Coding Expectations
-
-### 3.1 Style and structure
-- Primary language: Python
-- Follow existing project conventions
-- Preserve naming, module boundaries, and patterns
-- Prefer minimal, localized changes
-
-### 3.2 State and side effects
-- Do NOT introduce hidden state mutation
-- Do NOT bypass workflow controllers
-- Ensure all state-related changes remain explicit and traceable
-
-### 3.3 Logging
-- Preserve existing logging structure
-- Logs must remain consistent with execution flow and task state
-- Do NOT log secrets or credentials
-
----
-
-## 4. Testing Responsibilities
-
-When Claude changes observable behavior, it MUST:
-- add or update tests as appropriate,
-- ensure all existing tests continue to pass.
-
-Relevant test areas include:
-- FSM transition validation
-- Agent behavior isolation
-- Retry / patch / replan execution paths
-- Schema compatibility
-
-If tests are missing:
-- add minimal tests to lock behavior,
-- avoid introducing unnecessary test abstractions.
-
----
-
-## 5. Interaction Expectations
+## 2. Behavior
 
 Claude should:
-- reason step-by-step internally,
-- present conclusions and code clearly,
-- highlight assumptions when unavoidable.
+- Implement user requests precisely, respecting existing architecture and contracts
+- Scope changes to files mentioned by the user or modules strictly required
+- Keep side effects explicit; no hidden state mutation
 
-Claude should NOT:
-- silently make large or cross-cutting changes,
-- “optimize” or “simplify” architecture proactively,
-- assume permission for refactors.
+Claude must not:
+- Reinterpret system design, introduce new agent behaviors or FSM states
+- Proactively "optimize" or "simplify" architecture
+- Refactor without explicit instruction
+- Substitute inference for human-confirmation steps
 
-When uncertain, Claude should ask.
+## 3. Coding
 
----
+- Python 3.12; use `uv` for dependency and run commands
+- Follow existing project style, naming, and module boundaries
+- Satisfy `basedpyright`; no `Any`, bare generics, or untyped containers
+- Logs consistent with execution flow; never log secrets
 
-## 6. Safe Defaults
+## 4. Testing
 
-If intent or design meaning is ambiguous:
-- prefer conservative implementation,
-- avoid introducing new abstractions,
-- defer to existing patterns,
-- request clarification before continuing.
+When behavior changes:
+- Add or update focused tests
+- `uv run pytest ...` to verify
+- `uv run basedpyright ...` for type checks when practical
 
-Claude must treat ambiguity as a signal to stop,
-not as permission to improvise.
+## 5. Docslice
 
----
+Use the `doc-slicer` skill (see `.agents/skills/doc-slicer/SKILL.md`) to retrieve design spec fragments by SID, topic, or reference instead of full-document reads. Run `--lint` after design doc changes.
 
-## 7. Summary
+## 6. Ambiguity → Stop
 
-- `CLAUDE.md` = Claude Code operational entrypoint
-- `AGENT_CONTRACT.md` = system-level, non-negotiable invariants
-- Design documents = architectural authority
-
-Claude is expected to assist implementation
-within clearly defined boundaries.
+When intent is unclear, prefer conservative implementation, defer to existing patterns, and request clarification before continuing.

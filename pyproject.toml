@@ -1,30 +1,60 @@
 [project]
 name = "thesis-project"
-version = "0.0.0"
+version = "0.6.0"
 requires-python = ">=3.12"
 dependencies = [
+  "Pygments==2.19.2",
   "annotated-doc==0.0.4",
   "annotated-types==0.7.0",
+  "anthropic>=0.96.0",
   "anyio==4.12.1",
+  "biopython>=1.86",
   "fastapi==0.128.0",
+  "httpx",
   "idna==3.11",
   "iniconfig==2.3.0",
+  "inspect-ai>=0.3.205",
+  "mlflow>=3.11.1",
+  "openai",
   "packaging==25.0",
   "pluggy==1.6.0",
   "pydantic==2.12.5",
   "pydantic_core==2.41.5",
-  "Pygments==2.19.2",
   "pytest==9.0.2",
-  "starlette==0.50.0",
-  "typing-inspection==0.4.2",
-  "typing_extensions==4.15.0",
-  "openai",
-  "httpx",
-  "biopython>=1.86",
-  "uvicorn>=0.41.0",
   "radon>=6.0.1",
+  "starlette==0.50.0",
+  "typing_extensions==4.15.0",
+  "typing-inspection==0.4.2",
+  "uvicorn>=0.41.0",
+  "zai-sdk>=0.2.2",
+]
+
+[project.scripts]
+design = "src.cli:main"
+
+[dependency-groups]
+dev = [
+  "basedpyright>=1.39.3",
 ]
 
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[tool.basedpyright]
+include = ["src", "tests", "services"]
+exclude = [".agents", ".venv", "docs", ".github"]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "all"
+reportAny = "warning"
+reportExplicitAny = "warning"
+reportUnknownVariableType = "warning"
+reportUnknownParameterType = "error"
+reportUnknownArgumentType = "warning"
+reportUnknownMemberType = "warning"
+reportMissingTypeArgument = "warning"
+reportUnnecessaryCast = "warning"
+reportIgnoreCommentWithoutRule = "error"
+reportDeprecated = "warning"

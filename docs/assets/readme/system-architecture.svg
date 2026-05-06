@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="920" viewBox="0 0 1500 920" role="img" aria-labelledby="title desc">
+  <title id="title">架构图：LLM 驱动的蛋白质设计工作流系统</title>
+  <desc id="desc">依据设计文档展示输入层、智能规划层、执行层、安全汇总层、资源层与审计闭环。</desc>
+  <defs>
+    <pattern id="dots-green" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.05" fill="#a7d486" opacity="0.72"/>
+    </pattern>
+    <pattern id="dots-gray" width="11" height="11" patternUnits="userSpaceOnUse">
+      <circle cx="2.2" cy="2.2" r="1.0" fill="#b9bec6" opacity="0.62"/>
+    </pattern>
+    <pattern id="dots-blue" width="12" height="12" patternUnits="userSpaceOnUse">
+      <circle cx="2.3" cy="2.3" r="1.0" fill="#8ab5e8" opacity="0.36"/>
+    </pattern>
+    <marker id="arrow-green" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6fb23f"/>
+    </marker>
+    <marker id="arrow-gray" markerWidth="12" markerHeight="10" refX="10" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#7c838d"/>
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1500" height="920" fill="#ffffff"/>
+<text x="52" y="66" style="font-family:Arial, Helvetica, sans-serif;font-size:34px;font-weight:800;fill:#111111" text-anchor="start">Layered architecture: planning suggestions, controlled execution, auditable recovery</text>
+<text x="54" y="100" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">The design keeps control-flow authority in Workflow/FSM while agents stay inside their role boundaries.</text>
+<rect x="610" y="148" width="300" height="78" rx="39" fill="#ffffff" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="610" y="148" width="300" height="78" rx="39" fill="url(#dots-green)" opacity="0.65"/>
+<text x="760" y="192" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:14px;font-weight:500;fill:#111111" text-anchor="middle">WORKFLOW / FSM</text>
+<text x="760" y="258" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:800;fill:#606873;letter-spacing:.8px" text-anchor="middle">State authority</text>
+<path d="M760,226 L760,308" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+
+<rect x="92" y="308" width="1316" height="420" rx="34" fill="#f7f8fa" stroke="#7c838d" stroke-width="1.45"/>
+<rect x="92" y="308" width="1316" height="420" rx="34" fill="url(#dots-gray)" opacity="0.22"/>
+<text x="128" y="348" style="font-family:Arial, Helvetica, sans-serif;font-size:19px;font-weight:800;fill:#111111" text-anchor="start">Runtime kernel</text>
+<rect x="132" y="388" width="220" height="128" rx="15" fill="#eaf4ff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="132" y="388" width="220" height="128" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="150" y="418" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Interface layer</text>
+<text x="150" y="446" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">React workbench</text>
+<text x="150" y="466" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">CLI / scripts</text>
+<text x="150" y="486" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">TaskAPI</text>
+<rect x="396" y="388" width="220" height="128" rx="15" fill="#eff9f1" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="396" y="388" width="220" height="128" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="414" y="418" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Contract layer</text>
+<text x="414" y="446" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">ProteinDesignTask</text>
+<text x="414" y="466" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">Plan / StepResult</text>
+<text x="414" y="486" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">schema validation</text>
+<rect x="660" y="388" width="220" height="128" rx="15" fill="#fff5df" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="660" y="388" width="220" height="128" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="678" y="418" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Planner + KG</text>
+<text x="678" y="446" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">Top-K CandidateSet</text>
+<text x="678" y="466" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">ToolKG constraints</text>
+<text x="678" y="486" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">default suggestion</text>
+<rect x="924" y="388" width="220" height="128" rx="15" fill="#f5efff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="924" y="388" width="220" height="128" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="942" y="418" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Executor + Tools</text>
+<text x="942" y="446" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">PlanStep dispatch</text>
+<text x="942" y="466" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">ToolAdapter / REST</text>
+<text x="942" y="486" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">retry boundary</text>
+<rect x="1188" y="388" width="180" height="128" rx="15" fill="#fff1f1" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="1188" y="388" width="180" height="128" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="1206" y="418" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Safety + Summary</text>
+<text x="1206" y="446" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">ok / warn / block</text>
+<text x="1206" y="466" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">DesignResult</text>
+<text x="1206" y="486" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">report</text>
+<path d="M352,452 L396,452" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+
+<path d="M616,452 L660,452" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+
+<path d="M880,452 L924,452" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)"/>
+
+<path d="M1144,452 L1188,452" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+
+<text x="374" y="374" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:800;fill:#606873;letter-spacing:.8px" text-anchor="middle">task</text>
+<text x="638" y="374" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:800;fill:#606873;letter-spacing:.8px" text-anchor="middle">schema</text>
+<text x="902" y="374" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:800;fill:#606873;letter-spacing:.8px" text-anchor="middle">plan</text>
+<text x="1166" y="374" style="font-family:Arial, Helvetica, sans-serif;font-size:11px;font-weight:800;fill:#606873;letter-spacing:.8px" text-anchor="middle">result</text>
+<rect x="396" y="566" width="220" height="112" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="396" y="566" width="220" height="112" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="414" y="596" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">RuntimeState</text>
+<text x="414" y="624" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">p_success</text>
+<text x="414" y="644" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">p_structural_failure</text>
+<text x="414" y="664" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">recovery_margin</text>
+<text x="414" y="684" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">cost / evidence</text>
+<rect x="660" y="566" width="220" height="112" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="660" y="566" width="220" height="112" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="678" y="596" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">HITL gate</text>
+<text x="678" y="624" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">PendingAction</text>
+<text x="678" y="644" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">Decision</text>
+<text x="678" y="664" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">WAITING_* pause</text>
+<rect x="924" y="566" width="220" height="112" rx="15" fill="#ffffff" stroke="#2d333b" stroke-width="1.45"/>
+<rect x="924" y="566" width="220" height="112" rx="15" fill="url(#dots-blue)" opacity="0.12"/>
+<text x="942" y="596" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="start">Audit store</text>
+<text x="942" y="624" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">TaskSnapshot</text>
+<text x="942" y="644" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">EventLog</text>
+<text x="942" y="664" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="start">artifacts / reports</text>
+<path d="M760,516 L760,566" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+<text x="866" y="546" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="middle">pause before decision</text>
+<text x="638" y="646" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="middle">context</text>
+<path d="M616,622 L660,622" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+
+<text x="902" y="646" style="font-family:Arial, Helvetica, sans-serif;font-size:12.5px;font-weight:400;fill:#606873" text-anchor="middle">write-ahead</text>
+<path d="M880,622 L924,622" fill="none" stroke="#7c838d" stroke-width="2.1" marker-end="url(#arrow-gray)"/>
+
+<rect x="180" y="780" width="1140" height="74" rx="34" fill="#fbfff7" stroke="#6fb23f" stroke-width="1.45"/>
+<rect x="180" y="780" width="1140" height="74" rx="34" fill="url(#dots-green)" opacity="0.36"/>
+<text x="750" y="812" style="font-family:Arial, Helvetica, sans-serif;font-size:15px;font-weight:700;fill:#111111" text-anchor="middle">Recovery and observability rail</text>
+<text x="750" y="838" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="middle">retry -&gt; patch -&gt; replan;  PendingAction -&gt; Decision -&gt; EventLog -&gt; TaskSnapshot</text>
+<path d="M1204,780 L880,678" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+<text x="1194" y="700" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">recover from latest</text>
+<text x="1194" y="716" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">snapshot</text>
+<path d="M660,780 L616,678" fill="none" stroke="#6fb23f" stroke-width="2.1" marker-end="url(#arrow-green)" stroke-dasharray="7 7"/>
+<text x="540" y="758" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:15px;font-weight:500;fill:#275f13" text-anchor="middle">runtime summary</text>
+<text x="134" y="246" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="start">Design source: architecture.md / system-implementation-design.md</text>
+<text x="980" y="246" style="font-family:Consolas, 'Liberation Mono', Menlo, monospace;font-size:12px;font-weight:400;fill:#404852" text-anchor="start">Workflow/FSM owns state; backends only run PlanSteps.</text>
+</svg>

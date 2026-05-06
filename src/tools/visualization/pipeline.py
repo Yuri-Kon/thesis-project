@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
-from typing import Any
+from types import TracebackType
+from typing import Protocol, TypeGuard, cast
 from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 
 RCSB_BASE_URL = "https://files.rcsb.org/download"
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
+
+type ResidueMetrics = JsonObject
 
 
 class VisualizationError(RuntimeError):
@@ -16,7 +26,7 @@ class VisualizationError(RuntimeError):
 class PdbDownloadError(VisualizationError):
     def __init__(self, message: str, *, retryable: bool) -> None:
         super().__init__(message)
-        self.retryable = retryable
+        self.retryable: bool = retryable
 
 
 @dataclass(frozen=True)
@@ -26,7 +36,7 @@ class VisualizationArtifacts:
     report_html_path: Path
     assets_dir: Path
     pdb_path: Path
-    summary_stats: dict[str, Any]
+    summary_stats: JsonObject
 
 
 def run_visualization(
@@ -47,14 +57,14 @@ def run_visualization(
 
     write_metrics(metrics_path, metrics)
     plotly_snippet = build_plotly_snippet(
-        metrics.get("per_residue_bfactor_avg", []),
+        _per_residue_metrics(metrics),
         title=f"{pdb_label} B-factor Average per Residue",
         include_lib=True,
     )
     write_plotly_html(plotly_path, plotly_snippet)
 
     report_plotly_snippet = build_plotly_snippet(
-        metrics.get("per_residue_bfactor_avg", []),
+        _per_residue_metrics(metrics),
         title=f"{pdb_label} B-factor Average per Residue",
         include_lib=False,
     )
@@ -67,7 +77,7 @@ def run_visualization(
         pdb_label,
     )
 
-    summary_stats = {
+    summary_stats: JsonObject = {
         "residue_count": metrics.get("residue_count"),
         "chain_ids": metrics.get("chain_ids"),
     }
@@ -118,7 +128,7 @@ def _copy_pdb_to_assets(
     target_path = assets_dir / source_path.name
     if target_path.exists() and reuse_cache:
         return target_path
-    target_path.write_bytes(source_path.read_bytes())
+    _ = target_path.write_bytes(source_path.read_bytes())
     return target_path
 
 
@@ -135,7 +145,7 @@ def _download_pdb_to_assets(
 
     url = build_pdb_url(pdb_id)
     try:
-        with urlopen(url) as response:
+        with cast(_UrlResponse, cast(object, urlopen(url))) as response:
             status = response.getcode()
             if status is not None and status >= 400:
                 raise PdbDownloadError(
@@ -154,22 +164,72 @@ def _download_pdb_to_assets(
             retryable=True,
         ) from exc
 
-    target_path.write_bytes(data)
+    _ = target_path.write_bytes(data)
     return target_path
 
 
-def _load_biopython():
+class _UrlResponse(Protocol):
+    def __enter__(self) -> _UrlResponse: ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None: ...
+
+    def getcode(self) -> int | None: ...
+
+    def read(self) -> bytes: ...
+
+
+class _AtomLike(Protocol):
+    def get_bfactor(self) -> float | None: ...
+
+
+class _ResidueLike(Protocol):
+    id: object
+    resname: object
+
+    def get_atoms(self) -> Iterable[_AtomLike]: ...
+
+
+class _ChainLike(Protocol):
+    id: object
+
+    def __iter__(self) -> Iterator[_ResidueLike]: ...
+
+
+class _ModelLike(Protocol):
+    def __iter__(self) -> Iterator[_ChainLike]: ...
+
+
+class _ParserLike(Protocol):
+    def get_structure(self, id: str, file: str) -> Iterable[_ModelLike]: ...
+
+
+class _ParserFactory(Protocol):
+    def __call__(self, *, QUIET: bool) -> _ParserLike: ...
+
+
+class _IsAa(Protocol):
+    def __call__(self, residue: object, standard: bool = False) -> bool: ...
+
+
+def _load_biopython() -> tuple[_ParserFactory, _IsAa]:
     try:
-        from Bio.PDB import PDBParser
-        from Bio.PDB.Polypeptide import is_aa
+        from Bio.PDB.PDBParser import PDBParser
+        polypeptide_module = import_module("Bio.PDB.Polypeptide")
     except ImportError as exc:
         raise RuntimeError(
             "BioPython is required for PDB parsing. Install it via `pip install biopython`."
         ) from exc
-    return PDBParser, is_aa
+    parser_factory = cast(_ParserFactory, cast(object, PDBParser))
+    is_aa_func = cast(_IsAa, cast(object, getattr(polypeptide_module, "is_aa")))
+    return parser_factory, is_aa_func
 
 
-def compute_pdb_metrics(pdb_path: Path) -> dict[str, Any]:
+def compute_pdb_metrics(pdb_path: Path) -> JsonObject:
     try:
         parser_cls, is_aa = _load_biopython()
     except RuntimeError:
@@ -180,38 +240,41 @@ def compute_pdb_metrics(pdb_path: Path) -> dict[str, Any]:
 
     chain_ids: list[str] = []
     residue_count = 0
-    per_residue_bfactor_avg = []
+    per_residue_bfactor_avg: list[JsonValue] = []
 
     for model in structure:
         for chain in model:
-            chain_id = chain.id
+            chain_id = str(chain.id)
             if chain_id not in chain_ids:
                 chain_ids.append(chain_id)
             for residue in chain:
                 if not is_aa(residue, standard=True):
                     continue
                 residue_count += 1
-                atom_bfactors = [atom.get_bfactor() for atom in residue.get_atoms()]
+                atom_bfactors = [
+                    value
+                    for atom in residue.get_atoms()
+                    if isinstance((value := atom.get_bfactor()), int | float)
+                ]
                 bfactor_avg = (
                     sum(atom_bfactors) / len(atom_bfactors) if atom_bfactors else 0.0
                 )
-                per_residue_bfactor_avg.append(
-                    {
-                        "res_index": residue.id[1],
-                        "res_id": residue.resname,
-                        "chain_id": chain_id,
-                        "bfactor_avg": bfactor_avg,
-                    }
-                )
+                residue_metric: JsonObject = {
+                    "res_index": _residue_index(residue.id),
+                    "res_id": str(residue.resname),
+                    "chain_id": chain_id,
+                    "bfactor_avg": bfactor_avg,
+                }
+                per_residue_bfactor_avg.append(residue_metric)
 
     return {
-        "chain_ids": chain_ids,
+        "chain_ids": _json_string_array(chain_ids),
         "residue_count": residue_count,
         "per_residue_bfactor_avg": per_residue_bfactor_avg,
     }
 
 
-def _compute_metrics_fallback(pdb_path: Path) -> dict[str, Any]:
+def _compute_metrics_fallback(pdb_path: Path) -> JsonObject:
     chain_ids: list[str] = []
     residue_map: dict[tuple[str, int, str], list[float]] = {}
 
@@ -238,37 +301,36 @@ def _compute_metrics_fallback(pdb_path: Path) -> dict[str, Any]:
         key = (chain_id, res_seq, res_name)
         residue_map.setdefault(key, []).append(bfactor)
 
-    per_residue_bfactor_avg = []
+    per_residue_bfactor_avg: list[JsonValue] = []
     for (chain_id, res_seq, res_name), bfactors in residue_map.items():
         avg = sum(bfactors) / len(bfactors) if bfactors else 0.0
-        per_residue_bfactor_avg.append(
-            {
-                "res_index": res_seq,
-                "res_id": res_name,
-                "chain_id": chain_id,
-                "bfactor_avg": avg,
-            }
-        )
+        residue_metric: JsonObject = {
+            "res_index": res_seq,
+            "res_id": res_name,
+            "chain_id": chain_id,
+            "bfactor_avg": avg,
+        }
+        per_residue_bfactor_avg.append(residue_metric)
 
     return {
-        "chain_ids": chain_ids,
+        "chain_ids": _json_string_array(chain_ids),
         "residue_count": len(residue_map),
         "per_residue_bfactor_avg": per_residue_bfactor_avg,
     }
 
 
-def write_metrics(metrics_path: Path, metrics: dict[str, Any]) -> None:
+def write_metrics(metrics_path: Path, metrics: JsonObject) -> None:
     import json
 
     metrics_path.parent.mkdir(parents=True, exist_ok=True)
-    metrics_path.write_text(
+    _ = metrics_path.write_text(
         json.dumps(metrics, indent=2, sort_keys=True),
         encoding="utf-8",
     )
 
 
 def build_plotly_snippet(
-    per_residue: list[dict[str, Any]],
+    per_residue: list[ResidueMetrics],
     *,
     div_id: str = "bfactor-chart",
     title: str = "B-factor Average per Residue",
@@ -276,8 +338,8 @@ def build_plotly_snippet(
 ) -> str:
     import json
 
-    x_values = [item["res_index"] for item in per_residue]
-    y_values = [item["bfactor_avg"] for item in per_residue]
+    x_values = [_numeric_field(item, "res_index") for item in per_residue]
+    y_values = [_numeric_field(item, "bfactor_avg") for item in per_residue]
 
     lines = [
         f'<div id="{div_id}" style="width: 100%; height: 420px;"></div>',
@@ -308,17 +370,17 @@ def build_plotly_snippet(
 
 def write_plotly_html(plotly_path: Path, snippet: str) -> None:
     plotly_path.parent.mkdir(parents=True, exist_ok=True)
-    plotly_path.write_text(snippet, encoding="utf-8")
+    _ = plotly_path.write_text(snippet, encoding="utf-8")
 
 
 def write_report_html(
     report_path: Path,
-    metrics: dict[str, Any],
+    metrics: JsonObject,
     plotly_snippet: str,
     pdb_rel_path: str,
     pdb_label: str,
 ) -> None:
-    chain_ids = metrics.get("chain_ids", [])
+    chain_ids = _string_list_field(metrics, "chain_ids")
     residue_count = metrics.get("residue_count", 0)
     chain_label = ", ".join(chain_ids) if chain_ids else "N/A"
 
@@ -396,4 +458,57 @@ def write_report_html(
         ]
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(html, encoding="utf-8")
+    _ = report_path.write_text(html, encoding="utf-8")
+
+
+def _per_residue_metrics(metrics: JsonObject) -> list[ResidueMetrics]:
+    value = metrics.get("per_residue_bfactor_avg")
+    if not isinstance(value, list):
+        return []
+    result: list[ResidueMetrics] = []
+    for item in value:
+        if isinstance(item, dict):
+            result.append(dict(item))
+    return result
+
+
+def _numeric_field(payload: Mapping[str, JsonValue], key: str) -> int | float:
+    value = payload.get(key)
+    if isinstance(value, int | float):
+        return value
+    return 0
+
+
+def _string_list_field(payload: Mapping[str, JsonValue], key: str) -> list[str]:
+    value = payload.get(key)
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str)]
+
+
+def _residue_index(value: object) -> int:
+    if isinstance(value, tuple):
+        tuple_value = cast(tuple[object, ...], value)
+        if len(tuple_value) <= 1:
+            return 0
+        candidate = tuple_value[1]
+        if isinstance(candidate, int):
+            return candidate
+    return 0
+
+
+def _json_string_array(values: Iterable[str]) -> JsonArray:
+    return [value for value in values]
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False

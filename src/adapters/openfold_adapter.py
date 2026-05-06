@@ -19,7 +19,7 @@ from src.models.contracts import PlanStep
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureCode, FailureType, StepRunError
 
-__all__ = ["OpenFold2Adapter", "OpenFold3Adapter"]
+__all__ = ["OpenFold3Adapter"]
 
 
 class OpenFold3Adapter(BaseToolAdapter):
@@ -29,7 +29,7 @@ class OpenFold3Adapter(BaseToolAdapter):
     adapter_id = "openfold"
     display_name = "OpenFold3"
     rest_provider_name = "openfold3_rest"
-    rest_provider_aliases = ("openfold3_rest", "openfold2_rest")
+    rest_provider_aliases = ("openfold3_rest",)
     rest_base_url_env = "OPENFOLD3_REST_BASE_URL"
     rest_api_token_env = "OPENFOLD3_REST_API_TOKEN"
     max_sequence_length = 1000
@@ -45,9 +45,9 @@ class OpenFold3Adapter(BaseToolAdapter):
         nim_model_id: str = "openfold/openfold3/predict",
     ) -> None:
         normalized_mode = _normalize_execution_mode(execution_mode)
-        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest", "openfold2_rest"}:
+        if normalized_mode not in {"auto", "nvidia_nim", "openfold3_rest"}:
             raise ValueError(
-                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest, openfold2_rest"
+                "execution_mode must be one of: auto, nvidia_nim, openfold3_rest"
             )
         self.execution_mode = normalized_mode
         self.nim_model_id = nim_model_id
@@ -55,6 +55,28 @@ class OpenFold3Adapter(BaseToolAdapter):
         self.service = service
         self.base_url = base_url
         self.output_dir = Path(output_dir or "output/pdb")
+
+    def describe_capabilities(self) -> Dict[str, Any]:
+        """返回 OpenFold3 适配器的执行通道摘要。"""
+        return {
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.execution_mode,
+            "provider": (
+                self.rest_provider_name
+                if self.execution_mode in self.rest_provider_aliases
+                else "nvidia_nim"
+                if self.execution_mode == "nvidia_nim"
+                else None
+            ),
+            "endpoint_type": (
+                "rest"
+                if self.execution_mode in self.rest_provider_aliases
+                else "nim"
+                if self.execution_mode == "nvidia_nim"
+                else None
+            ),
+        }
 
     def resolve_inputs(
         self,
@@ -180,7 +202,11 @@ class OpenFold3Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "nvidia_nim",
             "duration_ms": int((perf_counter() - t0) * 1000),
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": "nvidia_nim",
             "provider": "nvidia_nim",
+            "endpoint_type": "nim",
             "model_id": self.nim_model_id,
         }
         return outputs, metrics
@@ -198,11 +224,17 @@ class OpenFold3Adapter(BaseToolAdapter):
         job_id = service.submit_job(payload=payload, task_id=task_id, step_id=step_id)
         final_status = service.wait_for_completion(job_id)
         if final_status == JobStatus.FAILED:
-            raise StepRunError(
+            error = StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Remote job {job_id} failed",
                 code=FailureCode.REMOTE_JOB_FAILED.value,
             )
+            error.remote_job_id = job_id  # type: ignore[attr-defined]
+            error.remote_endpoint = getattr(service, "base_url", None)  # type: ignore[attr-defined]
+            error.execution_mode = self.rest_provider_name  # type: ignore[attr-defined]
+            error.provider = self.rest_provider_name  # type: ignore[attr-defined]
+            error.endpoint_type = "rest"  # type: ignore[attr-defined]
+            raise error
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         outputs = service.download_results(job_id=job_id, output_dir=self.output_dir)
@@ -236,8 +268,13 @@ class OpenFold3Adapter(BaseToolAdapter):
         metrics = {
             "exec_type": "remote",
             "duration_ms": int((perf_counter() - t0) * 1000),
+            "tool_id": self.tool_id,
+            "adapter_id": self.adapter_id,
+            "execution_mode": self.rest_provider_name,
             "provider": self.rest_provider_name,
+            "endpoint_type": "rest",
             "job_id": job_id,
+            "remote_job_id": job_id,
         }
         return outputs, metrics
 
@@ -268,8 +305,8 @@ class OpenFold3Adapter(BaseToolAdapter):
     ) -> dict[str, Any] | None:
         return _resolve_openfold_rest_service_config(
             provider_names=self.rest_provider_aliases,
-            base_url_env_keys=(self.rest_base_url_env, "OPENFOLD3_REST_BASE_URL"),
-            api_token_env_keys=(self.rest_api_token_env, "OPENFOLD3_REST_API_TOKEN"),
+            base_url_env_keys=(self.rest_base_url_env,),
+            api_token_env_keys=(self.rest_api_token_env,),
             base_url=base_url,
         )
 
@@ -293,25 +330,9 @@ class OpenFold3Adapter(BaseToolAdapter):
             "status": "unavailable",
             "reason": "neither NIM nor REST endpoint is configured",
         }
-
-
-class OpenFold2Adapter(OpenFold3Adapter):
-    """OpenFold2 REST 兼容适配器。"""
-
-    tool_id = "openfold2"
-    adapter_id = "openfold2"
-    display_name = "OpenFold2"
-    rest_provider_name = "openfold2_rest"
-    rest_provider_aliases = ("openfold2_rest", "openfold3_rest")
-    rest_base_url_env = "OPENFOLD2_REST_BASE_URL"
-    rest_api_token_env = "OPENFOLD2_REST_API_TOKEN"
-
-
 def _normalize_execution_mode(value: str) -> str:
     normalized = value.strip().lower()
-    if normalized in {"rest", "openfold3_rest", "openfold2_rest", "remote_rest"}:
-        if normalized == "openfold2_rest":
-            return "openfold2_rest"
+    if normalized in {"rest", "openfold3_rest", "remote_rest"}:
         return "openfold3_rest"
     if normalized in {"nim", "nvidia_nim"}:
         return "nvidia_nim"

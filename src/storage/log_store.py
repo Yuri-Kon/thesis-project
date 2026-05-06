@@ -2,12 +2,20 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeGuard, cast
 
 if TYPE_CHECKING:
     from src.models.event_log import EventLog
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
+type TimelineEvent = dict[str, JsonValue]
+type ObservabilityFields = dict[str, JsonObject | str | None]
 
 # 事件日志默认目录，按 task_id 写入 jsonl 文件
 
@@ -49,7 +57,7 @@ _WAITING_STATUS_ACTION_NAME_MAP = {
 
 def append_event(
     task_id: str,
-    event: Mapping[str, Any],
+    event: Mapping[str, JsonValue],
     *,
     log_dir: Path = DEFAULT_LOG_DIR,
 ) -> None:
@@ -58,7 +66,7 @@ def append_event(
     path = log_dir / f"{task_id}.jsonl"
     payload = json.dumps(dict(event), ensure_ascii=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(payload + "\n")
+        _ = handle.write(payload + "\n")
 
 
 def write_event_log(
@@ -75,9 +83,9 @@ def write_event_log(
     log_dir.mkdir(parents=True, exist_ok=True)
     path = log_dir / f"{event_log.task_id}.jsonl"
     # 使用 model_dump() 转换为字典，保留所有字段
-    payload = json.dumps(event_log.model_dump(), ensure_ascii=True)
+    payload = json.dumps(event_log.model_dump(mode="json"), ensure_ascii=True)
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(payload + "\n")
+        _ = handle.write(payload + "\n")
 
 
 def read_event_logs(
@@ -100,12 +108,13 @@ def read_event_logs(
             if not line:
                 continue
             try:
-                payload = json.loads(line)
+                raw_payload = _load_json(line)
             except json.JSONDecodeError:
                 if strict:
                     raise
                 continue
-            if not isinstance(payload, dict):
+            payload = _as_json_object(raw_payload)
+            if payload is None:
                 if strict:
                     raise ValueError("EventLog payload must be a JSON object")
                 continue
@@ -125,25 +134,26 @@ def read_timeline_events(
     *,
     log_dir: Path = DEFAULT_LOG_DIR,
     strict: bool = False,
-) -> list[dict[str, Any]]:
+) -> list[TimelineEvent]:
     """读取任务时间线事件（兼容 event_type / event 两种格式）。"""
     path = log_dir / f"{task_id}.jsonl"
     if not path.exists():
         return []
 
-    events: list[dict[str, Any]] = []
+    events: list[TimelineEvent] = []
     with path.open("r", encoding="utf-8") as handle:
         for seq, line in enumerate(handle):
             line = line.strip()
             if not line:
                 continue
             try:
-                payload = json.loads(line)
+                raw_payload = _load_json(line)
             except json.JSONDecodeError:
                 if strict:
                     raise
                 continue
-            if not isinstance(payload, dict):
+            payload = _as_json_object(raw_payload)
+            if payload is None:
                 if strict:
                     raise ValueError("timeline payload must be a JSON object")
                 continue
@@ -162,10 +172,10 @@ def read_timeline_events(
 
 def _normalize_timeline_event(
     *,
-    payload: dict[str, Any],
+    payload: JsonObject,
     task_id: str,
     seq: int,
-) -> dict[str, Any] | None:
+) -> TimelineEvent | None:
     event_type = _canonical_event_type(payload)
     if event_type is None:
         return None
@@ -177,8 +187,7 @@ def _normalize_timeline_event(
     to_status = _string_field(payload, "to_status") or _string_field(
         payload, "new_status"
     )
-    event_data = payload.get("data")
-    data = event_data if isinstance(event_data, dict) else {}
+    data = _mapping_field(payload, "data")
     observability = _extract_observability_fields(payload=payload, data=data)
 
     return {
@@ -193,13 +202,19 @@ def _normalize_timeline_event(
         "step_id": _string_field(payload, "step_id"),
         "tool": _string_field(payload, "tool"),
         "tool_id": observability["tool_id"],
+        "adapter_id": observability["adapter_id"],
+        "execution_mode": observability["execution_mode"],
         "capability_id": observability["capability_id"],
         "io_type": observability["io_type"],
         "adapter_mode": observability["adapter_mode"],
+        "provider": observability["provider"],
+        "endpoint_type": observability["endpoint_type"],
+        "remote_job_id": observability["remote_job_id"],
         "from_tool": observability["from_tool"],
         "to_tool": observability["to_tool"],
         "failure_type": observability["failure_type"],
         "failure_code": observability["failure_code"],
+        "recovery_hint": observability["recovery_hint"],
         "candidate_id": observability["candidate_id"],
         "decision_source": observability["decision_source"],
         "action_name": observability["action_name"],
@@ -225,14 +240,16 @@ def _normalize_timeline_event(
     }
 
 
-def _timeline_sort_key(event: dict[str, Any]) -> tuple[int, datetime, int]:
+def _timeline_sort_key(event: TimelineEvent) -> tuple[int, datetime, int]:
     parsed_ts = _parse_timestamp(event.get("ts"))
+    seq = event.get("seq")
+    seq_value = seq if isinstance(seq, int) else 0
     if parsed_ts is None:
-        return (1, datetime.max, int(event["seq"]))
-    return (0, parsed_ts, int(event["seq"]))
+        return (1, datetime.max, seq_value)
+    return (0, parsed_ts, seq_value)
 
 
-def _parse_timestamp(value: Any) -> datetime | None:
+def _parse_timestamp(value: JsonValue) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     text = value.strip()
@@ -247,7 +264,7 @@ def _parse_timestamp(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _extract_timestamp(payload: dict[str, Any]) -> str | None:
+def _extract_timestamp(payload: JsonObject) -> str | None:
     ts = _string_field(payload, "ts")
     if ts:
         return ts
@@ -257,7 +274,7 @@ def _extract_timestamp(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def _canonical_event_type(payload: dict[str, Any]) -> str | None:
+def _canonical_event_type(payload: JsonObject) -> str | None:
     event_type = _string_field(payload, "event_type")
     if event_type:
         return event_type
@@ -268,7 +285,7 @@ def _canonical_event_type(payload: dict[str, Any]) -> str | None:
     return _LEGACY_EVENT_TYPE_MAP.get(legacy_event, legacy_event)
 
 
-def _string_field(payload: dict[str, Any], key: str) -> str | None:
+def _string_field(payload: JsonObject, key: str) -> str | None:
     value = payload.get(key)
     if not isinstance(value, str):
         return None
@@ -279,7 +296,7 @@ def _string_field(payload: dict[str, Any], key: str) -> str | None:
 def _build_event_summary(
     *,
     event_type: str,
-    payload: dict[str, Any],
+    payload: JsonObject,
     from_status: str | None,
     to_status: str | None,
 ) -> str:
@@ -295,11 +312,10 @@ def _build_event_summary(
     if event_type == "DECISION_APPLIED":
         choice = _string_field(payload, "choice")
         if choice is None:
-            decision_data = payload.get("data")
-            if isinstance(decision_data, dict):
-                value = decision_data.get("choice")
-                if isinstance(value, str):
-                    choice = value
+            decision_data = _mapping_field(payload, "data")
+            value = decision_data.get("choice")
+            if isinstance(value, str):
+                choice = value
         return f"Decision applied ({choice or 'unknown'})"
 
     if event_type == "WAITING_ENTER":
@@ -320,16 +336,13 @@ def _build_event_summary(
 
 def _extract_observability_fields(
     *,
-    payload: dict[str, Any],
-    data: dict[str, Any],
-) -> dict[str, Any]:
-    recovery = data.get("recovery") if isinstance(data.get("recovery"), dict) else {}
-    patch = data.get("patch") if isinstance(data.get("patch"), dict) else {}
-    waiting_runtime_summary = (
-        data.get("waiting_runtime_summary")
-        if isinstance(data.get("waiting_runtime_summary"), dict)
-        else {}
-    )
+    payload: JsonObject,
+    data: JsonObject,
+) -> ObservabilityFields:
+    recovery = _mapping_field(data, "recovery")
+    patch = _mapping_field(data, "patch")
+    fallback = _mapping_field(data, "fallback")
+    waiting_runtime_summary = _mapping_field(data, "waiting_runtime_summary")
     runtime_state_summary = _first_mapping(
         data.get("runtime_state_summary"),
         waiting_runtime_summary.get("runtime_state_summary"),
@@ -360,8 +373,10 @@ def _extract_observability_fields(
         or _string_field(data, "tool")
         or _string_field(patch, "to_tool")
         or _string_field(recovery, "to_tool")
+        or _string_field(fallback, "to_tool_id")
         or _string_field(patch, "from_tool")
         or _string_field(recovery, "from_tool")
+        or _string_field(fallback, "from_tool_id")
     )
     capability_id = (
         _string_field(payload, "capability_id")
@@ -382,18 +397,53 @@ def _extract_observability_fields(
         or _string_field(patch, "adapter_mode")
         or _string_field(recovery, "adapter_mode")
     )
+    adapter_id = (
+        _string_field(payload, "adapter_id")
+        or _string_field(data, "adapter_id")
+        or _string_field(patch, "adapter_id")
+        or _string_field(recovery, "adapter_id")
+        or _string_field(fallback, "to_adapter_id")
+    )
+    execution_mode = (
+        _string_field(payload, "execution_mode")
+        or _string_field(data, "execution_mode")
+        or _string_field(patch, "execution_mode")
+        or _string_field(recovery, "execution_mode")
+        or _string_field(fallback, "to_execution_mode")
+    )
+    provider = (
+        _string_field(payload, "provider")
+        or _string_field(data, "provider")
+        or _string_field(patch, "provider")
+        or _string_field(recovery, "provider")
+    )
+    endpoint_type = (
+        _string_field(payload, "endpoint_type")
+        or _string_field(data, "endpoint_type")
+        or _string_field(patch, "endpoint_type")
+        or _string_field(recovery, "endpoint_type")
+    )
+    remote_job_id = (
+        _string_field(payload, "remote_job_id")
+        or _string_field(data, "remote_job_id")
+        or _string_field(data, "job_id")
+        or _string_field(patch, "remote_job_id")
+        or _string_field(recovery, "remote_job_id")
+    )
 
     from_tool = (
         _string_field(payload, "from_tool")
         or _string_field(data, "from_tool")
         or _string_field(recovery, "from_tool")
         or _string_field(patch, "from_tool")
+        or _string_field(fallback, "from_tool_id")
     )
     to_tool = (
         _string_field(payload, "to_tool")
         or _string_field(data, "to_tool")
         or _string_field(recovery, "to_tool")
         or _string_field(patch, "to_tool")
+        or _string_field(fallback, "to_tool_id")
     )
     failure_type = (
         _string_field(payload, "failure_type")
@@ -406,13 +456,13 @@ def _extract_observability_fields(
         or _string_field(recovery, "failure_code")
     )
     if failure_code is None:
-        error_details = payload.get("error_details")
-        if isinstance(error_details, dict):
-            failure_code = _string_field(error_details, "failure_code")
+        error_details = _mapping_field(payload, "error_details")
+        failure_code = _string_field(error_details, "failure_code")
+        if remote_job_id is None:
+            remote_job_id = _string_field(error_details, "remote_job_id")
     if failure_code is None:
-        s6 = data.get("s6")
-        if isinstance(s6, dict):
-            failure_code = _string_field(s6, "trigger_failure_code")
+        s6 = _mapping_field(data, "s6")
+        failure_code = _string_field(s6, "trigger_failure_code")
 
     candidate_id = (
         _string_field(payload, "selected_candidate_id")
@@ -436,19 +486,33 @@ def _extract_observability_fields(
     recovery_reason = (
         _string_field(recovery, "reason")
         or _string_field(recovery, "upgrade_reason")
+        or _string_field(fallback, "reason")
         or _string_field(data, "reason")
+    )
+    recovery_hint = (
+        _string_field(payload, "recovery_hint")
+        or _string_field(data, "recovery_hint")
+        or _string_field(data, "suggested_recovery")
+        or _string_field(recovery, "recovery_hint")
+        or _string_field(recovery, "suggested_recovery")
     )
     action_name = _extract_action_name(payload=payload, data=data, recovery=recovery)
 
     return {
         "tool_id": tool_id,
+        "adapter_id": adapter_id,
+        "execution_mode": execution_mode,
         "capability_id": capability_id,
         "io_type": io_type,
         "adapter_mode": adapter_mode,
+        "provider": provider,
+        "endpoint_type": endpoint_type,
+        "remote_job_id": remote_job_id,
         "from_tool": from_tool,
         "to_tool": to_tool,
         "failure_type": failure_type,
         "failure_code": failure_code,
+        "recovery_hint": recovery_hint,
         "candidate_id": candidate_id,
         "decision_source": decision_source,
         "action_name": action_name,
@@ -464,19 +528,18 @@ def _extract_observability_fields(
 
 def _extract_action_name(
     *,
-    payload: dict[str, Any],
-    data: dict[str, Any],
-    recovery: dict[str, Any],
+    payload: JsonObject,
+    data: JsonObject,
+    recovery: JsonObject,
 ) -> str | None:
     action_name = _string_field(payload, "action_name") or _string_field(data, "action_name")
     if action_name:
         return action_name
 
-    s6 = data.get("s6")
-    if isinstance(s6, dict):
-        action_name = _string_field(s6, "action")
-        if action_name:
-            return action_name
+    s6 = _mapping_field(data, "s6")
+    action_name = _string_field(s6, "action")
+    if action_name:
+        return action_name
 
     action_type = _string_field(payload, "action_type") or _string_field(data, "action_type")
     if action_type:
@@ -499,8 +562,42 @@ def _extract_action_name(
     return None
 
 
-def _first_mapping(*values: Any) -> dict[str, Any] | None:
+def _first_mapping(*values: JsonValue) -> JsonObject | None:
     for value in values:
         if isinstance(value, dict):
             return dict(value)
     return None
+
+
+def _mapping_field(payload: JsonObject, key: str) -> JsonObject:
+    value = payload.get(key)
+    if isinstance(value, dict):
+        return dict(value)
+    return {}
+
+
+def _load_json(line: str) -> object:
+    return cast(object, json.loads(line))
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    result: JsonObject = {}
+    for key, item in cast(Mapping[object, object], value).items():
+        if isinstance(key, str) and _is_json_value(item):
+            result[key] = item
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(Sequence[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False

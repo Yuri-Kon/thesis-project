@@ -1,0 +1,2 @@
+{"event": "TASK_STATUS_CHANGED", "task_id": "issue221-real-full-20260418b_dynamic_no_belief_state_secondary_balance_r02", "from_status": "CREATED", "to_status": "PLANNING", "state": "PLANNING", "external_status": "PLANNING", "reason": "task_created"}
+{"event": "TASK_STATUS_CHANGED", "task_id": "issue221-real-full-20260418b_dynamic_no_belief_state_secondary_balance_r02", "from_status": "PLANNING", "to_status": "FAILED", "state": "FAILED", "external_status": "FAILED", "reason": "planning_failed"}

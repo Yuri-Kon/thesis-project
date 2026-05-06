@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from src.infra.active_tool_metadata import build_high_cost_rules_from_metadata
+
 
 DEFAULT_REQUIREMENT2_CAPABILITY_MAP: dict[str, list[str]] = {
     "sequence_core": ["sequence_generation", "sequence_design"],
@@ -27,40 +29,44 @@ DEFAULT_OFFLINE_THRESHOLDS: dict[str, float] = {
     "suffix_replan_prefix_preservation_rate": 1.0,
 }
 
-DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = [
-    {
-        "rule_id": "structure_mapping",
-        "label": "结构映射",
-        "stage_ids": ["S2"],
-        "tool_ids": ["esmfold", "nim_esmfold", "openfold3"],
-        "capability_ids": ["structure_prediction"],
-        "cost_tier": "high",
-        "rationale": "结构预测调用通常消耗远程/重模型预算，是高代价主来源。",
-    },
-    {
-        "rule_id": "structure_refinement",
-        "label": "结构条件下的序列精修",
-        "stage_ids": ["S4"],
-        "tool_ids": ["protein_mpnn"],
-        "capability_ids": ["sequence_design"],
-        "cost_tier": "high",
-        "rationale": "ProteinMPNN 多轮采样与回放属于高暴露恢复环节。",
-    },
-    {
-        "rule_id": "heavy_objective_evaluation",
-        "label": "重型目标评估",
-        "stage_ids": ["S5"],
-        "tool_ids": [],
-        "capability_ids": ["objective_scoring"],
-        "cost_tier": "medium_high",
-        "rationale": "重型目标/物性评估会引入额外模型或批量打分成本。",
-    },
-]
+DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = build_high_cost_rules_from_metadata()
 
 _PATCH_EVENT_NAMES = {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}
 DEFAULT_REPLAY_SAMPLE_DIR = (
     Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "w14_issue215"
 )
+ACTION_SPACE = ("continue", "patch_local", "suffix_replan", "stop")
+BELIEF_STATE_CORE_FIELDS = (
+    "p_success",
+    "p_structural_failure",
+    "recovery_margin",
+    "expected_remaining_cost",
+    "evidence_sufficiency",
+)
+BELIEF_STATE_DERIVED_FIELDS = (
+    "budget_pressure",
+    "intervention_value",
+    "goal_misalignment",
+    "local_patchability",
+    "prefix_preservability",
+)
+CANONICAL_GROUP_ALIASES: dict[str, str] = {
+    "A0": "static_top1",
+    "A3": "fixed_threshold_gate",
+    "A4": "dynamic_no_belief_state",
+    "A5": "dynamic_no_belief_state",
+    "A6": "lite_belief_state",
+    "static_top1": "static_top1",
+    "fixed_threshold_gate": "fixed_threshold_gate",
+    "dynamic_no_belief_state": "dynamic_no_belief_state",
+    "lite_belief_state": "lite_belief_state",
+    "E0": "E0",
+    "E1": "E1",
+    "E2": "E2",
+    "react_single_trajectory": "E0",
+    "tot_multi_branch": "E1",
+    "reflexion_recovery": "E2",
+}
 
 
 def now_iso() -> str:
@@ -430,22 +436,51 @@ def _nested(row: dict[str, Any], *path: str) -> Any:
     return current
 
 
-def _has_runtime_state_observation(row: dict[str, Any]) -> bool:
+def canonicalize_group_id(group_id: Any) -> str:
+    """把历史实现组和外部别名映射为论文主结果组。"""
+    if not isinstance(group_id, str) or not group_id.strip():
+        return ""
+    text = group_id.strip()
+    return CANONICAL_GROUP_ALIASES.get(text, text)
+
+
+def _numeric(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _runtime_state_candidates(row: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     data = row.get("data")
     if not isinstance(data, dict):
         data = {}
-    if isinstance(data.get("runtime_state_summary"), dict):
-        return True
+
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    direct = data.get("runtime_state_summary")
+    if isinstance(direct, dict):
+        candidates.append(("event_log:data.runtime_state_summary", direct))
+
     waiting_summary = data.get("waiting_runtime_summary")
-    if isinstance(waiting_summary, dict) and isinstance(
-        waiting_summary.get("runtime_state_summary"),
-        dict,
-    ):
-        return True
+    if isinstance(waiting_summary, dict):
+        waiting_state = waiting_summary.get("runtime_state_summary")
+        if isinstance(waiting_state, dict):
+            candidates.append(
+                ("event_log:data.waiting_runtime_summary.runtime_state_summary", waiting_state)
+            )
+
     recovery = data.get("recovery")
-    if isinstance(recovery, dict) and isinstance(recovery.get("runtime_state_summary"), dict):
-        return True
-    return False
+    if isinstance(recovery, dict):
+        recovery_state = recovery.get("runtime_state_summary")
+        if isinstance(recovery_state, dict):
+            candidates.append(("event_log:data.recovery.runtime_state_summary", recovery_state))
+
+    return candidates
+
+
+def _has_runtime_state_observation(row: dict[str, Any]) -> bool:
+    return bool(_runtime_state_candidates(row))
 
 
 def _has_shadow_output(row: dict[str, Any]) -> bool:
@@ -471,14 +506,178 @@ def _has_shadow_output(row: dict[str, Any]) -> bool:
     return False
 
 
+def _extract_shadow_action(row: dict[str, Any]) -> str | None:
+    data = row.get("data")
+    if not isinstance(data, dict):
+        data = {}
+
+    direct = data.get("shadow_action")
+    if isinstance(direct, str) and direct:
+        return direct
+
+    waiting_summary = data.get("waiting_runtime_summary")
+    if isinstance(waiting_summary, dict):
+        candidate = waiting_summary.get("shadow_action")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+
+    recovery = data.get("recovery")
+    if isinstance(recovery, dict):
+        candidate = recovery.get("shadow_action")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+
+    return None
+
+
+def _extract_logged_action_name(row: dict[str, Any]) -> str | None:
+    direct = row.get("action_name")
+    if isinstance(direct, str) and direct:
+        return direct
+
+    data = row.get("data")
+    if isinstance(data, dict):
+        candidate = data.get("action_name")
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def _normalize_action_name(
+    action_name: str | None,
+    *,
+    row: dict[str, Any],
+    shadow_action: str | None = None,
+) -> str | None:
+    if not isinstance(action_name, str) or not action_name.strip():
+        return None
+
+    normalized = action_name.strip().lower()
+    if normalized == "patch":
+        return "patch_local"
+    if normalized == "replan":
+        reason = str(row.get("reason") or _nested(row, "data", "reason") or "").lower()
+        replan_mode = _nested(row, "data", "replan_mode") or _nested(
+            row,
+            "data",
+            "recovery",
+            "replan_mode",
+        )
+        if isinstance(replan_mode, str) and replan_mode.strip():
+            normalized = replan_mode.strip().lower()
+        elif isinstance(shadow_action, str) and shadow_action.strip():
+            normalized = shadow_action.strip().lower()
+        elif "suffix_replan" in reason:
+            normalized = "suffix_replan"
+        else:
+            normalized = "suffix_replan"
+
+    if normalized in {"continue", "patch_local", "suffix_replan", "stop"}:
+        return normalized
+    return None
+
+
 def _load_snapshot_payload(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
     try:
         payload = load_json(path)
     except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        return payload
+
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            last_mapping: dict[str, Any] | None = None
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(value, dict):
+                    last_mapping = value
+            return last_mapping
+    except Exception:
         return None
-    return payload if isinstance(payload, dict) else None
+    return None
+
+
+def _collect_belief_state_metrics(
+    *,
+    rows: list[dict[str, Any]],
+    snapshot_artifacts: dict[str, Any],
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    latest_values: dict[str, float | None] = {
+        field: None for field in (*BELIEF_STATE_CORE_FIELDS, *BELIEF_STATE_DERIVED_FIELDS)
+    }
+    core_observation_counts: Counter[str] = Counter()
+    derived_observation_counts: Counter[str] = Counter()
+    source_hits: set[str] = set()
+    observation_count = 0
+
+    def consume(source: str, payload: dict[str, Any]) -> None:
+        nonlocal observation_count
+        observed_any = False
+        for field in BELIEF_STATE_CORE_FIELDS:
+            value = _numeric(payload.get(field))
+            if value is not None:
+                latest_values[field] = value
+                core_observation_counts[field] += 1
+                observed_any = True
+        for field in BELIEF_STATE_DERIVED_FIELDS:
+            value = _numeric(payload.get(field))
+            if value is not None:
+                latest_values[field] = value
+                derived_observation_counts[field] += 1
+                observed_any = True
+        if observed_any:
+            observation_count += 1
+            source_hits.add(source)
+
+    for row in rows:
+        for source, payload in _runtime_state_candidates(row):
+            consume(source, payload)
+
+    snapshot_state = snapshot_artifacts.get("runtime_state")
+    if isinstance(snapshot_state, dict):
+        consume("snapshot:artifacts.runtime_state", snapshot_state)
+
+    run_runtime_state = run.get("runtime_state")
+    if isinstance(run_runtime_state, dict):
+        consume("summary_row:runtime_state", run_runtime_state)
+    run_runtime_summary = run.get("runtime_state_summary")
+    if isinstance(run_runtime_summary, dict):
+        consume("summary_row:runtime_state_summary", run_runtime_summary)
+
+    core_observed = {
+        field: core_observation_counts.get(field, 0) > 0 for field in BELIEF_STATE_CORE_FIELDS
+    }
+    derived_observed = {
+        field: derived_observation_counts.get(field, 0) > 0
+        for field in BELIEF_STATE_DERIVED_FIELDS
+    }
+    core_observed_count = sum(1 for observed in core_observed.values() if observed)
+    derived_observed_count = sum(1 for observed in derived_observed.values() if observed)
+
+    return {
+        "belief_state_observation_count": observation_count,
+        "belief_state_core_observed_count": core_observed_count,
+        "belief_state_core_completeness": core_observed_count / len(BELIEF_STATE_CORE_FIELDS),
+        "belief_state_core_complete": core_observed_count == len(BELIEF_STATE_CORE_FIELDS),
+        "belief_state_derived_observed_count": derived_observed_count,
+        "belief_state_derived_completeness": (
+            derived_observed_count / len(BELIEF_STATE_DERIVED_FIELDS)
+        ),
+        "belief_state_sources": sorted(source_hits),
+        "belief_state_core_observed": core_observed,
+        "belief_state_derived_observed": derived_observed,
+        "belief_state_latest": latest_values,
+    }
 
 
 def _optional_path(value: Any) -> Path | None:
@@ -531,6 +730,9 @@ def extract_run_metrics(
     high_cost_failure_count = 0
     runtime_state_observable = False
     shadow_output_observable = False
+    action_counter: Counter[str] = Counter()
+    shadow_action_agreement_count = 0
+    shadow_action_observation_count = 0
 
     suffix_prefix_samples: list[bool] = []
     final_status: str | None = None
@@ -539,10 +741,38 @@ def extract_run_metrics(
         event_name = _event_name(row)
         runtime_state_observable = runtime_state_observable or _has_runtime_state_observation(row)
         shadow_output_observable = shadow_output_observable or _has_shadow_output(row)
+        shadow_action = _normalize_action_name(
+            _extract_shadow_action(row),
+            row=row,
+        )
 
         ts = parse_iso_datetime(row.get("timestamp") or row.get("ts"))
         if ts is not None:
             timestamps.append(ts)
+
+        if event_name in _PATCH_EVENT_NAMES:
+            actual_action = "patch_local"
+        elif event_name == "RECOVERY_ESCALATED":
+            actual_action = _normalize_action_name(
+                _extract_logged_action_name(row) or "replan",
+                row=row,
+                shadow_action=shadow_action,
+            )
+        elif event_name in {"STEP_FINISHED", "STEP_FAILED"}:
+            actual_action = _normalize_action_name(
+                _extract_logged_action_name(row),
+                row=row,
+                shadow_action=shadow_action,
+            )
+        else:
+            actual_action = None
+
+        if actual_action is not None:
+            action_counter[actual_action] += 1
+            if shadow_action is not None:
+                shadow_action_observation_count += 1
+                if shadow_action == actual_action:
+                    shadow_action_agreement_count += 1
 
         if event_name == "TASK_STATUS_CHANGED":
             to_status = row.get("to_status")
@@ -692,11 +922,32 @@ def extract_run_metrics(
         if isinstance(decision_summary.get("shadow_action"), str) and decision_summary.get("shadow_action"):
             shadow_output_observable = True
 
-    return {
+    belief_state_metrics = _collect_belief_state_metrics(
+        rows=rows,
+        snapshot_artifacts=snapshot_artifacts,
+        run=run,
+    )
+
+    shadow_action_agreement_rate = None
+    if shadow_action_observation_count > 0:
+        shadow_action_agreement_rate = (
+            shadow_action_agreement_count / shadow_action_observation_count
+        )
+    shadow_actual_bias_count = shadow_action_observation_count - shadow_action_agreement_count
+    shadow_actual_bias_rate = None
+    if shadow_action_observation_count > 0:
+        shadow_actual_bias_rate = shadow_actual_bias_count / shadow_action_observation_count
+
+    original_group_id = run.get("group_id")
+    canonical_group_id = canonicalize_group_id(original_group_id)
+
+    metrics = {
         "run_id": run.get("run_id"),
         "task_id": run.get("task_id"),
         "task_key": run.get("task_key"),
-        "group_id": run.get("group_id"),
+        "group_id": original_group_id,
+        "canonical_group_id": canonical_group_id,
+        "group_alias": original_group_id if original_group_id != canonical_group_id else "",
         "replicate": run.get("replicate"),
         "freeze_id": run.get("freeze_id"),
         "event_log_path": str(event_log_path) if str(event_log_path) != "." else "",
@@ -722,6 +973,15 @@ def extract_run_metrics(
         "report_linked": bool(report_path and report_path.exists()),
         "runtime_state_observable": runtime_state_observable,
         "shadow_output_observable": shadow_output_observable,
+        "action_continue_count": action_counter.get("continue", 0),
+        "action_patch_local_count": action_counter.get("patch_local", 0),
+        "action_suffix_replan_count": action_counter.get("suffix_replan", 0),
+        "action_stop_count": action_counter.get("stop", 0),
+        "shadow_action_agreement_count": shadow_action_agreement_count,
+        "shadow_action_observation_count": shadow_action_observation_count,
+        "shadow_action_agreement_rate": shadow_action_agreement_rate,
+        "shadow_actual_bias_count": shadow_actual_bias_count,
+        "shadow_actual_bias_rate": shadow_actual_bias_rate,
         "layer_counter": dict(layer_counter),
         "tool_usage": dict(tool_usage),
         "capability_usage": dict(capability_usage),
@@ -735,6 +995,22 @@ def extract_run_metrics(
         "replay_sample_id": run.get("replay_sample_id"),
         "replay_source_freeze_id": run.get("replay_source_freeze_id"),
     }
+    metrics.update(belief_state_metrics)
+    for field in BELIEF_STATE_CORE_FIELDS:
+        metrics[f"belief_state_{field}"] = belief_state_metrics["belief_state_latest"].get(
+            field
+        )
+        metrics[f"belief_state_{field}_observed"] = belief_state_metrics[
+            "belief_state_core_observed"
+        ].get(field, False)
+    for field in BELIEF_STATE_DERIVED_FIELDS:
+        metrics[f"belief_state_{field}"] = belief_state_metrics["belief_state_latest"].get(
+            field
+        )
+        metrics[f"belief_state_{field}_observed"] = belief_state_metrics[
+            "belief_state_derived_observed"
+        ].get(field, False)
+    return metrics
 
 
 def _proportion_summary(flags: list[bool]) -> dict[str, Any]:
@@ -774,14 +1050,20 @@ def aggregate_group_metrics(
     requirement2_capability_map: dict[str, list[str]],
 ) -> dict[str, Any]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    group_order_set = set(group_order)
     for row in runs:
         group_id = row.get("group_id")
-        if isinstance(group_id, str):
+        canonical_group_id = row.get("canonical_group_id") or canonicalize_group_id(group_id)
+        if isinstance(canonical_group_id, str) and canonical_group_id in group_order_set:
+            grouped[canonical_group_id].append(row)
+        elif isinstance(group_id, str):
             grouped[group_id].append(row)
 
     summary_rows: list[dict[str, Any]] = []
     patch_rows: list[dict[str, Any]] = []
     high_cost_rows: list[dict[str, Any]] = []
+    action_rows: list[dict[str, Any]] = []
+    belief_state_rows: list[dict[str, Any]] = []
     requirement2_rows: list[dict[str, Any]] = []
     abnormal_rows: list[dict[str, Any]] = []
     gate_rows: list[dict[str, Any]] = []
@@ -813,6 +1095,23 @@ def aggregate_group_metrics(
         high_cost_failure_counts = [
             float(item.get("high_cost_failure_count", 0) or 0) for item in rows
         ]
+        action_continue_counts = [
+            float(item.get("action_continue_count", 0) or 0) for item in rows
+        ]
+        action_patch_counts = [
+            float(item.get("action_patch_local_count", 0) or 0) for item in rows
+        ]
+        action_suffix_replan_counts = [
+            float(item.get("action_suffix_replan_count", 0) or 0) for item in rows
+        ]
+        action_stop_counts = [float(item.get("action_stop_count", 0) or 0) for item in rows]
+        action_totals_by_name = {
+            "continue": sum(action_continue_counts),
+            "patch_local": sum(action_patch_counts),
+            "suffix_replan": sum(action_suffix_replan_counts),
+            "stop": sum(action_stop_counts),
+        }
+        action_total = sum(action_totals_by_name.values())
 
         patch_summary = _mean_summary(patch_counts, iterations=iterations, seed=seed + idx * 11 + 1)
         replan_summary = _mean_summary(replan_counts, iterations=iterations, seed=seed + idx * 11 + 2)
@@ -828,6 +1127,26 @@ def aggregate_group_metrics(
             iterations=iterations,
             seed=seed + idx * 11 + 6,
         )
+        continue_summary = _mean_summary(
+            action_continue_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 7,
+        )
+        patch_action_summary = _mean_summary(
+            action_patch_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 8,
+        )
+        suffix_action_summary = _mean_summary(
+            action_suffix_replan_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 9,
+        )
+        stop_action_summary = _mean_summary(
+            action_stop_counts,
+            iterations=iterations,
+            seed=seed + idx * 11 + 10,
+        )
 
         patch_layer_counter: Counter[str] = Counter()
         suffix_prefix_samples: list[bool] = []
@@ -835,6 +1154,15 @@ def aggregate_group_metrics(
         tool_counter: Counter[str] = Counter()
         high_cost_rule_counter: Counter[str] = Counter()
         total_patch_events_with_layer = 0
+        shadow_action_agreement_total = 0
+        shadow_action_observation_total = 0
+        aliases = sorted(
+            {
+                str(row.get("group_id"))
+                for row in rows
+                if isinstance(row.get("group_id"), str) and row.get("group_id") != group_id
+            }
+        )
 
         for row in rows:
             for layer, count in (row.get("layer_counter") or {}).items():
@@ -851,6 +1179,12 @@ def aggregate_group_metrics(
                 if isinstance(key, str) and isinstance(value, (int, float)):
                     high_cost_rule_counter[key] += int(value)
             suffix_prefix_samples.extend([bool(v) for v in row.get("suffix_prefix_samples") or []])
+            shadow_action_agreement_total += int(
+                row.get("shadow_action_agreement_count", 0) or 0
+            )
+            shadow_action_observation_total += int(
+                row.get("shadow_action_observation_count", 0) or 0
+            )
 
         patch_minimality_hit_rate = None
         if total_patch_events_with_layer > 0:
@@ -862,6 +1196,48 @@ def aggregate_group_metrics(
                 sum(1 for flag in suffix_prefix_samples if flag) / len(suffix_prefix_samples)
             )
 
+        shadow_action_agreement_rate = None
+        if shadow_action_observation_total > 0:
+            shadow_action_agreement_rate = (
+                shadow_action_agreement_total / shadow_action_observation_total
+            )
+        shadow_actual_bias_total = shadow_action_observation_total - shadow_action_agreement_total
+        shadow_actual_bias_rate = None
+        if shadow_action_observation_total > 0:
+            shadow_actual_bias_rate = shadow_actual_bias_total / shadow_action_observation_total
+
+        belief_core_observed_rates = {
+            field: _proportion_summary(
+                [bool(item.get(f"belief_state_{field}_observed")) for item in rows]
+            )
+            for field in BELIEF_STATE_CORE_FIELDS
+        }
+        belief_derived_observed_rates = {
+            field: _proportion_summary(
+                [bool(item.get(f"belief_state_{field}_observed")) for item in rows]
+            )
+            for field in BELIEF_STATE_DERIVED_FIELDS
+        }
+        belief_state_observable = _proportion_summary(
+            [int(item.get("belief_state_observation_count", 0) or 0) > 0 for item in rows]
+        )
+        belief_state_core_complete = _proportion_summary(
+            [bool(item.get("belief_state_core_complete")) for item in rows]
+        )
+        belief_core_completeness = _mean_summary(
+            [float(item.get("belief_state_core_completeness", 0.0) or 0.0) for item in rows],
+            iterations=iterations,
+            seed=seed + idx * 11 + 11,
+        )
+        belief_derived_completeness = _mean_summary(
+            [
+                float(item.get("belief_state_derived_completeness", 0.0) or 0.0)
+                for item in rows
+            ],
+            iterations=iterations,
+            seed=seed + idx * 11 + 12,
+        )
+
         requirement2_bucket_status: dict[str, bool] = {}
         for bucket, capabilities in requirement2_capability_map.items():
             requirement2_bucket_status[bucket] = any(
@@ -870,6 +1246,8 @@ def aggregate_group_metrics(
 
         summary_row = {
             "group_id": group_id,
+            "canonical_group_id": canonicalize_group_id(group_id),
+            "group_aliases": aliases,
             "runs": len(rows),
             "success_rate": success["rate"],
             "success_ci_low": success["ci_low"],
@@ -888,6 +1266,10 @@ def aggregate_group_metrics(
             "snapshot_linked_rate": snapshot_linked["rate"],
             "runtime_state_observable_rate": runtime_state_observable["rate"],
             "shadow_output_observable_rate": shadow_output_observable["rate"],
+            "belief_state_observable_rate": belief_state_observable["rate"],
+            "belief_state_core_complete_rate": belief_state_core_complete["rate"],
+            "belief_state_core_completeness_mean": belief_core_completeness["mean"],
+            "belief_state_derived_completeness_mean": belief_derived_completeness["mean"],
             "patch_events_mean": patch_summary["mean"],
             "patch_events_ci_low": patch_summary["ci_low"],
             "patch_events_ci_high": patch_summary["ci_high"],
@@ -908,11 +1290,33 @@ def aggregate_group_metrics(
             "high_cost_failure_ci_high": high_cost_failure_summary["ci_high"],
             "patch_minimality_hit_rate": patch_minimality_hit_rate,
             "suffix_replan_prefix_preservation_rate": suffix_prefix_preservation_rate,
+            "action_continue_mean": continue_summary["mean"],
+            "action_continue_ci_low": continue_summary["ci_low"],
+            "action_continue_ci_high": continue_summary["ci_high"],
+            "action_patch_local_mean": patch_action_summary["mean"],
+            "action_patch_local_ci_low": patch_action_summary["ci_low"],
+            "action_patch_local_ci_high": patch_action_summary["ci_high"],
+            "action_suffix_replan_mean": suffix_action_summary["mean"],
+            "action_suffix_replan_ci_low": suffix_action_summary["ci_low"],
+            "action_suffix_replan_ci_high": suffix_action_summary["ci_high"],
+            "action_stop_mean": stop_action_summary["mean"],
+            "action_stop_ci_low": stop_action_summary["ci_low"],
+            "action_stop_ci_high": stop_action_summary["ci_high"],
+            "shadow_action_agreement_rate": shadow_action_agreement_rate,
+            "shadow_actual_bias_rate": shadow_actual_bias_rate,
             "requirement2_sequence_core": requirement2_bucket_status.get("sequence_core", False),
             "requirement2_quality_qc": requirement2_bucket_status.get("quality_qc", False),
             "requirement2_objective_scoring": requirement2_bucket_status.get("objective_scoring", False),
             "requirement2_structure_prediction": requirement2_bucket_status.get("structure_prediction", False),
         }
+        for action_name, total in action_totals_by_name.items():
+            summary_row[f"action_{action_name}_rate"] = (
+                total / action_total if action_total > 0 else None
+            )
+        for field, field_summary in belief_core_observed_rates.items():
+            summary_row[f"belief_state_{field}_observable_rate"] = field_summary["rate"]
+        for field, field_summary in belief_derived_observed_rates.items():
+            summary_row[f"belief_state_{field}_observable_rate"] = field_summary["rate"]
         for bucket, covered in requirement2_bucket_status.items():
             summary_row[f"requirement2_{bucket}"] = covered
         summary_rows.append(summary_row)
@@ -938,6 +1342,57 @@ def aggregate_group_metrics(
                 "high_cost_calls_total": sum(high_cost_counts),
                 "high_cost_failures_total": sum(high_cost_failure_counts),
                 "high_cost_rule_hits": dict(high_cost_rule_counter),
+            }
+        )
+
+        action_rows.append(
+            {
+                "group_id": group_id,
+                "canonical_group_id": canonicalize_group_id(group_id),
+                "group_aliases": aliases,
+                "action_total": action_total,
+                "action_continue_total": sum(action_continue_counts),
+                "action_continue_rate": (
+                    action_totals_by_name["continue"] / action_total if action_total > 0 else None
+                ),
+                "action_patch_local_total": sum(action_patch_counts),
+                "action_patch_local_rate": (
+                    action_totals_by_name["patch_local"] / action_total if action_total > 0 else None
+                ),
+                "action_suffix_replan_total": sum(action_suffix_replan_counts),
+                "action_suffix_replan_rate": (
+                    action_totals_by_name["suffix_replan"] / action_total if action_total > 0 else None
+                ),
+                "action_stop_total": sum(action_stop_counts),
+                "action_stop_rate": (
+                    action_totals_by_name["stop"] / action_total if action_total > 0 else None
+                ),
+                "shadow_action_observation_total": shadow_action_observation_total,
+                "shadow_action_agreement_total": shadow_action_agreement_total,
+                "shadow_action_agreement_rate": shadow_action_agreement_rate,
+                "shadow_actual_bias_total": shadow_actual_bias_total,
+                "shadow_actual_bias_rate": shadow_actual_bias_rate,
+            }
+        )
+
+        belief_state_rows.append(
+            {
+                "group_id": group_id,
+                "canonical_group_id": canonicalize_group_id(group_id),
+                "group_aliases": aliases,
+                "runs": len(rows),
+                "belief_state_observable_rate": belief_state_observable["rate"],
+                "belief_state_core_complete_rate": belief_state_core_complete["rate"],
+                "belief_state_core_completeness_mean": belief_core_completeness["mean"],
+                "belief_state_derived_completeness_mean": belief_derived_completeness["mean"],
+                **{
+                    f"{field}_observable_rate": field_summary["rate"]
+                    for field, field_summary in belief_core_observed_rates.items()
+                },
+                **{
+                    f"{field}_observable_rate": field_summary["rate"]
+                    for field, field_summary in belief_derived_observed_rates.items()
+                },
             }
         )
 
@@ -1016,6 +1471,8 @@ def aggregate_group_metrics(
         "summary_rows": summary_rows,
         "patch_rows": patch_rows,
         "high_cost_rows": high_cost_rows,
+        "action_rows": action_rows,
+        "belief_state_rows": belief_state_rows,
         "requirement2_rows": requirement2_rows,
         "abnormal_rows": abnormal_rows,
         "gate_rows": gate_rows,
@@ -1031,9 +1488,13 @@ def compute_increment_deltas(
     seed: int,
 ) -> list[dict[str, Any]]:
     by_group: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    group_order_set = set(group_order)
     for row in runs:
         group_id = row.get("group_id")
-        if isinstance(group_id, str):
+        canonical_group_id = row.get("canonical_group_id") or canonicalize_group_id(group_id)
+        if isinstance(canonical_group_id, str) and canonical_group_id in group_order_set:
+            by_group[canonical_group_id].append(row)
+        elif isinstance(group_id, str):
             by_group[group_id].append(row)
 
     rows: list[dict[str, Any]] = []
@@ -1195,5 +1656,8 @@ def build_markdown_report(
     lines.append("- Mechanism increment evidence: provided in `mechanism_increment_deltas.csv` with CI.")
     lines.append("- Offline thresholds: checked in `offline_gate_assessment.json`; unmet items include reasons.")
     lines.append("- Requirement2: tool/capability slices exported in `requirement2_tool_capability_slices.csv`.")
+    lines.append("- Action-level metrics: `action_distribution_breakdown.csv` exports `continue / patch_local / suffix_replan / stop` totals, rates, and shadow/actual bias.")
+    lines.append("- Belief-state metrics: `belief_state_observability_breakdown.csv` exports the five frozen core-state observable rates and derived-field completeness.")
+    lines.append("- Naming: `canonical_group_id` preserves the paper group name while `group_aliases` links back to historical `A0-A6` or external aliases.")
 
     return "\n".join(lines) + "\n"

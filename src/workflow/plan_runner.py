@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from pathlib import Path
 from typing import Any, Protocol
 from src.agents.planner import PlannerAgent
 from src.infra.event_log_factory import make_candidate_validation_failed
@@ -44,6 +45,8 @@ from src.workflow.errors import (
     is_retryable_failure,
 )
 from src.workflow.runtime_policy import resolve_runtime_policy, runtime_policy_trace
+
+_AA_ALPHABET = set("ACDEFGHIKLMNPQRSTVWY")
 
 
 class StepRunnerLike(Protocol):
@@ -284,11 +287,12 @@ class PlanRunner:
                         else None,
                     )
                     if step_result.status == "failed":
-                        blocked_by_safety = self._add_failed_step_safety_event(
-                            step_result,
-                            plan,
-                            context,
-                        )
+                        if not _has_recovery_upgrade(step_result):
+                            blocked_by_safety = self._add_failed_step_safety_event(
+                                step_result,
+                                plan,
+                                context,
+                            )
                         failed_result = step_result
 
                 if failed_result is not None:
@@ -965,12 +969,34 @@ def _should_require_replan_confirm(error: PlanRunError) -> bool:
     )
 
 
+def _has_recovery_upgrade(step_result: StepResult) -> bool:
+    recovery = step_result.metrics.get("recovery")
+    if not isinstance(recovery, dict):
+        return False
+    upgrade_reason = recovery.get("upgrade_reason")
+    return isinstance(upgrade_reason, str) and bool(upgrade_reason)
+
+
 def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
     data: dict[str, Any] = {}
+    for field_name in (
+        "tool_id",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+    ):
+        value = getattr(step_result, field_name, None)
+        if isinstance(value, str) and value:
+            data[field_name] = value
     if isinstance(step_result.error_details, dict):
         failure_code = step_result.error_details.get("failure_code")
         if isinstance(failure_code, str) and failure_code:
             data["failure_code"] = failure_code
+        remote_job_id = step_result.error_details.get("remote_job_id")
+        if isinstance(remote_job_id, str) and remote_job_id and "remote_job_id" not in data:
+            data["remote_job_id"] = remote_job_id
 
     outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
     stage_id = outputs.get("stage_id")
@@ -1005,6 +1031,20 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "upgrade_reason": recovery_meta.get("upgrade_reason"),
         }
 
+    fallback_meta = step_result.metrics.get("fallback")
+    if isinstance(fallback_meta, dict) and fallback_meta:
+        data["fallback"] = {
+            "fallback_kind": fallback_meta.get("fallback_kind"),
+            "reason": fallback_meta.get("reason"),
+            "from_tool_id": fallback_meta.get("from_tool_id"),
+            "to_tool_id": fallback_meta.get("to_tool_id"),
+            "from_execution_mode": fallback_meta.get("from_execution_mode"),
+            "to_execution_mode": fallback_meta.get("to_execution_mode"),
+            "from_adapter_id": fallback_meta.get("from_adapter_id"),
+            "to_adapter_id": fallback_meta.get("to_adapter_id"),
+            "capability_preserved": fallback_meta.get("capability_preserved"),
+        }
+
     workflow_action = step_result.metrics.get("workflow_action")
     if isinstance(workflow_action, str) and workflow_action:
         data["action_name"] = workflow_action
@@ -1026,6 +1066,9 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
         }
 
     if stage_id == "S3":
+        input_summary = _summarize_quality_gate_inputs(step_result.inputs)
+        if input_summary:
+            data["input_summary"] = input_summary
         reject_counts = outputs.get("reject_code_counts")
         failed_rows = outputs.get("failed_samples")
         failed_samples: list[dict[str, Any]] = []
@@ -1047,7 +1090,103 @@ def _build_step_trace_data(step_result: StepResult) -> dict[str, Any]:
             "reject_code_counts": reject_counts if isinstance(reject_counts, dict) else {},
             "failed_samples": failed_samples,
         }
+    if outputs.get("capability_id") == "objective_scoring":
+        data["objective_scoring"] = {
+            "objective_score": outputs.get("objective_score"),
+            "objective_gap": step_result.metrics.get("objective_gap"),
+            "objective_progress": step_result.metrics.get("objective_progress"),
+            "default_recommendation": outputs.get("default_recommendation"),
+            "rank_reason": outputs.get("rank_reason"),
+            "warning_count": step_result.metrics.get("warning_count"),
+        }
     return data
+
+
+def _summarize_quality_gate_inputs(inputs: Any) -> dict[str, Any]:
+    if not isinstance(inputs, dict):
+        return {}
+
+    summary: dict[str, Any] = {}
+    if "sequence" in inputs:
+        summary["sequence"] = _summarize_sequence_input(inputs.get("sequence"))
+    if "pdb_path" in inputs:
+        summary["pdb_path"] = _summarize_path_input(inputs.get("pdb_path"))
+
+    structure_results = inputs.get("structure_results")
+    if isinstance(structure_results, list):
+        summary["structure_results"] = {
+            "type": "list",
+            "count": len(structure_results),
+        }
+        first_item = next(
+            (item for item in structure_results if isinstance(item, dict)),
+            None,
+        )
+        if first_item is not None:
+            summary["structure_results"]["first_candidate"] = {
+                "candidate_id": first_item.get("candidate_id"),
+                "sequence": _summarize_sequence_input(first_item.get("sequence")),
+                "pdb_path": _summarize_path_input(first_item.get("pdb_path")),
+            }
+    return summary
+
+
+def _summarize_sequence_input(value: Any) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "type": type(value).__name__,
+    }
+    if not isinstance(value, str):
+        if isinstance(value, list):
+            summary["count"] = len(value)
+        return summary
+
+    trimmed = value.strip()
+    uppercase = trimmed.upper()
+    invalid_chars = [
+        char
+        for char in uppercase
+        if char and char not in _AA_ALPHABET
+    ]
+    summary.update(
+        {
+            "length": len(value),
+            "preview": value[:48],
+            "symbolic_reference_like": _looks_like_symbolic_reference(value),
+            "valid_aa_chars": bool(trimmed) and not invalid_chars,
+            "invalid_char_count": len(invalid_chars),
+        }
+    )
+    return summary
+
+
+def _summarize_path_input(value: Any) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "type": type(value).__name__,
+    }
+    if not isinstance(value, str):
+        return summary
+
+    symbolic_reference_like = _looks_like_symbolic_reference(value)
+    summary.update(
+        {
+            "value": value,
+            "symbolic_reference_like": symbolic_reference_like,
+            "exists": False if symbolic_reference_like else Path(value).exists(),
+        }
+    )
+    return summary
+
+
+def _looks_like_symbolic_reference(value: str) -> bool:
+    if "/" in value or "\\" in value:
+        return False
+    dot_count = value.count(".")
+    if dot_count >= 2:
+        return True
+    if dot_count == 1:
+        head = value.split(".", 1)[0]
+        return head.startswith("S")
+    return False
 
 
 def _resolve_top_k(value: object, *, default: int) -> int:

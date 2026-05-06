@@ -1,0 +1,20 @@
+{
+  "generated_at": "2026-04-19T16:57:29+00:00",
+  "runs": [
+    {
+      "group_id": "fixed_threshold_gate",
+      "task_key": "secondary_balance",
+      "replicate": 1
+    },
+    {
+      "group_id": "dynamic_no_belief_state",
+      "task_key": "secondary_balance",
+      "replicate": 1
+    },
+    {
+      "group_id": "lite_belief_state",
+      "task_key": "high_solubility",
+      "replicate": 2
+    }
+  ]
+}

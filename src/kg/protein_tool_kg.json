@@ -63,10 +63,34 @@
       "description": "Estimate structural stability from trajectory or structure-derived proxy metrics."
     },
     {
+      "capability_id": "motif_scaffolding",
+      "name": "Motif Scaffolding",
+      "domain": "protein/design",
+      "description": "Design scaffold candidates that preserve user-provided motif constraints."
+    },
+    {
+      "capability_id": "backbone_generation",
+      "name": "Backbone Generation",
+      "domain": "protein/structure",
+      "description": "Generate protein backbone candidates for downstream sequence design."
+    },
+    {
+      "capability_id": "binding_design",
+      "name": "Binding Design",
+      "domain": "protein/binding",
+      "description": "Design protein candidates targeting an explicit binding partner."
+    },
+    {
       "capability_id": "docking_scoring",
       "name": "Docking Scoring",
       "domain": "protein/docking",
       "description": "Evaluate receptor-ligand binding affinity with docking-based proxy scores."
+    },
+    {
+      "capability_id": "enzyme_design",
+      "name": "Enzyme Design",
+      "domain": "protein/function",
+      "description": "Design enzyme-like candidates around activity and active-site constraints."
     }
   ],
   "io_types": [
@@ -332,18 +356,17 @@
     {
       "constraint_id": "foldseek_runtime",
       "preconditions": [
-        "structure_provided",
-        "database_ready"
+        "structure_provided"
       ],
       "resource_assumptions": [
-        "foldseek_installed",
-        "local_structure_database_ready"
+        "network_available",
+        "foldseek_web_api_available"
       ],
       "model_assumptions": [
         "single_candidate_or_batch"
       ],
       "limits": {},
-      "description": "Foldseek runtime requirements for structure similarity search."
+      "description": "Foldseek Web API runtime requirements for structure similarity search."
     },
     {
       "constraint_id": "interproscan_runtime",
@@ -650,9 +673,26 @@
       "execution": {
         "backend": "remote_model_service",
         "provider": "nvidia_nim",
+        "execution_mode": "nvidia_nim",
         "model_id": "openfold/openfold3/predict",
         "sync_mode": true,
-        "alternate_provider": "openfold3_rest"
+        "alternate_provider": "openfold3_rest",
+        "execution_modes": [
+          {
+            "execution_mode": "nvidia_nim",
+            "adapter_id": "openfold",
+            "provider": "nvidia_nim",
+            "endpoint_type": "nim",
+            "model_id": "openfold/openfold3/predict"
+          },
+          {
+            "execution_mode": "openfold3_rest",
+            "adapter_id": "openfold",
+            "provider": "openfold3_rest",
+            "endpoint_type": "rest",
+            "base_url_env": "OPENFOLD3_REST_BASE_URL"
+          }
+        ]
       },
       "cost_score": 0.75,
       "safety_level": 1,
@@ -673,73 +713,6 @@
       ],
       "preferred_next": [
         "biopython_qc"
-      ],
-      "version": "1.0.0"
-    },
-    {
-      "id": "openfold2",
-      "tool_id": "openfold2",
-      "name": "OpenFold2",
-      "domain": "protein/structure",
-      "description": "OpenFold2 structure prediction via remote REST GPU service.",
-      "capabilities": [
-        "structure_prediction"
-      ],
-      "io": {
-        "io_type_id": "sequence_to_structure",
-        "inputs": {
-          "sequence": "str"
-        },
-        "outputs": {
-          "pdb_path": "path",
-          "plddt": "float"
-        },
-        "input_types": [
-          "sequence"
-        ],
-        "output_types": [
-          "structure_pdb",
-          "plddt"
-        ],
-        "combinable": true
-      },
-      "constraints": {
-        "preconditions": [
-          "sequence_provided"
-        ],
-        "resource_assumptions": [
-          "network_available",
-          "openfold2_rest_service_available"
-        ],
-        "model_assumptions": [
-          "single_chain_or_complex"
-        ],
-        "limits": {
-          "max_length": 1000
-        }
-      },
-      "execution": {
-        "backend": "remote_model_service",
-        "provider": "openfold2_rest",
-        "sync_mode": true
-      },
-      "cost_score": 0.72,
-      "safety_level": 1,
-      "priority": "P0",
-      "official_links": [],
-      "compat": {
-        "from": [
-          "protein_mpnn.sequence",
-          "protgpt2.sequence"
-        ]
-      },
-      "failure_modes": [
-        "timeout",
-        "invalid_input"
-      ],
-      "preferred_next": [
-        "biopython_qc",
-        "dssp"
       ],
       "version": "1.0.0"
     },
@@ -1153,20 +1126,44 @@
       "io": {
         "io_type_id": "candidates_to_objective_scores_topk",
         "inputs": {
-          "candidates": "list"
+          "candidates": "list",
+          "sequence": "str",
+          "structure_pdb": "str",
+          "qc_metrics": "dict",
+          "similarity_hits": "list",
+          "secondary_structure_summary": "dict",
+          "objective_weights": "dict",
+          "task_constraints": "dict"
         },
         "outputs": {
           "score_table": "list",
           "top_k": "list",
+          "component_scores": "dict",
+          "objective_score": "float",
+          "warnings": "list",
+          "evidence_refs": "list",
+          "rank_reason": "str",
           "default_recommendation": "str",
           "explanation": "str"
         },
         "input_types": [
-          "candidates"
+          "candidates",
+          "sequence",
+          "structure_pdb",
+          "qc_metrics",
+          "similarity_hits",
+          "secondary_structure_summary",
+          "objective_weights",
+          "task_constraints"
         ],
         "output_types": [
           "score_table",
-          "top_k"
+          "top_k",
+          "component_scores",
+          "objective_score",
+          "warnings",
+          "evidence_refs",
+          "rank_reason"
         ],
         "combinable": true
       },
@@ -1207,7 +1204,8 @@
         "io_type_id": "structure_to_similarity_hits",
         "inputs": {
           "pdb_path": "path",
-          "database_path": "path"
+          "databases": "list[str]",
+          "database_path": "path_or_api_database_id"
         },
         "outputs": {
           "structure_similarity_hits": "list",
@@ -1224,28 +1222,62 @@
       },
       "constraints": {
         "preconditions": [
-          "structure_provided",
-          "database_ready"
+          "structure_provided"
         ],
         "resource_assumptions": [
-          "foldseek_installed",
-          "local_structure_database_ready"
+          "network_available",
+          "foldseek_web_api_available"
         ],
         "model_assumptions": [
           "single_candidate_or_batch"
         ],
         "limits": {}
       },
-      "execution": "python",
+      "execution": {
+        "backend": "foldseek_web_api",
+        "provider": "foldseek_web",
+        "execution_mode": "foldseek_api",
+        "endpoint_type": "rest",
+        "base_url_env": "FOLDSEEK_API_BASE_URL",
+        "default_base_url": "https://search.foldseek.com/api",
+        "database_env": "FOLDSEEK_API_DATABASES",
+        "default_databases": [
+          "afdb-swissprot"
+        ],
+        "alternate_provider": "local_cli",
+        "execution_modes": [
+          {
+            "execution_mode": "foldseek_api",
+            "adapter_id": "foldseek",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "base_url_env": "FOLDSEEK_API_BASE_URL"
+          },
+          {
+            "execution_mode": "local_cli",
+            "adapter_id": "foldseek",
+            "provider": "local_foldseek",
+            "endpoint_type": "cli",
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          }
+        ]
+      },
       "cost_score": 0.28,
       "safety_level": 1,
       "priority": "P1",
       "official_links": [
+        "https://search.foldseek.com",
+        "https://github.com/soedinglab/MMseqs2-App/blob/master/docs/api.html",
         "https://github.com/steineggerlab/foldseek"
       ],
       "failure_modes": [
-        "binary_missing",
-        "database_missing"
+        "remote_unreachable",
+        "timeout",
+        "invalid_input"
       ],
       "preferred_next": [
         "objective_ranker"

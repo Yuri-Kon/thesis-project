@@ -1,0 +1,113 @@
+{
+  "generated_at": "2026-04-22T04:07:37+00:00",
+  "thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "groups": [
+    {
+      "group_id": "E0",
+      "all_passed": false,
+      "checks": [
+        {
+          "metric": "schema_valid_rate",
+          "threshold": 0.995,
+          "value": 1.0,
+          "passed": true,
+          "reason": null
+        },
+        {
+          "metric": "executable_plan_rate",
+          "threshold": 0.95,
+          "value": 1.0,
+          "passed": true,
+          "reason": null
+        },
+        {
+          "metric": "patch_minimality_hit_rate",
+          "threshold": 0.8,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        },
+        {
+          "metric": "suffix_replan_prefix_preservation_rate",
+          "threshold": 1.0,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        }
+      ]
+    },
+    {
+      "group_id": "E1",
+      "all_passed": false,
+      "checks": [
+        {
+          "metric": "schema_valid_rate",
+          "threshold": 0.995,
+          "value": 0.8571428571428571,
+          "passed": false,
+          "reason": "below_threshold"
+        },
+        {
+          "metric": "executable_plan_rate",
+          "threshold": 0.95,
+          "value": 1.0,
+          "passed": true,
+          "reason": null
+        },
+        {
+          "metric": "patch_minimality_hit_rate",
+          "threshold": 0.8,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        },
+        {
+          "metric": "suffix_replan_prefix_preservation_rate",
+          "threshold": 1.0,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        }
+      ]
+    },
+    {
+      "group_id": "E2",
+      "all_passed": false,
+      "checks": [
+        {
+          "metric": "schema_valid_rate",
+          "threshold": 0.995,
+          "value": 1.0,
+          "passed": true,
+          "reason": null
+        },
+        {
+          "metric": "executable_plan_rate",
+          "threshold": 0.95,
+          "value": 1.0,
+          "passed": true,
+          "reason": null
+        },
+        {
+          "metric": "patch_minimality_hit_rate",
+          "threshold": 0.8,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        },
+        {
+          "metric": "suffix_replan_prefix_preservation_rate",
+          "threshold": 1.0,
+          "value": null,
+          "passed": false,
+          "reason": "missing_value"
+        }
+      ]
+    }
+  ]
+}

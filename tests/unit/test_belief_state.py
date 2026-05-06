@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
@@ -16,8 +17,15 @@ from src.models.contracts import (
     StepResult,
     now_iso,
 )
-from src.workflow.belief_state import extract_failure_context, update_runtime_state
+from src.workflow.belief_state import (
+    BELIEF_STATE_UPDATE_RULES,
+    extract_failure_context,
+    update_runtime_state,
+)
 from src.workflow.context import WorkflowContext
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _build_failed_step_result() -> StepResult:
@@ -63,6 +71,49 @@ def test_extract_failure_context_returns_stable_schema() -> None:
     assert failure_context.to_replay_payload()["recovery_action"] == "patch_local"
 
 
+def test_belief_state_update_rules_cover_runtime_signals() -> None:
+    """规则表应覆盖论文中 B(x_t,o_t,h_t) 需要解释的观测信号。"""
+
+    rules = {rule.signal: rule for rule in BELIEF_STATE_UPDATE_RULES}
+
+    assert set(rules) == {
+        "step_result.success",
+        "step_result.success@structural",
+        "step_result.failed",
+        "step_result.failed@structural",
+        "step_result.retry_exhausted",
+        "step_result.skipped",
+        "safety_result.warn",
+        "safety_result.block",
+        "failure_context.patch_local",
+        "failure_context.suffix_replan",
+        "failure_context.stop",
+        "failure_context.retry_exhausted",
+        "objective_evidence.progress",
+        "objective_evidence.sufficiency",
+        "objective_evidence.gap",
+        "evidence_signal",
+        "progress_counters",
+    }
+    assert rules["step_result.failed"].p_success == pytest.approx(-0.18)
+    assert rules["step_result.failed"].p_structural_failure == pytest.approx(0.14)
+    assert rules["step_result.failed"].recovery_margin == pytest.approx(-0.12)
+    assert rules["safety_result.block"].recovery_margin == pytest.approx(-0.16)
+    assert rules["failure_context.patch_local"].expected_remaining_cost == (
+        "cost_penalty += 0.60"
+    )
+
+
+def test_belief_state_update_rules_are_documented_in_theory_table() -> None:
+    theory_doc = (
+        _REPO_ROOT / "docs/algorithm-and-llm/core-algorithm-theory-v2.md"
+    ).read_text(encoding="utf-8")
+
+    assert "B(x_t,o_t,h_t)" in theory_doc
+    for rule in BELIEF_STATE_UPDATE_RULES:
+        assert f"`{rule.signal}`" in theory_doc
+
+
 def test_runtime_state_update_input_rejects_invalid_progress_bounds() -> None:
     with pytest.raises(ValidationError):
         RuntimeStateUpdateInput(completed_steps=3, total_steps=2)
@@ -106,6 +157,123 @@ def test_update_runtime_state_accepts_structured_update_input() -> None:
     assert state.recovery_margin == 0.31
     assert state.expected_remaining_cost == 5.0
     assert state.evidence_sufficiency == 0.5015
+
+
+def test_update_runtime_state_derives_budget_pressure_from_budget_cap() -> None:
+    step_result = _build_failed_step_result()
+    update_input = RuntimeStateUpdateInput.from_step_result(
+        step_result=step_result,
+        failure_context=extract_failure_context(step_result),
+        completed_steps=1,
+        total_steps=4,
+        budget_cap=10.0,
+    )
+
+    state = update_runtime_state(
+        previous_state=None,
+        update_input=update_input,
+    )
+
+    assert state.expected_remaining_cost == pytest.approx(5.0)
+    assert state.budget_cap == pytest.approx(10.0)
+    assert state.budget_pressure == pytest.approx(0.5)
+    assert state.observation_summary["budget_pressure"] == pytest.approx(0.5)
+
+
+def test_runtime_state_consumes_objective_signal_without_overriding_safety_block() -> None:
+    """objective gap/progress 可进入观测摘要，但安全阻断仍会降低成功概率。"""
+
+    step_result = StepResult(
+        task_id="task_belief",
+        step_id="S3",
+        tool="objective_ranker",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        inputs={},
+        outputs={
+            "capability_id": "objective_scoring",
+            "objective_score": 0.9,
+            "default_recommendation": "cand_a",
+        },
+        artifacts={},
+        metrics={
+            "objective_progress": 0.9,
+            "objective_gap": 0.2,
+            "top_candidate_id": "cand_a",
+            "warning_count": 1,
+        },
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+    safety_block = SafetyResult(
+        task_id="task_belief",
+        phase="step",
+        scope="step:S3",
+        risk_flags=[
+            RiskFlag(
+                level="block",
+                code="SCHEMA_VIOLATION",
+                message="schema violation",
+                scope="step",
+                step_id="S3",
+                details={},
+            )
+        ],
+        action="block",
+        timestamp=now_iso(),
+    )
+
+    objective_only = update_runtime_state(
+        previous_state=None,
+        step_result=step_result,
+    )
+    blocked = update_runtime_state(
+        previous_state=None,
+        step_result=step_result,
+        safety_result=safety_block,
+    )
+
+    assert blocked.observation_summary["objective_progress"] == 0.9
+    assert blocked.observation_summary["objective_gap"] == 0.2
+    assert blocked.observation_summary["objective_top_candidate_id"] == "cand_a"
+    assert blocked.p_success < objective_only.p_success
+    assert blocked.observation_summary["last_safety_action"] == "block"
+
+
+def test_runtime_state_consumes_structure_similarity_signal() -> None:
+    """structure similarity hit 摘要应进入 runtime evidence observation。"""
+
+    step_result = StepResult(
+        task_id="task_belief",
+        step_id="S4",
+        tool="foldseek",
+        status="success",
+        failure_type=None,
+        error_message=None,
+        inputs={},
+        outputs={
+            "capability_id": "structure_similarity_search",
+            "hit_count": 1,
+            "top_hit": {"hit_id": "1abc_A", "tm_score": 0.82, "coverage": 0.91},
+            "structure_similarity_hits": [
+                {"hit_id": "1abc_A", "tm_score": 0.82, "coverage": 0.91}
+            ],
+        },
+        artifacts={},
+        metrics={"hit_count": 1},
+        risk_flags=[],
+        logs_path=None,
+        timestamp=now_iso(),
+    )
+
+    state = update_runtime_state(previous_state=None, step_result=step_result)
+
+    assert state.observation_summary["structure_similarity_hit_count"] == 1
+    assert state.observation_summary["structure_similarity_top_tm_score"] == 0.82
+    assert state.observation_summary["structure_similarity_top_coverage"] == 0.91
+    assert state.evidence_sufficiency > 0.5
 
 
 def test_workflow_context_apply_runtime_state_update_is_runner_entrypoint() -> None:

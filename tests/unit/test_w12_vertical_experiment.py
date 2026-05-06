@@ -150,8 +150,93 @@ def test_replay_sample_materialization_extracts_runtime_snapshot_and_shadow_fiel
     assert metrics["report_linked"] is True
     assert metrics["runtime_state_observable"] is True
     assert metrics["shadow_output_observable"] is True
+    assert metrics["canonical_group_id"] == "fixed_threshold_gate"
+    assert metrics["group_alias"] == "A3"
+    assert metrics["belief_state_p_success"] == 0.74
+    assert metrics["belief_state_p_structural_failure"] == 0.18
+    assert metrics["belief_state_expected_remaining_cost"] == 1.1
+    assert metrics["belief_state_evidence_sufficiency"] is None
+    assert metrics["belief_state_core_observed_count"] == 4
+    assert metrics["belief_state_core_completeness"] == 0.8
+    assert metrics["belief_state_core_complete"] is False
+    assert "snapshot:artifacts.runtime_state" in metrics["belief_state_sources"]
     assert metrics["replay_sample_id"] == "runtime_shadow_success_sample"
     assert metrics["replay_source_freeze_id"] == "issue209-baseline-freeze-smoke"
+
+
+def test_extract_run_metrics_reads_latest_jsonl_snapshot(tmp_path: Path) -> None:
+    log_path = tmp_path / "logs" / "task_jsonl_snapshot.jsonl"
+    snapshot_path = tmp_path / "snapshots" / "task_jsonl_snapshot.jsonl"
+    report_path = tmp_path / "reports" / "task_jsonl_snapshot.json"
+
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_jsonl_snapshot",
+                "step_id": "S2",
+                "tool": "esmfold",
+                "status": "success",
+                "timestamp": "2026-04-16T10:00:01+00:00",
+                "data": {
+                    "action_name": "continue",
+                    "shadow_action": "continue",
+                },
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_jsonl_snapshot",
+                "from_status": "SUMMARIZING",
+                "to_status": "DONE",
+                "timestamp": "2026-04-16T10:00:02+00:00",
+            },
+        ],
+    )
+    _write_jsonl(
+        snapshot_path,
+        [
+            {"task_id": "task_jsonl_snapshot", "artifacts": {}},
+            {
+                "task_id": "task_jsonl_snapshot",
+                "artifacts": {
+                    "runtime_state": {
+                        "p_success": 0.73,
+                        "p_structural_failure": 0.19,
+                    },
+                    "decision_summary": {
+                        "shadow_action": "continue",
+                        "shadow_score": {"value": 0.88},
+                    },
+                },
+            },
+        ],
+    )
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text("{}", encoding="utf-8")
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "r_jsonl_snapshot",
+            "task_id": "task_jsonl_snapshot",
+            "task_key": "k_jsonl_snapshot",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "freeze_id": "f_jsonl_snapshot",
+            "event_log_path": str(log_path),
+            "snapshot_path": str(snapshot_path),
+            "report_path": str(report_path),
+            "status_external": "DONE",
+        },
+        tool_capability_map={"esmfold": ["structure_prediction"]},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["snapshot_linked"] is True
+    assert metrics["runtime_state_observable"] is True
+    assert metrics["shadow_output_observable"] is True
+    assert metrics["action_continue_count"] == 1
+    assert metrics["shadow_action_agreement_rate"] == 1.0
 
 
 def test_replay_sample_is_deterministic_for_same_fixture(tmp_path: Path) -> None:
@@ -214,6 +299,98 @@ def test_replay_samples_batch_returns_reusable_metrics(tmp_path: Path) -> None:
     assert by_id["replan_waiting_shadow_sample"]["requirement2_coverage"]["sequence_core"] is True
 
 
+def test_extract_run_metrics_tracks_action_counts_and_shadow_agreement(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "logs" / "task_action_metrics.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_action_metrics",
+                "step_id": "S1",
+                "tool": "seqgen_local",
+                "status": "success",
+                "timestamp": "2026-04-16T10:10:01+00:00",
+                "data": {
+                    "action_name": "continue",
+                    "shadow_action": "continue",
+                },
+            },
+            {
+                "event": "PARAM_TWEAK",
+                "task_id": "task_action_metrics",
+                "step_id": "S2",
+                "timestamp": "2026-04-16T10:10:02+00:00",
+                "data": {
+                    "shadow_action": "patch",
+                    "recovery": {"recovery_layer": "parameter_level"},
+                },
+            },
+            {
+                "event": "RECOVERY_ESCALATED",
+                "task_id": "task_action_metrics",
+                "step_id": "S3",
+                "timestamp": "2026-04-16T10:10:03+00:00",
+                "data": {
+                    "action_name": "replan",
+                    "shadow_action": "suffix_replan",
+                    "recovery": {"upgrade_reason": "suffix_replan"},
+                },
+            },
+            {
+                "event": "STEP_FAILED",
+                "task_id": "task_action_metrics",
+                "step_id": "S4",
+                "tool": "esmfold",
+                "status": "failed",
+                "timestamp": "2026-04-16T10:10:04+00:00",
+                "data": {
+                    "action_name": "stop",
+                    "shadow_action": "suffix_replan",
+                    "failure_code": "STOP_REQUESTED",
+                },
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_action_metrics",
+                "from_status": "RUNNING",
+                "to_status": "FAILED",
+                "timestamp": "2026-04-16T10:10:05+00:00",
+            },
+        ],
+    )
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "r_action_metrics",
+            "task_id": "task_action_metrics",
+            "task_key": "k_action_metrics",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "freeze_id": "f_action_metrics",
+            "event_log_path": str(log_path),
+            "status_external": "FAILED",
+        },
+        tool_capability_map={
+            "seqgen_local": ["sequence_generation"],
+            "esmfold": ["structure_prediction"],
+        },
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["action_continue_count"] == 1
+    assert metrics["action_patch_local_count"] == 1
+    assert metrics["action_suffix_replan_count"] == 1
+    assert metrics["action_stop_count"] == 1
+    assert metrics["shadow_action_observation_count"] == 4
+    assert metrics["shadow_action_agreement_count"] == 3
+    assert metrics["shadow_action_agreement_rate"] == 0.75
+    assert metrics["shadow_actual_bias_count"] == 1
+    assert metrics["shadow_actual_bias_rate"] == 0.25
+
+
 def test_aggregate_and_deltas(tmp_path: Path) -> None:
     def make_run(group_id: str, task_key: str, replicate: int, success: bool, patch_count: int) -> dict:
         return {
@@ -242,6 +419,25 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
             "step_finished_count": 1,
             "waiting_chain_complete": True,
             "failure_traceable": True,
+            "action_continue_count": 1 if success else 0,
+            "action_patch_local_count": patch_count,
+            "action_suffix_replan_count": 0 if success else 1,
+            "action_stop_count": 0,
+            "shadow_action_agreement_count": 1 if success else 0,
+            "shadow_action_observation_count": 1,
+            "shadow_action_agreement_rate": 1.0 if success else 0.0,
+            "shadow_actual_bias_count": 0 if success else 1,
+            "shadow_actual_bias_rate": 0.0 if success else 1.0,
+            "belief_state_observation_count": 1 if group_id == "A1" else 0,
+            "belief_state_core_complete": group_id == "A1",
+            "belief_state_core_completeness": 1.0 if group_id == "A1" else 0.0,
+            "belief_state_derived_completeness": 0.2 if group_id == "A1" else 0.0,
+            "belief_state_p_success_observed": group_id == "A1",
+            "belief_state_p_structural_failure_observed": group_id == "A1",
+            "belief_state_recovery_margin_observed": group_id == "A1",
+            "belief_state_expected_remaining_cost_observed": group_id == "A1",
+            "belief_state_evidence_sufficiency_observed": group_id == "A1",
+            "belief_state_budget_pressure_observed": group_id == "A1",
             "layer_counter": {"parameter_level": patch_count} if patch_count else {},
             "tool_usage": {"protgpt2": 1},
             "capability_usage": {"sequence_generation": 1},
@@ -284,6 +480,23 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert summary["A0"]["high_cost_call_mean"] == 0.0
     assert summary["A0"]["runtime_state_observable_rate"] == 0.0
     assert summary["A1"]["shadow_output_observable_rate"] == 0.0
+    assert summary["A1"]["action_continue_mean"] == 1.0
+    assert summary["A0"]["action_patch_local_mean"] == 1.0
+    assert summary["A0"]["action_suffix_replan_mean"] == 0.5
+    assert summary["A1"]["shadow_action_agreement_rate"] == 1.0
+    assert summary["A0"]["shadow_actual_bias_rate"] == 0.5
+    assert summary["A1"]["belief_state_core_complete_rate"] == 1.0
+    assert summary["A1"]["belief_state_p_success_observable_rate"] == 1.0
+    assert summary["A1"]["belief_state_budget_pressure_observable_rate"] == 1.0
+    assert summary["A0"]["action_patch_local_rate"] == 0.5
+
+    action_rows = {row["group_id"]: row for row in aggregated["action_rows"]}
+    assert action_rows["A0"]["action_total"] == 4.0
+    assert action_rows["A0"]["shadow_actual_bias_total"] == 1
+
+    belief_rows = {row["group_id"]: row for row in aggregated["belief_state_rows"]}
+    assert belief_rows["A1"]["belief_state_core_complete_rate"] == 1.0
+    assert belief_rows["A1"]["budget_pressure_observable_rate"] == 1.0
 
     deltas = compute_increment_deltas(
         runs,
@@ -298,6 +511,68 @@ def test_aggregate_and_deltas(tmp_path: Path) -> None:
     assert row["to_group"] == "A1"
     assert row["delta"] is not None
     assert row["pairing"] == "paired"
+
+
+def test_aggregate_group_metrics_supports_canonical_group_naming() -> None:
+    runs = [
+        {
+            "run_id": "a0_r1",
+            "task_id": "task_a0",
+            "task_key": "k1",
+            "group_id": "A0",
+            "canonical_group_id": "static_top1",
+            "replicate": 1,
+            "success": True,
+            "first_pass_success": True,
+            "schema_valid": True,
+            "executable_plan": True,
+            "waiting_chain_complete": True,
+            "failure_traceable": True,
+            "snapshot_linked": False,
+            "runtime_state_observable": False,
+            "shadow_output_observable": False,
+            "belief_state_core_complete": False,
+        },
+        {
+            "run_id": "a6_r1",
+            "task_id": "task_a6",
+            "task_key": "k1",
+            "group_id": "A6",
+            "canonical_group_id": "lite_belief_state",
+            "replicate": 1,
+            "success": True,
+            "first_pass_success": False,
+            "schema_valid": True,
+            "executable_plan": True,
+            "waiting_chain_complete": True,
+            "failure_traceable": True,
+            "snapshot_linked": True,
+            "runtime_state_observable": True,
+            "shadow_output_observable": True,
+            "belief_state_core_complete": True,
+            "belief_state_core_completeness": 1.0,
+            "belief_state_derived_completeness": 0.0,
+            "belief_state_p_success_observed": True,
+            "belief_state_p_structural_failure_observed": True,
+            "belief_state_recovery_margin_observed": True,
+            "belief_state_expected_remaining_cost_observed": True,
+            "belief_state_evidence_sufficiency_observed": True,
+        },
+    ]
+
+    aggregated = aggregate_group_metrics(
+        runs,
+        group_order=["static_top1", "lite_belief_state"],
+        iterations=100,
+        seed=17,
+        thresholds={},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    summary = {row["group_id"]: row for row in aggregated["summary_rows"]}
+    assert summary["static_top1"]["group_aliases"] == ["A0"]
+    assert summary["lite_belief_state"]["group_aliases"] == ["A6"]
+    assert summary["lite_belief_state"]["belief_state_core_complete_rate"] == 1.0
 
 
 def test_requirement2_rows_include_new_similarity_and_secondary_structure_tools(

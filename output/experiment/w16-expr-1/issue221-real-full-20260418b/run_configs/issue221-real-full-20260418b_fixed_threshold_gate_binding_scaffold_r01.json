@@ -1,0 +1,94 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-04-18T04:31:20+00:00",
+  "run_id": "issue221-real-full-20260418b_fixed_threshold_gate_binding_scaffold_r01",
+  "task_id": "issue221-real-full-20260418b_fixed_threshold_gate_binding_scaffold_r01",
+  "group": {
+    "id": "fixed_threshold_gate",
+    "label": "固定阈值 gate",
+    "comparison_order": 1,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_threshold_gate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 3,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.75,
+      "high_cost_min_overall": 0.85,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "first_pass_success_rate",
+      "high_cost_call_mean",
+      "patch_minimality_hit_rate",
+      "suffix_replan_prefix_preservation_rate"
+    ],
+    "notes": "Uses current fixed score/risk/cost thresholds without explicit runtime state."
+  },
+  "task": {
+    "task_key": "binding_scaffold",
+    "goal": "de_novo_design",
+    "display_name": "Binding Scaffold",
+    "difficulty": "hard",
+    "budget_tier": "high_cost_sensitive",
+    "rationale": "Pocket exposure and function-oriented constraints increase dependence on structure mapping and heavy evaluation.",
+    "constraints": {
+      "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+      "length_range": [
+        45,
+        95
+      ]
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "goal_type": "de_novo_design",
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "plan_top_k": 3,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.75,
+    "high_cost_min_overall": 0.85,
+    "require_plan_confirm": false,
+    "require_patch_confirm": false,
+    "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+    "length_range": [
+      45,
+      95
+    ],
+    "runtime_policy": "static_threshold_gate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "paper_matrix",
+    "owner": "issue221",
+    "issue_id": 221,
+    "experiment": "w16_issue221_matrix",
+    "group_id": "fixed_threshold_gate",
+    "group_label": "固定阈值 gate",
+    "task_key": "binding_scaffold",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty": "hard",
+    "budget_tier": "high_cost_sensitive"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "baseline_freeze_config_hash": "04ceb6102ddc",
+    "baseline_freeze_manifest_path": null,
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}

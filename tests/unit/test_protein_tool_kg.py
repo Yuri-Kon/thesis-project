@@ -11,7 +11,6 @@ def test_kg_includes_plm_and_design_capabilities() -> None:
     assert "protgpt2" in tool_ids
     assert "alphafold" in tool_ids
     assert "openfold" in tool_ids
-    assert "openfold2" in tool_ids
     assert "biopython_qc" in tool_ids
     assert "mmseqs2" in tool_ids
     assert "blastp" in tool_ids

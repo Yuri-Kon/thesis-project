@@ -1,0 +1,54 @@
+[
+  {
+    "group_id": "A6",
+    "label": "Lite Belief-State",
+    "scope": "internal_reference",
+    "success_rate": 0.0,
+    "first_pass_success_rate": 0.0,
+    "duration_ms_mean": 0.0,
+    "high_cost_call_mean": null,
+    "waiting_chain_complete_rate": 0.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  },
+  {
+    "group_id": "E0",
+    "label": "E0",
+    "scope": "external",
+    "success_rate": 0.14285714285714285,
+    "first_pass_success_rate": 0.14285714285714285,
+    "duration_ms_mean": 120285.71428571429,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  },
+  {
+    "group_id": "E1",
+    "label": "E1",
+    "scope": "external",
+    "success_rate": 0.0,
+    "first_pass_success_rate": 0.0,
+    "duration_ms_mean": 128000.0,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 0.0,
+    "replan_events_mean": 0.0
+  },
+  {
+    "group_id": "E2",
+    "label": "E2",
+    "scope": "external",
+    "success_rate": 0.0,
+    "first_pass_success_rate": 0.0,
+    "duration_ms_mean": 190142.85714285713,
+    "high_cost_call_mean": 0.0,
+    "waiting_chain_complete_rate": 1.0,
+    "failure_traceable_rate": 1.0,
+    "patch_events_mean": 1.0,
+    "replan_events_mean": 0.0
+  }
+]

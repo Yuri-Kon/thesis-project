@@ -45,17 +45,20 @@ def resolve_step_inputs(
             step_id, field = val.split(".", 1)
             if step_id and step_id.startswith("S"):
                 if not context.has_step_result(step_id):
-                    raise ValueError(
-                        f"Failed to resolve input reference '{val}' "
-                        f"for step '{step.id}': step '{step_id}' not found in context"
+                    message = (
+                        f"Failed to resolve input reference '{val}' for step " +
+                        f"'{step.id}': step '{step_id}' not found in context"
                     )
+                    raise ValueError(message)
                 try:
                     resolved[key] = context.get_step_output(step_id, field)
                 except KeyError as exc:
-                    raise ValueError(
-                        f"Failed to resolve input reference '{val}' "
-                        f"for step '{step.id}': field '{field}' not found in step '{step_id}' outputs"
-                    ) from exc
+                    message = (
+                        f"Failed to resolve input reference '{val}' for step " +
+                        f"'{step.id}': field '{field}' not found in step " +
+                        f"'{step_id}' outputs"
+                    )
+                    raise ValueError(message) from exc
                 continue
         resolved[key] = val
 
@@ -138,18 +141,53 @@ def build_similarity_metrics(
     return metrics
 
 
-def normalize_structure_similarity_hit(raw: Dict[str, Any], *, rank: int) -> Dict[str, Any]:
+def normalize_structure_similarity_hit(
+    raw: Dict[str, Any],
+    *,
+    rank: int,
+    query_structure: str | None = None,
+    database: str | None = None,
+    artifact_refs: list[Dict[str, Any]] | None = None,
+) -> Dict[str, Any]:
+    alignment_length = _to_int(raw.get("alignment_length"))
+    query_length = _to_int(raw.get("query_length"))
+    target_length = _to_int(raw.get("target_length"))
+    query_coverage = _bounded_fraction(alignment_length, query_length)
+    target_coverage = _bounded_fraction(alignment_length, target_length)
+    tm_score = _to_float(raw.get("tm_score"))
+    bitscore = _to_float(raw.get("bitscore"))
+    warnings: list[str] = []
+    if tm_score is None:
+        warnings.append("tm_score missing from structure similarity hit")
+    if query_coverage is None:
+        warnings.append("query coverage unavailable")
     return {
         "rank": rank,
         "query_id": _to_str(raw.get("query_id")) or "query_1",
         "target_id": _to_str(raw.get("target_id")) or f"structure_{rank}",
-        "tm_score": _to_float(raw.get("tm_score")),
+        "hit_id": _to_str(raw.get("hit_id"))
+        or _to_str(raw.get("target_id"))
+        or f"structure_{rank}",
+        "query_structure": query_structure,
+        "database": database,
+        "tm_score": tm_score,
+        "query_tm_score": _to_float(raw.get("query_tm_score")),
+        "target_tm_score": _to_float(raw.get("target_tm_score")),
+        "rmsd": _to_float(raw.get("rmsd")),
+        "alignment_score": tm_score if tm_score is not None else bitscore,
         "lddt": _to_float(raw.get("lddt")),
+        "probability": _to_float(raw.get("probability")),
         "evalue": _to_float(raw.get("evalue")),
-        "bitscore": _to_float(raw.get("bitscore")),
-        "alignment_length": _to_int(raw.get("alignment_length")),
-        "query_length": _to_int(raw.get("query_length")),
-        "target_length": _to_int(raw.get("target_length")),
+        "e_value": _to_float(raw.get("evalue")),
+        "bitscore": bitscore,
+        "coverage": query_coverage,
+        "query_coverage": query_coverage,
+        "target_coverage": target_coverage,
+        "alignment_length": alignment_length,
+        "query_length": query_length,
+        "target_length": target_length,
+        "artifact_refs": list(artifact_refs or []),
+        "warnings": warnings,
     }
 
 
@@ -158,8 +196,22 @@ def build_structure_similarity_outputs(
     inputs: Dict[str, Any],
     hits: list[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    artifact_refs = inputs.get("artifact_refs")
+    normalized_artifact_refs = (
+        [item for item in artifact_refs if isinstance(item, dict)]
+        if isinstance(artifact_refs, list)
+        else []
+    )
+    query_structure = _to_str(inputs.get("pdb_path"))
+    database = _to_str(inputs.get("database_path"))
     normalized_hits = [
-        normalize_structure_similarity_hit(hit, rank=index)
+        normalize_structure_similarity_hit(
+            hit,
+            rank=index,
+            query_structure=query_structure,
+            database=database,
+            artifact_refs=normalized_artifact_refs,
+        )
         for index, hit in enumerate(hits, start=1)
     ]
     top_hit = normalized_hits[0] if normalized_hits else None
@@ -167,11 +219,14 @@ def build_structure_similarity_outputs(
         "tool_id": tool_id,
         "capability_id": "structure_similarity_search",
         "io_type": "structure_to_similarity_hits",
-        "pdb_path": _to_str(inputs.get("pdb_path")),
-        "database_path": _to_str(inputs.get("database_path")),
+        "pdb_path": query_structure,
+        "query_structure": query_structure,
+        "database_path": database,
+        "database": database,
         "structure_similarity_hits": normalized_hits,
         "hit_count": len(normalized_hits),
         "top_hit": top_hit,
+        "artifact_refs": normalized_artifact_refs,
     }
 
 
@@ -310,20 +365,73 @@ def build_objective_outputs(
     inputs: Dict[str, Any],
     scored_candidates: list[Dict[str, Any]],
     *,
+    top_k_candidates: list[Dict[str, Any]] | None = None,
     default_recommendation: str | None,
     explanation: str,
 ) -> Dict[str, Any]:
+    top_k_rows = top_k_candidates if top_k_candidates is not None else scored_candidates
     top_score = (
-        _to_float(scored_candidates[0].get("objective_score"))
-        if scored_candidates
+        _to_float(top_k_rows[0].get("objective_score"))
+        if top_k_rows
         else None
+    )
+    component_scores = {
+        str(row.get("candidate_id") or f"candidate_{index}"): dict(
+            row.get("component_scores") or row.get("score_breakdown") or {}
+        )
+        for index, row in enumerate(scored_candidates, start=1)
+    }
+    warnings = _unique_strings(
+        warning
+        for row in scored_candidates
+        for warning in row.get("warnings", [])
+        if isinstance(row.get("warnings"), list)
+    )
+    evidence_refs = [
+        ref
+        for row in scored_candidates
+        for ref in row.get("evidence_refs", [])
+        if isinstance(row.get("evidence_refs"), list) and isinstance(ref, dict)
+    ]
+    posterior_scores: dict[str, Dict[str, Any]] = {}
+    posterior_objectives: dict[str, Dict[str, Any]] = {}
+    for index, row in enumerate(scored_candidates, start=1):
+        candidate_id = str(row.get("candidate_id") or f"candidate_{index}")
+        posterior_score = row.get("posterior_score")
+        if isinstance(posterior_score, dict):
+            posterior_scores[candidate_id] = dict(posterior_score)
+        posterior_objective = row.get("posterior_objective")
+        if isinstance(posterior_objective, dict):
+            posterior_objectives[candidate_id] = dict(posterior_objective)
+    top_posterior_score: Dict[str, Any] = {}
+    top_posterior_objective: Dict[str, Any] = {}
+    if top_k_rows:
+        raw_top_posterior = top_k_rows[0].get("posterior_score")
+        if isinstance(raw_top_posterior, dict):
+            top_posterior_score = dict(raw_top_posterior)
+        raw_top_posterior_objective = top_k_rows[0].get("posterior_objective")
+        if isinstance(raw_top_posterior_objective, dict):
+            top_posterior_objective = dict(raw_top_posterior_objective)
+    component_weights: Dict[str, Any] = {}
+    raw_component_weights = top_posterior_score.get("component_weights")
+    if isinstance(raw_component_weights, dict):
+        component_weights = dict(raw_component_weights)
+    rank_reason = (
+        _to_str(scored_candidates[0].get("rank_reason")) if scored_candidates else None
     )
     return {
         "tool_id": tool_id,
         "capability_id": "objective_scoring",
         "io_type": "candidates_to_objective_scores_topk",
         "score_table": scored_candidates,
-        "top_k": scored_candidates,
+        "top_k": top_k_rows,
+        "component_scores": component_scores,
+        "posterior_score": top_posterior_score,
+        "posterior_scores": posterior_scores,
+        "posterior_objective": top_posterior_objective,
+        "posterior_objectives": posterior_objectives,
+        "aggregate_score": top_score,
+        "component_weights": component_weights,
         "default_recommendation": default_recommendation,
         "objective_score": top_score,
         "score_breakdown": (
@@ -331,9 +439,13 @@ def build_objective_outputs(
             if scored_candidates
             else {}
         ),
+        "warnings": warnings,
+        "evidence_refs": evidence_refs,
+        "rank_reason": rank_reason,
         "objective_explanation": explanation,
         "explanation": explanation,
         "candidate_count": len(scored_candidates),
+        "top_k_count": len(top_k_rows),
         "input_candidate_count": _to_int(inputs.get("input_candidate_count")) or len(scored_candidates),
     }
 
@@ -351,6 +463,18 @@ def build_objective_metrics(
             "io_type": "candidates_to_objective_scores_topk",
         },
     }
+
+
+def _unique_strings(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        text = _to_str(value)
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        result.append(text)
+    return result
 
 
 def build_stability_outputs(

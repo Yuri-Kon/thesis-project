@@ -10,6 +10,7 @@ import pytest
 
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
@@ -18,6 +19,7 @@ from src.models.contracts import (
     ProteinDesignTask,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord
@@ -108,6 +110,18 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
                         "value": 0.77,
                         "source": "score_breakdown.overall_passthrough",
                     },
+                    TOOL_READINESS_METADATA_KEY: {
+                        "tool_id": "dummy_tool",
+                        "status": "degraded",
+                        "reason": "healthcheck warning",
+                    },
+                    CAPABILITY_READINESS_METADATA_KEY: {
+                        "capability_id": "sequence_generation",
+                        "status": "degraded",
+                        "source": "capability_readiness_matrix",
+                        "selected_tool_id": "dummy_tool",
+                        "degraded_reasons": ["dummy_tool: healthcheck warning"],
+                    },
                 },
             )
         ],
@@ -153,6 +167,11 @@ def test_enter_waiting_state_emits_waiting_enter_event(cleanup_logs):
     assert event["data"]["action_score"]["value"] == pytest.approx(0.77)
     assert event["data"]["shadow_score"]["value"] == pytest.approx(0.77)
     assert event["data"]["evidence_source"]["code"] == "plan_ranked_first"
+    assert event["data"]["tool_readiness"]["tool_id"] == "dummy_tool"
+    assert (
+        event["data"]["capability_readiness"]["source"]
+        == "capability_readiness_matrix"
+    )
     assert event["data"]["runtime_state_summary"]["p_success"] == pytest.approx(0.5)
     assert pending_action.metadata[WAITING_RUNTIME_SUMMARY_METADATA_KEY]["default_recommendation_reason"]["code"] == "plan_ranked_first"
     assert event["actor_type"] == "system"

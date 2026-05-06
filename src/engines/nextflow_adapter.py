@@ -19,13 +19,19 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Dict, Tuple
+from typing import TypeGuard, cast
 
 from src.workflow.errors import FailureType, StepRunError
 
 __all__ = ["WorkflowEngineAdapter"]
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 
 class WorkflowEngineAdapter:
@@ -50,20 +56,20 @@ class WorkflowEngineAdapter:
             work_dir: Nextflow 工作目录，默认为 "work/"
             output_dir: 输出目录，默认为 "output/"
         """
-        self.nextflow_bin = nextflow_bin
-        self.profile = profile
-        self.work_dir = Path(work_dir or "work")
-        self.output_dir = Path(output_dir or "output")
+        self.nextflow_bin: str = nextflow_bin
+        self.profile: str = profile
+        self.work_dir: Path = Path(work_dir or "work")
+        self.output_dir: Path = Path(output_dir or "output")
 
     def execute(
         self,
         *,
         module_path: str | Path,
-        inputs: Dict[str, Any],
+        inputs: Mapping[str, JsonValue],
         task_id: str,
         step_id: str,
         tool_name: str,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[JsonObject, JsonObject]:
         """执行 Nextflow 工作流（blocking）
 
         Args:
@@ -93,14 +99,12 @@ class WorkflowEngineAdapter:
         try:
             result = self._run_nextflow(module_path, nf_params)
         except subprocess.CalledProcessError as exc:
-            duration_ms = int((perf_counter() - t0) * 1000)
             raise StepRunError(
                 failure_type=self._classify_nextflow_error(exc.returncode),
                 message=f"Nextflow execution failed with exit code {exc.returncode}",
                 code=f"NEXTFLOW_EXIT_{exc.returncode}",
             ) from exc
         except Exception as exc:
-            duration_ms = int((perf_counter() - t0) * 1000)
             raise StepRunError(
                 failure_type=FailureType.TOOL_ERROR,
                 message=f"Unexpected error during Nextflow execution: {exc}",
@@ -115,7 +119,6 @@ class WorkflowEngineAdapter:
                 tool_name=tool_name,
             )
         except Exception as exc:
-            duration_ms = int((perf_counter() - t0) * 1000)
             raise StepRunError(
                 failure_type=FailureType.NON_RETRYABLE,
                 message=f"Failed to parse Nextflow outputs: {exc}",
@@ -124,7 +127,7 @@ class WorkflowEngineAdapter:
 
         # 4. 构造指标
         duration_ms = int((perf_counter() - t0) * 1000)
-        metrics = {
+        metrics: JsonObject = {
             "exec_type": "nextflow",
             "duration_ms": duration_ms,
             "nextflow_exit_code": result.returncode,
@@ -135,11 +138,11 @@ class WorkflowEngineAdapter:
     def _prepare_nextflow_params(
         self,
         *,
-        inputs: Dict[str, Any],
+        inputs: Mapping[str, JsonValue],
         task_id: str,
         step_id: str,
         tool_name: str,
-    ) -> Dict[str, Any]:
+    ) -> JsonObject:
         """准备 Nextflow 参数
 
         将标准化的工具输入映射为 Nextflow 参数，添加必要的上下文信息。
@@ -153,7 +156,7 @@ class WorkflowEngineAdapter:
         Returns:
             Nextflow 参数字典
         """
-        nf_params = dict(inputs)
+        nf_params: JsonObject = dict(inputs)
         nf_params["task_id"] = task_id
         nf_params["step_id"] = step_id
         nf_params["tool"] = tool_name
@@ -164,8 +167,8 @@ class WorkflowEngineAdapter:
     def _run_nextflow(
         self,
         module_path: str | Path,
-        params: Dict[str, Any],
-    ) -> subprocess.CompletedProcess:
+        params: Mapping[str, JsonValue],
+    ) -> subprocess.CompletedProcess[str]:
         """执行 Nextflow 命令
 
         Args:
@@ -215,7 +218,7 @@ class WorkflowEngineAdapter:
         task_id: str,
         step_id: str,
         tool_name: str,
-    ) -> Dict[str, Any]:
+    ) -> JsonObject:
         """从 Nextflow 工作目录解析输出
 
         根据输出目录约定（SID:arch.execution.nextflow_boundary）：
@@ -235,7 +238,8 @@ class WorkflowEngineAdapter:
             FileNotFoundError: 必需的输出文件不存在
             ValueError: 输出文件格式错误
         """
-        outputs: Dict[str, Any] = {}
+        _ = tool_name
+        outputs: JsonObject = {}
 
         # 检查 metrics 输出
         metrics_dir = self.output_dir / "metrics"
@@ -244,8 +248,7 @@ class WorkflowEngineAdapter:
                 metrics_dir, task_id, step_id, "_metrics.json"
             )
             if metrics_file:
-                with open(metrics_file, "r") as f:
-                    metrics_data = json.load(f)
+                metrics_data = _load_json_object(metrics_file)
                 outputs["metrics"] = metrics_data
 
         # 检查 pdb 输出
@@ -330,3 +333,34 @@ class WorkflowEngineAdapter:
         else:
             # 其他错误，作为工具错误处理
             return FailureType.TOOL_ERROR
+
+
+def _load_json_object(path: Path) -> JsonObject:
+    payload = cast(object, json.loads(path.read_text(encoding="utf-8")))
+    parsed = _as_json_object(payload)
+    if parsed is None:
+        raise ValueError(f"JSON file must contain an object: {path}")
+    return parsed
+
+
+def _as_json_object(value: object) -> JsonObject | None:
+    if not isinstance(value, dict):
+        return None
+    result: JsonObject = {}
+    for key, item in cast(Mapping[object, object], value).items():
+        if isinstance(key, str) and _is_json_value(item):
+            result[key] = item
+    return result
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in cast(list[object], value))
+    if isinstance(value, dict):
+        return all(
+            isinstance(key, str) and _is_json_value(item)
+            for key, item in cast(Mapping[object, object], value).items()
+        )
+    return False

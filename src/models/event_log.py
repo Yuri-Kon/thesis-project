@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from .contracts import now_iso
 from .db import ExternalStatus, InternalStatus
+
+type JsonScalar = str | int | float | bool | None
+type JsonValue = JsonScalar | JsonObject | JsonArray
+type JsonObject = dict[str, JsonValue]
+type JsonArray = list[JsonValue]
 
 
 class EventType(str, Enum):
@@ -54,13 +58,13 @@ class EventLog(BaseModel):
     event_type: EventType
     ts: str = Field(default_factory=now_iso)
     actor_type: ActorType
-    actor_id: Optional[str] = None
-    prev_status: Optional[ExternalStatus] = None
-    new_status: Optional[ExternalStatus] = None
-    internal_status: Optional[InternalStatus] = None
-    pending_action_id: Optional[str] = None
-    decision_id: Optional[str] = None
-    data: Dict[str, Any] = Field(default_factory=dict)
+    actor_id: str | None = None
+    prev_status: ExternalStatus | None = None
+    new_status: ExternalStatus | None = None
+    internal_status: InternalStatus | None = None
+    pending_action_id: str | None = None
+    decision_id: str | None = None
+    data: JsonObject = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_event_constraints(self) -> EventLog:
@@ -93,8 +97,8 @@ class EventLog(BaseModel):
         # new_status 必须是 WAITING_* 状态
         if not self.new_status.value.startswith("WAITING_"):
             raise ValueError(
-                f"WAITING_ENTER requires new_status to be a WAITING_* state, "
-                f"got {self.new_status.value}"
+                "WAITING_ENTER requires new_status to be a WAITING_* state, "
+                + f"got {self.new_status.value}",
             )
 
     def _validate_waiting_exit(self) -> None:
@@ -111,8 +115,8 @@ class EventLog(BaseModel):
         # prev_status 必须是 WAITING_* 状态
         if not self.prev_status.value.startswith("WAITING_"):
             raise ValueError(
-                f"WAITING_EXIT requires prev_status to be a WAITING_* state, "
-                f"got {self.prev_status.value}"
+                "WAITING_EXIT requires prev_status to be a WAITING_* state, "
+                + f"got {self.prev_status.value}",
             )
 
     def _validate_decision_applied(self) -> None:
@@ -135,8 +139,8 @@ class EventLog(BaseModel):
         # prev_status 必须是 WAITING_* 状态
         if not self.prev_status.value.startswith("WAITING_"):
             raise ValueError(
-                f"DECISION_APPLIED requires prev_status to be a WAITING_* state, "
-                f"got {self.prev_status.value}"
+                "DECISION_APPLIED requires prev_status to be a WAITING_* state, "
+                + f"got {self.prev_status.value}",
             )
 
     def _validate_candidate_validation_failed(self) -> None:

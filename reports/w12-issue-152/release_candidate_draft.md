@@ -1,8 +1,11 @@
 # Release Candidate Draft (`v0.3.0-rc1`)
 
+> W16 closeout note (`2026-04-26`): 本文件是旧 W12 release draft，保留作历史候选版本记录。当前 `#152` 正式收束口径见 `reports/w12-issue-152/historical_backlog_closeout.md`；W16 证据边界见 `docs/evidence/issue-225/write-back-closeout.md`。
+
 ## 变更摘要
 
-- 已具备训练基线、离线评估、双路回退、端到端演示、纵向实验与治理复核的基础产物。
+- 已具备训练基线、离线评估、双路回退、端到端演示、纵向实验与治理复核的历史基础产物。
+- W16 之后，报告证据应优先引用 `#221` 四组实验矩阵、`#222` 聚合分析、`#224` evidence templates、`#225` write-back closeout。
 
 ## 兼容性说明
 
@@ -24,11 +27,11 @@
 
 - demo_scenarios: `six_stage_hitl_replay, tool_fallback_remote_to_local`
 - demo_checks: `{'audit_chain_pendingaction_decision_eventlog': True, 'tool_fallback_switch_recorded': True, 'e2e_flow_reaches_done': True}`
-- known_issue: `#172` 横向对比延期，`#174` 当前仅能形成中期版草稿。
-- known_issue: RC Gate-B 仍被 patch/suffix_replan 指标空值阻断。
-- known_issue: 主实验 WAITING 链指标为 0，治理展示需依赖标准回放样例。
+- known_issue: W16 结果支持成本/控制边界，不支持宣称 `lite_belief_state` 提升成功率。
+- known_issue: case-level 证据仍需最小 bundle 固化；缺失 event log 或 snapshot 时必须显式标记。
+- known_issue: `#248` active tool metadata 与 `#249` canonical naming / output mapping 仍为后续依赖。
 
 ## 发布建议
 
 - 维持候选版本：`v0.3.0-rc1`
-- 当前只建议作为答辩演示与论文附录证据包，不建议进入正式 release 流程。
+- 当前只建议作为历史候选版本和论文附录追溯材料，不作为 W16 之后的正式 release 结论。

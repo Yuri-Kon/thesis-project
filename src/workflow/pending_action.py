@@ -11,6 +11,7 @@ from uuid import uuid4
 from src.infra.event_log_factory import make_waiting_enter
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
     PendingAction,
@@ -22,6 +23,7 @@ from src.models.contracts import (
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     now_iso,
 )
@@ -211,6 +213,31 @@ def enter_waiting_state(
                 if selected_candidate
                 else selected_meta.get("adapter_mode")
             ),
+            "adapter_id": (
+                selected_candidate.adapter_id
+                if selected_candidate
+                else selected_meta.get("adapter_id")
+            ),
+            "execution_mode": (
+                selected_candidate.execution_mode
+                if selected_candidate
+                else selected_meta.get("execution_mode")
+            ),
+            "provider": (
+                selected_candidate.provider
+                if selected_candidate
+                else selected_meta.get("provider")
+            ),
+            "endpoint_type": (
+                selected_candidate.endpoint_type
+                if selected_candidate
+                else selected_meta.get("endpoint_type")
+            ),
+            "remote_job_id": (
+                selected_candidate.remote_job_id
+                if selected_candidate
+                else selected_meta.get("remote_job_id")
+            ),
             "waiting_runtime_summary": (
                 pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
                 if isinstance(pending_action.metadata, dict)
@@ -235,6 +262,16 @@ def enter_waiting_state(
             "evidence_source": (
                 selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
                 if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
+                else None
+            ),
+            "tool_readiness": (
+                selected_meta.get(TOOL_READINESS_METADATA_KEY)
+                if isinstance(selected_meta.get(TOOL_READINESS_METADATA_KEY), dict)
+                else None
+            ),
+            "capability_readiness": (
+                selected_meta.get(CAPABILITY_READINESS_METADATA_KEY)
+                if isinstance(selected_meta.get(CAPABILITY_READINESS_METADATA_KEY), dict)
                 else None
             ),
             "runtime_policy": runtime_trace["runtime_policy"],
@@ -345,6 +382,13 @@ def _build_waiting_runtime_summary(
         "terminal_reason",
         "replan_mode",
         "preserve_prefix_until_step_index",
+        "adapter_id",
+        "execution_mode",
+        "provider",
+        "endpoint_type",
+        "remote_job_id",
+        "failure_code",
+        "recovery_hint",
     ):
         value = candidate_metadata.get(key)
         if value is not None:

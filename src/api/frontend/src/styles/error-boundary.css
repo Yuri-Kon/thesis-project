@@ -1,0 +1,63 @@
+@keyframes error-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.column-error-card {
+  align-content: start;
+  animation: error-card-enter 200ms ease-out;
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-left: 4px solid var(--danger);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.column-error-card strong {
+  color: var(--danger);
+  font-size: 0.9rem;
+}
+
+.column-error-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.app-error-fallback {
+  align-content: center;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.94), rgba(246, 247, 251, 0.88)),
+    #f5f6f9;
+  display: grid;
+  gap: 18px;
+  height: 100vh;
+  justify-content: center;
+  padding: 40px;
+  place-content: center;
+}
+
+.app-error-fallback h2 {
+  color: var(--danger);
+  font-size: 1.3rem;
+  margin: 0;
+}
+
+.app-error-fallback pre {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+}

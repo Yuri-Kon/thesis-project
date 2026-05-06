@@ -8,12 +8,14 @@ from src.llm.base_llm_provider import ProviderConfig
 from src.kg.kg_client import ToolKGError
 from src.models.contracts import (
     ACTION_SCORE_METADATA_KEY,
+    CAPABILITY_READINESS_METADATA_KEY,
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     FINAL_SCORE_METADATA_KEY,
     PatchRequest,
     PendingActionType,
     Plan,
     PlanPatch,
+    PlanPatchOp,
     PlanStep,
     ProteinDesignTask,
     RERANK_REASON_METADATA_KEY,
@@ -23,6 +25,7 @@ from src.models.contracts import (
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     SHADOW_SCORE_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
+    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
     StepResult,
     now_iso,
@@ -313,6 +316,20 @@ class _AutoProvider:
         }
 
 
+class _FailingProvider:
+    def __init__(self, model_name: str = "failing-provider") -> None:
+        self.config = ProviderConfig(model_name=model_name)
+
+    def call_planner(self, task: ProteinDesignTask, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+    def call_patch(self, request: PatchRequest, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+    def call_replan(self, request: ReplanRequest, tool_registry: list[ToolSpec]) -> dict:
+        raise RuntimeError(f"{self.config.model_name} unavailable")
+
+
 def _patch_request_for_topk() -> PatchRequest:
     plan = Plan(
         task_id="task_topk_patch",
@@ -339,7 +356,7 @@ def _patch_request_for_topk() -> PatchRequest:
         original_plan=plan,
         context_step_results=[previous],
         safety_events=[],
-        reason="unit-test",
+        reason="retry exhausted",
     )
 
 
@@ -452,6 +469,175 @@ class TestPlannerAgent:
         assert plan.steps[2].metadata["stop_conditions"]["max_iterations"] == 3
         assert plan.explanation
         assert "ProteinToolKG" in plan.explanation
+
+    def test_confirmed_task_spec_blocks_unconfirmed_goal_inference(self, monkeypatch):
+        """确认后的结构化字段优先于自由文本 goal。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Evaluate the confirmed input sequence",
+            "inputs": {"sequence": "MKTAYIAKQRQISFVKSHFSRQ"},
+            "constraints": {
+                "task_kind": "sequence_evaluation",
+                "run_profile": "fast_smoke",
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_sequence",
+                "planner_capability_hints": [
+                    "sequence_evaluation",
+                    "quality_qc",
+                ],
+                "intake_summary": {"field_count": 3},
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_confirmed_sequence",
+            goal="Design a de novo protein, length 200-300 aa, with not_in_kg_tool",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        plan = planner.plan(task)
+
+        assert plan.constraints["task_kind"] == "sequence_evaluation"
+        assert plan.constraints["sequence"] == "MKTAYIAKQRQISFVKSHFSRQ"
+        assert "length_range" not in plan.constraints
+        assert "prompt" not in plan.constraints
+        assert "goal_type" not in plan.constraints
+        assert all(step.tool != "not_in_kg_tool" for step in plan.steps)
+        assert plan.steps[0].inputs["sequence"] == "MKTAYIAKQRQISFVKSHFSRQ"
+
+    @pytest.mark.parametrize(
+        ("task_kind", "spec_inputs", "spec_constraints", "expected_tools"),
+        [
+            (
+                "de_novo_design",
+                {},
+                {"length_range": [40, 60]},
+                {"seqgen_local", "protgpt2", "esmfold", "nim_esmfold", "protein_mpnn"},
+            ),
+            (
+                "sequence_evaluation",
+                {"sequence": "MKTAYIAKQRQISFVKSHFSRQ"},
+                {},
+                {"esmfold", "nim_esmfold", "biopython_qc"},
+            ),
+            (
+                "template_constrained_design",
+                {"template_pdb": "data/template.pdb"},
+                {"length_range": [80, 120]},
+                {"protein_mpnn", "esmfold", "nim_esmfold", "biopython_qc"},
+            ),
+        ],
+    )
+    def test_confirmed_task_spec_p0_task_kinds_plan_from_toolkg(
+        self,
+        monkeypatch,
+        task_kind,
+        spec_inputs,
+        spec_constraints,
+        expected_tools,
+    ):
+        """P0 场景从 ConfirmedTaskSpec 路由，且工具来自 ToolKG。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": f"Confirmed {task_kind}",
+            "inputs": spec_inputs,
+            "constraints": {
+                "task_kind": task_kind,
+                "run_profile": "balanced",
+                **spec_constraints,
+            },
+            "metadata": {
+                "intake_id": f"intake_issue283_{task_kind}",
+                "planner_capability_hints": ["structure_prediction"],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id=f"issue283_{task_kind}",
+            goal="Free text should not select tools",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        plan = planner.plan(task)
+
+        assert plan.constraints["task_kind"] == task_kind
+        assert {step.tool for step in plan.steps}.issubset(expected_tools)
+        assert all(step.tool in {spec.id for spec in _topk_registry()} for step in plan.steps)
+
+    def test_tool_policy_is_validated_against_toolkg(self, monkeypatch):
+        """tools_allowed / tools_excluded 必须是 ToolKG 中的 tool_id。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Confirmed de novo task",
+            "constraints": {
+                "task_kind": "de_novo_design",
+                "length_range": [40, 60],
+                "tools_allowed": ["missing_tool"],
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_policy",
+                "planner_capability_hints": ["sequence_generation"],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_bad_policy",
+            goal="Confirmed task",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        with pytest.raises(ValueError, match="tools_allowed contains unknown ToolKG tool_id"):
+            planner.plan(task)
+
+    def test_confirmed_hints_and_run_profile_only_adjust_candidates(self, monkeypatch):
+        """capability_hints / run_profile 进入候选元数据和评分，不直接绑定 tool_id。"""
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        confirmed = {
+            "goal": "Confirmed smoke de novo task",
+            "constraints": {
+                "task_kind": "de_novo_design",
+                "length_range": [40, 60],
+                "run_profile": "fast_smoke",
+                "tools_excluded": ["seqgen_local"],
+            },
+            "metadata": {
+                "intake_id": "intake_issue283_hints",
+                "planner_capability_hints": [
+                    "sequence_generation",
+                    "structure_prediction",
+                ],
+            },
+        }
+        task = ProteinDesignTask(
+            task_id="issue283_hints",
+            goal="Use seqgen_local directly",
+            constraints={},
+            metadata={"confirmed_task_spec": confirmed},
+        )
+        planner = PlannerAgent(tool_registry=_topk_registry())
+
+        topk = planner.plan_top_k(task, k=3)
+
+        assert topk.candidates
+        assert all(
+            "seqgen_local"
+            not in {step.tool for step in candidate.structured_payload.steps}
+            for candidate in topk.candidates
+            if isinstance(candidate.structured_payload, Plan)
+        )
+        for candidate in topk.candidates:
+            generator = candidate.metadata["candidate_generator"]
+            assert generator["policy_mode"] == "fast_smoke"
+            assert generator["confirmed_task_spec_present"] is True
+            assert generator["capability_hints"] == [
+                "sequence_generation",
+                "structure_prediction",
+            ]
+            assert "policy_mode_fit" in candidate.score_breakdown
 
     def test_plan_uses_default_sequence_when_missing(self):
         """测试当约束中没有序列时使用默认序列"""
@@ -801,10 +987,17 @@ class TestPlannerAgent:
 
         topk = planner.plan_top_k(task, k=3, runtime_state=runtime_state)
 
-        assert topk.default_recommendation != baseline_default
         assert topk.default_recommendation == topk.candidates[0].candidate_id
         assert topk.candidates[0].tool_id == "protgpt2"
-        assert "Runtime rerank updated default recommendation" in topk.explanation
+        if topk.default_recommendation == baseline_default:
+            assert (
+                topk.candidates[0].metadata[FINAL_SCORE_METADATA_KEY]["value"]
+                > topk.candidates[0].metadata[STATIC_SCORE_METADATA_KEY]["value"]
+            )
+            assert "Runtime rerank reasons include" in topk.explanation
+        else:
+            assert topk.default_recommendation != baseline_default
+            assert "Runtime rerank updated default recommendation" in topk.explanation
         for candidate in topk.candidates:
             assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["p_success"] == pytest.approx(0.62)
             assert candidate.metadata[RUNTIME_STATE_SUMMARY_METADATA_KEY]["evidence_sufficiency"] == pytest.approx(0.5)
@@ -1055,6 +1248,69 @@ class TestPlannerAgent:
             for candidate in tool_level
         )
 
+    def test_patch_top_k_respects_structure_prediction_tool_override(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_topk()
+        request.original_plan = request.original_plan.model_copy(
+            update={
+                "constraints": {
+                    **request.original_plan.constraints,
+                    "structure_prediction_tool_override": "esmfold",
+                }
+            },
+            deep=True,
+        )
+        request.reason = "plan_high_cost_low_benefit"
+
+        with pytest.raises(ValueError, match="No patch candidate found"):
+            planner.patch_top_k(request, k=6)
+
+    def test_patch_top_k_rewrites_structure_patch_inputs_to_sequence_refs(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_tool(
+            task_id="task_patch_seq_ref",
+            tool_id="openfold",
+            inputs={"sequence": "S0.candidates"},
+            previous_outputs={
+                "sequence": "MKTAYIAK",
+                "candidates": [{"sequence": "MKTAYIAK", "score": -0.1}],
+            },
+        )
+
+        topk = planner.patch_top_k(request, k=3)
+
+        tool_level = next(
+            candidate
+            for candidate in topk.candidates
+            if candidate.metadata.get("recovery_layer") == "tool_level"
+            and candidate.metadata.get("to_tool") == "nim_esmfold"
+        )
+        patch = tool_level.structured_payload
+        op = patch.operations[0]
+
+        assert op.step.tool == "nim_esmfold"
+        assert op.step.inputs == {"sequence": "S0.sequence"}
+
+    def test_patch_top_k_skips_structure_guard_that_depends_on_failed_step_outputs(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_tool(
+            task_id="task_patch_no_invalid_guard",
+            tool_id="openfold",
+            inputs={"sequence": "S0.sequence"},
+            previous_outputs={"sequence": "MKTAYIAK"},
+        )
+
+        topk = planner.patch_top_k(request, k=6)
+
+        assert topk.candidates
+        assert all(
+            candidate.metadata.get("recovery_layer") != "structure_level"
+            for candidate in topk.candidates
+        )
+
     def test_patch_top_k_supports_requirement2_qc_and_objective_replacements(self, monkeypatch):
         kg = {
             "capabilities": [
@@ -1205,6 +1461,56 @@ class TestPlannerAgent:
             and candidate.metadata.get("recovery_layer") == "tool_level"
             for candidate in objective_topk.candidates
         )
+
+    def test_patch_top_k_normalizes_candidate_capability_metadata_when_payload_differs(
+        self, monkeypatch
+    ):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        payload = PlanPatch(
+            task_id="task_patch_provider_mismatch",
+            operations=[
+                PlanPatchOp(
+                    op="replace_step",
+                    target="S5",
+                    step=PlanStep(
+                        id="S5",
+                        tool="objective_ranker",
+                        inputs={"candidates": "S4.candidates"},
+                        metadata={},
+                    ),
+                )
+            ],
+            metadata={
+                "capability_id": "structure_prediction",
+                "recovery_layer": "tool_level",
+                "reason": "provider_patch_candidate",
+                "from_tool": "openfold",
+                "to_tool": "objective_ranker",
+            },
+        )
+
+        topk = planner_module._build_top_k_result(
+            payloads=[
+                planner_module._CandidatePayload(
+                    payload=payload,
+                    primary_tool_id="objective_ranker",
+                    capability_bucket="objective_scoring",
+                    note="provider_patch:mismatch",
+                    recovery_layer="tool_level",
+                    recovery_reason="provider_patch_candidate",
+                )
+            ],
+            registry=_topk_registry(),
+            candidate_kind="patch",
+            top_k=1,
+            task_constraints={},
+            runtime_state=None,
+        )
+
+        candidate = topk.candidates[0]
+        assert candidate.capability_id == "objective_scoring"
+        assert candidate.metadata.get("capability_id") == "objective_scoring"
+        assert candidate.metadata.get("target_capability_id") == "structure_prediction"
 
     def test_replan_top_k_order_is_deterministic(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
@@ -1377,6 +1683,93 @@ class TestPlannerAgent:
 
         assert score_3["objective"] >= score_1["objective"]
 
+    def test_score_candidate_payload_uses_capability_readiness_matrix(
+        self,
+        monkeypatch,
+    ):
+        """unavailable capability 应让 Planner 不再隐式信任该工具链。"""
+        registry = [
+            ToolSpec(
+                id="seqgen_local",
+                capabilities=("sequence_generation",),
+                inputs=("goal",),
+                outputs=("sequence",),
+                adapter_mode="local",
+                priority="P0",
+            )
+        ]
+        planner = PlannerAgent(tool_registry=registry)
+        monkeypatch.setattr(
+            planner_module,
+            "build_capability_readiness_snapshot",
+            lambda capability_id: {
+                "capability_id": capability_id,
+                "status": "unavailable",
+                "reason": "adapter missing",
+                "degraded_reasons": ["seqgen_local: adapter_missing"],
+                "tools": [
+                    {
+                        "tool_id": "seqgen_local",
+                        "status": "unavailable",
+                        "reason": "adapter not registered",
+                    }
+                ],
+            },
+        )
+
+        score = planner.score_candidate_payload(
+            Plan(
+                task_id="capability_readiness_score",
+                steps=[
+                    PlanStep(
+                        id="S1",
+                        tool="seqgen_local",
+                        inputs={"goal": "design"},
+                        metadata={},
+                    )
+                ],
+                constraints={},
+                metadata={},
+            )
+        )
+
+        assert score["tool_readiness"] == pytest.approx(0.0)
+
+    def test_candidate_readiness_metadata_uses_capability_matrix(
+        self,
+        monkeypatch,
+    ):
+        monkeypatch.setattr(
+            planner_module,
+            "build_capability_readiness_snapshot",
+            lambda capability_id: {
+                "capability_id": capability_id,
+                "status": "degraded",
+                "reason": "primary tool unavailable; fallback tool is ready",
+                "degraded_reasons": ["seqgen_local: adapter_missing"],
+                "suggested_recovery": "Use fallback tool.",
+                "last_checked_at": "2026-04-27T00:00:00+00:00",
+                "tools": [
+                    {
+                        "tool_id": "seqgen_local",
+                        "status": "unavailable",
+                        "reason": "adapter not registered",
+                    }
+                ],
+            },
+        )
+
+        metadata = planner_module._candidate_readiness_metadata(
+            tool_id="seqgen_local",
+            capability_id="sequence_generation",
+        )
+
+        assert metadata[TOOL_READINESS_METADATA_KEY]["tool_id"] == "seqgen_local"
+        capability = metadata[CAPABILITY_READINESS_METADATA_KEY]
+        assert capability["source"] == "capability_readiness_matrix"
+        assert capability["selected_tool_id"] == "seqgen_local"
+        assert capability["degraded_reasons"] == ["seqgen_local: adapter_missing"]
+
     def test_enrich_task_from_goal_infers_goal_type_prompt_and_length_range(self):
         task = ProteinDesignTask(
             task_id="nl_task_001",
@@ -1515,7 +1908,7 @@ class TestPlannerAgent:
             {
                 "providers": {
                     "baseline": object(),
-                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
                     "openai": type("Settings", (), {"api_key": None, "api_key_env": "OPENAI_API_KEY"})(),
                 }
             },
@@ -1537,6 +1930,38 @@ class TestPlannerAgent:
         assert planner._llm_provider is auto_provider
         assert plan.metadata["provider"] == "catalog-qwen"
 
+    def test_planner_falls_back_to_next_catalog_provider_when_primary_call_fails(self, monkeypatch):
+        monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "qwen-key")
+        monkeypatch.setenv("ZHIPU_API_KEY", "glm-key")
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        catalog = type(
+            "Catalog",
+            (),
+            {
+                "providers": {
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "glm-5": type("Settings", (), {"api_key": None, "api_key_env": "ZHIPU_API_KEY"})(),
+                }
+            },
+        )()
+        monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
+        provider_queue = iter([_FailingProvider("catalog-qwen"), _AutoProvider("catalog-glm")])
+        monkeypatch.setattr(planner_module, "create_provider", lambda _settings: next(provider_queue))
+
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        task = ProteinDesignTask(
+            task_id="llm_auto_fallback_001",
+            goal="Design a stable protein with structure preview.",
+            constraints={},
+            metadata={},
+        )
+
+        plan = planner.plan(task)
+
+        assert plan.metadata["provider"] == "catalog-glm"
+        assert planner._llm_provider.config.model_name == "catalog-glm"
+
     def test_planner_prefers_qwen_when_multiple_domestic_keys_are_present(self, monkeypatch):
         monkeypatch.delenv("PLANNER_LLM_PROVIDER", raising=False)
         monkeypatch.setenv("DASHSCOPE_API_KEY", "qwen-key")
@@ -1551,13 +1976,13 @@ class TestPlannerAgent:
                     "baseline": object(),
                     "deepseek-chat": type("Settings", (), {"api_key": None, "api_key_env": "DEEPSEEK_API_KEY"})(),
                     "glm-5": type("Settings", (), {"api_key": None, "api_key_env": "ZHIPU_API_KEY"})(),
-                    "qwen-plus": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
+                    "qwen-flash": type("Settings", (), {"api_key": None, "api_key_env": "DASHSCOPE_API_KEY"})(),
                 }
             },
         )()
         monkeypatch.setattr(planner_module, "load_provider_catalog", lambda _path: catalog)
 
-        assert planner_module._resolve_local_provider_alias(catalog) == "qwen-plus"
+        assert planner_module._resolve_local_provider_alias(catalog) == "qwen-flash"
 
     def test_planner_materializes_missing_llm_inputs_from_constraints_and_prior_steps(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())

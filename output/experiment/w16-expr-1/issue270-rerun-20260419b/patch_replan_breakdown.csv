@@ -1,0 +1,4 @@
+group_id,patch_events_total,replan_events_total,suffix_replan_events_total,patch_parameter_level,patch_tool_level,patch_structure_level,patch_minimality_hit_rate,suffix_prefix_sample_size,suffix_prefix_preservation_rate
+fixed_threshold_gate,0.0,0.0,1.0,0,0,0,,0,
+dynamic_no_belief_state,3.0,0.0,0.0,1,1,1,0.3333333333333333,0,
+lite_belief_state,3.0,0.0,0.0,1,1,1,0.3333333333333333,0,

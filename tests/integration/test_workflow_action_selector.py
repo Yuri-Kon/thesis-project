@@ -342,10 +342,14 @@ def test_workflow_action_selector_maps_patch_local_to_waiting_patch():
     assert context.pending_action is not None
     assert context.pending_action.action_type == PendingActionType.PATCH_CONFIRM
     assert context.pending_action.metadata["workflow_action"] == "patch_local"
+    evidence = context.pending_action.metadata["workflow_action_evidence"]
+    assert evidence["selected_action"] == "patch_local"
+    assert evidence["selected_action_mapped_flow"] == "patch"
+    assert evidence["selection_basis"] == "action_priority"
+    assert "sid:algo.recovery_aware_action_selection" in evidence["source_refs"]
+    assert "impl:recovery.select_workflow_action.v1" in evidence["source_refs"]
     assert (
-        context.pending_action.metadata["workflow_action_evidence"]["runtime_state_summary"][
-            "evidence_sufficiency"
-        ]
+        evidence["runtime_state_summary"]["evidence_sufficiency"]
         == pytest.approx(0.50735)
     )
 
