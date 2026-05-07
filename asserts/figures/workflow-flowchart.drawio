@@ -1,171 +1,219 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mxfile host="app.diagrams.net" modified="2026-05-07T00:00:00.000Z" agent="Codex" version="26.0.0" type="device">
+<mxfile>
   <diagram name="Workflow Flowchart" id="workflow-flowchart">
-    <mxGraphModel dx="1800" dy="1300" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1300" math="0" shadow="0">
+    <mxGraphModel dx="1032" dy="805" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1300" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title2" value="流程图：de novo 六阶段工作流与恢复感知控制" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="24" width="1720" height="34" as="geometry" />
+        <mxCell id="n44" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="高代价控制点：结构映射、结构精修、重型目标打分之前，应检查 evidence_sufficiency、expected_remaining_cost、recovery_margin、p_structural_failure。" vertex="1">
+          <mxGeometry height="45" width="1420" x="110" y="1242.5" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle3" value="六阶段是能力分层而非固定流水线；Quality Gate、Safety Gate 与 Patch/Replan 控制层可在高代价步骤前后介入。" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="70" y="62" width="1660" height="32" as="geometry" />
+        <mxCell id="title2" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="流程图：de novo 六阶段工作流与恢复感知控制" vertex="1">
+          <mxGeometry height="34" width="1720" x="40" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="n4" value="任务输入&lt;br&gt;goal + constraints" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="760" y="130" width="240" height="70" as="geometry" />
+        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="六阶段是能力分层而非固定流水线；Quality Gate、Safety Gate 与 Patch/Replan 控制层可在高代价步骤前后介入。" vertex="1">
+          <mxGeometry height="32" width="1660" x="70" y="62" as="geometry" />
         </mxCell>
-        <mxCell id="n5" value="Task Intake&lt;br&gt;字段注册表 / schema validation&lt;br&gt;ConfirmedTaskSpec → ProteinDesignTask" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="690" y="240" width="380" height="90" as="geometry" />
+        <mxCell id="n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="任务输入&lt;br&gt;goal + constraints" vertex="1">
+          <mxGeometry height="70" width="240" x="760" y="130" as="geometry" />
         </mxCell>
-        <mxCell id="n6" value="Planner + ToolKG&lt;br&gt;生成 Top-K 候选链&lt;br&gt;Feasibility / cost / risk ranking" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="690" y="380" width="380" height="100" as="geometry" />
+        <mxCell id="n5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="Task Intake&lt;br&gt;字段注册表 / schema validation&lt;br&gt;ConfirmedTaskSpec → ProteinDesignTask" vertex="1">
+          <mxGeometry height="90" width="380" x="690" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="n7" value="需要人工确认?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;" vertex="1" parent="1">
-          <mxGeometry x="745" y="535" width="270" height="90" as="geometry" />
+        <mxCell id="n6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="Planner + ToolKG&lt;br&gt;生成 Top-K 候选链&lt;br&gt;Feasibility / cost / risk ranking" vertex="1">
+          <mxGeometry height="100" width="380" x="690" y="380" as="geometry" />
         </mxCell>
-        <mxCell id="n8" value="WAITING_PLAN_CONFIRM&lt;br&gt;PendingAction(plan_confirm)&lt;br&gt;Snapshot persisted" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="250" y="520" width="340" height="110" as="geometry" />
+        <mxCell id="n7" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;" value="需要人工确认?" vertex="1">
+          <mxGeometry height="90" width="270" x="745" y="535" as="geometry" />
         </mxCell>
-        <mxCell id="n9" value="1. 序列探索&lt;br&gt;Sequence Exploration&lt;br&gt;ProtGPT2 / candidates" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="150" y="730" width="260" height="90" as="geometry" />
+        <mxCell id="n8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="WAITING_PLAN_CONFIRM&lt;br&gt;PendingAction(plan_confirm)&lt;br&gt;Snapshot persisted" vertex="1">
+          <mxGeometry height="110" width="340" x="250" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="n10" value="2. 结构映射&lt;br&gt;Structure Projection&lt;br&gt;ESMFold / OpenFold / pLDDT" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="470" y="730" width="260" height="90" as="geometry" />
+        <mxCell id="n9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="1. 序列探索&lt;br&gt;Sequence Exploration&lt;br&gt;ProtGPT2 / candidates" vertex="1">
+          <mxGeometry height="90" width="260" x="150" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="n11" value="3. 质量门禁&lt;br&gt;Quality Gate&lt;br&gt;QC flags / hard feasibility" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F0FDFA;strokeColor=#0F766E;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="790" y="730" width="260" height="90" as="geometry" />
+        <mxCell id="n10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="2. 结构映射&lt;br&gt;Structure Projection&lt;br&gt;ESMFold / OpenFold / pLDDT" vertex="1">
+          <mxGeometry height="90" width="260" x="470" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="n12" value="4. 结构条件精修&lt;br&gt;Structure-conditioned Refinement&lt;br&gt;ProteinMPNN / redesign" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1110" y="730" width="260" height="90" as="geometry" />
+        <mxCell id="n11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F0FDFA;strokeColor=#0F766E;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="3. 质量门禁&lt;br&gt;Quality Gate&lt;br&gt;QC flags / hard feasibility" vertex="1">
+          <mxGeometry height="90" width="260" x="790" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="n13" value="5. 目标打分&lt;br&gt;Objective Scoring&lt;br&gt;posterior objective / Top-K" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1430" y="730" width="260" height="90" as="geometry" />
+        <mxCell id="n12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="4. 结构条件精修&lt;br&gt;Structure-conditioned Refinement&lt;br&gt;ProteinMPNN / redesign" vertex="1">
+          <mxGeometry height="90" width="260" x="1110" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="n14" value="结果汇总&lt;br&gt;DesignResult + report&lt;br&gt;sequence / structure / metrics" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="760" y="1050" width="300" height="90" as="geometry" />
+        <mxCell id="n13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="5. 目标打分&lt;br&gt;Objective Scoring&lt;br&gt;posterior objective / Top-K" vertex="1">
+          <mxGeometry height="90" width="260" x="1430" y="730" as="geometry" />
         </mxCell>
-        <mxCell id="n15" value="DONE" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="805" y="1180" width="210" height="55" as="geometry" />
+        <mxCell id="n14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="结果汇总&lt;br&gt;DesignResult + report&lt;br&gt;sequence / structure / metrics" vertex="1">
+          <mxGeometry height="90" width="300" x="760" y="1050" as="geometry" />
         </mxCell>
-        <mxCell id="n16" value="FAILED / CANCELLED" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1235" y="1180" width="250" height="55" as="geometry" />
+        <mxCell id="n15" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="DONE" vertex="1">
+          <mxGeometry height="55" width="210" x="805" y="1180" as="geometry" />
         </mxCell>
-        <mxCell id="n17" value="Safety Gate&lt;br&gt;input / step / output&lt;br&gt;allow / warn / block" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="620" y="890" width="260" height="90" as="geometry" />
+        <mxCell id="n16" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="FAILED / CANCELLED" vertex="1">
+          <mxGeometry height="55" width="250" x="1235" y="1180" as="geometry" />
         </mxCell>
-        <mxCell id="n18" value="6. Patch/Replan 控制层&lt;br&gt;retry exhausted / safety block / low evidence&lt;br&gt;patch_local / suffix_replan / stop" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFEDD5;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1020" y="890" width="400" height="100" as="geometry" />
+        <mxCell id="n17" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="Safety Gate&lt;br&gt;input / step / output&lt;br&gt;allow / warn / block" vertex="1">
+          <mxGeometry height="90" width="260" x="405" y="910" as="geometry" />
         </mxCell>
-        <mxCell id="n19" value="WAITING_PATCH_CONFIRM&lt;br&gt;或 WAITING_REPLAN_CONFIRM&lt;br&gt;Decision required" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1450" y="910" width="300" height="90" as="geometry" />
+        <mxCell id="n18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFEDD5;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="6. Patch/Replan 控制层&lt;br&gt;retry exhausted / safety block / low evidence&lt;br&gt;patch_local / suffix_replan / stop" vertex="1">
+          <mxGeometry height="100" width="400" x="900" y="905" as="geometry" />
         </mxCell>
-        <mxCell id="e20" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n4" target="n5">
+        <mxCell id="n19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="WAITING_PATCH_CONFIRM&lt;br&gt;或 WAITING_REPLAN_CONFIRM&lt;br&gt;Decision required" vertex="1">
+          <mxGeometry height="90" width="300" x="1450" y="910" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="n4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n5" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e21" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n5" target="n6">
+        <mxCell id="e21" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n6" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e22" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n6" target="n7">
+        <mxCell id="e22" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n7" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e23" value="yes" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n7" target="n8">
+        <mxCell id="e23" edge="1" parent="1" source="n7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n8" value="yes">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e24" value="Decision: accept" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n8" target="n9">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e25" value="no / auto allowed" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n7" target="n9">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e26" value="sequence" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n9" target="n10">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e27" value="pdb_path + confidence" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n10" target="n11">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e28" value="pass / refine" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n11" target="n12">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e29" value="iterate structure loop" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n12" target="n10">
-          <mxGeometry relative="1" as="geometry">
+        <mxCell id="e24" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n9" value="Decision: accept">
+          <mxGeometry relative="1" x="-0.8182" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1240" y="690" />
-              <mxPoint x="600" y="690" />
+              <mxPoint x="335" y="670" />
+              <mxPoint x="215" y="670" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e30" value="pass" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n11" target="n13">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e31" value="objective accepted" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n13" target="n14">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e32" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n14" target="n15">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e33" value="fail: regenerate" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n11" target="n9">
+        <mxCell id="e25" edge="1" parent="1" source="n7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n9" value="no / auto allowed">
           <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="880" y="670" />
+              <mxPoint x="345" y="670" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e26" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n10" value="sequence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e27" edge="1" parent="1" source="n10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n11" value="pdb_path + confidence">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e28" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n12" value="pass / refine">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e29" edge="1" parent="1" source="n12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n10" value="iterate structure loop">
+          <mxGeometry relative="1" x="-0.3509" as="geometry">
+            <mxPoint x="-1" as="offset" />
+            <Array as="points">
+              <mxPoint x="1175" y="850" />
+              <mxPoint x="665" y="850" />
+            </Array>
+            <mxPoint x="1240" y="720" as="sourcePoint" />
+            <mxPoint x="600" y="720" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e30" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=top;align=left;verticalAlign=bottom;" target="n13" value="pass">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="985" y="640" />
+              <mxPoint x="1400" y="640" />
+              <mxPoint x="1400" y="775" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e31" edge="1" parent="1" source="n13" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n14" value="objective accepted">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1495" y="850" />
+              <mxPoint x="1430" y="850" />
+              <mxPoint x="1430" y="1030" />
+              <mxPoint x="985" y="1030" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e32" edge="1" parent="1" source="n14" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n15" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e33" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n9" value="fail: regenerate">
+          <mxGeometry relative="1" x="-0.0278" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
               <mxPoint x="920" y="690" />
               <mxPoint x="280" y="690" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e34" value="score insufficient" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n13" target="n12">
-          <mxGeometry relative="1" as="geometry">
+        <mxCell id="e34" edge="1" parent="1" source="n13" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n12" value="score insufficient">
+          <mxGeometry relative="1" x="-0.4" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
               <mxPoint x="1560" y="690" />
               <mxPoint x="1240" y="690" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e35" value="risk signals" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n9" target="n17">
+        <mxCell id="e35" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n17" value="risk signals">
+          <mxGeometry relative="1" x="-0.25" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="345" y="850" />
+              <mxPoint x="470" y="850" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e36" edge="1" parent="1" source="n10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n17" value="structure signals">
+          <mxGeometry relative="1" x="-0.5556" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e37" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n17" value="QC signals">
+          <mxGeometry relative="1" x="0.5825" y="2" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="855" y="870" />
+              <mxPoint x="600" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e38" edge="1" parent="1" source="n12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=1;entryY=0.25;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n17" value="refinement signals">
+          <mxGeometry relative="1" x="0.3571" y="2" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1240" y="880" />
+              <mxPoint x="730" y="890" />
+              <mxPoint x="730" y="933" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e39" edge="1" parent="1" source="n17" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n18" value="warn/block">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e36" value="structure signals" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n10" target="n17">
+        <mxCell id="e40" edge="1" parent="1" source="n18" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n19" value="requires HITL">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e37" value="QC signals" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n11" target="n17">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e38" value="refinement signals" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n12" target="n17">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e39" value="warn/block" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n17" target="n18">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e40" value="requires HITL" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n18" target="n19">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="e41" value="replan to earlier stage" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n19" target="n9">
+        <mxCell id="e41" edge="1" parent="1" source="n19" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" target="n9" value="replan to earlier stage">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1600" y="1020" />
+              <mxPoint x="1525" y="1020" />
               <mxPoint x="280" y="1020" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e42" value="patch current suffix" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n19" target="n10">
-          <mxGeometry relative="1" as="geometry">
+        <mxCell id="e42" edge="1" parent="1" source="n19" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n10" value="patch current suffix">
+          <mxGeometry relative="1" x="-0.4455" as="geometry">
+            <mxPoint as="offset" />
             <Array as="points">
-              <mxPoint x="1600" y="1000" />
-              <mxPoint x="600" y="1000" />
+              <mxPoint x="1790" y="933" />
+              <mxPoint x="1790" y="700" />
+              <mxPoint x="665" y="700" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e43" value="terminal stop" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n19" target="n16">
+        <mxCell id="e43" edge="1" parent="1" source="n19" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="n16" value="terminal stop">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1600" y="1110" />
               <mxPoint x="1360" y="1110" />
             </Array>
           </mxGeometry>
-        </mxCell>
-        <mxCell id="n44" value="高代价控制点：结构映射、结构精修、重型目标打分之前，应检查 evidence_sufficiency、expected_remaining_cost、recovery_margin、p_structural_failure。" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
-          <mxGeometry x="190" y="645" width="1420" height="45" as="geometry" />
-        </mxCell>
-        <mxCell id="foot45" value="Sources: de-novo-workflow.md (workflow.layers.six_stage, workflow.stage.high_cost_control, workflow.loops.and_crosscut), core-algorithm-spec.md" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1250" width="1720" height="30" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
