@@ -1,52 +1,54 @@
-<?xml version='1.0' encoding='utf-8'?>
-<mxfile host="app.diagrams.net" modified="2026-05-07T00:00:00.000Z" agent="Codex" version="26.0.0" type="device">
+<mxfile>
   <diagram name="Experiment Design Framework" id="experiment-design-framework">
-    <mxGraphModel dx="1900" dy="1220" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1220" math="0" shadow="0">
+    <mxGraphModel dx="911" dy="711" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1220" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title2" value="实验设计框架图：数据集、对比组、指标与证据链" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="40" y="24" width="1820" height="34" as="geometry" />
+        <mxCell id="title2" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="实验设计框架图：数据集、对比组、指标与证据链" vertex="1">
+          <mxGeometry height="34" width="1820" x="40" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle3" value="实验围绕纵向机制增量、横向代理范式对照、成本与治理指标展开，所有结论追溯到日志、快照、配置与评估脚本。" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="70" y="62" width="1760" height="32" as="geometry" />
+        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="实验围绕纵向机制增量、横向代理范式对照、成本与治理指标展开，所有结论追溯到日志、快照、配置与评估脚本。" vertex="1">
+          <mxGeometry height="32" width="1760" x="70" y="62" as="geometry" />
         </mxCell>
-        <mxCell id="n4" value="实验数据集&lt;br&gt;D-main: 主任务集&lt;br&gt;D-recovery: 恢复压力集&lt;br&gt;D-hitl: 人工决策集" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="90" y="200" width="310" height="150" as="geometry" />
+        <mxCell id="n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="实验数据集&lt;br&gt;D-main: 主任务集&lt;br&gt;D-recovery: 恢复压力集&lt;br&gt;D-hitl: 人工决策集" vertex="1">
+          <mxGeometry height="150" width="310" x="90" y="200" as="geometry" />
         </mxCell>
-        <mxCell id="n5" value="切分与防泄漏&lt;br&gt;time split&lt;br&gt;task_goal + constraints_hash&lt;br&gt;sequence_hash + tool_lineage" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="90" y="430" width="310" height="145" as="geometry" />
+        <mxCell id="n5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="切分与防泄漏&lt;br&gt;time split&lt;br&gt;task_goal + constraints_hash&lt;br&gt;sequence_hash + tool_lineage" vertex="1">
+          <mxGeometry height="145" width="310" x="90" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="n6" value="纵向机制增量&lt;br&gt;A0: degraded baseline&lt;br&gt;A1/A2: Top-K + hard validation&lt;br&gt;A3/A4: gates + recovery&lt;br&gt;A5/A6: six-stage + fallback + audit" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="560" y="170" width="430" height="190" as="geometry" />
+        <mxCell id="n6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="纵向机制增量&lt;br&gt;A0: degraded baseline&lt;br&gt;A1/A2: Top-K + hard validation&lt;br&gt;A3/A4: gates + recovery&lt;br&gt;A5/A6: six-stage + fallback + audit" vertex="1">
+          <mxGeometry height="190" width="430" x="560" y="170" as="geometry" />
         </mxCell>
-        <mxCell id="n7" value="横向对照&lt;br&gt;E0: ReAct-style&lt;br&gt;E1: ToT-style&lt;br&gt;E2: Reflexion-style&lt;br&gt;same tools / same budget" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="560" y="440" width="430" height="170" as="geometry" />
+        <mxCell id="n7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="横向对照&lt;br&gt;E0: ReAct-style&lt;br&gt;E1: ToT-style&lt;br&gt;E2: Reflexion-style&lt;br&gt;same tools / same budget" vertex="1">
+          <mxGeometry height="170" width="430" x="560" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="n8" value="统一评估执行器&lt;br&gt;fixed seed / config version&lt;br&gt;tool whitelist / runtime policy&lt;br&gt;EventLog + TaskSnapshot capture" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1140" y="300" width="390" height="170" as="geometry" />
+        <mxCell id="n8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="统一评估执行器&lt;br&gt;fixed seed / config version&lt;br&gt;tool whitelist / runtime policy&lt;br&gt;EventLog + TaskSnapshot capture" vertex="1">
+          <mxGeometry height="170" width="390" x="1140" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="n9" value="指标体系&lt;br&gt;效果: success / first-pass / constraints&lt;br&gt;机制: schema / executable / patch/replan&lt;br&gt;代价: latency / token / remote calls&lt;br&gt;治理: audit / trace / replay" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1140" y="610" width="390" height="210" as="geometry" />
+        <mxCell id="n9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="指标体系&lt;br&gt;效果: success / first-pass / constraints&lt;br&gt;机制: schema / executable / patch/replan&lt;br&gt;代价: latency / token / remote calls&lt;br&gt;治理: audit / trace / replay" vertex="1">
+          <mxGeometry height="210" width="390" x="1140" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="n10" value="统计分析&lt;br&gt;Wilson 95% CI&lt;br&gt;paired McNemar&lt;br&gt;bootstrap CI&lt;br&gt;effect size" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="1550" y="610" width="280" height="170" as="geometry" />
-        </mxCell>
-        <mxCell id="n11" value="论文图表产出&lt;br&gt;A0-A6 总表&lt;br&gt;A6 vs E0/E1/E2&lt;br&gt;success-latency Pareto&lt;br&gt;recovery path distribution&lt;br&gt;audit radar" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
-          <mxGeometry x="760" y="920" width="430" height="180" as="geometry" />
-        </mxCell>
-        <mxCell id="e12" value="quality gate" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n4" target="n5">
+        <mxCell id="LtUmjFzZc6yuOdge8JRE-1" edge="1" parent="1" source="n10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="n9" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e13" value="same input set" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n5" target="n6">
+        <mxCell id="n10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="统计分析&lt;br&gt;Wilson 95% CI&lt;br&gt;paired McNemar&lt;br&gt;bootstrap CI&lt;br&gt;effect size" vertex="1">
+          <mxGeometry height="170" width="280" x="1600" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="论文图表产出&lt;br&gt;A0-A6 总表&lt;br&gt;A6 vs E0/E1/E2&lt;br&gt;success-latency Pareto&lt;br&gt;recovery path distribution&lt;br&gt;audit radar" vertex="1">
+          <mxGeometry height="180" width="430" x="760" y="920" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="n4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n5" value="quality gate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n6" value="same input set">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="420" y="505" />
-              <mxPoint x="520" y="265" />
+              <mxPoint x="440" y="466" />
+              <mxPoint x="440" y="265" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e14" value="same budget" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n5" target="n7">
+        <mxCell id="e14" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n7" value="same budget">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="420" y="505" />
@@ -54,27 +56,29 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e15" value="run groups" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n6" target="n8">
+        <mxCell id="e15" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=1;exitY=0.75;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n8" value="run groups">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e16" value="run baselines" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n7" target="n8">
+        <mxCell id="e16" edge="1" parent="1" source="n7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n8" value="run baselines">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e17" value="raw logs + artifacts" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n8" target="n9">
+        <mxCell id="e17" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n9" value="raw logs + artifacts">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e18" value="aggregated indicators" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n9" target="n10">
-          <mxGeometry relative="1" as="geometry" />
+        <mxCell id="e18" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n10" value="aggregated indicators">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="e19" value="tables and figures" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n10" target="n11">
+        <mxCell id="e19" edge="1" parent="1" source="n10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n11" value="tables and figures">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1690" y="900" />
-              <mxPoint x="975" y="900" />
+              <mxPoint x="1740" y="900" />
+              <mxPoint x="1083" y="900" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e20" value="metric tables" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n9" target="n11">
+        <mxCell id="e20" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n11" value="metric tables">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1335" y="880" />
@@ -82,20 +86,21 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e21" value="evidence index" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n8" target="n11">
+        <mxCell id="e21" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="n11" value="evidence index">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="1335" y="530" />
-              <mxPoint x="1335" y="850" />
-              <mxPoint x="975" y="850" />
+              <mxPoint x="1240" y="560" />
+              <mxPoint x="1050" y="560" />
+              <mxPoint x="1050" y="870" />
+              <mxPoint x="868" y="870" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="n22" value="通过门槛示例：schema 合法率 ≥ 99.5%；可执行 Plan 率 ≥ 95%；Patch 最小性命中率 ≥ 80%；suffix_replan 前缀保持率 = 100%；治理指标不下降。" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
-          <mxGeometry x="230" y="760" width="760" height="85" as="geometry" />
+        <mxCell id="n22" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="通过门槛示例：schema 合法率 ≥ 99.5%；可执行 Plan 率 ≥ 95%；Patch 最小性命中率 ≥ 80%；suffix_replan 前缀保持率 = 100%；治理指标不下降。" vertex="1">
+          <mxGeometry height="85" width="760" x="230" y="760" as="geometry" />
         </mxCell>
-        <mxCell id="foot23" value="Sources: docs/experiment/w11-w12-midterm-experiment-plan.md, docs/experiment/algorithm-group-paper-mapping.md, reports and evaluation scripts" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" vertex="1" parent="1">
-          <mxGeometry x="40" y="1170" width="1820" height="30" as="geometry" />
+        <mxCell id="foot23" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" value="Sources: docs/experiment/w11-w12-midterm-experiment-plan.md, docs/experiment/algorithm-group-paper-mapping.md, reports and evaluation scripts" vertex="1">
+          <mxGeometry height="30" width="1820" x="40" y="1170" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
