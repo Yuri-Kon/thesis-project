@@ -113,3 +113,4 @@ tmp/
 *.env
 .superpowers/
 .worktrees/
+*.bkp
