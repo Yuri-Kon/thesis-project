@@ -1,0 +1,121 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-05-07T00:00:00.000Z" agent="Codex" version="26.0.0" type="device">
+  <diagram name="Technical Route" id="technical-route">
+    <mxGraphModel dx="1900" dy="1180" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1180" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title2" value="技术路线图：从问题建模到系统实现与实验验证" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="24" width="1820" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle3" value="围绕高代价、可失败、可恢复的蛋白质设计工作流，组织研究问题、方法设计、系统实现、实验评估与论文产出。" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="62" width="1760" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="phase4" value="1. 问题定义&lt;br&gt;&lt;br&gt;蛋白质设计任务&lt;br&gt;高代价长链路&lt;br&gt;失败与恢复需求" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="80" y="165" width="290" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="phase5" value="2. 理论建模&lt;br&gt;&lt;br&gt;候选工具链集合 Π&lt;br&gt;约束 C / ToolKG K&lt;br&gt;history h_t / observation o_t" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="430" y="165" width="290" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="phase6" value="3. 核心算法&lt;br&gt;&lt;br&gt;Top-K 候选生成&lt;br&gt;硬可行性过滤&lt;br&gt;静态效用 + runtime rerank" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="780" y="165" width="290" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="phase7" value="4. 系统实现&lt;br&gt;&lt;br&gt;Workflow FSM&lt;br&gt;Planner / Executor / Safety / Summarizer&lt;br&gt;AdapterRegistry + Storage" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="165" width="290" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="phase8" value="5. 实验验证&lt;br&gt;&lt;br&gt;纵向 A0-A6&lt;br&gt;横向 E0-E2&lt;br&gt;效果 / 成本 / 治理指标" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1480" y="165" width="290" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="e9" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase4" target="phase5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="390" y="242" />
+              <mxPoint x="410" y="242" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase5" target="phase6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="740" y="242" />
+              <mxPoint x="760" y="242" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase6" target="phase7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1090" y="242" />
+              <mxPoint x="1110" y="242" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase7" target="phase8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1440" y="242" />
+              <mxPoint x="1460" y="242" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n13" value="方法主线&lt;br&gt;GenerateCandidates → FeasibilityFilter → StaticUtility → BeliefUpdate → RuntimeUtility → ActionSelection" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="250" y="430" width="620" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" value="工程主线&lt;br&gt;TaskAPI → Workflow/FSM → PlanRunner/PatchRunner → ToolAdapter → EventLog/TaskSnapshot" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1030" y="430" width="620" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="algorithm contribution" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase6" target="n13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="925" y="360" />
+              <mxPoint x="560" y="360" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e16" value="system contribution" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="phase7" target="n14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1275" y="360" />
+              <mxPoint x="1340" y="360" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e17" value="runtime-aware control policy" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n13" target="n14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="930" y="475" />
+              <mxPoint x="970" y="475" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="evidence18" value="设计依据&lt;br&gt;architecture.md&lt;br&gt;agent-design.md&lt;br&gt;core-algorithm-spec.md" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="190" y="690" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="evidence19" value="实现依据&lt;br&gt;src/workflow&lt;br&gt;src/agents&lt;br&gt;src/models&lt;br&gt;src/adapters" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="570" y="690" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="evidence20" value="实验依据&lt;br&gt;D-main / D-recovery / D-hitl&lt;br&gt;A0-A6 / E0-E2&lt;br&gt;EventLog / Snapshot" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="950" y="690" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="evidence21" value="论文产出&lt;br&gt;系统架构&lt;br&gt;算法机制&lt;br&gt;实验结果&lt;br&gt;案例分析" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1330" y="690" width="300" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="evidence18" target="evidence19">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e23" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="evidence19" target="evidence20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e24" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="evidence20" target="evidence21">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n25" value="图示约束：上方展示研究路线，中央展示方法与系统两条主线，下方展示证据来源与论文落点；连线采用水平/折线路径，避免穿过文本框。" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="290" y="910" width="1320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="foot26" value="Sources: README.md project positioning, core-algorithm-spec.md, system-implementation-design.md, experiment plan" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1130" width="1820" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

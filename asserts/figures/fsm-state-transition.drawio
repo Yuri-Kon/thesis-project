@@ -1,0 +1,137 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" modified="2026-05-07T00:00:00.000Z" agent="Codex" version="26.0.0" type="device">
+  <diagram name="FSM State Transition" id="fsm-state-transition">
+    <mxGraphModel dx="1900" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title2" value="FSM 状态转移图：外部生命周期、内部恢复态与 HITL 决策边界" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="24" width="1820" height="34" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle3" value="状态突变由 Workflow/FSM 统一负责；WAITING_* 表示执行暂停，终态不可再修改。" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="70" y="62" width="1760" height="32" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" value="CREATED" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="100" y="220" width="180" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" value="PLANNING" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="360" y="220" width="190" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" value="WAITING_PLAN_CONFIRM&lt;br&gt;PendingAction(plan_confirm)" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="670" y="165" width="270" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" value="PLANNED" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="690" y="325" width="200" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" value="RUNNING" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="300" width="210" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" value="SUMMARIZING" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="220" width="230" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" value="DONE" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1700" y="220" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" value="WAITING_PATCH_CONFIRM&lt;br&gt;external view&lt;br&gt;internal: WAITING_PATCH / PATCHING" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFEDD5;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="700" y="590" width="330" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" value="WAITING_REPLAN_CONFIRM&lt;br&gt;external view&lt;br&gt;internal: WAITING_REPLAN / REPLANNING" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="590" width="350" height="105" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" value="FAILED&lt;br&gt;terminal" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="510" y="875" width="200" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" value="CANCELLED&lt;br&gt;terminal" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#64748B;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" vertex="1" parent="1">
+          <mxGeometry x="890" y="875" width="220" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n4" target="n5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" value="requires HITL" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n5" target="n6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" value="auto allowed" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n5" target="n7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" value="Decision: accept" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n6" target="n7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e19" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n7" target="n8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e20" value="all steps done" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n8" target="n9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e21" value="" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n9" target="n10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e22" value="local failure" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n8" target="n11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1155" y="470" />
+              <mxPoint x="865" y="470" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e23" value="safety block / global risk" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n8" target="n12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1155" y="510" />
+              <mxPoint x="1295" y="510" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e24" value="Decision: apply patch" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n11" target="n8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="865" y="760" />
+              <mxPoint x="1155" y="760" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e25" value="Decision: replan" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n11" target="n12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e26" value="Decision: apply suffix replan" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" edge="1" parent="1" source="n12" target="n8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1295" y="805" />
+              <mxPoint x="1155" y="805" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e27" value="reject" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n6" target="n13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="805" y="455" />
+              <mxPoint x="610" y="455" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e28" value="cancel" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n6" target="n14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="805" y="495" />
+              <mxPoint x="1000" y="495" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e29" value="cancel" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n11" target="n14">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e30" value="terminal_stop / reject" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" edge="1" parent="1" source="n12" target="n13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n31" value="WAITING_* invariant&lt;br&gt;1. Snapshot/log already persisted&lt;br&gt;2. no tool execution while waiting&lt;br&gt;3. only human Decision can resume / fail / cancel" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="1170" y="880" width="410" height="115" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" value="ExternalStatus exposes WAITING_PATCH_CONFIRM / WAITING_REPLAN_CONFIRM; InternalStatus may use WAITING_PATCH, PATCHING, WAITING_REPLAN, REPLANNING for implementation detail." style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" vertex="1" parent="1">
+          <mxGeometry x="220" y="1030" width="1380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="foot33" value="Sources: AGENT_CONTRACT.md, architecture.md fsm.lifecycle.overview, src/models/db.py, src/workflow/status.py" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1150" width="1820" height="30" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
