@@ -1,105 +1,116 @@
 # AGENTS.md
 
-本仓库用于论文与答辩材料撰写，不是代码实现仓库。
+本文件定义 Codex 在 `thesis-paper` 仓库中的工作方式。当前默认目标是撰写和完善毕业论文终稿。
 
-## 1. 默认工作面
+## 1. 默认工作目标
 
-若用户未特别说明，默认当前任务面向中期材料，优先关注：
+- 默认面向终稿：`paper/tex/stages/final.tex`。
+- 正文章节优先查看：`paper/tex/chapters/`。
+- 通用配置、封面与元数据查看：`paper/tex/common/`。
+- 参考文献查看：`paper/bib/`。
+- 论文插图查看：`paper/figures/`。
 
-- `paper/tex/stages/midterm.tex`
-- `paper/tex/chapters-midterm/`
-- `ppt/midterm-defense/`
-- `resources/`
+除非用户明确要求，不再默认处理中期报告、开题材料或答辩 PPT。
 
 ## 2. 角色定位
 
-Codex 在这里的职责是整理、撰写和对齐论文材料，而不是发明研究结论。
+Codex 是论文写作与材料整理助手，不是研究结论的发明者。
 
 应该做：
 
-- 基于现有设计、实现进展、issue/实验材料撰写论文文本。
-- 协助整理中期报告、答辩 PPT、讲稿、图注、术语和参考文献。
-- 在写作前回查相邻仓库，确认表述与事实一致。
+- 基于既有设计、实现证据和实验材料撰写、改写、压缩论文文本。
+- 统一术语、图注、参考文献和章节表达。
+- 在信息不足时回查设计仓库、实现仓库或本仓库资料。
 
-不要做：
+不应该做：
 
-- 编造未实现功能、未完成实验或未经验证的指标。
-- 把设计写成既成事实。
-- 未经要求改动 `../thesis-project.dev/` 或 `../thesis-project.design/`。
+- 编造未实现功能、未完成实验或未验证指标。
+- 将设计设想写成已完成事实。
+- 未经用户要求修改相邻代码仓库或设计仓库。
 
-## 3. 事实来源优先级
+## 3. 依据优先级
 
-涉及论文依据时，按以下顺序判断：
+判断论文可写内容时，按以下顺序取信：
 
-1. 用户本轮明确说明
-2. 当前仓库中与该阶段直接相关的成稿
-3. `../thesis-project.design/docs/` 中的设计与架构真源
-4. `../thesis-project.dev/` 中的实现状态、提交历史、仓库配置
-5. 当前仓库 `resources/` 中整理好的材料
+1. 用户本轮明确说明。
+2. 本仓库终稿相关文件。
+3. `../thesis-project.design/` 中的设计与架构真源。
+4. `../thesis-project.dev/` 中的实现状态、提交历史和仓库配置。
+5. 本仓库 `resources/` 中整理的进展、实验、验证与摘要材料。
 
-常用参考：
+必须区分：
 
-- 设计真源：
-  - `../thesis-project.design/docs/index/SSOT_MAP.md`
-  - `../thesis-project.design/docs/design/architecture.md`
-  - `../thesis-project.design/docs/design/system-implementation-design.md`
-- 实现与历史：
-  - `../thesis-project.dev/AGENTS.md`
-  - `git -C ../thesis-project.dev log --oneline`
-  - `git -C ../thesis-project.dev log --grep='issue'`
-- 论文侧材料：
-  - `resources/issue-progress/`
-  - `resources/validation-reports/`
-  - `resources/generated/`
+- “设计目标” 与 “已实现功能”。
+- “实验计划” 与 “实验结果”。
+- “issue/PR 进展” 与 “论文可确认结论”。
 
-原则：
+## 4. 常用依据位置
 
-- 设计如此，不等于已经实现如此。
-- issue 已提出，不等于功能已完成。
-- PR 已合并，也不自动等于适合直接写入论文结论。
+设计依据优先查看：
 
-## 4. 可改与不可改
+- `../thesis-project.design/docs/index/SSOT_MAP.md`
+- `../thesis-project.design/docs/design/architecture.md`
+- `../thesis-project.design/docs/design/system-implementation-design.md`
+
+实现依据可查看：
+
+- `../thesis-project.dev/AGENTS.md`
+- `git -C ../thesis-project.dev status -sb`
+- `git -C ../thesis-project.dev log --oneline`
+- `git -C ../thesis-project.dev log --grep='issue'`
+
+论文侧整理材料可查看：
+
+- `resources/`
+- `resources/design/`
+- `resources/validation-reports/`
+- `resources/issue-progress/`
+
+## 5. 修改范围
 
 默认可改：
 
-- 当前任务直接涉及的 `.tex`、`.md`、`.bib`
-- 图注、讲稿、README、资源说明
+- 当前任务直接涉及的 `.tex`、`.md`、`.bib`。
+- 必要的图注、术语说明、章节结构和少量辅助说明文件。
 
 默认不要改：
 
-- `submit/` 下已导出的交付件
-- 无关的历史归档材料
-- 相邻两个仓库内容
+- `submit/` 下已导出的交付件。
+- 与当前任务无关的历史材料。
+- 相邻仓库 `../thesis-project.dev/` 与 `../thesis-project.design/`。
 
-## 5. 写作规则
+需要先确认：
 
-- 默认使用中文，保持正式、克制、可追溯的论文口吻。
-- “设计目标”“已完成工作”“待完成工作”“风险与可行性”分开写。
-- 不把实验计划写成实验结果。
-- 不把补充机制验证写成最终生物效果结论。
-- 不把工程细节过度堆进正文，除非它本身就是论文贡献。
+- 大幅重写论文主叙事或研究贡献。
+- 将计划中工作改写为已完成工作。
+- 删除、覆盖已有完整章节。
+- 同步修改相邻仓库。
 
-信息不足时，优先使用保守表述，如：
+## 6. 写作规范
 
-- “已形成初步闭环”
-- “阶段性完成”
-- “待进一步验证”
+- 默认使用中文，除非目标文件使用英文。
+- 语气正式、克制、可追溯，避免产品宣传口吻。
+- 优先写可被证据支持的表述。
+- 系统机制、Agent 职责、算法流程和实验结论应使用稳定术语。
+- 缩写首次出现时尽量给出中文全称或上下文说明。
+- 不把补充机制验证扩大为最终生物效果结论。
+- 不在正文中过度展开代码细节，除非该细节本身构成论文贡献。
 
-## 6. 图表与构建
+## 7. 构建验证
 
-- 论文与答辩材料能复用的图，优先复用现有 `paper/figures/` 与 `ppt/midterm-defense/assets/`。
-- LaTeX 若同时有 `.pdf` 与 `.svg`，优先使用 `.pdf`。
-- 修改哪个阶段，就优先编译哪个阶段；只改说明文件时可不编译。
-
-常用命令：
+LaTeX 构建入口见 `paper/README.md`。终稿常用命令：
 
 ```bash
 cd paper/tex
-latexmk -xelatex -interaction=nonstopmode -output-directory=../output/midterm stages/midterm.tex
+latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stages/final.tex
 ```
 
-## 7. 变更边界
+修改 LaTeX 正文、结构、引用或图表后，优先编译终稿。若只修改说明性 Markdown 或资料索引，可不强制编译。
 
-只修改用户要求的内容，以及完成它所必需的最小范围。
+## 8. Git 习惯
 
-若需要重写整章结构、显著改变论文主叙事、或把“计划中”改写为“已完成”，先与用户确认。
+- 默认不主动提交 commit，除非用户明确要求。
+- 不清理或回滚用户已有未提交修改。
+- 查看相邻仓库历史时，只把经核实、适合终稿表达的信息写入论文。
+
+一句话原则：把已有事实整理成清晰、可信、可提交的毕业论文终稿，不替论文补造事实。
