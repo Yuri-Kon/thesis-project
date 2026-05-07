@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Codex">
   <diagram name="FSM State Transition" id="fsm-state-transition">
-    <mxGraphModel dx="968" dy="755" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
+    <mxGraphModel dx="1106" dy="863" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
