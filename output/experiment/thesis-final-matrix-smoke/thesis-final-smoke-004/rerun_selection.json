@@ -1,0 +1,25 @@
+{
+  "generated_at": "2026-05-08T11:52:59+00:00",
+  "runs": [
+    {
+      "group_id": "static_top1",
+      "task_key": "t1_trpcage_denovo_short_peptide",
+      "replicate": 1
+    },
+    {
+      "group_id": "static_top1",
+      "task_key": "t1_trpcage_denovo_short_peptide",
+      "replicate": 2
+    },
+    {
+      "group_id": "static_top1",
+      "task_key": "t1_villin_like_helix_bundle",
+      "replicate": 1
+    },
+    {
+      "group_id": "static_top1",
+      "task_key": "t1_villin_like_helix_bundle",
+      "replicate": 2
+    }
+  ]
+}

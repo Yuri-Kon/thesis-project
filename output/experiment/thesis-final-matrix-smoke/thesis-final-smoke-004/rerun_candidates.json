@@ -1,0 +1,66 @@
+[
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01",
+    "group_id": "static_top1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01.json"
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02",
+    "group_id": "static_top1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02.json"
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01",
+    "group_id": "static_top1",
+    "task_key": "t1_villin_like_helix_bundle",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01.json"
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02",
+    "group_id": "static_top1",
+    "task_key": "t1_villin_like_helix_bundle",
+    "replicate": 2,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02.json"
+  }
+]

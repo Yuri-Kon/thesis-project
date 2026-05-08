@@ -1,0 +1,119 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-08T11:48:59+00:00",
+  "run_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02",
+  "task_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02",
+  "group": {
+    "id": "static_top1",
+    "label": "静态 Top-1",
+    "comparison_order": 0,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_single_candidate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 1,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.0,
+      "high_cost_min_overall": 0.0,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "patch_events_mean",
+      "replan_events_mean"
+    ],
+    "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+  },
+  "task": {
+    "task_key": "t1_villin_like_helix_bundle",
+    "goal": "Design a 32-40 residue single-chain helix-rich mini-domain inspired by villin HP35, prioritizing foldability and solubility.",
+    "display_name": "Villin-like short helix bundle",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first",
+    "rationale": "",
+    "task_class": "T1",
+    "real_case": {
+      "source_ids": [
+        "1VII"
+      ],
+      "rationale": "Use HP35 as a compact thermostable three-helix reference."
+    },
+    "expected_focus": [
+      "normal_flow",
+      "secondary_structure_annotation",
+      "report"
+    ],
+    "oracle_action": "continue_when_secondary_structure_matches",
+    "constraints": {
+      "prompt": "Design a 32-40 residue single-chain helix-rich mini-domain inspired by villin HP35, prioritizing foldability and solubility.",
+      "length_range": [
+        32,
+        40
+      ],
+      "objective_type": "stability",
+      "secondary_structure_bias": {
+        "helix_fraction_min": 0.55
+      },
+      "forbid_cysteine": true
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 1,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0,
+    "require_plan_confirm": false,
+    "require_patch_confirm": false,
+    "prompt": "Design a 32-40 residue single-chain helix-rich mini-domain inspired by villin HP35, prioritizing foldability and solubility.",
+    "length_range": [
+      32,
+      40
+    ],
+    "objective_type": "stability",
+    "secondary_structure_bias": {
+      "helix_fraction_min": 0.55
+    },
+    "forbid_cysteine": true,
+    "runtime_policy": "static_single_candidate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "thesis_experiment_matrix",
+    "group_id": "static_top1",
+    "group_label": "静态 Top-1",
+    "task_key": "t1_villin_like_helix_bundle",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
+    "baseline_freeze_config_hash": "37b097d77785",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}
