@@ -768,7 +768,7 @@ class PlannerAgent:
                 top_k_result=top_k,
                 task_constraints=task.constraints,
             )
-            candidate = _require_default_candidate(top_k, expected_kind="plan")
+            candidate = _select_candidate_for_plan_status(top_k)
             payload = candidate.structured_payload
             if not isinstance(payload, Plan):
                 raise ValueError("plan_top_k returned non-Plan payload")
@@ -1556,6 +1556,16 @@ def _require_default_candidate(
     )
 
 
+def _select_candidate_for_plan_status(result: TopKResult) -> PendingActionCandidate:
+    if result.default_recommendation:
+        for candidate in result.candidates:
+            if candidate.candidate_id == result.default_recommendation:
+                return candidate
+    if result.candidates:
+        return result.candidates[0]
+    raise ValueError("plan_top_k produced no candidates")
+
+
 def _build_plan_candidate_payloads(
     *,
     task: ProteinDesignTask,
@@ -2064,6 +2074,18 @@ def _filter_alternatives_by_constraint_override(
     normalized_pinned_tool = pinned_tool.strip()
     if normalized_pinned_tool != current_tool:
         return list(alternatives)
+    fallback_tool_ids = [
+        str(item).strip()
+        for item in constraints.get("fallback_tool_ids", [])
+        if isinstance(item, str) and item.strip()
+    ]
+    if fallback_tool_ids:
+        fallback_set = set(fallback_tool_ids)
+        fallback_alternatives = [
+            candidate for candidate in alternatives if candidate.id in fallback_set
+        ]
+        if fallback_alternatives:
+            return fallback_alternatives
     return [
         candidate
         for candidate in alternatives

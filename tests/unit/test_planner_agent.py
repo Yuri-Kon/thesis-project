@@ -1266,6 +1266,32 @@ class TestPlannerAgent:
         with pytest.raises(ValueError, match="No patch candidate found"):
             planner.patch_top_k(request, k=6)
 
+    def test_patch_top_k_allows_explicit_fallbacks_for_pinned_structure_tool(self, monkeypatch):
+        monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
+        planner = PlannerAgent(tool_registry=_topk_registry())
+        request = _patch_request_for_topk()
+        request.original_plan = request.original_plan.model_copy(
+            update={
+                "constraints": {
+                    **request.original_plan.constraints,
+                    "structure_prediction_tool_override": "esmfold",
+                    "fallback_tool_ids": ["nim_esmfold"],
+                }
+            },
+            deep=True,
+        )
+        request.reason = "plan_high_cost_low_benefit"
+
+        topk = planner.patch_top_k(request, k=6)
+
+        tool_level = [
+            candidate
+            for candidate in topk.candidates
+            if candidate.metadata.get("recovery_layer") == "tool_level"
+        ]
+        assert tool_level
+        assert all(candidate.metadata.get("to_tool") == "nim_esmfold" for candidate in tool_level)
+
     def test_patch_top_k_rewrites_structure_patch_inputs_to_sequence_refs(self, monkeypatch):
         monkeypatch.setattr(planner_module, "load_tool_kg", lambda: _topk_mock_kg())
         planner = PlannerAgent(tool_registry=_topk_registry())

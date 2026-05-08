@@ -392,6 +392,12 @@ def test_issue221_run_manifest_can_use_external_task_set_config(
 
     assert manifest["task_set_version"] == "thesis-final-v1"
     assert manifest["task_source"]["uses_baseline_freeze_tasks"] is False
+    structure_rule = next(
+        rule
+        for rule in manifest["high_cost_rules"]
+        if "structure_prediction" in rule.get("capability_ids", [])
+    )
+    assert "openfold" in structure_rule["tool_ids"]
     assert manifest["runs"][0]["task_key"] == "t2_trpcage_sequence_eval"
 
     run_config = json.loads(Path(manifest["runs"][0]["run_config_path"]).read_text())
@@ -657,3 +663,73 @@ def test_execute_matrix_run_continues_after_waiting_replan_plan_error(
     events = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines()]
     assert any(event.get("event") == "DECISION_SUBMITTED" for event in events)
     assert any(event.get("event") == "DECISION_APPLIED" for event in events)
+
+
+def test_execute_matrix_run_returns_waiting_status_when_auto_loop_is_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    class FakePlannerAgent:
+        def plan_with_status(self, task, context, record=None):
+            plan = _make_plan(task.task_id)
+            context.plan = plan
+            context.status = InternalStatus.PLANNED
+            if record is not None:
+                record.plan = plan
+                record.internal_status = InternalStatus.PLANNED
+                record.status = to_external_status(InternalStatus.PLANNED)
+            return plan
+
+    class FakeExecutorAgent:
+        def run_plan(
+            self,
+            plan,
+            context,
+            *,
+            record=None,
+            finalize_status=False,
+            resume_from_existing=False,
+        ):
+            pending_action = PendingAction(
+                pending_action_id="pa_waiting_patch",
+                task_id=context.task.task_id,
+                action_type=PendingActionType.PATCH_CONFIRM,
+                candidates=[],
+                explanation="test waiting patch",
+            )
+            context.pending_action = pending_action
+            context.status = InternalStatus.WAITING_PATCH
+            if record is not None:
+                record.pending_action = pending_action
+                record.internal_status = InternalStatus.WAITING_PATCH
+                record.status = to_external_status(InternalStatus.WAITING_PATCH)
+            return plan
+
+        def summarize_and_finalize(self, context, record, summarizer) -> None:
+            raise AssertionError("waiting task should not be summarized")
+
+    class FakeSummarizerAgent:
+        pass
+
+    monkeypatch.setattr("src.adapters.builtins.ensure_builtin_adapters", lambda: None)
+    monkeypatch.setattr("src.agents.planner.PlannerAgent", FakePlannerAgent)
+    monkeypatch.setattr("src.agents.executor.ExecutorAgent", FakeExecutorAgent)
+    monkeypatch.setattr("src.agents.summarizer.SummarizerAgent", FakeSummarizerAgent)
+    monkeypatch.setattr(
+        "src.infra.thesis_experiment_matrix._auto_apply_waiting_decision",
+        lambda **_kwargs: None,
+    )
+
+    result = _execute_matrix_run(
+        task_id="task_waiting_patch_exhausted",
+        goal="demo",
+        constraints={},
+        metadata={},
+    )
+
+    assert result[0] == "WAITING_PATCH_CONFIRM"
+    assert result[1] == "WAITING_PATCH"
+    assert result[3] == "patch_confirm"
+    assert result[4] is None

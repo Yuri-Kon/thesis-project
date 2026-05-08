@@ -190,8 +190,8 @@ def build_issue221_run_manifest(
                     )
 
                 finished_at = now_iso()
-                event_log_path = Path("data/logs") / f"{task_id}.jsonl"
-                snapshot_path = Path("data/snapshots") / f"{task_id}.jsonl"
+                event_log_path = (Path("data/logs") / f"{task_id}.jsonl").resolve()
+                snapshot_path = (Path("data/snapshots") / f"{task_id}.jsonl").resolve()
 
                 run_entries.append(
                     {
@@ -963,7 +963,14 @@ def _execute_matrix_run(
             loop_budget -= 1
 
         if loop_budget <= 0 and context.status not in TERMINAL_INTERNAL_STATUSES:
-            raise RuntimeError("auto decision loop exhausted before task reached terminal state")
+            if context.status not in {
+                InternalStatus.WAITING_PLAN_CONFIRM,
+                InternalStatus.WAITING_PATCH,
+                InternalStatus.WAITING_REPLAN,
+            }:
+                raise RuntimeError(
+                    "auto decision loop exhausted before task reached terminal state"
+                )
 
         if context.status == InternalStatus.DONE:
             append_snapshot(
@@ -1373,14 +1380,16 @@ def _resolve_issue221_matrix(*, config: Mapping[str, Any]) -> dict[str, Any]:
         or freeze_config.get("difficulty_scheme_version")
         or "issue209-difficulty-v1"
     )
+    high_cost_rules = _augment_high_cost_rules_from_task_set(
+        normalize_high_cost_rules(freeze_config.get("high_cost_rules")),
+        task_source_config=task_source_config,
+    )
     return {
         "freeze_id": str(freeze_config.get("freeze_id") or "issue209-baseline-freeze"),
         "task_set_version": task_set_version,
         "difficulty_scheme_version": difficulty_scheme_version,
         "metrics_contract": _dict_value(freeze_config.get("metrics_contract")),
-        "high_cost_rules": normalize_high_cost_rules(
-            freeze_config.get("high_cost_rules")
-        ),
+        "high_cost_rules": high_cost_rules,
         "groups": groups,
         "tasks": tasks,
         "baseline_freeze": {
@@ -1395,6 +1404,69 @@ def _resolve_issue221_matrix(*, config: Mapping[str, Any]) -> dict[str, Any]:
             "uses_baseline_freeze_tasks": task_set_config_path is None,
         },
     }
+
+
+def _augment_high_cost_rules_from_task_set(
+    rules: list[dict[str, Any]],
+    *,
+    task_source_config: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """用最终任务集的高代价工具白名单补齐矩阵统计规则。"""
+
+    whitelist = _dict_value(task_source_config.get("tool_whitelist"))
+    high_cost_tool_ids = {
+        str(item)
+        for item in whitelist.get("high_cost_tool_ids", [])
+        if isinstance(item, str) and item
+    }
+    if not high_cost_tool_ids:
+        return rules
+
+    augmented: list[dict[str, Any]] = []
+    assigned: set[str] = set()
+    for rule in rules:
+        item = dict(rule)
+        tool_ids = [
+            str(tool_id)
+            for tool_id in item.get("tool_ids", [])
+            if isinstance(tool_id, str) and tool_id
+        ]
+        assigned.update(high_cost_tool_ids.intersection(tool_ids))
+        capability_ids = {
+            str(capability_id)
+            for capability_id in item.get("capability_ids", [])
+            if isinstance(capability_id, str) and capability_id
+        }
+        if "structure_prediction" in capability_ids:
+            for tool_id in ("esmfold", "nim_esmfold", "openfold", "openfold3"):
+                if tool_id in high_cost_tool_ids and tool_id not in tool_ids:
+                    tool_ids.append(tool_id)
+                    assigned.add(tool_id)
+        elif "sequence_design" in capability_ids:
+            for tool_id in ("protein_mpnn",):
+                if tool_id in high_cost_tool_ids and tool_id not in tool_ids:
+                    tool_ids.append(tool_id)
+                    assigned.add(tool_id)
+        item["tool_ids"] = tool_ids
+        augmented.append(item)
+
+    remaining = sorted(high_cost_tool_ids - assigned)
+    if remaining:
+        augmented.append(
+            {
+                "rule_id": "task_set_high_cost_tools",
+                "label": "任务集高代价工具",
+                "stage_ids": [],
+                "tool_ids": remaining,
+                "capability_ids": [],
+                "cost_tier": "high",
+                "rationale": (
+                    "High-cost tools declared by the thesis-final task set "
+                    "tool whitelist."
+                ),
+            }
+        )
+    return augmented
 
 
 def _resolve_requirement2_capability_map(raw_value: Any) -> dict[str, list[str]]:

@@ -306,6 +306,7 @@ class CandidateGenerator:
         self,
         candidates: Sequence[PendingActionCandidate],
     ) -> PendingActionCandidate | None:
+        fallback_candidate: PendingActionCandidate | None = None
         for candidate in candidates:
             metadata = object_mapping(cast(object, candidate.metadata))
             feasibility = object_mapping(
@@ -313,7 +314,9 @@ class CandidateGenerator:
             )
             if feasibility.get("allowed_for_default_recommendation") is True:
                 return candidate
-        return None
+            if fallback_candidate is None:
+                fallback_candidate = candidate
+        return fallback_candidate
 
     def _degraded_candidate_reasons(
         self,
