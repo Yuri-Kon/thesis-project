@@ -101,3 +101,5 @@ tmp/
 .superpowers/
 .worktrees/
 *.bkp
+output/experiment/
+output/reports/
