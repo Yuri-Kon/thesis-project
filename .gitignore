@@ -103,3 +103,4 @@ tmp/
 *.bkp
 output/experiment/
 output/reports/
+output/pdb/
