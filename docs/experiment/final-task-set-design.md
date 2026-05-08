@@ -16,7 +16,7 @@
 | 问题 | 影响 | 建议 |
 |:---|:---|:---|
 | 论文组名 `static_gate` 与代码/配置中的 `fixed_threshold_gate` 不完全一致 | 后续表格和产物聚合容易出现组名漂移 | 论文统一写“固定阈值 gate”，括号标注代码 id：`fixed_threshold_gate` |
-| 文档建议新增 `thesis_final_task_set.json`，但 EXP-A2 命令仍使用 `w13_issue209_baseline_freeze.json` 的旧任务 | 真实任务集不会自动进入四组矩阵 | 本轮已新增 `configs/experiments/thesis_final_task_set.json`；若要直接跑矩阵，还需要新增 final matrix 配置或把任务同步进 freeze config |
+| 文档建议新增 `thesis_final_task_set.json`，但 EXP-A2 命令仍使用 `w13_issue209_baseline_freeze.json` 的旧任务 | 真实任务集不会自动进入四组矩阵 | 已新增 `configs/experiments/thesis_final_experiment_matrix.json`，并让矩阵 runner 支持 `task_set_config_path` |
 | `action_agreement`、`stop_quality`、`evidence_sufficiency` 需要 oracle/rubric | 否则算法指标难以复现 | 在每个任务中显式写入 `oracle_action`、`stop_quality_rubric` 或 `expected_focus` |
 | `runtime_seconds` 混合真实 provider 与 mock provider 会误导 | 真实远程服务和本地模拟成本不可比 | 结果表拆成 `mock_runtime_seconds` 与 `real_provider_runtime_seconds`，或至少在 run metadata 标注 execution mode |
 | 每类至少 3 个样本、每组至少重复 3 次工作量较大 | 时间紧时可能影响论文收敛 | 主文档已有最小包策略；实际建议先跑每类 1 个样本、每组 2 次，确认链路后再扩展 |
@@ -70,8 +70,19 @@
 
 - 系统验证用 `t1_trpcage_denovo_short_peptide`、`t2_trpcage_sequence_eval`、`t5_trpcage_patchable_length_failure`、`t8_forbidden_motif_safety_probe` 即可覆盖主流程、序列输入、恢复和安全边界。
 - 算法主实验优先使用 8 类各 1 个代表任务；若结果稳定，再把 `t1/t2/t3/t4` 的第二个样例加入扩展矩阵。
+- 四组矩阵试跑入口：
+
+```bash
+uv run python scripts/run_w16_issue221_experiment_matrix.py \
+  --config configs/experiments/thesis_final_experiment_matrix.json \
+  --output-root output/experiment/thesis-final-matrix-dry \
+  --run-id thesis-final-dry \
+  --dry-run \
+  --max-runs 8
+```
+
+- 正式运行时去掉 `--dry-run`，并先保留 `--max-runs` 做小批量验证。
 - 论文案例包建议选择：
   - C1 正常成功：`t1_trpcage_denovo_short_peptide`
   - C2 局部失败恢复：`t5_trpcage_patchable_length_failure`
   - C3 高风险重规划/止损：`t7_top7_suffix_replan`
-

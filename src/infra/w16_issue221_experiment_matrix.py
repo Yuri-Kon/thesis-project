@@ -165,6 +165,8 @@ def build_issue221_run_manifest(
                         "baseline_freeze_manifest_path": matrix["baseline_freeze"][
                             "manifest_path"
                         ],
+                        "task_source_config_path": matrix["task_source"]["config_path"],
+                        "task_source_config_hash": matrix["task_source"]["config_hash"],
                         "high_cost_rules_hash": stable_hash(matrix["high_cost_rules"]),
                     },
                 }
@@ -258,6 +260,7 @@ def build_issue221_run_manifest(
         "task_set_version": matrix["task_set_version"],
         "difficulty_scheme_version": matrix["difficulty_scheme_version"],
         "baseline_freeze": matrix["baseline_freeze"],
+        "task_source": matrix["task_source"],
         "metrics_contract": matrix["metrics_contract"],
         "high_cost_rules": matrix["high_cost_rules"],
         "dry_run": dry_run,
@@ -1266,19 +1269,38 @@ def _normalize_tasks(
         constraints: dict[str, Any] = {}
         if raw.get("prompt") is not None:
             constraints["prompt"] = raw.get("prompt")
+        elif raw.get("goal") is not None:
+            constraints["prompt"] = raw.get("goal")
         if isinstance(raw.get("length_range"), list):
             constraints["length_range"] = list(raw.get("length_range"))
+        constraints = deep_merge(constraints, _dict_value(raw.get("constraints")))
+        inputs = _dict_value(raw.get("inputs"))
+        if inputs:
+            constraints = deep_merge(constraints, {"inputs": inputs})
+            if isinstance(inputs.get("sequence"), str) and not isinstance(
+                constraints.get("sequence"),
+                str,
+            ):
+                constraints["sequence"] = inputs["sequence"]
         constraints = deep_merge(constraints, _dict_value(override.get("constraints")))
+        metadata = deep_merge(
+            _dict_value(raw.get("metadata")),
+            _dict_value(override.get("metadata")),
+        )
         rows.append(
             {
                 "task_key": task_key,
-                "goal": str(override.get("goal") or default_goal),
+                "goal": str(override.get("goal") or raw.get("goal") or default_goal),
                 "display_name": str(raw.get("display_name") or task_key),
                 "difficulty": str(raw.get("difficulty") or "unknown"),
                 "budget_tier": str(raw.get("budget_tier") or "standard"),
                 "rationale": str(raw.get("rationale") or ""),
+                "task_class": raw.get("task_class"),
+                "real_case": _dict_value(raw.get("real_case")),
+                "expected_focus": _string_list(raw.get("expected_focus"), default=[]),
+                "oracle_action": raw.get("oracle_action"),
                 "constraints": constraints,
-                "metadata": _dict_value(override.get("metadata")),
+                "metadata": metadata,
             }
         )
     return rows
@@ -1323,6 +1345,10 @@ def _resolve_issue221_matrix(*, config: Mapping[str, Any]) -> dict[str, Any]:
         or DEFAULT_ISSUE221_BASELINE_FREEZE_CONFIG_PATH
     )
     freeze_config = load_json(freeze_config_path)
+    task_set_config_path = _path_from_value(config.get("task_set_config_path"))
+    task_source_config = (
+        load_json(task_set_config_path) if task_set_config_path else freeze_config
+    )
     group_overrides = _dict_value(config.get("group_overrides"))
     task_overrides = _dict_value(config.get("task_overrides"))
     groups = _normalize_groups(
@@ -1330,22 +1356,27 @@ def _resolve_issue221_matrix(*, config: Mapping[str, Any]) -> dict[str, Any]:
         group_overrides=group_overrides,
     )
     tasks = _normalize_tasks(
-        freeze_tasks=freeze_config.get("tasks"),
+        freeze_tasks=task_source_config.get("tasks"),
         task_overrides=task_overrides,
         default_goal=str(config.get("default_goal") or "de_novo_design"),
     )
 
     manifest_path = _path_from_value(config.get("baseline_freeze_manifest_path"))
     manifest_exists = bool(manifest_path and manifest_path.exists())
+    task_set_version = str(
+        task_source_config.get("task_set_version")
+        or freeze_config.get("task_set_version")
+        or "issue209-taskset-v1"
+    )
+    difficulty_scheme_version = str(
+        task_source_config.get("difficulty_scheme_version")
+        or freeze_config.get("difficulty_scheme_version")
+        or "issue209-difficulty-v1"
+    )
     return {
         "freeze_id": str(freeze_config.get("freeze_id") or "issue209-baseline-freeze"),
-        "task_set_version": str(
-            freeze_config.get("task_set_version") or "issue209-taskset-v1"
-        ),
-        "difficulty_scheme_version": str(
-            freeze_config.get("difficulty_scheme_version")
-            or "issue209-difficulty-v1"
-        ),
+        "task_set_version": task_set_version,
+        "difficulty_scheme_version": difficulty_scheme_version,
         "metrics_contract": _dict_value(freeze_config.get("metrics_contract")),
         "high_cost_rules": normalize_high_cost_rules(
             freeze_config.get("high_cost_rules")
@@ -1357,6 +1388,11 @@ def _resolve_issue221_matrix(*, config: Mapping[str, Any]) -> dict[str, Any]:
             "config_hash": stable_hash(freeze_config),
             "manifest_path": str(manifest_path) if manifest_path else None,
             "manifest_exists": manifest_exists,
+        },
+        "task_source": {
+            "config_path": str(task_set_config_path or freeze_config_path),
+            "config_hash": stable_hash(task_source_config),
+            "uses_baseline_freeze_tasks": task_set_config_path is None,
         },
     }
 

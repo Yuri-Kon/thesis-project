@@ -339,6 +339,76 @@ def test_issue221_run_manifest_materializes_run_configs_for_selected_subset(
     assert (run_dir / "run_log_index.csv").exists()
 
 
+def test_issue221_run_manifest_can_use_external_task_set_config(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(
+        json.dumps(
+            {
+                "runs": [
+                    {
+                        "group_id": "lite_belief_state",
+                        "task_key": "t2_trpcage_sequence_eval",
+                        "replicate": 1,
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    selection = load_issue221_selection(selection_path)
+
+    manifest, _run_dir = build_issue221_run_manifest(
+        config={
+            "issue_id": 221,
+            "baseline_freeze_config_path": str(
+                repo_root / "configs/experiments/w13_issue209_baseline_freeze.json"
+            ),
+            "task_set_config_path": str(
+                repo_root / "configs/experiments/thesis_final_task_set.json"
+            ),
+            "output_root": str(tmp_path / "out"),
+            "repeats": 1,
+            "group_overrides": {
+                "dynamic_no_belief_state": {
+                    "supports_current_repo": True,
+                    "implementation_status": "implemented",
+                },
+                "lite_belief_state": {
+                    "supports_current_repo": True,
+                    "implementation_status": "implemented",
+                },
+            },
+        },
+        config_path=repo_root / "configs/experiments/thesis_final_experiment_matrix.json",
+        output_root=tmp_path / "out",
+        run_id="thesis-final-dry-run",
+        dry_run=True,
+        selection=selection,
+    )
+
+    assert manifest["task_set_version"] == "thesis-final-v1"
+    assert manifest["task_source"]["uses_baseline_freeze_tasks"] is False
+    assert manifest["runs"][0]["task_key"] == "t2_trpcage_sequence_eval"
+
+    run_config = json.loads(Path(manifest["runs"][0]["run_config_path"]).read_text())
+    assert run_config["task"]["task_class"] == "T2"
+    assert run_config["task"]["oracle_action"] == (
+        "continue_when_structure_prediction_available"
+    )
+    assert run_config["constraints"]["goal_type"] == "sequence_evaluation"
+    assert run_config["constraints"]["sequence"] == "NLYIQWLKDGGPSSGRPPPS"
+    assert run_config["constraints"]["inputs"] == {
+        "sequence": "NLYIQWLKDGGPSSGRPPPS"
+    }
+    assert run_config["lineage"]["task_source_config_path"].endswith(
+        "configs/experiments/thesis_final_task_set.json"
+    )
+
+
 def test_issue221_evaluator_writes_rerun_candidates_and_traceability_outputs(
     tmp_path: Path,
 ) -> None:
