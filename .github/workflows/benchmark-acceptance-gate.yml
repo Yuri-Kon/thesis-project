@@ -1,0 +1,46 @@
+name: Benchmark Acceptance Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "configs/experiments/benchmark_platform_adapters.json"
+      - "scripts/benchmarks/run_benchmark_acceptance_gate.py"
+      - "scripts/benchmarks/run_benchmark_acceptance_suite.py"
+      - "src/infra/benchmark_platform_adapters.py"
+      - "src/infra/benchmark_acceptance_gate.py"
+      - "src/infra/benchmark_acceptance_suite.py"
+      - "tests/unit/test_benchmark_platform_adapters.py"
+      - "tests/unit/test_benchmark_acceptance_gate.py"
+      - "tests/unit/test_benchmark_acceptance_suite.py"
+
+jobs:
+  acceptance-gate:
+    runs-on: ubuntu-latest
+    env:
+      PLANNER_LLM_PROVIDER: off
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run benchmark acceptance suite
+        run: |
+          uv run python scripts/benchmarks/run_benchmark_acceptance_suite.py \
+            --output-root output/experiment/benchmark-acceptance-ci \
+            --freeze-id benchmark-ci-${{ github.run_id }}
+
+      - name: Upload gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-acceptance-gate-${{ github.run_id }}
+          path: output/experiment/benchmark-acceptance-ci
+          if-no-files-found: warn

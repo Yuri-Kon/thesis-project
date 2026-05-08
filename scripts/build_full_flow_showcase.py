@@ -60,9 +60,9 @@ def build_showcase_manifest(*, api_port: int, hitl_port: int) -> dict[str, Any]:
         },
         "prepare_commands": [
             f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/run_demo.py --port {api_port} --exit-after-smoke",
-            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/run_w12_issue151_demo_audit.py",
-            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/generate_w12_issue174_midterm_pack.py",
-            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/generate_w12_issue152_release_pack.py",
+            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/run_demo_audit.py",
+            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/generate_midterm_experiment_pack.py",
+            f"UV_CACHE_DIR={UV_CACHE_DIR} uv run python scripts/generate_interim_release_pack.py",
         ],
         "design_points": [
             {
@@ -89,7 +89,7 @@ def build_showcase_manifest(*, api_port: int, hitl_port: int) -> dict[str, Any]:
                         role="from_tool -> to_tool 回放记录",
                     ),
                     _artifact_entry(
-                        "scripts/w12-issue-150-dual-route-fallback.md",
+                        "scripts/dual-route-fallback-runbook.md",
                         role="运行时回退触发条件与审计字段",
                     ),
                 ],
@@ -209,9 +209,9 @@ def build_showcase_bundle(
                 "--exit-after-smoke",
             ]
         )
-        _run(["uv", "run", "python", "scripts/run_w12_issue151_demo_audit.py"])
-        _run(["uv", "run", "python", "scripts/generate_w12_issue174_midterm_pack.py"])
-        _run(["uv", "run", "python", "scripts/generate_w12_issue152_release_pack.py"])
+        _run(["uv", "run", "python", "scripts/run_demo_audit.py"])
+        _run(["uv", "run", "python", "scripts/generate_midterm_experiment_pack.py"])
+        _run(["uv", "run", "python", "scripts/generate_interim_release_pack.py"])
 
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest = build_showcase_manifest(api_port=api_port, hitl_port=hitl_port)

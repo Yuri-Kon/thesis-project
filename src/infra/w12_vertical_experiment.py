@@ -33,7 +33,7 @@ DEFAULT_HIGH_COST_RULES: list[dict[str, Any]] = build_high_cost_rules_from_metad
 
 _PATCH_EVENT_NAMES = {"PARAM_TWEAK", "REPLACE_TOOL", "STRUCTURE_PATCH"}
 DEFAULT_REPLAY_SAMPLE_DIR = (
-    Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "w14_issue215"
+    Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "runtime_shadow_samples"
 )
 ACTION_SPACE = ("continue", "patch_local", "suffix_replan", "stop")
 BELIEF_STATE_CORE_FIELDS = (
