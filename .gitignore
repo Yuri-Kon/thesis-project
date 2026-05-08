@@ -30,7 +30,6 @@
 # 2. 输出目录
 
 docs/**/output/
-output/
 ppt/
 
 # 3. 临时文件 & 备份文件
@@ -55,20 +54,10 @@ Thumbs.db
 *.doc
 *.docx
 
-# 6. 参考与大文件
-shared/
-resources/papers/
-resources/data/
-resources/raw/
-iresources/tmp/
-
 # 7. Latex目录
 
 docs/proposal/
 
-# 8. ppt
-
-ppt
 
 # 9. Python编译产物
 
