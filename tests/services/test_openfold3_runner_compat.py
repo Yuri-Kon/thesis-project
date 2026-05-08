@@ -69,6 +69,7 @@ def test_build_predict_command_appends_runner_yaml_from_env(
       --query-json FILE
       --output-dir PATH
       --runner-yaml FILE
+      --use-msa-server BOOLEAN
     """
     runner_yaml = tmp_path / "runner.yml"
     runner_yaml.write_text("model_update: {}\n", encoding="utf-8")
@@ -83,8 +84,45 @@ def test_build_predict_command_appends_runner_yaml_from_env(
     )
 
     assert any(part == f"--runner-yaml={runner_yaml}" for part in command)
+    assert any(part == "--use-msa-server=False" for part in command)
     assert meta["runner_yaml_arg"] == "--runner-yaml"
     assert meta["runner_yaml_path"] == str(runner_yaml)
+    assert meta["use_msa_server"] is False
+
+
+def test_build_predict_command_can_enable_msa_server_explicitly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    help_text = """
+    Usage: run_openfold predict [OPTIONS]
+      --query-json FILE
+      --output-dir PATH
+      --use-msa-server BOOLEAN
+    """
+    monkeypatch.setattr(runner, "_get_predict_help_text", lambda _bin: help_text)
+
+    command, meta = runner._build_predict_command(
+        query_json_path=tmp_path / "query.json",
+        output_dir=tmp_path / "artifacts",
+        model_dir="/models/openfold3",
+        predict_bin="run_openfold",
+        inputs={"use_msa_server": True},
+    )
+
+    assert any(part == "--use-msa-server=True" for part in command)
+    assert meta["use_msa_server"] is True
+    assert meta["use_msa_server_arg"] == "--use-msa-server"
+
+
+def test_build_predict_env_isolates_openfold_temp_cache(tmp_path: Path) -> None:
+    tmp_dir = tmp_path / "job_tmp"
+
+    env = runner._build_predict_env(tmp_dir=tmp_dir)
+
+    assert env["TMPDIR"] == str(tmp_dir.resolve())
+    assert env["TMP"] == str(tmp_dir.resolve())
+    assert env["TEMP"] == str(tmp_dir.resolve())
 
 
 def test_build_predict_command_rejects_missing_runner_yaml(
