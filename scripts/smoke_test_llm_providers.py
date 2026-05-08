@@ -14,7 +14,11 @@ project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.agents.planner import ToolSpec
-from src.llm.provider_registry import create_provider, load_provider_catalog, resolve_api_key
+from src.llm.provider_registry import (
+    create_provider,
+    load_provider_catalog,
+    resolve_api_key,
+)
 from src.models.contracts import ProteinDesignTask
 
 DEFAULT_CONFIG_PATH = project_root / "configs" / "llm_providers.json"
@@ -77,7 +81,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def run_provider(alias: str, catalog_path: Path, goal: str, target_length: int) -> dict[str, object]:
+def run_provider(
+    alias: str, catalog_path: Path, goal: str, target_length: int
+) -> dict[str, object]:
     catalog = load_provider_catalog(catalog_path)
     if alias not in catalog.providers:
         raise KeyError(f"Unknown provider alias: {alias}")

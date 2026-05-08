@@ -8,7 +8,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx 
+*.idx
 *.ilg
 *.ind
 *.ist
@@ -75,7 +75,7 @@ venv/
 *.egg-info/
 node_modules/
 
-# 11. 日志与中间数据 
+# 11. 日志与中间数据
 
 data/logs/
 data/inputs/tmp/
@@ -101,6 +101,5 @@ tmp/
 .superpowers/
 .worktrees/
 *.bkp
-output/experiment/
 output/reports/
 output/pdb/

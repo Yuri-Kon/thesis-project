@@ -1,0 +1,8 @@
+group_id,slice_type,name,covered,usage_count
+static_top1,capability_bucket,sequence_core,False,0
+static_top1,capability_bucket,quality_qc,False,0
+static_top1,capability_bucket,objective_scoring,False,0
+static_top1,capability_bucket,structure_prediction,False,0
+static_top1,capability_bucket,similarity_search,False,0
+static_top1,capability_bucket,secondary_structure,False,0
+static_top1,tool,dummy_tool,True,1

@@ -1,0 +1,16 @@
+[
+  {
+    "run_id": "issue221-smoke_static_top1_enzyme_like_fold_r01",
+    "group_id": "static_top1",
+    "task_key": "enzyme_like_fold",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "issue209-taskset-v1",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-smoke/run_configs/issue221-smoke_static_top1_enzyme_like_fold_r01.json",
+    "event_log_path": "data/logs/issue221-smoke_static_top1_enzyme_like_fold_r01.jsonl",
+    "snapshot_path": "data/snapshots/issue221-smoke_static_top1_enzyme_like_fold_r01.jsonl",
+    "report_path": "output/reports/issue221-smoke_static_top1_enzyme_like_fold_r01_denovo.md",
+    "summary_row_id": "d9f6a0bc45e8",
+    "artifact_complete": false
+  }
+]
