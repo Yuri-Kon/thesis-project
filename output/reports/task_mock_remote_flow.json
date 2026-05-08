@@ -1,0 +1,36 @@
+{
+  "task_id": "task_mock_remote_flow",
+  "sequence": "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV",
+  "structure_pdb_path": "/tmp/pytest-of-yurikon/pytest-12/test_mock_remote_full_flow0/remote/mock_task_mock_remote_flow_S1.pdb",
+  "scores": {
+    "plddt_mean": 0.88,
+    "confidence": "high"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/task_mock_remote_flow.json",
+  "metadata": {
+    "created_at": "2026-05-04T05:25:46+00:00",
+    "step_ids": [
+      "S1"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/task_mock_remote_flow.json",
+    "report_source": "summary_json",
+    "plan_metadata": {
+      "plan_version": 0
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "esmfold",
+        "exec_type": "remote",
+        "provider": "remote_model_service",
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "objective_scoring": {},
+    "structure_similarity": {}
+  }
+}

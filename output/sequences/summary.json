@@ -1,0 +1,10 @@
+{
+  "job_id": "plm_e3eb279b8fe54e7cadbde627ff01f282",
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02_attempt4",
+  "step_id": "S1",
+  "num_candidates": 4,
+  "device_used": "cuda",
+  "prompt_length": 50,
+  "max_new_tokens": 128,
+  "model_dir": "/root/autodl-tmp/models/plm/ProtGPT2"
+}

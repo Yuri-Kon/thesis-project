@@ -1,0 +1,180 @@
+{
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01",
+  "sequence": "QSSIADMAGWHTVMEVYWIKQNYLMMQEGWDQEHWKHVGEYCYTEKHWHYIESMWMFCKVYTNVYCHQYK",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+  "scores": {
+    "sequence_length": 70,
+    "plddt_mean": 42.0,
+    "confidence": "low"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01_denovo.md",
+  "metadata": {
+    "created_at": "2026-04-22T02:46:03+00:00",
+    "step_ids": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01.json",
+    "report_source": "de_novo_markdown",
+    "plan_metadata": {
+      "explanation": "Given the strict max_plan_steps limit of 3, this plan implements a streamlined de novo chain: S1 generates an initial sequence satisfying the enzyme-like fold goal and length constraints via protgpt2. S2 predicts the 3D structure using openfold (enforced by override). S3 performs structure-conditioned sequence redesign with protein_mpnn to optimize hydrophobic packing and ensure a stable core, directly addressing the primary objective within the computational budget.",
+      "provider": "openai_compatible",
+      "model": "qwen3.6-flash",
+      "elapsed_seconds": 26.306859493255615,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "protgpt2",
+            "capabilities": [
+              {
+                "capability_id": "sequence_generation",
+                "name": "Sequence Generation",
+                "domain": "protein/design"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "goal_to_sequence_candidates",
+              "input_types": [
+                "goal"
+              ],
+              "output_types": [
+                "sequence",
+                "sequence_candidates"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "goal_provided"
+              ],
+              "resource_assumptions": [
+                "network_available",
+                "plm_rest_service_available"
+              ],
+              "model_assumptions": [
+                "protgpt2_ready"
+              ],
+              "limits": {
+                "max_new_tokens": 512,
+                "num_candidates_max": 64
+              }
+            }
+          },
+          {
+            "step_id": "S2",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          },
+          {
+            "step_id": "S3",
+            "tool_id": "protein_mpnn",
+            "capabilities": [
+              {
+                "capability_id": "sequence_design",
+                "name": "Sequence Design",
+                "domain": "protein/design"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "structure_to_sequence",
+              "input_types": [
+                "structure_pdb"
+              ],
+              "output_types": [
+                "sequence"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "structure_template_provided"
+              ],
+              "resource_assumptions": [
+                "network_available",
+                "nim_api_key_configured"
+              ],
+              "model_assumptions": [
+                "backbone_required"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "qwen3.6-flash"
+      },
+      "candidate_strategy": "top_k_plan"
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "protgpt2",
+        "exec_type": "remote",
+        "provider": "plm_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S2",
+        "tool": "openfold",
+        "exec_type": "remote",
+        "provider": "openfold3_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S3",
+        "tool": "protein_mpnn",
+        "exec_type": "python",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "de_novo_json_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01_denovo.json",
+    "de_novo_markdown_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01_denovo.md"
+  }
+}

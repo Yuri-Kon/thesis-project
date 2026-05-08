@@ -1,0 +1,176 @@
+{
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E2_secondary_balance_r01",
+  "sequence": "ALANCEALPHAETASECNDARYELEMENTSFRRSTFLDAILITYANGQMNGQVAGIRQPRDHHALHARHAVQRAQGGLRRGQAQPARRLRRHPHEVHLVGRHERQEALRLRQHQLVVRAVPGRGLRRHGHRVWRLRPPRAAVRRAAQRQRRQGLRARRQRRRRPAGAERRPADGAAVRAARRDHAADLLRRAVQPAGDARGRRPGRLGRQLPVRLLRGAAAAAEPGRRAAGGARLPRAAGLRRPPRAAGAGRPGLPPPAAGAADGRVAAGGRQPGAVGHAGGLPGAGQPRALRGGGGEDRGAGRPVGPELRLSDLYRPVSGRAAGGAGPRGGRPGAVAAAGTAGGLRGRRRRRRDRVHGLHRREGRDLRHADGGRQDGGRVAGEGRRPNPALLRP",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+  "scores": {
+    "sequence_length": 395
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_secondary_balance_r01_denovo.md",
+  "metadata": {
+    "created_at": "2026-04-22T04:03:10+00:00",
+    "step_ids": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_secondary_balance_r01.json",
+    "report_source": "de_novo_markdown",
+    "plan_metadata": {
+      "explanation": "De novo design plan strictly constrained to 3 steps. S1 uses protgpt2 to generate a sequence targeting balanced alpha/beta content within the specified 50-90 residue range. S2 predicts the 3D structure using the overridden openfold model. S3 performs quality control and secondary structure validation using biopython_qc as mandated by the constraint override, evaluating foldability metrics against the target balance.",
+      "provider": "openai_compatible",
+      "model": "qwen3.6-flash",
+      "elapsed_seconds": 18.51721215248108,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "protgpt2",
+            "capabilities": [
+              {
+                "capability_id": "sequence_generation",
+                "name": "Sequence Generation",
+                "domain": "protein/design"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "goal_to_sequence_candidates",
+              "input_types": [
+                "goal"
+              ],
+              "output_types": [
+                "sequence",
+                "sequence_candidates"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "goal_provided"
+              ],
+              "resource_assumptions": [
+                "network_available",
+                "plm_rest_service_available"
+              ],
+              "model_assumptions": [
+                "protgpt2_ready"
+              ],
+              "limits": {
+                "max_new_tokens": 512,
+                "num_candidates_max": 64
+              }
+            }
+          },
+          {
+            "step_id": "S2",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          },
+          {
+            "step_id": "S3",
+            "tool_id": "biopython_qc",
+            "capabilities": [
+              {
+                "capability_id": "quality_qc",
+                "name": "Quality QC",
+                "domain": "protein/qc"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_structure_to_qc_metrics",
+              "input_types": [
+                "sequence",
+                "structure_pdb"
+              ],
+              "output_types": [
+                "qc_metrics"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_or_structure_results_provided"
+              ],
+              "resource_assumptions": [
+                "python_environment_ready"
+              ],
+              "model_assumptions": [
+                "single_candidate_or_batch"
+              ],
+              "limits": {}
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "qwen3.6-flash"
+      },
+      "candidate_strategy": "top_k_plan"
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "protgpt2",
+        "exec_type": "remote",
+        "provider": "plm_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S2",
+        "tool": "openfold",
+        "exec_type": "remote",
+        "provider": "openfold3_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S3",
+        "tool": "biopython_qc",
+        "exec_type": "python",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "de_novo_json_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_secondary_balance_r01_denovo.json",
+    "de_novo_markdown_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_secondary_balance_r01_denovo.md"
+  }
+}

@@ -1,8 +1,8 @@
 {
   "issue_id": 221,
   "experiment_name": "thesis-final-four-group-matrix",
-  "description": "Final thesis four-group experiment matrix using the thesis-final-v1 real-case task set while reusing the issue209 baseline group and metric contracts.",
-  "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+  "description": "Final thesis four-group experiment matrix using the thesis-final-v1 real-case task set while reusing the frozen baseline group and metric contracts.",
+  "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
   "task_set_config_path": "configs/experiments/thesis_final_task_set.json",
   "output_root": "output/experiment/thesis-final-matrix",
   "repeats": 2,

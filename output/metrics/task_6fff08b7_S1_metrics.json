@@ -1,0 +1,10 @@
+{
+  "task_id": "task_6fff08b7",
+  "step_id": "S1",
+  "tool": "esmfold",
+  "sequence_length": 35,
+  "plddt_mean": 0.85,
+  "plddt_std": 0.12,
+  "confidence": "high",
+  "prediction_time_s": 10.5
+}

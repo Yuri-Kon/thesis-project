@@ -1,0 +1,8 @@
+HEADER    PROTEIN STRUCTURE PREDICTION
+TITLE     ESMFOLD PREDICTION FOR issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02_attempt3_S2
+REMARK    MOCK OUTPUT FOR TESTING
+ATOM      1  N   MET A   1       0.000   0.000   0.000  1.00  0.00           N
+ATOM      2  CA  MET A   1       1.450   0.000   0.000  1.00  0.00           C
+ATOM      3  C   MET A   1       2.000   1.400   0.000  1.00  0.00           C
+ATOM      4  O   MET A   1       1.300   2.400   0.000  1.00  0.00           O
+END

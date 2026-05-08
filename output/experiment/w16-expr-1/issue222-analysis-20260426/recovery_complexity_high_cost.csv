@@ -1,0 +1,17 @@
+slice_type,slice_value,group_id,runs,patch_events_mean,replan_events_mean,suffix_replan_events_mean,recovery_event_mean,patch_minimality_hit_rate,suffix_replan_prefix_preservation_rate,high_cost_call_mean,high_cost_failure_mean
+overall,all,static_top1,7,0.42857142857142855,0.0,0.0,0.42857142857142855,1.0,,0.2857142857142857,0.0
+overall,all,fixed_threshold_gate,7,0.0,0.0,0.0,0.0,,,0.0,0.0
+overall,all,dynamic_no_belief_state,7,0.0,0.0,0.0,0.0,,,0.0,0.0
+overall,all,lite_belief_state,7,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,easy,static_top1,2,0.5,0.0,0.0,0.5,1.0,,0.0,0.0
+difficulty,easy,fixed_threshold_gate,2,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,easy,dynamic_no_belief_state,2,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,easy,lite_belief_state,2,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,medium,static_top1,4,0.25,0.0,0.0,0.25,1.0,,0.5,0.0
+difficulty,medium,fixed_threshold_gate,4,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,medium,dynamic_no_belief_state,4,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,medium,lite_belief_state,4,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,hard,static_top1,1,1.0,0.0,0.0,1.0,1.0,,0.0,0.0
+difficulty,hard,fixed_threshold_gate,1,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,hard,dynamic_no_belief_state,1,0.0,0.0,0.0,0.0,,,0.0,0.0
+difficulty,hard,lite_belief_state,1,0.0,0.0,0.0,0.0,,,0.0,0.0

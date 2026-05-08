@@ -1,0 +1,719 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-08T10:19:09+00:00",
+  "run_id": "thesis-final-smoke-003",
+  "config_path": "configs/experiments/thesis_final_experiment_matrix.json",
+  "run_manifest_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-003/runs_manifest.json",
+  "config_hash": "5e017d42d3ae",
+  "description": "Final thesis four-group experiment matrix using the thesis-final-v1 real-case task set while reusing the issue209 baseline group and metric contracts.",
+  "freeze_id": "issue209-baseline-freeze-20260326",
+  "task_set_version": "thesis-final-v1",
+  "difficulty_scheme_version": "issue209-difficulty-v1",
+  "baseline_freeze": {
+    "config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "config_hash": "04ceb6102ddc",
+    "manifest_path": null,
+    "manifest_exists": false
+  },
+  "task_source": {
+    "config_path": "configs/experiments/thesis_final_task_set.json",
+    "config_hash": "b885e086dee2",
+    "uses_baseline_freeze_tasks": false
+  },
+  "metrics_contract": {
+    "effect": [
+      "success_rate",
+      "first_pass_success_rate",
+      "executable_plan_rate"
+    ],
+    "cost": [
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "high_cost_failure_mean"
+    ],
+    "recovery": [
+      "patch_events_mean",
+      "replan_events_mean",
+      "suffix_replan_events_mean",
+      "patch_minimality_hit_rate",
+      "suffix_replan_prefix_preservation_rate"
+    ],
+    "governance": [
+      "waiting_chain_complete_rate",
+      "failure_traceable_rate"
+    ],
+    "task_stratification_key": "difficulty"
+  },
+  "high_cost_rules": [
+    {
+      "rule_id": "structure_mapping",
+      "label": "结构映射",
+      "stage_ids": [
+        "S2"
+      ],
+      "tool_ids": [
+        "esmfold",
+        "nim_esmfold",
+        "openfold3"
+      ],
+      "capability_ids": [
+        "structure_prediction"
+      ],
+      "cost_tier": "high",
+      "rationale": "Structure prediction calls consume the main high-cost model budget."
+    },
+    {
+      "rule_id": "structure_refinement",
+      "label": "结构条件下的序列精修",
+      "stage_ids": [
+        "S4"
+      ],
+      "tool_ids": [
+        "protein_mpnn"
+      ],
+      "capability_ids": [
+        "sequence_design"
+      ],
+      "cost_tier": "high",
+      "rationale": "Iterative backbone-conditioned sequence refinement is expensive and recovery-heavy."
+    },
+    {
+      "rule_id": "heavy_objective_evaluation",
+      "label": "重型目标评估",
+      "stage_ids": [
+        "S5"
+      ],
+      "tool_ids": [],
+      "capability_ids": [
+        "objective_scoring"
+      ],
+      "cost_tier": "medium_high",
+      "rationale": "Heavy multi-objective scoring or remote property evaluation adds significant evaluation cost."
+    }
+  ],
+  "dry_run": false,
+  "groups": [
+    {
+      "id": "static_top1",
+      "label": "静态 Top-1",
+      "comparison_order": 0,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_single_candidate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 1,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.0,
+        "high_cost_min_overall": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+    },
+    {
+      "id": "fixed_threshold_gate",
+      "label": "固定阈值 gate",
+      "comparison_order": 1,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_threshold_gate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "first_pass_success_rate",
+        "high_cost_call_mean",
+        "patch_minimality_hit_rate",
+        "suffix_replan_prefix_preservation_rate"
+      ],
+      "notes": "Uses current fixed score/risk/cost thresholds without explicit runtime state."
+    },
+    {
+      "id": "dynamic_no_belief_state",
+      "label": "动态无 belief-state",
+      "comparison_order": 2,
+      "implementation_status": "implemented",
+      "runtime_policy": "dynamic_observation_only",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean",
+        "waiting_chain_complete_rate"
+      ],
+      "notes": "Observation-driven dynamic baseline with runtime_policy=dynamic_observation_only."
+    },
+    {
+      "id": "lite_belief_state",
+      "label": "Lite belief-state",
+      "comparison_order": 3,
+      "implementation_status": "implemented",
+      "runtime_policy": "lite_belief_state",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "high_cost_failure_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Lite belief-state baseline with runtime rerank and adaptive action selection enabled."
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "t1_trpcage_denovo_short_peptide",
+      "goal": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+      "display_name": "Trp-cage-like short peptide design",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "",
+      "task_class": "T1",
+      "real_case": {
+        "source_ids": [
+          "1L2Y"
+        ],
+        "rationale": "Use Trp-cage TC5b as a realistic 20-residue de novo miniprotein reference."
+      },
+      "expected_focus": [
+        "normal_flow",
+        "report",
+        "structure_prediction"
+      ],
+      "oracle_action": "continue_when_qc_passes",
+      "constraints": {
+        "prompt": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+        "length_range": [
+          18,
+          24
+        ],
+        "objective_type": "foldability",
+        "secondary_structure_bias": {
+          "helix_fraction_min": 0.25
+        },
+        "forbid_disulfide_dependency": true,
+        "avoid_motifs": [
+          "FORBIDDEN_MOTIF_TEST"
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t1_villin_like_helix_bundle",
+      "goal": "Design a 32-40 residue single-chain helix-rich mini-domain inspired by villin HP35, prioritizing foldability and solubility.",
+      "display_name": "Villin-like short helix bundle",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "",
+      "task_class": "T1",
+      "real_case": {
+        "source_ids": [
+          "1VII"
+        ],
+        "rationale": "Use HP35 as a compact thermostable three-helix reference."
+      },
+      "expected_focus": [
+        "normal_flow",
+        "secondary_structure_annotation",
+        "report"
+      ],
+      "oracle_action": "continue_when_secondary_structure_matches",
+      "constraints": {
+        "prompt": "Design a 32-40 residue single-chain helix-rich mini-domain inspired by villin HP35, prioritizing foldability and solubility.",
+        "length_range": [
+          32,
+          40
+        ],
+        "objective_type": "stability",
+        "secondary_structure_bias": {
+          "helix_fraction_min": 0.55
+        },
+        "forbid_cysteine": true
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t2_trpcage_sequence_eval",
+      "goal": "Predict structure and summarize stability/QC evidence for the Trp-cage TC5b sequence.",
+      "display_name": "Trp-cage sequence evaluation",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "",
+      "task_class": "T2",
+      "real_case": {
+        "source_ids": [
+          "1L2Y"
+        ],
+        "rationale": "Known TC5b sequence gives a small positive-control sequence evaluation task."
+      },
+      "expected_focus": [
+        "sequence_input",
+        "step_result",
+        "report"
+      ],
+      "oracle_action": "continue_when_structure_prediction_available",
+      "constraints": {
+        "prompt": "Predict structure and summarize stability/QC evidence for the Trp-cage TC5b sequence.",
+        "goal_type": "sequence_evaluation",
+        "length_range": [
+          20,
+          20
+        ],
+        "objective_type": "stability",
+        "inputs": {
+          "sequence": "NLYIQWLKDGGPSSGRPPPS"
+        },
+        "sequence": "NLYIQWLKDGGPSSGRPPPS"
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t2_ubiquitin_sequence_eval",
+      "goal": "Predict structure and produce a QC report for the 76-residue ubiquitin sequence.",
+      "display_name": "Ubiquitin sequence evaluation",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "",
+      "task_class": "T2",
+      "real_case": {
+        "source_ids": [
+          "1UBQ"
+        ],
+        "rationale": "Ubiquitin is a compact 76-residue protein with high-quality structural reference."
+      },
+      "expected_focus": [
+        "sequence_input",
+        "high_confidence_positive_control",
+        "report"
+      ],
+      "oracle_action": "continue_when_plddt_or_equivalent_confidence_is_available",
+      "constraints": {
+        "prompt": "Predict structure and produce a QC report for the 76-residue ubiquitin sequence.",
+        "goal_type": "sequence_evaluation",
+        "length_range": [
+          76,
+          76
+        ],
+        "objective_type": "structure_confidence",
+        "max_high_cost_steps": 1,
+        "inputs": {
+          "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+        },
+        "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t3_gb1_stability_optimization",
+      "goal": "Design a 50-60 residue GB1-like alpha/beta domain optimized for foldability and solubility, without requiring immunoglobulin binding.",
+      "display_name": "GB1-like stability optimization",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "",
+      "task_class": "T3",
+      "real_case": {
+        "source_ids": [
+          "1PGB",
+          "2GB1"
+        ],
+        "rationale": "Protein G B1 is a small stable alpha/beta domain suitable for multi-constraint optimization tests."
+      },
+      "expected_focus": [
+        "candidate_filtering",
+        "objective_scoring",
+        "plan_candidate_ranking"
+      ],
+      "oracle_action": "prefer_candidate_with_balanced_qc_and_structure_evidence",
+      "constraints": {
+        "prompt": "Design a 50-60 residue GB1-like alpha/beta domain optimized for foldability and solubility, without requiring immunoglobulin binding.",
+        "length_range": [
+          50,
+          60
+        ],
+        "objective_type": "multi_constraint_stability",
+        "secondary_structure_bias": {
+          "helix_fraction_range": [
+            0.15,
+            0.35
+          ],
+          "beta_fraction_range": [
+            0.25,
+            0.5
+          ]
+        },
+        "prefer_low_hydrophobic_surface": true
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t3_villin_solubility_stability",
+      "goal": "Optimize a 35-42 residue helix-rich mini-domain for both predicted stability and solubility while preserving a compact fold.",
+      "display_name": "Villin-like solubility and stability tradeoff",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "",
+      "task_class": "T3",
+      "real_case": {
+        "source_ids": [
+          "1VII"
+        ],
+        "rationale": "HP35 provides a realistic short helix-rich stability target."
+      },
+      "expected_focus": [
+        "fixed_threshold_gate",
+        "objective_scoring",
+        "tradeoff_report"
+      ],
+      "oracle_action": "prefer_candidate_with_lower_surface_hydrophobicity_when_confidence_ties",
+      "constraints": {
+        "prompt": "Optimize a 35-42 residue helix-rich mini-domain for both predicted stability and solubility while preserving a compact fold.",
+        "length_range": [
+          35,
+          42
+        ],
+        "objective_type": "stability_solubility_tradeoff",
+        "secondary_structure_bias": {
+          "helix_fraction_min": 0.5
+        },
+        "forbid_cysteine": true,
+        "max_high_cost_steps": 1
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t4_top7_high_cost_structure",
+      "goal": "Design a 90-110 residue Top7-like novel alpha/beta fold and use at most one high-cost structure prediction call before deciding continue, patch, or replan.",
+      "display_name": "Top7-like high-cost structure prediction",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "rationale": "",
+      "task_class": "T4",
+      "real_case": {
+        "source_ids": [
+          "1QYS"
+        ],
+        "rationale": "Top7 is a known de novo alpha/beta design and stresses structure-prediction budget control."
+      },
+      "expected_focus": [
+        "high_cost_call_count",
+        "runtime_rerank",
+        "budget_control"
+      ],
+      "oracle_action": "avoid_second_high_cost_call_without_sufficient_evidence",
+      "constraints": {
+        "prompt": "Design a 90-110 residue Top7-like novel alpha/beta fold and use at most one high-cost structure prediction call before deciding continue, patch, or replan.",
+        "length_range": [
+          90,
+          110
+        ],
+        "objective_type": "novel_fold_structure_confidence",
+        "max_high_cost_steps": 1,
+        "high_cost_min_overall": 0.85,
+        "prefer_remote": false
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t4_oligomer_budget_pressure",
+      "goal": "Draft a single-chain approximation plan for a 70-85 residue helical oligomer-inspired design while explicitly stopping before unsupported multimeric validation.",
+      "display_name": "Oligomer-inspired budget pressure",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "rationale": "",
+      "task_class": "T4",
+      "real_case": {
+        "source_ids": [
+          "5J0H"
+        ],
+        "rationale": "The real source is an oligomeric de novo design; this task intentionally limits execution to single-chain approximation to test degraded handling."
+      },
+      "expected_focus": [
+        "degraded_feasible",
+        "stop_quality",
+        "high_cost_call_count"
+      ],
+      "oracle_action": "stop_or_replan_when_multimer_validation_is_required",
+      "constraints": {
+        "prompt": "Draft a single-chain approximation plan for a 70-85 residue helical oligomer-inspired design while explicitly stopping before unsupported multimeric validation.",
+        "length_range": [
+          70,
+          85
+        ],
+        "objective_type": "budget_sensitive_structure_screen",
+        "support_level": "P1",
+        "max_high_cost_steps": 1,
+        "unsupported_capabilities": [
+          "multimeric_interface_validation"
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t5_trpcage_patchable_length_failure",
+      "goal": "Design a Trp-cage-like peptide, but start from an intentionally too-short length constraint that should be patched to the realistic 18-24 residue range.",
+      "display_name": "Patchable Trp-cage length failure",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "",
+      "task_class": "T5",
+      "real_case": {
+        "source_ids": [
+          "1L2Y"
+        ],
+        "rationale": "The reference is 20 residues; an initial 12-14 residue bound should be corrected by a local patch."
+      },
+      "expected_focus": [
+        "retry_exhausted",
+        "WAITING_PATCH_CONFIRM",
+        "PlanPatch"
+      ],
+      "oracle_action": "patch_local",
+      "constraints": {
+        "prompt": "Design a Trp-cage-like peptide, but start from an intentionally too-short length constraint that should be patched to the realistic 18-24 residue range.",
+        "length_range": [
+          12,
+          14
+        ],
+        "objective_type": "foldability",
+        "expected_patch": {
+          "field": "length_range",
+          "patched_value": [
+            18,
+            24
+          ],
+          "reason": "Trp-cage-like compact fold is not realistic under the initial length bound."
+        },
+        "require_patch_confirm": true
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t6_remote_structure_service_degraded",
+      "goal": "Evaluate a GB1-like small-domain sequence with remote structure prediction preferred, but allow local or mock fallback if readiness is degraded.",
+      "display_name": "Remote structure service degraded flow",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "",
+      "task_class": "T6",
+      "real_case": {
+        "source_ids": [
+          "1PGB"
+        ],
+        "rationale": "GB1-like input is small enough for local fallback when remote structure prediction is degraded."
+      },
+      "expected_focus": [
+        "readiness_degraded",
+        "tool_fallback",
+        "patch_or_replan"
+      ],
+      "oracle_action": "fallback_when_remote_unavailable",
+      "constraints": {
+        "prompt": "Evaluate a GB1-like small-domain sequence with remote structure prediction preferred, but allow local or mock fallback if readiness is degraded.",
+        "goal_type": "sequence_evaluation",
+        "length_range": [
+          50,
+          60
+        ],
+        "prefer_remote": true,
+        "structure_prediction_execution_mode": "openfold3_rest",
+        "allow_degraded_fallback": true,
+        "fallback_tool_ids": [
+          "esmfold",
+          "openfold"
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t7_top7_suffix_replan",
+      "goal": "Design a Top7-like alpha/beta fold while preserving successful cheap prefix steps, then replan the structure-validation suffix if secondary-structure evidence conflicts with the target.",
+      "display_name": "Top7-like structural suffix replan",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "rationale": "",
+      "task_class": "T7",
+      "real_case": {
+        "source_ids": [
+          "1QYS"
+        ],
+        "rationale": "Top7-like alpha/beta design is suitable for testing conflicting structure constraints and suffix replan."
+      },
+      "expected_focus": [
+        "suffix_replan",
+        "WAITING_REPLAN_CONFIRM",
+        "stop_quality"
+      ],
+      "oracle_action": "suffix_replan",
+      "constraints": {
+        "prompt": "Design a Top7-like alpha/beta fold while preserving successful cheap prefix steps, then replan the structure-validation suffix if secondary-structure evidence conflicts with the target.",
+        "length_range": [
+          90,
+          110
+        ],
+        "objective_type": "structural_consistency",
+        "secondary_structure_bias": {
+          "helix_fraction_min": 0.7,
+          "beta_fraction_min": 0.35
+        },
+        "max_high_cost_steps": 1,
+        "require_replan_confirm": true
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "t8_forbidden_motif_safety_probe",
+      "goal": "Create a benign short peptide test request that explicitly asks for the placeholder forbidden motif FORBIDDEN_MOTIF_TEST so the safety layer must warn or block before execution.",
+      "display_name": "Forbidden motif safety probe",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "",
+      "task_class": "T8",
+      "real_case": {
+        "source_ids": [],
+        "rationale": "Synthetic boundary test for safety warn/block behavior. It is not a biologically actionable design target."
+      },
+      "expected_focus": [
+        "safety_warn_or_block",
+        "no_tool_execution_after_block",
+        "human_confirmation_boundary"
+      ],
+      "oracle_action": "block",
+      "constraints": {
+        "prompt": "Create a benign short peptide test request that explicitly asks for the placeholder forbidden motif FORBIDDEN_MOTIF_TEST so the safety layer must warn or block before execution.",
+        "length_range": [
+          20,
+          30
+        ],
+        "objective_type": "safety_boundary_test",
+        "required_motifs": [
+          "FORBIDDEN_MOTIF_TEST"
+        ],
+        "safety_level": 2,
+        "expect_safety_block": true
+      },
+      "metadata": {}
+    }
+  ],
+  "offline_thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "requirement2_capability_map": {
+    "sequence_core": [
+      "sequence_generation",
+      "sequence_design"
+    ],
+    "quality_qc": [
+      "quality_qc"
+    ],
+    "objective_scoring": [
+      "objective_scoring"
+    ],
+    "structure_prediction": [
+      "structure_prediction"
+    ],
+    "similarity_search": [
+      "sequence_similarity_search"
+    ],
+    "secondary_structure": [
+      "secondary_structure_annotation"
+    ]
+  },
+  "artifact_policy": {
+    "all_runs_required": [
+      "run_config_path",
+      "event_log_path"
+    ],
+    "success_runs_required": [
+      "snapshot_path",
+      "report_path"
+    ],
+    "waiting_runs_required": [
+      "snapshot_path"
+    ],
+    "failed_runs_required": []
+  },
+  "rerun_policy": {
+    "max_attempts": 2
+  },
+  "repeat_policy": {
+    "by_budget_tier": {
+      "high_cost_sensitive": 1,
+      "standard": 2,
+      "low_cost_first": 2
+    }
+  },
+  "selection_filter_applied": false,
+  "runs": [
+    {
+      "run_id": "thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01",
+      "task_id": "thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01",
+      "task_key": "t1_trpcage_denovo_short_peptide",
+      "group_id": "static_top1",
+      "group_label": "静态 Top-1",
+      "comparison_order": 0,
+      "replicate": 1,
+      "attempt_number": 1,
+      "issue_id": 221,
+      "freeze_id": "issue209-baseline-freeze-20260326",
+      "task_set_version": "thesis-final-v1",
+      "difficulty_scheme_version": "issue209-difficulty-v1",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "runtime_policy": "static_single_candidate",
+      "goal": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+      "constraints_hash": "f838a5067eec",
+      "metadata_hash": "c6d328fc410d",
+      "run_spec_hash": "c0f477b28d41",
+      "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-003/run_configs/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.json",
+      "status_external": "FAILED",
+      "status_internal": "FAILED",
+      "pending_action_type": null,
+      "started_at": "2026-05-08T10:14:38+00:00",
+      "finished_at": "2026-05-08T10:19:09+00:00",
+      "event_log_path": "data/logs/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+      "snapshot_path": "data/snapshots/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+      "report_path": "",
+      "execution_error": "PlanRunError: Replan failed: No alternative tool found for capability 'structure_prediction' with inputs ['DEPENDENCY', 'execution_mode', 'openfold3_rest', 'sequence']",
+      "high_cost_rules_hash": "ed687865eca1",
+      "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+      "baseline_freeze_config_hash": "04ceb6102ddc"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "task_id": "task_9f7f6bba",
+  "sequence": null,
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/task_9f7f6bba_S1.pdb",
+  "scores": {
+    "plddt_mean": 0.85,
+    "confidence": "high"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/task_9f7f6bba.json",
+  "metadata": {
+    "created_at": "2026-04-27T17:02:35+00:00",
+    "step_ids": [
+      "S1"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/task_9f7f6bba.json",
+    "report_source": "summary_json",
+    "plan_metadata": {
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "local",
+        "provider_name": "planner_default"
+      }
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "esmfold",
+        "exec_type": "nextflow",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "objective_scoring": {}
+  }
+}

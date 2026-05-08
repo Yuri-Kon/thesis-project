@@ -1,0 +1,51 @@
+[
+  {
+    "metric": "success_rate",
+    "dimension": "success",
+    "definition": "DONE runs divided by all runs in the slice.",
+    "source": "extract_run_metrics.final_status from event log or manifest status_external",
+    "table": "overall_metrics.csv, difficulty_stratified_metrics.csv"
+  },
+  {
+    "metric": "first_pass_success_rate",
+    "dimension": "success",
+    "definition": "DONE runs without patch, replan, or waiting entry.",
+    "source": "extract_run_metrics patch/replan/waiting counters",
+    "table": "overall_metrics.csv, difficulty_stratified_metrics.csv"
+  },
+  {
+    "metric": "duration_ms_mean",
+    "dimension": "cost",
+    "definition": "Mean end-to-end run duration in milliseconds.",
+    "source": "manifest duration_ms or started_at/finished_at/event timestamps",
+    "table": "overall_metrics.csv, difficulty_stratified_metrics.csv"
+  },
+  {
+    "metric": "high_cost_call_mean",
+    "dimension": "cost",
+    "definition": "Mean matched high-cost tool calls per run.",
+    "source": "STEP_FINISHED/STEP_FAILED rows matched against high_cost_rules",
+    "table": "overall_metrics.csv, recovery_complexity_high_cost.csv"
+  },
+  {
+    "metric": "patch_events_mean",
+    "dimension": "recovery",
+    "definition": "Mean parameter/tool/structure patch events per run.",
+    "source": "PARAM_TWEAK, REPLACE_TOOL, STRUCTURE_PATCH event rows",
+    "table": "overall_metrics.csv, recovery_complexity_high_cost.csv"
+  },
+  {
+    "metric": "replan_events_mean",
+    "dimension": "recovery",
+    "definition": "Mean replanning transitions per run.",
+    "source": "TASK_STATUS_CHANGED rows whose to_status is REPLANNING",
+    "table": "overall_metrics.csv, recovery_complexity_high_cost.csv"
+  },
+  {
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "dimension": "recovery",
+    "definition": "Share of suffix replan samples that preserve the successful prefix.",
+    "source": "data.recovery.prefix_preserved samples",
+    "table": "overall_metrics.csv, recovery_complexity_high_cost.csv"
+  }
+]

@@ -78,8 +78,6 @@ node_modules/
 # 11. 日志与中间数据 
 
 data/logs/
-data/outputs/
-output/
 data/inputs/tmp/
 *.log
 

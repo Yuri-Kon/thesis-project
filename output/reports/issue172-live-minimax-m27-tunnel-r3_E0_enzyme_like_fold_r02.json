@@ -1,0 +1,202 @@
+{
+  "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02",
+  "sequence": "DESIGNACMPACTENYMELIKEFLDWITHSTALECREANGNYQNGSYPDQWSRAIPRQKALGDWRLIFQAGQQRWQREHRGWGYRGRGSRRGWRGRGRRAQA",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+  "scores": {
+    "sequence_length": 102
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02_denovo.md",
+  "metadata": {
+    "created_at": "2026-04-22T01:40:32+00:00",
+    "step_ids": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02.json",
+    "report_source": "de_novo_markdown",
+    "plan_metadata": {
+      "elapsed_seconds": 22.21064591407776,
+      "provider_validation": {
+        "candidate_kind": "plan",
+        "repair_attempts": 0,
+        "total_attempts": 1,
+        "syntax_repairs": []
+      },
+      "reasoning_depth": "shallow",
+      "style": "react_single_trajectory",
+      "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02",
+      "provider": "anthropic_messages",
+      "model": "MiniMax-M2.7",
+      "endpoint": "https://api.minimaxi.com/anthropic",
+      "provider_generation_mode": "two_stage_plan",
+      "provider_plan_skeleton": {
+        "step_count": 3,
+        "steps": [
+          {
+            "id": "S1",
+            "tool": "protgpt2"
+          },
+          {
+            "id": "S2",
+            "tool": "openfold"
+          },
+          {
+            "id": "S3",
+            "tool": "biopython_qc"
+          }
+        ]
+      },
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "protgpt2",
+            "capabilities": [
+              {
+                "capability_id": "sequence_generation",
+                "name": "Sequence Generation",
+                "domain": "protein/design"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "goal_to_sequence_candidates",
+              "input_types": [
+                "goal"
+              ],
+              "output_types": [
+                "sequence",
+                "sequence_candidates"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "goal_provided"
+              ],
+              "resource_assumptions": [
+                "network_available",
+                "plm_rest_service_available"
+              ],
+              "model_assumptions": [
+                "protgpt2_ready"
+              ],
+              "limits": {
+                "max_new_tokens": 512,
+                "num_candidates_max": 64
+              }
+            }
+          },
+          {
+            "step_id": "S2",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          },
+          {
+            "step_id": "S3",
+            "tool_id": "biopython_qc",
+            "capabilities": [
+              {
+                "capability_id": "quality_qc",
+                "name": "Quality QC",
+                "domain": "protein/qc"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_structure_to_qc_metrics",
+              "input_types": [
+                "sequence",
+                "structure_pdb"
+              ],
+              "output_types": [
+                "qc_metrics"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_or_structure_results_provided"
+              ],
+              "resource_assumptions": [
+                "python_environment_ready"
+              ],
+              "model_assumptions": [
+                "single_candidate_or_batch"
+              ],
+              "limits": {}
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "MiniMax-M2.7"
+      },
+      "candidate_strategy": "top_k_plan"
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "protgpt2",
+        "exec_type": "remote",
+        "provider": "plm_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S2",
+        "tool": "openfold",
+        "exec_type": "remote",
+        "provider": "openfold3_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S3",
+        "tool": "biopython_qc",
+        "exec_type": "python",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "de_novo_json_path": "output/reports/issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02_denovo.json",
+    "de_novo_markdown_path": "output/reports/issue172-live-minimax-m27-tunnel-r3_E0_enzyme_like_fold_r02_denovo.md"
+  }
+}

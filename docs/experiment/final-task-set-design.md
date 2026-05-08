@@ -16,7 +16,7 @@
 | 问题 | 影响 | 建议 |
 |:---|:---|:---|
 | 论文组名 `static_gate` 与代码/配置中的 `fixed_threshold_gate` 不完全一致 | 后续表格和产物聚合容易出现组名漂移 | 论文统一写“固定阈值 gate”，括号标注代码 id：`fixed_threshold_gate` |
-| 文档建议新增 `thesis_final_task_set.json`，但 EXP-A2 命令仍使用 `w13_issue209_baseline_freeze.json` 的旧任务 | 真实任务集不会自动进入四组矩阵 | 已新增 `configs/experiments/thesis_final_experiment_matrix.json`，并让矩阵 runner 支持 `task_set_config_path` |
+| 文档建议新增 `thesis_final_task_set.json`，但 EXP-A2 命令仍使用旧 baseline contract 的任务 | 真实任务集不会自动进入四组矩阵 | 已新增 `configs/experiments/thesis_final_experiment_matrix.json`，并让矩阵 runner 支持 `task_set_config_path` |
 | `action_agreement`、`stop_quality`、`evidence_sufficiency` 需要 oracle/rubric | 否则算法指标难以复现 | 在每个任务中显式写入 `oracle_action`、`stop_quality_rubric` 或 `expected_focus` |
 | `runtime_seconds` 混合真实 provider 与 mock provider 会误导 | 真实远程服务和本地模拟成本不可比 | 结果表拆成 `mock_runtime_seconds` 与 `real_provider_runtime_seconds`，或至少在 run metadata 标注 execution mode |
 | 每类至少 3 个样本、每组至少重复 3 次工作量较大 | 时间紧时可能影响论文收敛 | 主文档已有最小包策略；实际建议先跑每类 1 个样本、每组 2 次，确认链路后再扩展 |
@@ -73,7 +73,7 @@
 - 四组矩阵试跑入口：
 
 ```bash
-uv run python scripts/run_w16_issue221_experiment_matrix.py \
+uv run python scripts/run_thesis_experiment_matrix.py \
   --config configs/experiments/thesis_final_experiment_matrix.json \
   --output-root output/experiment/thesis-final-matrix-dry \
   --run-id thesis-final-dry \

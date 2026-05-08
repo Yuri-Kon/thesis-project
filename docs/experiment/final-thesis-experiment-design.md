@@ -410,8 +410,8 @@ uv run pytest \
 建议使用现有矩阵入口：
 
 ```bash
-uv run python scripts/run_w16_issue221_experiment_matrix.py \
-  --config configs/experiments/w16_issue221_experiment_matrix.json \
+uv run python scripts/run_thesis_experiment_matrix.py \
+  --config configs/experiments/adaptive_strategy_experiment_matrix.json \
   --output-root output/experiment/thesis-final-matrix \
   --run-id thesis-final-v1
 ```
@@ -419,8 +419,8 @@ uv run python scripts/run_w16_issue221_experiment_matrix.py \
 若先做试跑：
 
 ```bash
-uv run python scripts/run_w16_issue221_experiment_matrix.py \
-  --config configs/experiments/w16_issue221_experiment_matrix.json \
+uv run python scripts/run_thesis_experiment_matrix.py \
+  --config configs/experiments/adaptive_strategy_experiment_matrix.json \
   --output-root output/experiment/thesis-final-matrix-dry \
   --run-id thesis-final-dry \
   --dry-run
@@ -553,8 +553,8 @@ uv run python scripts/run_w16_issue221_experiment_matrix.py \
 建议命令：
 
 ```bash
-uv run python scripts/benchmarks/prepare_issue199_platform_adapters.py \
-  --config configs/experiments/issue199_benchmark_platform_adapters.json
+uv run python scripts/benchmarks/prepare_benchmark_platform_adapters.py \
+  --config configs/experiments/benchmark_platform_adapters.json
 ```
 
 注意：
