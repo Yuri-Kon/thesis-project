@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from src.agents.planner import ToolSpec
 from src.llm.base_llm_provider import ProviderConfig
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
 import src.llm.zai_chat_provider as provider_module
 from src.llm.zai_chat_provider import ZaiChatProvider
 from src.models.contracts import PatchRequest, Plan, PlanStep, ProteinDesignTask, ReplanRequest
@@ -222,3 +223,36 @@ def test_zai_provider_strips_markdown_json_fence(monkeypatch):
 
     assert plan["task_id"] == task.task_id
     assert plan["steps"][0]["tool"] == "dummy_tool"
+
+
+def test_zai_provider_empty_response_raises_with_diagnostic_summary(monkeypatch):
+    task = _sample_task()
+    _setup_dummy_zai(monkeypatch, response_content="")
+
+    provider = ZaiChatProvider(
+        ProviderConfig(
+            model_name="glm-5",
+            api_key="test-key",
+            structured_output_mode="json_schema",
+            extra_body={"thinking": {"type": "enabled"}},
+        )
+    )
+
+    try:
+        provider.call_planner(task, _sample_registry())
+    except ProviderPayloadValidationError as exc:
+        payload = exc.as_event_payload()
+    else:
+        raise AssertionError("expected ProviderPayloadValidationError")
+
+    assert payload["failure_code"] == "empty_response"
+    failure = payload["failures"][0]
+    assert failure["code"] == "EMPTY_PROVIDER_RESPONSE"
+    observed = failure["observed"]
+    assert observed["provider"] == "zai_chat"
+    assert observed["model"] == "glm-5"
+    assert observed["request"]["response_format_type"] == "json_schema"
+    assert observed["request"]["has_thinking"] is True
+    assert observed["request"]["prompt"]["user"]["chars"] > 0
+    assert "content_length" in observed["response"]
+    assert "structured_output_mode_may_be_unsupported_or_unsatisfied" in observed["possible_causes"]

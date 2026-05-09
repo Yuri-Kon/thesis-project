@@ -125,6 +125,89 @@ def test_build_predict_env_isolates_openfold_temp_cache(tmp_path: Path) -> None:
     assert env["TEMP"] == str(tmp_dir.resolve())
 
 
+def test_build_runtime_tmp_dir_uses_short_job_local_path(tmp_path: Path) -> None:
+    job_path = tmp_path / "openfold3_eb82f54070dd4389a0bf50775df2b01b"
+
+    tmp_dir = runner._build_runtime_tmp_dir(job_path)
+
+    assert tmp_dir.parent == Path("/tmp")
+    assert tmp_dir.name.startswith("of3_openfold3_")
+    assert len(str(tmp_dir)) < 80
+
+
+def test_run_openfold3_prediction_cleans_runtime_tmp_on_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_path = tmp_path / "job"
+    job_path.mkdir()
+    runtime_tmp = tmp_path / "runtime_tmp"
+
+    def fake_run(
+        command: list[str],
+        **kwargs: object,
+    ) -> runner.subprocess.CompletedProcess[str]:
+        assert command == ["run_openfold", "predict"]
+        env = kwargs.get("env")
+        assert isinstance(env, dict)
+        assert env["TMPDIR"] == str(runtime_tmp.resolve())
+        (runtime_tmp / "msa_cache").mkdir(parents=True)
+        artifact_dir = job_path / "artifacts"
+        (artifact_dir / "model.cif").write_text("data_test\n", encoding="utf-8")
+        return runner.subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(runner, "_resolve_predict_bin", lambda _bin: "run_openfold")
+    monkeypatch.setattr(
+        runner,
+        "_build_predict_command",
+        lambda **_kwargs: (["run_openfold", "predict"], {"command_mode": "test"}),
+    )
+    monkeypatch.setattr(runner, "_build_runtime_tmp_dir", lambda _job_path: runtime_tmp)
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+    monkeypatch.setattr(runner, "_detect_openfold3_version", lambda: "test")
+
+    outputs, _metrics = runner.run_openfold3_prediction(
+        {"sequence": "ACDEFG"},
+        job_path=job_path,
+    )
+
+    assert outputs["cif_path"] == "model.cif"
+    assert not runtime_tmp.exists()
+
+
+def test_run_openfold3_prediction_cleans_runtime_tmp_on_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job_path = tmp_path / "job"
+    job_path.mkdir()
+    runtime_tmp = tmp_path / "runtime_tmp"
+
+    def fake_run(
+        command: list[str],
+        **_kwargs: object,
+    ) -> runner.subprocess.CompletedProcess[str]:
+        (runtime_tmp / "msa_cache").mkdir(parents=True)
+        return runner.subprocess.CompletedProcess(command, 1, "", "failed")
+
+    monkeypatch.setattr(runner, "_resolve_predict_bin", lambda _bin: "run_openfold")
+    monkeypatch.setattr(
+        runner,
+        "_build_predict_command",
+        lambda **_kwargs: (["run_openfold", "predict"], {"command_mode": "test"}),
+    )
+    monkeypatch.setattr(runner, "_build_runtime_tmp_dir", lambda _job_path: runtime_tmp)
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    with pytest.raises(RuntimeError, match="OpenFold3 command failed"):
+        runner.run_openfold3_prediction(
+            {"sequence": "ACDEFG"},
+            job_path=job_path,
+        )
+
+    assert not runtime_tmp.exists()
+
+
 def test_build_predict_command_rejects_missing_runner_yaml(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

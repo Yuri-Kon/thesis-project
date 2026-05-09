@@ -21,6 +21,11 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.response_diagnostics import (
+    build_empty_response_error,
+    collect_stream_content_with_summary,
+    extract_message_content_with_summary,
+)
 from src.models.contracts import (
     PatchRequest,
     Plan,
@@ -109,11 +114,20 @@ class OpenAICompatibleProvider(BaseProvider):
 
         # 提取响应内容
         if self.config.stream:
-            content = self._collect_stream_content(response)
+            content, response_summary = collect_stream_content_with_summary(response)
         else:
-            content = response.choices[0].message.content
+            content, response_summary = extract_message_content_with_summary(response)
         if not content:
-            raise ValueError("LLM 返回空响应")
+            raise build_empty_response_error(
+                candidate_kind="plan",
+                provider_name="openai_compatible",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=elapsed,
+                request_kwargs=request_kwargs,
+                response_summary=response_summary,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+            )
 
         # 解析 JSON
         try:
@@ -231,11 +245,20 @@ class OpenAICompatibleProvider(BaseProvider):
 
         elapsed = time.time() - start_time
         if self.config.stream:
-            content = self._collect_stream_content(response)
+            content, response_summary = collect_stream_content_with_summary(response)
         else:
-            content = response.choices[0].message.content
+            content, response_summary = extract_message_content_with_summary(response)
         if not content:
-            raise ValueError("LLM 返回空响应")
+            raise build_empty_response_error(
+                candidate_kind=schema_name,
+                provider_name="openai_compatible",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=elapsed,
+                request_kwargs=request_kwargs,
+                response_summary=response_summary,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+            )
         try:
             payload = json.loads(content)
         except json.JSONDecodeError as e:

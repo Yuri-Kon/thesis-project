@@ -12,6 +12,11 @@ except ImportError:
     ZAI_AVAILABLE = False
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.response_diagnostics import (
+    build_empty_response_error,
+    collect_stream_content_with_summary,
+    extract_message_content_with_summary,
+)
 from src.models.contracts import (
     PatchRequest,
     Plan,
@@ -143,11 +148,20 @@ class ZaiChatProvider(BaseProvider):
 
         elapsed = time.time() - start_time
         if self.config.stream:
-            content = self._collect_stream_content(response)
+            content, response_summary = collect_stream_content_with_summary(response)
         else:
-            content = response.choices[0].message.content
+            content, response_summary = extract_message_content_with_summary(response)
         if not content:
-            raise ValueError("LLM 返回空响应")
+            raise build_empty_response_error(
+                candidate_kind=schema_name,
+                provider_name="zai_chat",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=elapsed,
+                request_kwargs=request_kwargs,
+                response_summary=response_summary,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+            )
         content = _strip_markdown_json_fence(content)
         try:
             payload = json.loads(content)

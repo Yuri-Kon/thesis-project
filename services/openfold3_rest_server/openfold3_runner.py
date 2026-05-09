@@ -34,7 +34,7 @@ def run_openfold3_prediction(
     query_json_path, query_format = _prepare_query_json(inputs=inputs, job_path=job_path)
     artifact_dir = job_path / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    runtime_tmp_dir = job_path / "tmp"
+    runtime_tmp_dir = _build_runtime_tmp_dir(job_path)
     runtime_tmp_dir.mkdir(parents=True, exist_ok=True)
 
     command, command_meta = _build_predict_command(
@@ -45,13 +45,16 @@ def run_openfold3_prediction(
         inputs=inputs,
     )
     env = _build_predict_env(tmp_dir=runtime_tmp_dir)
-    proc = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=env,
-    )
+    try:
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+    finally:
+        shutil.rmtree(runtime_tmp_dir, ignore_errors=True)
     if proc.returncode != 0:
         stderr_text = (proc.stderr or proc.stdout or "").strip()
         raise RuntimeError(
@@ -100,7 +103,7 @@ def write_artifacts(
         "outputs": outputs_payload,
         "metadata": metadata,
     }
-    summary_path.write_text(
+    _ = summary_path.write_text(
         json.dumps(summary_payload, ensure_ascii=True, indent=2),
         encoding="utf-8",
     )
@@ -135,7 +138,7 @@ def _prepare_query_json(inputs: Dict[str, Any], *, job_path: Path) -> tuple[Path
         )
 
     query_path = job_path / "query.json"
-    query_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    _ = query_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return query_path, query_format
 
 
@@ -361,6 +364,12 @@ def _build_predict_env(*, tmp_dir: Path) -> dict[str, str]:
     return env
 
 
+def _build_runtime_tmp_dir(job_path: Path) -> Path:
+    job_name = job_path.name.strip() or "unknown"
+    safe_name = "".join(char if char.isalnum() else "_" for char in job_name)
+    return Path("/tmp") / f"of3_{safe_name[:48]}"
+
+
 def _pick_supported_option(
     predict_bin: str,
     options: tuple[str, ...],
@@ -416,10 +425,11 @@ def _resolve_predict_bin(predict_bin: str) -> str:
     if sibling.exists() and sibling.is_file():
         return str(sibling)
 
-    raise RuntimeError(
+    message = (
         f"Predict binary '{predict_bin}' not found in PATH. "
-        "Set OPENFOLD3_PREDICT_BIN to an absolute path."
+        + "Set OPENFOLD3_PREDICT_BIN to an absolute path."
     )
+    raise RuntimeError(message)
 
 
 def _find_structure_file(artifact_dir: Path) -> Path | None:
@@ -496,7 +506,7 @@ def _run_mock_prediction(
     artifact_dir = job_path / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     pdb_path = artifact_dir / "prediction.pdb"
-    pdb_path.write_text(
+    _ = pdb_path.write_text(
         _mock_pdb(sequence),
         encoding="utf-8",
     )
