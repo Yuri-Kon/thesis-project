@@ -108,115 +108,399 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="design")
+    parser = argparse.ArgumentParser(
+        prog="design",
+        description=(
+            "Protein Design System CLI — 蛋白质设计系统的命令行客户端。\n\n"
+            "通过 HTTP API 与服务端交互，支持任务录入、查询、报告查看等操作。"
+        ),
+        epilog=(
+            "示例:\n"
+            "  design intake schema                          # 查看字段注册表\n"
+            "  design intake create --text \"设计一条20aa的螺旋肽\"  # 创建任务录入\n"
+            "  design intake show <INTAKE_ID>                 # 查看录入\n"
+            "  design intake confirm <INTAKE_ID>              # 确认录入并创建任务\n"
+            "  design task show <TASK_ID>                     # 查看任务\n"
+            "  design task watch <TASK_ID>                    # 轮询等待任务完成\n"
+            "  design timeline show <TASK_ID>                 # 查看事件时间线\n"
+            "  design report show <TASK_ID> --json            # 导出报告 JSON\n"
+            "  design pending show <PENDING_ID>               # 查看等待决策\n"
+            "  design submit --interactive --confirm          # 交互式创建并提交\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--api-base-url",
         default=None,
-        help="API base URL; defaults to DESIGN_API_BASE_URL or http://127.0.0.1:8000",
+        metavar="URL",
+        help=(
+            "API 服务地址。默认使用环境变量 DESIGN_API_BASE_URL，"
+            "未设置时回退到 http://127.0.0.1:8000"
+        ),
     )
-    subparsers = parser.add_subparsers(dest="command")
+    subparsers = parser.add_subparsers(
+        dest="command",
+        title="可用命令",
+        metavar="command",
+    )
 
-    submit_parser = subparsers.add_parser("submit")
+    submit_parser = subparsers.add_parser(
+        "submit",
+        help="提交或创建任务",
+        description="提交或创建任务。支持交互式和指定式两种模式：交互式通过 CLI 问答引导填写字段；指定式需提供预先确认的 task spec JSON 文件。",
+    )
     submit_mode = submit_parser.add_mutually_exclusive_group(required=True)
-    submit_mode.add_argument("--interactive", action="store_true")
-    submit_mode.add_argument("--spec", default=None)
-    submit_parser.add_argument("--text", default=None)
-    submit_parser.add_argument("--confirm", action="store_true")
-    submit_parser.add_argument("--acknowledge", action="append", default=[])
+    submit_mode.add_argument(
+        "--interactive",
+        action="store_true",
+        help="交互式模式：通过 CLI 问答引导填写任务字段",
+    )
+    submit_mode.add_argument(
+        "--spec",
+        default=None,
+        metavar="PATH",
+        help="指定式模式：提供预先确认的 ConfirmedTaskSpec JSON 文件路径",
+    )
+    submit_parser.add_argument(
+        "--text",
+        default=None,
+        metavar="TEXT",
+        help="自然语言任务描述（交互式模式下作为预填文本）",
+    )
+    submit_parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="同时提交确认，跳过人工审核步骤",
+    )
+    submit_parser.add_argument(
+        "--acknowledge",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS,
+    )
     submit_parser.add_argument(
         "--ack-warning",
         dest="acknowledge",
         action="append",
-        help="Acknowledge a Safety warning code or exact warning message",
+        metavar="CODE",
+        help="确认时主动应答安全警告。可多次使用，例如 --ack-warning FORBIDDEN_MOTIF",
     )
-    submit_parser.add_argument("--json", action="store_true")
+    submit_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出原始 API 响应，不进行人类可读格式化",
+    )
 
-    task_parser = subparsers.add_parser("task")
-    task_subparsers = task_parser.add_subparsers(dest="task_command")
-    task_show = task_subparsers.add_parser("show")
-    task_show.add_argument("task_id")
-    task_show.add_argument("--json", action="store_true")
-    task_watch = task_subparsers.add_parser("watch")
-    task_watch.add_argument("task_id")
-    task_watch.add_argument("--json", action="store_true")
-    task_watch.add_argument("--interval", type=float, default=5.0)
+    task_parser = subparsers.add_parser(
+        "task",
+        help="查看或监控任务",
+        description="查看任务详情或持续监控任务状态直至完成。",
+    )
+    task_subparsers = task_parser.add_subparsers(
+        dest="task_command",
+        title="子命令",
+    )
+    task_show = task_subparsers.add_parser(
+        "show",
+        help="查看任务详情",
+        description="展示指定任务的完整信息，包括状态、能力就绪度、结构相似性等。",
+    )
+    task_show.add_argument(
+        "task_id",
+        metavar="TASK_ID",
+        help="任务 ID",
+    )
+    task_show.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    task_watch = task_subparsers.add_parser(
+        "watch",
+        help="轮等待任务完成",
+        description="持续轮询任务状态，直至任务进入 DONE / FAILED / CANCELLED 或等待人工决策。",
+    )
+    task_watch.add_argument(
+        "task_id",
+        metavar="TASK_ID",
+        help="任务 ID",
+    )
+    task_watch.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    task_watch.add_argument(
+        "--interval",
+        type=float,
+        default=5.0,
+        metavar="SECONDS",
+        help="轮询间隔秒数（默认 5 秒）",
+    )
 
-    pending_parser = subparsers.add_parser("pending")
-    pending_subparsers = pending_parser.add_subparsers(dest="pending_command")
-    pending_show = pending_subparsers.add_parser("show")
-    pending_show.add_argument("pending_action_id")
-    pending_show.add_argument("--json", action="store_true")
+    pending_parser = subparsers.add_parser(
+        "pending",
+        help="查看等待决策",
+        description="查看等待人工决策的 PendingAction 详情。",
+    )
+    pending_subparsers = pending_parser.add_subparsers(
+        dest="pending_command",
+        title="子命令",
+    )
+    pending_show = pending_subparsers.add_parser(
+        "show",
+        help="查看 PendingAction 详情",
+        description="展示指定 PendingAction 的候选列表、元数据和关联任务信息。",
+    )
+    pending_show.add_argument(
+        "pending_action_id",
+        metavar="PENDING_ACTION_ID",
+        help="PendingAction ID",
+    )
+    pending_show.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
 
-    timeline_parser = subparsers.add_parser("timeline")
-    timeline_subparsers = timeline_parser.add_subparsers(dest="timeline_command")
-    timeline_show = timeline_subparsers.add_parser("show")
-    timeline_show.add_argument("task_id")
-    timeline_show.add_argument("--json", action="store_true")
+    timeline_parser = subparsers.add_parser(
+        "timeline",
+        help="查看任务事件时间线",
+        description="查询任务的事件日志，按时间顺序展示状态变更和执行记录。",
+    )
+    timeline_subparsers = timeline_parser.add_subparsers(
+        dest="timeline_command",
+        title="子命令",
+    )
+    timeline_show = timeline_subparsers.add_parser(
+        "show",
+        help="查看事件时间线",
+        description="展示指定任务的完整事件日志，包含状态迁移、步骤执行、决策记录等。",
+    )
+    timeline_show.add_argument(
+        "task_id",
+        metavar="TASK_ID",
+        help="任务 ID",
+    )
+    timeline_show.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
 
-    report_parser = subparsers.add_parser("report")
-    report_subparsers = report_parser.add_subparsers(dest="report_command")
-    report_show = report_subparsers.add_parser("show")
-    report_show.add_argument("task_id")
-    report_show.add_argument("--json", action="store_true")
+    report_parser = subparsers.add_parser(
+        "report",
+        help="查看任务报告",
+        description="查询任务的设计结果报告，包含序列、结构、评分、风险标记等。",
+    )
+    report_subparsers = report_parser.add_subparsers(
+        dest="report_command",
+        title="子命令",
+    )
+    report_show = report_subparsers.add_parser(
+        "show",
+        help="查看设计报告",
+        description="展示 DesignResult 的完整内容：序列、结构路径、评分详情、风险标记。",
+    )
+    report_show.add_argument(
+        "task_id",
+        metavar="TASK_ID",
+        help="任务 ID",
+    )
+    report_show.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
 
-    intake_parser = subparsers.add_parser("intake")
-    intake_subparsers = intake_parser.add_subparsers(dest="intake_command")
-    intake_schema = intake_subparsers.add_parser("schema")
-    intake_schema.add_argument("--json", action="store_true")
-    intake_create = intake_subparsers.add_parser("create")
-    intake_create.add_argument("--text", default=None)
+    intake_parser = subparsers.add_parser(
+        "intake",
+        help="管理与确认任务录入",
+        description="管理任务录入（Task Intake）：创建、查看、修改、确认任务规范。",
+    )
+    intake_subparsers = intake_parser.add_subparsers(
+        dest="intake_command",
+        title="子命令",
+    )
+    intake_schema = intake_subparsers.add_parser(
+        "schema",
+        help="查看字段注册表",
+        description="展示当前任务录入的字段注册表：所有可用字段的类型、默认值、必填条件。",
+    )
+    intake_schema.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出完整 schema",
+    )
+    intake_create = intake_subparsers.add_parser(
+        "create",
+        help="创建任务录入",
+        description="创建新的任务录入。支持自然语言描述和结构化字段混合输入。",
+    )
+    intake_create.add_argument(
+        "--text",
+        default=None,
+        metavar="TEXT",
+        help="自然语言任务描述。例如 '设计一条 20 氨基酸的稳定 α 螺旋'",
+    )
     intake_create.add_argument(
         "--field",
         action="append",
         default=[],
-        help="Structured field as key=JSON_VALUE, for example length_range='[100,140]'",
+        metavar="KEY=VALUE",
+        help="结构化字段，格式 key=JSON值。可多次使用。例如 --field task_kind='\"de_novo_design\"'",
     )
     intake_create.add_argument(
         "--source",
         default="cli",
         choices=["web", "cli", "api", "script", "legacy"],
+        help="录入来源标记（默认 cli）",
     )
-    intake_create.add_argument("--json", action="store_true")
-    intake_parse = intake_subparsers.add_parser("parse")
-    intake_parse.add_argument("--text", required=True)
+    intake_create.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    intake_parse = intake_subparsers.add_parser(
+        "parse",
+        help="解析并创建录入（需 --text）",
+        description="解析自然语言文本为任务录入，并立即创建。必须提供 --text。",
+    )
+    intake_parse.add_argument(
+        "--text",
+        required=True,
+        metavar="TEXT",
+        help="需解析的自然语言任务描述",
+    )
     intake_parse.add_argument(
         "--field",
         action="append",
         default=[],
-        help="Structured field as key=JSON_VALUE, for example length_range='[100,140]'",
+        metavar="KEY=VALUE",
+        help="结构化字段补充，格式 key=JSON值。可多次使用",
     )
     intake_parse.add_argument(
         "--source",
         default="cli",
         choices=["web", "cli", "api", "script", "legacy"],
+        help="录入来源标记（默认 cli）",
     )
-    intake_parse.add_argument("--json", action="store_true")
-    intake_show = intake_subparsers.add_parser("show")
-    intake_show.add_argument("intake_id")
-    intake_show.add_argument("--json", action="store_true")
-    intake_patch = intake_subparsers.add_parser("patch")
-    intake_patch.add_argument("intake_id")
-    intake_patch.add_argument("--field", action="append", default=[])
-    intake_patch.add_argument("--updated-by", default="cli")
-    intake_patch.add_argument("--json", action="store_true")
-    intake_set = intake_subparsers.add_parser("set")
-    intake_set.add_argument("intake_id")
-    intake_set.add_argument("--field", action="append", default=[])
-    intake_set.add_argument("--updated-by", default="cli")
-    intake_set.add_argument("--json", action="store_true")
-    intake_confirm = intake_subparsers.add_parser("confirm")
-    intake_confirm.add_argument("intake_id")
-    intake_confirm.add_argument("--confirmed-by", default="cli")
-    intake_confirm.add_argument("--acknowledge", action="append", default=[])
+    intake_parse.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    intake_show = intake_subparsers.add_parser(
+        "show",
+        help="查看任务录入",
+        description="展示指定录入的当前规范和系统推断的 profile。",
+    )
+    intake_show.add_argument(
+        "intake_id",
+        metavar="INTAKE_ID",
+        help="录入 ID",
+    )
+    intake_show.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    intake_patch = intake_subparsers.add_parser(
+        "patch",
+        help="修改录入字段",
+        description="更新已有录入的字段。仅修改指定的字段，其余保持不变。",
+    )
+    intake_patch.add_argument(
+        "intake_id",
+        metavar="INTAKE_ID",
+        help="录入 ID",
+    )
+    intake_patch.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="要修改的字段，格式 key=JSON值。可多次使用",
+    )
+    intake_patch.add_argument(
+        "--updated-by",
+        default="cli",
+        metavar="SOURCE",
+        help="更新者标记（默认 cli）",
+    )
+    intake_patch.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    intake_set = intake_subparsers.add_parser(
+        "set",
+        help="覆盖式设置录入字段",
+        description="覆盖式设置录入字段。与 patch 不同，未指定的字段也会被重置为系统默认值。",
+    )
+    intake_set.add_argument(
+        "intake_id",
+        metavar="INTAKE_ID",
+        help="录入 ID",
+    )
+    intake_set.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="要设置的字段，格式 key=JSON值。可多次使用",
+    )
+    intake_set.add_argument(
+        "--updated-by",
+        default="cli",
+        metavar="SOURCE",
+        help="更新者标记（默认 cli）",
+    )
+    intake_set.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
+    intake_confirm = intake_subparsers.add_parser(
+        "confirm",
+        help="确认录入并创建任务",
+        description="确认任务录入，创建正式任务并进入执行流程。如有安全警告需显式应答。",
+    )
+    intake_confirm.add_argument(
+        "intake_id",
+        metavar="INTAKE_ID",
+        help="录入 ID",
+    )
+    intake_confirm.add_argument(
+        "--confirmed-by",
+        default="cli",
+        metavar="SOURCE",
+        help="确认者标记（默认 cli）",
+    )
+    intake_confirm.add_argument(
+        "--acknowledge",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS,
+    )
     intake_confirm.add_argument(
         "--ack-warning",
         dest="acknowledge",
         action="append",
-        help="Acknowledge a Safety warning code or exact warning message",
+        metavar="CODE",
+        help="确认时主动应答安全警告。可多次使用",
     )
-    intake_confirm.add_argument("--json", action="store_true")
+    intake_confirm.add_argument(
+        "--json",
+        action="store_true",
+        help="以 JSON 格式输出",
+    )
 
-    subparsers.add_parser("preflight")
+    subparsers.add_parser(
+        "preflight",
+        help="（已废弃）使用 design intake 系列命令代替",
+        description="preflight 已迁移到 Task Intake 体系，请使用 design intake 系列命令。",
+    )
     return parser
 
 
