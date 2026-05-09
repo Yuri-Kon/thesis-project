@@ -845,12 +845,118 @@ pre {
 }
 
 .structure-viewer-panel {
+  grid-column: 1 / -1;
   min-width: 0;
 }
 
+.structure-viewer-panel.is-expanded {
+  background: rgba(255, 255, 255, 0.96);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  inset: 12px;
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  position: fixed;
+  z-index: 1200;
+}
+
+.structure-viewer-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.structure-viewer-head h2 {
+  margin-bottom: 3px;
+}
+
+.structure-head-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .structure-viewer {
+  align-items: stretch;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(560px, 1fr) minmax(300px, 0.32fr);
+  min-height: 0;
+}
+
+.structure-viewer-panel.is-expanded .structure-viewer {
+  height: 100%;
+}
+
+.structure-stage {
+  min-height: 0;
+  position: relative;
+}
+
+.structure-stage-badge {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(31, 31, 35, 0.08);
+  border-radius: 999px;
+  bottom: 12px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  left: 12px;
+  padding: 6px 10px;
+  position: absolute;
+  pointer-events: none;
+}
+
+.structure-controls {
+  align-content: start;
   display: grid;
   gap: 12px;
+  min-height: 0;
+  overflow: auto;
+}
+
+.structure-control-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.structure-control-grid label {
+  background: rgba(247, 248, 251, 0.78);
+  border: 1px solid rgba(228, 229, 235, 0.9);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+}
+
+.structure-control-grid label span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.structure-checkbox {
+  align-items: center;
+  display: flex !important;
+  gap: 8px !important;
+}
+
+.structure-checkbox input {
+  min-height: auto;
+  width: auto;
+}
+
+.structure-selection {
+  background: rgba(247, 248, 251, 0.78);
+  border: 1px solid rgba(228, 229, 235, 0.9);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.structure-selection h3 {
+  font-size: 0.95rem;
+  margin: 0 0 8px;
 }
 
 .structure-toolbar {
@@ -1050,12 +1156,18 @@ pre {
   border-radius: var(--radius);
   cursor: grab;
   display: block;
-  min-height: 260px;
+  height: 100%;
+  min-height: 440px;
+  touch-action: none;
   width: 100%;
 }
 
 .structure-canvas:active {
   cursor: grabbing;
+}
+
+.structure-viewer-panel.is-expanded .structure-canvas {
+  min-height: 0;
 }
 
 .task-builder-layout {
@@ -1713,6 +1825,17 @@ pre {
     display: grid;
   }
 
+  .structure-viewer,
+  .structure-viewer-panel.is-expanded .structure-viewer {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .structure-viewer-panel.is-expanded {
+    inset: 0;
+    max-height: 100vh;
+  }
+
   .candidate-card dl,
   .kv {
     grid-template-columns: 1fr;
@@ -1724,6 +1847,16 @@ pre {
   .field-card-grid,
   .draft-field-list {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1280px) {
+  .structure-viewer {
+    grid-template-columns: 1fr;
+  }
+
+  .structure-canvas {
+    min-height: 380px;
   }
 }
 
