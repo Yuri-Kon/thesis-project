@@ -385,3 +385,141 @@ def test_fsm_reconstruction_from_logs(cleanup_logs):
     assert len(waiting_transitions) == 1, "Should have exactly one WAITING_ENTER transition"
     assert waiting_transitions[0][0] == ExternalStatus.PLANNING.value
     assert waiting_transitions[0][1] == ExternalStatus.WAITING_PLAN_CONFIRM.value
+
+
+def test_terminal_stop_audit_chain_is_recorded_in_event_log(cleanup_logs):
+    """TC-S13: 验证 terminal_stop 的完整审计链被记录到 EventLog。
+
+    前提：在 WAITING_REPLAN 状态下接受 terminal_stop 候选。
+    预期：
+      - 事件日志包含 WAITING_ENTER (replan_confirm) 和 DECISION_APPLIED
+      - DECISION_APPLIED 记录 terminal_policy / terminal_reason / replan_mode
+      - 状态迁移到 FAILED 并写入 FAILED_ENTER
+    """
+    from src.models.contracts import PendingActionCandidate, Plan, PlanStep, PlanPatch
+    from src.workflow.decision_apply import apply_replan_confirm_decision
+
+    task = ProteinDesignTask(
+        task_id="test_terminal_stop_audit",
+        goal="verify terminal_stop audit chain in event log",
+        constraints={
+            "structural_failure": True,
+            "require_replan_confirm": True,
+        },
+        metadata={},
+    )
+    # 构建一个 suffix_replan 的 terminal_stop plan
+    stop_plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(id="S1", tool="esmfold", inputs={"sequence": "ACDE"}, metadata={}),
+        ],
+        constraints={"require_replan_confirm": True},
+        metadata={
+            "replan_mode": "suffix_replan",
+            "terminal_policy": "stop",
+            "terminal_reason": "economic_stop",
+            "failure_context": {
+                "original_failure_step": "S2",
+                "budget_consumed_pct": 92.0,
+            },
+        },
+    )
+    pending_action = build_pending_action(
+        task_id=task.task_id,
+        action_type=PendingActionType.REPLAN_CONFIRM,
+        candidates=[
+            PendingActionCandidate(
+                candidate_id="terminal_stop_c1",
+                payload=stop_plan,
+                structured_payload=stop_plan,
+                metadata={
+                    "terminal_policy": "stop",
+                    "terminal_reason": "economic_stop",
+                    "replan_mode": "suffix_replan",
+                },
+            )
+        ],
+        explanation="structural failure triggered replan with terminal_stop option",
+        default_recommendation="terminal_stop_c1",
+    )
+
+    record = TaskRecord(
+        id=task.task_id,
+        goal=task.goal,
+        status=ExternalStatus.WAITING_REPLAN_CONFIRM,
+        internal_status=InternalStatus.WAITING_REPLAN,
+        plan=stop_plan,
+        pending_action=pending_action,
+        design_result=None,
+    )
+
+    context = WorkflowContext(
+        task=task,
+        status=InternalStatus.WAITING_REPLAN,
+        pending_action=pending_action,
+    )
+
+    # 进入等待态，记录 WAITING_ENTER
+    enter_waiting_state(
+        context,
+        record,
+        pending_action,
+        InternalStatus.WAITING_REPLAN,
+        reason="structural failure triggered terminal_stop review",
+    )
+
+    decision = Decision(
+        decision_id="dec_terminal_stop_audit",
+        task_id=task.task_id,
+        pending_action_id=pending_action.pending_action_id,
+        choice=DecisionChoice.ACCEPT,
+        selected_candidate_id="terminal_stop_c1",
+        decided_by="safety_operator",
+    )
+
+    result = apply_replan_confirm_decision(context, record, decision)
+
+    # 验证结果
+    assert context.status == InternalStatus.FAILED
+    assert record.status == ExternalStatus.FAILED
+    assert pending_action.status == PendingActionStatus.DECIDED
+
+    # 读取事件日志并验证审计链
+    log_path = DEFAULT_LOG_DIR / f"{task.task_id}.jsonl"
+    assert log_path.exists(), "事件日志文件应已创建"
+    events = [json.loads(line) for line in log_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    waiting_enter_events = [e for e in events if e.get("event_type") == EventType.WAITING_ENTER.value]
+    assert len(waiting_enter_events) == 1, "应包含 1 条 WAITING_ENTER"
+    assert waiting_enter_events[0]["data"]["waiting_state"] == InternalStatus.WAITING_REPLAN.value
+    assert waiting_enter_events[0]["data"]["action_type"] == PendingActionType.REPLAN_CONFIRM.value
+
+    decision_events = [e for e in events if e.get("event_type") == EventType.DECISION_APPLIED.value]
+    assert len(decision_events) == 1, "应包含 1 条 DECISION_APPLIED"
+    dec_data = decision_events[0]["data"]
+    assert dec_data["choice"] == DecisionChoice.ACCEPT.value
+    assert dec_data.get("terminal_policy") == "stop"
+    assert dec_data.get("terminal_reason") == "economic_stop"
+
+    waiting_exit_events = [e for e in events if e.get("event_type") == EventType.WAITING_EXIT.value]
+    assert len(waiting_exit_events) == 1, "应包含 1 条 WAITING_EXIT"
+    assert waiting_exit_events[0]["new_status"] == ExternalStatus.FAILED.value
+
+    # 验证决策元数据通过快照持久化
+    assert result.plan is None, "terminal_stop 不应返回新 plan（直接标记失败）"
+
+    # 验证完整的审计链：WAITING_ENTER → DECISION_APPLIED → WAITING_EXIT
+    state_transitions = [
+        (e.get("prev_status"), e.get("new_status"), e.get("event_type"))
+        for e in events
+        if e.get("event_type") in {
+            EventType.WAITING_ENTER.value,
+            EventType.WAITING_EXIT.value,
+            EventType.DECISION_APPLIED.value,
+        }
+    ]
+    assert len(state_transitions) >= 3, (
+        f"审计链应至少包含 WAITING_ENTER → DECISION_APPLIED → WAITING_EXIT "
+        f"三段转换，实际 {len(state_transitions)} 段: {state_transitions}"
+    )
