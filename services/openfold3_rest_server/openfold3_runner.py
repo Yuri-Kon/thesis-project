@@ -15,6 +15,7 @@ DEFAULT_PREDICT_BIN = "run_openfold"
 DEFAULT_DEVICE = "cuda"
 _HELP_TEXT_CACHE: dict[str, str] = {}
 _RUNNER_YAML_ENV = "OPENFOLD3_RUNNER_YAML"
+_USE_MSA_SERVER_ENV = "OPENFOLD3_USE_MSA_SERVER"
 
 
 def run_openfold3_prediction(
@@ -33,19 +34,27 @@ def run_openfold3_prediction(
     query_json_path, query_format = _prepare_query_json(inputs=inputs, job_path=job_path)
     artifact_dir = job_path / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
+    runtime_tmp_dir = _build_runtime_tmp_dir(job_path)
+    runtime_tmp_dir.mkdir(parents=True, exist_ok=True)
 
     command, command_meta = _build_predict_command(
         query_json_path=query_json_path,
         output_dir=artifact_dir,
         model_dir=model_dir,
         predict_bin=resolved_predict_bin,
+        inputs=inputs,
     )
-    proc = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    env = _build_predict_env(tmp_dir=runtime_tmp_dir)
+    try:
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+    finally:
+        shutil.rmtree(runtime_tmp_dir, ignore_errors=True)
     if proc.returncode != 0:
         stderr_text = (proc.stderr or proc.stdout or "").strip()
         raise RuntimeError(
@@ -94,7 +103,7 @@ def write_artifacts(
         "outputs": outputs_payload,
         "metadata": metadata,
     }
-    summary_path.write_text(
+    _ = summary_path.write_text(
         json.dumps(summary_payload, ensure_ascii=True, indent=2),
         encoding="utf-8",
     )
@@ -129,7 +138,7 @@ def _prepare_query_json(inputs: Dict[str, Any], *, job_path: Path) -> tuple[Path
         )
 
     query_path = job_path / "query.json"
-    query_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
+    _ = query_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return query_path, query_format
 
 
@@ -179,7 +188,9 @@ def _build_predict_command(
     output_dir: Path,
     model_dir: str,
     predict_bin: str,
+    inputs: Dict[str, Any] | None = None,
 ) -> tuple[list[str], dict[str, Any]]:
+    use_msa_server = _resolve_use_msa_server(inputs or {})
     custom_cmd = str(os.getenv("OPENFOLD3_PREDICT_CMD", "")).strip()
     if custom_cmd:
         rendered = custom_cmd.format(
@@ -187,8 +198,12 @@ def _build_predict_command(
             output_dir=str(output_dir),
             model_dir=model_dir,
             predict_bin=predict_bin,
+            use_msa_server=str(use_msa_server),
         )
-        return shlex.split(rendered), {"command_mode": "custom"}
+        return shlex.split(rendered), {
+            "command_mode": "custom",
+            "use_msa_server": use_msa_server,
+        }
 
     query_opt = _pick_supported_option(
         predict_bin,
@@ -218,6 +233,13 @@ def _build_predict_command(
     if runner_yaml_arg is not None:
         command.append(runner_yaml_arg)
 
+    msa_server_arg = _build_use_msa_server_arg(
+        predict_bin=predict_bin,
+        use_msa_server=use_msa_server,
+    )
+    if msa_server_arg is not None:
+        command.append(msa_server_arg)
+
     extra = str(os.getenv("OPENFOLD3_EXTRA_ARGS", "")).strip()
     if extra:
         command.extend(shlex.split(extra))
@@ -228,6 +250,8 @@ def _build_predict_command(
         "model_arg": model_arg_mode,
         "runner_yaml_arg": runner_yaml_arg.split("=", 1)[0] if runner_yaml_arg else "none",
         "runner_yaml_path": runner_yaml_arg.split("=", 1)[1] if runner_yaml_arg else None,
+        "use_msa_server": use_msa_server,
+        "use_msa_server_arg": msa_server_arg.split("=", 1)[0] if msa_server_arg else "none",
     }
 
 
@@ -304,6 +328,48 @@ def _build_runner_yaml_arg(*, predict_bin: str) -> str | None:
     return f"{runner_opt}={runner_yaml}"
 
 
+def _build_use_msa_server_arg(
+    *,
+    predict_bin: str,
+    use_msa_server: bool,
+) -> str | None:
+    msa_opt = _pick_supported_option(
+        predict_bin,
+        ("--use-msa-server", "--use_msa_server"),
+        default=None,
+    )
+    if msa_opt is None:
+        return None
+    return f"{msa_opt}={'True' if use_msa_server else 'False'}"
+
+
+def _resolve_use_msa_server(inputs: Dict[str, Any]) -> bool:
+    configured = inputs.get("use_msa_server")
+    if configured is None:
+        configured = os.getenv(_USE_MSA_SERVER_ENV, "false")
+    if isinstance(configured, bool):
+        return configured
+    if isinstance(configured, (int, float)):
+        return configured != 0
+    value = str(configured).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
+def _build_predict_env(*, tmp_dir: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    tmp_value = str(tmp_dir.resolve())
+    env["TMPDIR"] = tmp_value
+    env["TMP"] = tmp_value
+    env["TEMP"] = tmp_value
+    return env
+
+
+def _build_runtime_tmp_dir(job_path: Path) -> Path:
+    job_name = job_path.name.strip() or "unknown"
+    safe_name = "".join(char if char.isalnum() else "_" for char in job_name)
+    return Path("/tmp") / f"of3_{safe_name[:48]}"
+
+
 def _pick_supported_option(
     predict_bin: str,
     options: tuple[str, ...],
@@ -359,10 +425,11 @@ def _resolve_predict_bin(predict_bin: str) -> str:
     if sibling.exists() and sibling.is_file():
         return str(sibling)
 
-    raise RuntimeError(
+    message = (
         f"Predict binary '{predict_bin}' not found in PATH. "
-        "Set OPENFOLD3_PREDICT_BIN to an absolute path."
+        + "Set OPENFOLD3_PREDICT_BIN to an absolute path."
     )
+    raise RuntimeError(message)
 
 
 def _find_structure_file(artifact_dir: Path) -> Path | None:
@@ -439,7 +506,7 @@ def _run_mock_prediction(
     artifact_dir = job_path / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
     pdb_path = artifact_dir / "prediction.pdb"
-    pdb_path.write_text(
+    _ = pdb_path.write_text(
         _mock_pdb(sequence),
         encoding="utf-8",
     )

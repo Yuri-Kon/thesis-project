@@ -1,14 +1,14 @@
 {
     "experiment_settings": {
         "mode": "predict",
-        "output_dir": "/root/autodl-tmp/remote/openfold3_jobs/openfold3_703d2d66d65f409f865de7db537c5801/artifacts",
+        "output_dir": "/root/autodl-tmp/remote/openfold3_jobs/openfold3_4b92440d5c5e44f9bb820ac0b160065f/artifacts",
         "log_dir": null,
         "seeds": [
             42
         ],
         "num_seeds": null,
         "use_msa_server": false,
-        "use_templates": false,
+        "use_templates": true,
         "skip_existing": false
     },
     "pl_trainer_args": {
@@ -46,8 +46,8 @@
             }
         }
     },
-    "inference_ckpt_path": "/root/autodl-tmp/models/plm/openfold3/of3-p2-155k.pt",
-    "inference_ckpt_name": null,
+    "inference_ckpt_path": "/root/.openfold3/of3-p2-155k.pt",
+    "inference_ckpt_name": "openfold3-p2-155k",
     "cache_path": "/root/.openfold3",
     "data_module_args": {
         "batch_size": 1,
@@ -133,7 +133,7 @@
         "server_user_agent": "openfold",
         "server_url": "https://api.colabfold.com/",
         "save_mappings": true,
-        "msa_output_directory": "/tmp/of3_colabfold_msas",
+        "msa_output_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_colabfold_msas",
         "cleanup_msa_dir": true
     },
     "template_preprocessor_settings": {
@@ -155,12 +155,12 @@
         "create_logs": false,
         "n_processes": 1,
         "chunksize": 1,
-        "structure_directory": "/tmp/of3_template_data/template_structures",
+        "structure_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data/template_structures",
         "structure_file_format": "cif",
-        "output_directory": "/tmp/of3_template_data",
+        "output_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data",
         "precache_directory": null,
         "structure_array_directory": null,
-        "cache_directory": "/tmp/of3_template_data/template_cache",
+        "cache_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data/template_cache",
         "log_directory": null,
         "ccd_file_path": null
     }

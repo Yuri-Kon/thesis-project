@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-05-08T18:17:42+00:00",
+  "runs": [
+    {
+      "group_id": "fixed_threshold_gate",
+      "task_key": "t2_trpcage_sequence_eval",
+      "replicate": 1
+    },
+    {
+      "group_id": "dynamic_no_belief_state",
+      "task_key": "t2_trpcage_sequence_eval",
+      "replicate": 1
+    }
+  ]
+}

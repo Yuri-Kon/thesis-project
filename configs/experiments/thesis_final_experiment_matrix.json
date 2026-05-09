@@ -75,6 +75,7 @@
     "prefer_remote": false,
     "structure_prediction_tool_override": "openfold",
     "structure_prediction_execution_mode": "openfold3_rest",
+    "fallback_tool_ids": ["esmfold", "nim_esmfold"],
     "secondary_structure_annotation_tool_override": "biopython_qc",
     "task_set_version": "thesis-final-v1"
   },
