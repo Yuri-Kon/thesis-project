@@ -279,7 +279,7 @@ def test_zai_provider_invocation_failure_raises_with_diagnostic_summary(monkeypa
         ProviderConfig(
             model_name="glm-5",
             api_key="test-key",
-            max_tokens=1048576,
+            max_tokens=131072,
             structured_output_mode="json_schema",
             extra_body={"thinking": {"type": "enabled"}},
         )
@@ -298,6 +298,6 @@ def test_zai_provider_invocation_failure_raises_with_diagnostic_summary(monkeypa
     observed = failure["observed"]
     assert observed["provider"] == "zai_chat"
     assert observed["model"] == "glm-5"
-    assert observed["request"]["max_tokens"] == 1048576
+    assert observed["request"]["max_tokens"] == 131072
     assert observed["exception"]["type"] == "ConnectionError"
     assert "provider_connection_failure" in observed["possible_causes"]

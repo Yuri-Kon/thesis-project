@@ -18,6 +18,7 @@ from src.models.contracts import (
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
+    DesignResult,
     FINAL_SCORE_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
@@ -1274,6 +1275,113 @@ async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
     return [CapabilityReadinessEntry(**entry) for entry in entries]
 
 
+@app.post("/demo/structure-viewer-task")
+async def create_structure_viewer_demo_task() -> dict[str, str]:
+    """创建前端结构查看器演示任务。
+
+    Args:
+        无。
+
+    Returns:
+        演示任务 ID、UI URL、结构接口 URL 与 PDB 文件路径。
+    """
+
+    if os.getenv("PROTEIN_ENABLE_DEMO_FIXTURES") != "1":
+        raise HTTPException(status_code=404, detail="demo fixtures are disabled")
+    task_id = "demo_structure_viewer"
+    pdb_path = Path("output/pdb/demo_structure_viewer.pdb")
+    pdb_path.parent.mkdir(parents=True, exist_ok=True)
+    pdb_path.write_text(_demo_structure_pdb_text(), encoding="utf-8")
+    TASK_STORE[task_id] = TaskRecord(
+        id=task_id,
+        status=ExternalStatus.DONE,
+        internal_status=InternalStatus.DONE,
+        goal="Demo fixture: render a fixed alpha-helix PDB in the web structure viewer",
+        constraints={
+            "task_kind": "sequence_evaluation",
+            "objective_type": "structure_viewer_demo",
+            "sequence": "ACDEFGHIKLMN",
+        },
+        metadata={
+            "source": "demo_fixture",
+            "fixture": "structure_viewer",
+            "note": "This task is seeded directly and does not run model inference.",
+        },
+        design_result=DesignResult(
+            task_id=task_id,
+            sequence="ACDEFGHIKLMN",
+            structure_pdb_path=str(pdb_path),
+            scores={"plddt_mean": 88.2, "sequence_length": 12},
+            risk_flags=[],
+            report_path="output/reports/demo_structure_viewer.json",
+            metadata={
+                "created_at": now_iso(),
+                "report_source": "demo_fixture",
+                "structure_viewer_demo": True,
+            },
+        ),
+    )
+    return {
+        "task_id": task_id,
+        "ui_url": f"/ui/tasks/{task_id}",
+        "structure_url": f"/tasks/{task_id}/structure",
+        "pdb_path": str(pdb_path),
+    }
+
+
+def _demo_structure_pdb_text() -> str:
+    """返回用于前端结构查看器的固定 PDB 示例。"""
+
+    return "\n".join(
+        [
+            "HEADER    STRUCTURE VIEWER DEMO",
+            "ATOM      1  N   ALA A   1       0.000   1.200   0.000  1.00 88.00           N",
+            "ATOM      2  CA  ALA A   1       1.450   1.050   0.200  1.00 88.00           C",
+            "ATOM      3  C   ALA A   1       2.050  -0.250   0.650  1.00 88.00           C",
+            "ATOM      4  O   ALA A   1       1.420  -1.250   0.520  1.00 88.00           O",
+            "ATOM      5  N   CYS A   2       3.280  -0.220   1.170  1.00 86.00           N",
+            "ATOM      6  CA  CYS A   2       4.020  -1.420   1.690  1.00 86.00           C",
+            "ATOM      7  C   CYS A   2       5.360  -1.020   2.300  1.00 86.00           C",
+            "ATOM      8  O   CYS A   2       6.100  -1.850   2.820  1.00 86.00           O",
+            "ATOM      9  N   ASP A   3       5.690   0.250   2.250  1.00 89.00           N",
+            "ATOM     10  CA  ASP A   3       6.970   0.760   2.780  1.00 89.00           C",
+            "ATOM     11  C   ASP A   3       7.640   1.690   1.780  1.00 89.00           C",
+            "ATOM     12  O   ASP A   3       8.850   1.890   1.820  1.00 89.00           O",
+            "ATOM     13  N   GLU A   4       6.850   2.260   0.870  1.00 91.00           N",
+            "ATOM     14  CA  GLU A   4       7.360   3.180  -0.150  1.00 91.00           C",
+            "ATOM     15  C   GLU A   4       8.200   2.430  -1.190  1.00 91.00           C",
+            "ATOM     16  O   GLU A   4       9.110   3.000  -1.790  1.00 91.00           O",
+            "ATOM     17  N   PHE A   5       7.880   1.150  -1.390  1.00 87.00           N",
+            "ATOM     18  CA  PHE A   5       8.610   0.310  -2.340  1.00 87.00           C",
+            "ATOM     19  C   PHE A   5       9.980  -0.070  -1.780  1.00 87.00           C",
+            "ATOM     20  O   PHE A   5      10.900  -0.410  -2.520  1.00 87.00           O",
+            "ATOM     21  N   GLY A   6      10.100  -0.010  -0.460  1.00 90.00           N",
+            "ATOM     22  CA  GLY A   6      11.360  -0.340   0.190  1.00 90.00           C",
+            "ATOM     23  C   GLY A   6      12.390   0.770   0.060  1.00 90.00           C",
+            "ATOM     24  O   GLY A   6      13.580   0.510   0.240  1.00 90.00           O",
+            "ATOM     25  N   HIS A   7      11.930   2.000  -0.250  1.00 92.00           N",
+            "ATOM     26  CA  HIS A   7      12.800   3.160  -0.430  1.00 92.00           C",
+            "ATOM     27  C   HIS A   7      13.250   3.270  -1.890  1.00 92.00           C",
+            "ATOM     28  O   HIS A   7      14.310   3.820  -2.180  1.00 92.00           O",
+            "ATOM     29  N   ILE A   8      12.430   2.740  -2.800  1.00 89.00           N",
+            "ATOM     30  CA  ILE A   8      12.730   2.780  -4.230  1.00 89.00           C",
+            "ATOM     31  C   ILE A   8      13.850   1.810  -4.580  1.00 89.00           C",
+            "ATOM     32  O   ILE A   8      14.540   1.990  -5.580  1.00 89.00           O",
+            "ATOM     33  N   LYS A   9      14.030   0.790  -3.740  1.00 88.00           N",
+            "ATOM     34  CA  LYS A   9      15.080  -0.200  -3.950  1.00 88.00           C",
+            "ATOM     35  C   LYS A   9      16.450   0.420  -3.690  1.00 88.00           C",
+            "ATOM     36  O   LYS A   9      17.430  -0.030  -4.280  1.00 88.00           O",
+            "ATOM     37  N   LEU A  10      16.510   1.450  -2.840  1.00 90.00           N",
+            "ATOM     38  CA  LEU A  10      17.760   2.150  -2.550  1.00 90.00           C",
+            "ATOM     39  C   LEU A  10      18.090   3.120  -3.680  1.00 90.00           C",
+            "ATOM     40  O   LEU A  10      19.260   3.420  -3.920  1.00 90.00           O",
+            "TER",
+            "END",
+            "",
+        ]
+    )
+
+
 @app.get(
     "/capabilities/scenario-gate/preview",
     response_model=ScenarioGatePreviewResponse,
@@ -1642,7 +1750,14 @@ async def get_task_report(task_id: str) -> TaskReportDetail:
 
 @app.get("/tasks/{task_id}/structure", response_class=PlainTextResponse)
 async def get_task_structure(task_id: str) -> PlainTextResponse:
-    """读取任务结构文件，供前端结构查看器加载。"""
+    """读取任务结构文件，供前端结构查看器加载。
+
+    Args:
+        task_id: 任务 ID。
+
+    Returns:
+        结构文件文本响应。
+    """
 
     record = TASK_STORE.get(task_id)
     if record is None:
@@ -1660,6 +1775,15 @@ async def get_task_structure(task_id: str) -> PlainTextResponse:
 
 
 def _resolve_structure_artifact_path(raw_path: str) -> Path | None:
+    """解析允许前端读取的结构产物路径。
+
+    Args:
+        raw_path: DesignResult 中记录的结构文件路径。
+
+    Returns:
+        位于允许目录内的本地文件路径；不合法时返回 None。
+    """
+
     path = Path(raw_path).expanduser()
     if path.suffix.lower() not in {".pdb", ".cif", ".mmcif"}:
         return None

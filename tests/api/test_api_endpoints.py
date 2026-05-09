@@ -1,5 +1,6 @@
 """API端点测试"""
 import json
+from pathlib import Path
 
 import pytest
 import httpx
@@ -253,6 +254,72 @@ class TestAPIEndpoints:
         assert data["objective_scoring"]["top_k"][0]["candidate_id"] == "cand_a"
         assert data["objective_scoring"]["rank_reason"].startswith("cand_a ranks")
         assert data["structure_similarity"]["top_hit"]["hit_id"] == "1abc_A"
+
+    async def test_task_structure_endpoint_returns_pdb_artifact(
+        self,
+        client: httpx.AsyncClient,
+        tmp_path: Path,
+    ):
+        """结构文件接口应返回 DesignResult 记录的 PDB 文本。"""
+
+        pdb_path = tmp_path / "test_api_structure.pdb"
+        pdb_text = (
+            "ATOM      1  N   ALA A   1      11.104  13.207   9.201  1.00 20.00           N\n"
+            "ATOM      2  CA  ALA A   1      12.104  13.907   9.701  1.00 20.00           C\n"
+            "ATOM      3  CA  GLY A   2      13.204  14.407  10.201  1.00 20.00           C\n"
+            "END\n"
+        )
+        pdb_path.write_text(pdb_text, encoding="utf-8")
+        task_id = "test_api_structure"
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.DONE,
+            internal_status=InternalStatus.DONE,
+            goal="展示结构",
+            constraints={},
+            metadata={},
+            design_result=DesignResult(
+                task_id=task_id,
+                sequence="AG",
+                structure_pdb_path=str(pdb_path),
+                scores={},
+                risk_flags=[],
+                report_path="output/reports/test_api_structure.json",
+                metadata={},
+            ),
+        )
+
+        report_response = await client.get(f"/tasks/{task_id}/report")
+        structure_response = await client.get(f"/tasks/{task_id}/structure")
+
+        assert report_response.status_code == 200
+        assert report_response.json()["structure_pdb_path"] == str(pdb_path)
+        assert structure_response.status_code == 200
+        assert "ATOM      2  CA  ALA" in structure_response.text
+        assert structure_response.headers["content-type"].startswith("chemical/x-pdb")
+
+    async def test_demo_structure_viewer_fixture_seeds_done_task(
+        self,
+        client: httpx.AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Demo fixture 应无需真实推理即可创建可展示结构的 DONE 任务。"""
+
+        monkeypatch.setenv("PROTEIN_ENABLE_DEMO_FIXTURES", "1")
+
+        create_response = await client.post("/demo/structure-viewer-task")
+        task_response = await client.get("/tasks/demo_structure_viewer")
+        structure_response = await client.get("/tasks/demo_structure_viewer/structure")
+
+        assert create_response.status_code == 200
+        payload = create_response.json()
+        assert payload["task_id"] == "demo_structure_viewer"
+        assert payload["ui_url"] == "/ui/tasks/demo_structure_viewer"
+        assert task_response.status_code == 200
+        assert task_response.json()["status"] == "DONE"
+        assert structure_response.status_code == 200
+        assert "HEADER    STRUCTURE VIEWER DEMO" in structure_response.text
+        assert "ATOM     26  CA  HIS" in structure_response.text
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""

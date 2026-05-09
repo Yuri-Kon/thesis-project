@@ -385,7 +385,7 @@ def test_openai_provider_invocation_failure_raises_with_diagnostic_summary(
             model_name="test-model",
             api_key="test-key",
             timeout=300,
-            max_tokens=1048576,
+            max_tokens=393216,
         ),
         endpoint="http://example.test/v1",
     )
@@ -403,6 +403,6 @@ def test_openai_provider_invocation_failure_raises_with_diagnostic_summary(
     observed = failure["observed"]
     assert observed["provider"] == "openai_compatible"
     assert observed["model"] == "test-model"
-    assert observed["request"]["max_tokens"] == 1048576
+    assert observed["request"]["max_tokens"] == 393216
     assert observed["exception"]["type"] == "TimeoutError"
     assert "provider_request_timeout" in observed["possible_causes"]

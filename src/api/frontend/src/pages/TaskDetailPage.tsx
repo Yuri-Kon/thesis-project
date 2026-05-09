@@ -119,7 +119,7 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
       </section>
       <PendingReviewWorkspace detail={state.pendingActionDetail} onDecisionSubmitted={onRefresh} />
       <ReportExplorer task={task} report={state.report} />
-      <StructureViewerPanel task={task} />
+      <StructureViewerPanel task={task} report={state.report} />
         <div className="side-stack">
           <ModelInvocationPanel readiness={state.readiness} pendingActionDetail={state.pendingActionDetail} />
           <CapabilityReadinessPanel readiness={state.readiness} />
