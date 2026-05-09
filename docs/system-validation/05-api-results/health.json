@@ -1,0 +1,13 @@
+{
+  "status": "ok",
+  "task_count": 0,
+  "kg_tool_count": 15,
+  "capability_readiness_count": 15,
+  "paths": {
+    "kg": "src/kg/protein_tool_kg.json",
+    "output": "output",
+    "data": "data",
+    "logs": "data/logs",
+    "snapshots": "data/snapshots"
+  }
+}

@@ -1,0 +1,2306 @@
+[
+  {
+    "capability_id": "structure_prediction",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "alphafold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.7,
+        "risk_prior": null,
+        "latency_prior": 0.7,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "alphafold",
+            "adapter_id": "alphafold",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "esmfold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.599,
+        "risk_prior": 0.3795,
+        "latency_prior": 0.58,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "esmfold",
+            "adapter_id": "esmfold",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "esmfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.7,
+          "latency_cost_prior": 0.58,
+          "failure_impact_prior": 0.72,
+          "human_dependency_prior": 0.2,
+          "reliability_prior": 0.76,
+          "structural_risk_prior": 0.62,
+          "execution_risk_prior": 0.25,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.18,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.599,
+          "step_risk": 0.3795,
+          "is_evidence_layer": false,
+          "description": "本地结构预测，高代价但依赖链相对短。"
+        }
+      },
+      {
+        "tool_id": "nim_esmfold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.6055,
+        "risk_prior": 0.452,
+        "latency_prior": 0.72,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "nim_esmfold",
+            "adapter_id": "nim_esmfold",
+            "execution_mode": "nvidia_nim",
+            "provider": "nvidia_nim",
+            "endpoint_type": "nim"
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "nim_esmfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.6,
+          "latency_cost_prior": 0.72,
+          "failure_impact_prior": 0.74,
+          "human_dependency_prior": 0.25,
+          "reliability_prior": 0.68,
+          "structural_risk_prior": 0.62,
+          "execution_risk_prior": 0.42,
+          "safety_risk_prior": 0.14,
+          "coupling_risk_prior": 0.4,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.6055,
+          "step_risk": 0.452,
+          "is_evidence_layer": false,
+          "description": "远程结构预测，网络与配额带来更高执行与耦合风险。"
+        }
+      },
+      {
+        "tool_id": "openfold",
+        "status": "ready",
+        "reason": "NIM API key configured",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.728,
+        "risk_prior": 0.451,
+        "latency_prior": 0.78,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "NIM API key configured",
+          "provider": "nvidia_nim",
+          "capabilities": {
+            "tool_id": "openfold",
+            "adapter_id": "openfold",
+            "execution_mode": "auto",
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "openfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.82,
+          "latency_cost_prior": 0.78,
+          "failure_impact_prior": 0.8,
+          "human_dependency_prior": 0.3,
+          "reliability_prior": 0.58,
+          "structural_risk_prior": 0.6,
+          "execution_risk_prior": 0.46,
+          "safety_risk_prior": 0.12,
+          "coupling_risk_prior": 0.42,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.728,
+          "step_risk": 0.451,
+          "is_evidence_layer": false,
+          "description": "更重的结构预测路径，应默认视为高暴露工具。"
+        }
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "alphafold",
+    "fallback_tool_ids": [
+      "esmfold",
+      "nim_esmfold",
+      "openfold"
+    ],
+    "cost_prior": 0.658125,
+    "risk_prior": 0.4275,
+    "suggested_recovery": null,
+    "reason": "adapter registered",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "alphafold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.7,
+        "risk_prior": null,
+        "latency_prior": 0.7,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "alphafold",
+            "adapter_id": "alphafold",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "esmfold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.599,
+        "risk_prior": 0.3795,
+        "latency_prior": 0.58,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "esmfold",
+            "adapter_id": "esmfold",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "esmfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.7,
+          "latency_cost_prior": 0.58,
+          "failure_impact_prior": 0.72,
+          "human_dependency_prior": 0.2,
+          "reliability_prior": 0.76,
+          "structural_risk_prior": 0.62,
+          "execution_risk_prior": 0.25,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.18,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.599,
+          "step_risk": 0.3795,
+          "is_evidence_layer": false,
+          "description": "本地结构预测，高代价但依赖链相对短。"
+        }
+      },
+      {
+        "tool_id": "nim_esmfold",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.6055,
+        "risk_prior": 0.452,
+        "latency_prior": 0.72,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "nim_esmfold",
+            "adapter_id": "nim_esmfold",
+            "execution_mode": "nvidia_nim",
+            "provider": "nvidia_nim",
+            "endpoint_type": "nim"
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "nim_esmfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.6,
+          "latency_cost_prior": 0.72,
+          "failure_impact_prior": 0.74,
+          "human_dependency_prior": 0.25,
+          "reliability_prior": 0.68,
+          "structural_risk_prior": 0.62,
+          "execution_risk_prior": 0.42,
+          "safety_risk_prior": 0.14,
+          "coupling_risk_prior": 0.4,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.6055,
+          "step_risk": 0.452,
+          "is_evidence_layer": false,
+          "description": "远程结构预测，网络与配额带来更高执行与耦合风险。"
+        }
+      },
+      {
+        "tool_id": "openfold",
+        "status": "ready",
+        "reason": "NIM API key configured",
+        "error_category": null,
+        "capability_ids": [
+          "structure_prediction"
+        ],
+        "cost_prior": 0.728,
+        "risk_prior": 0.451,
+        "latency_prior": 0.78,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "NIM API key configured",
+          "provider": "nvidia_nim",
+          "capabilities": {
+            "tool_id": "openfold",
+            "adapter_id": "openfold",
+            "execution_mode": "auto",
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "openfold",
+          "capability_id": "structure_prediction",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.82,
+          "latency_cost_prior": 0.78,
+          "failure_impact_prior": 0.8,
+          "human_dependency_prior": 0.3,
+          "reliability_prior": 0.58,
+          "structural_risk_prior": 0.6,
+          "execution_risk_prior": 0.46,
+          "safety_risk_prior": 0.12,
+          "coupling_risk_prior": 0.42,
+          "high_cost_flag": true,
+          "evidence_role": "high_cost_projection",
+          "step_cost": 0.728,
+          "step_risk": 0.451,
+          "is_evidence_layer": false,
+          "description": "更重的结构预测路径，应默认视为高暴露工具。"
+        }
+      }
+    ]
+  },
+  {
+    "capability_id": "sequence_design",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "protein_mpnn",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "sequence_design"
+        ],
+        "cost_prior": 0.601,
+        "risk_prior": 0.277,
+        "latency_prior": 0.62,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "protein_mpnn",
+            "adapter_id": "protein_mpnn",
+            "execution_mode": "auto",
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "protein_mpnn",
+          "capability_id": "sequence_design",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.72,
+          "latency_cost_prior": 0.62,
+          "failure_impact_prior": 0.58,
+          "human_dependency_prior": 0.28,
+          "reliability_prior": 0.66,
+          "structural_risk_prior": 0.32,
+          "execution_risk_prior": 0.34,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.28,
+          "high_cost_flag": true,
+          "evidence_role": "refinement",
+          "step_cost": 0.601,
+          "step_risk": 0.277,
+          "is_evidence_layer": false,
+          "description": "结构条件精修，属于高代价且可能多轮迭代的工具。"
+        }
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "protein_mpnn",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.601,
+    "risk_prior": 0.277,
+    "suggested_recovery": null,
+    "reason": "adapter registered",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "protein_mpnn",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "sequence_design"
+        ],
+        "cost_prior": 0.601,
+        "risk_prior": 0.277,
+        "latency_prior": 0.62,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "protein_mpnn",
+            "adapter_id": "protein_mpnn",
+            "execution_mode": "auto",
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "protein_mpnn",
+          "capability_id": "sequence_design",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.72,
+          "latency_cost_prior": 0.62,
+          "failure_impact_prior": 0.58,
+          "human_dependency_prior": 0.28,
+          "reliability_prior": 0.66,
+          "structural_risk_prior": 0.32,
+          "execution_risk_prior": 0.34,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.28,
+          "high_cost_flag": true,
+          "evidence_role": "refinement",
+          "step_cost": 0.601,
+          "step_risk": 0.277,
+          "is_evidence_layer": false,
+          "description": "结构条件精修，属于高代价且可能多轮迭代的工具。"
+        }
+      }
+    ]
+  },
+  {
+    "capability_id": "sequence_generation",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [
+      {
+        "tool_id": "protgpt2",
+        "status": "unavailable",
+        "reason": "adapter registered; PLM REST endpoint is not configured or reachable",
+        "error_category": "remote_unreachable",
+        "capability_ids": [
+          "sequence_generation"
+        ],
+        "cost_prior": 0.41,
+        "risk_prior": 0.2575,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Start the remote service or configure the provider base URL.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "protgpt2",
+            "adapter_id": "protgpt2",
+            "execution_mode": "plm_rest",
+            "provider": "plm_rest",
+            "endpoint_type": "rest"
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "protgpt2",
+          "capability_id": "sequence_generation",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.45,
+          "latency_cost_prior": 0.45,
+          "failure_impact_prior": 0.4,
+          "human_dependency_prior": 0.25,
+          "reliability_prior": 0.62,
+          "structural_risk_prior": 0.25,
+          "execution_risk_prior": 0.38,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.3,
+          "high_cost_flag": false,
+          "evidence_role": "core_generation",
+          "step_cost": 0.41,
+          "step_risk": 0.2575,
+          "is_evidence_layer": false,
+          "description": "初始序列生成，成本中等，结果波动主要体现在后续结构映射。"
+        }
+      }
+    ],
+    "degraded_reasons": [
+      "protgpt2: remote_unreachable: adapter registered; PLM REST endpoint is not configured or reachable"
+    ],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "protgpt2",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.41,
+    "risk_prior": 0.2575,
+    "suggested_recovery": "Start remote services or configure reachable base URLs.",
+    "reason": "protgpt2: remote_unreachable: adapter registered; PLM REST endpoint is not configured or reachable",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "protgpt2",
+        "status": "unavailable",
+        "reason": "adapter registered; PLM REST endpoint is not configured or reachable",
+        "error_category": "remote_unreachable",
+        "capability_ids": [
+          "sequence_generation"
+        ],
+        "cost_prior": 0.41,
+        "risk_prior": 0.2575,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Start the remote service or configure the provider base URL.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "protgpt2",
+            "adapter_id": "protgpt2",
+            "execution_mode": "plm_rest",
+            "provider": "plm_rest",
+            "endpoint_type": "rest"
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "protgpt2",
+          "capability_id": "sequence_generation",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.45,
+          "latency_cost_prior": 0.45,
+          "failure_impact_prior": 0.4,
+          "human_dependency_prior": 0.25,
+          "reliability_prior": 0.62,
+          "structural_risk_prior": 0.25,
+          "execution_risk_prior": 0.38,
+          "safety_risk_prior": 0.1,
+          "coupling_risk_prior": 0.3,
+          "high_cost_flag": false,
+          "evidence_role": "core_generation",
+          "step_cost": 0.41,
+          "step_risk": 0.2575,
+          "is_evidence_layer": false,
+          "description": "初始序列生成，成本中等，结果波动主要体现在后续结构映射。"
+        }
+      }
+    ]
+  },
+  {
+    "capability_id": "quality_qc",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "biopython_qc",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "quality_qc"
+        ],
+        "cost_prior": 0.15,
+        "risk_prior": 0.126,
+        "latency_prior": 0.12,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "biopython_qc",
+            "adapter_id": "biopython_qc",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "biopython_qc",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.12,
+          "latency_cost_prior": 0.12,
+          "failure_impact_prior": 0.3,
+          "human_dependency_prior": 0.08,
+          "reliability_prior": 0.9,
+          "structural_risk_prior": 0.18,
+          "execution_risk_prior": 0.1,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.08,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.15,
+          "step_risk": 0.126,
+          "is_evidence_layer": true,
+          "description": "低成本质量门禁，是 evidence layer 的核心工具。"
+        }
+      },
+      {
+        "tool_id": "dssp",
+        "status": "ready",
+        "reason": "binary 'mkdssp' resolved",
+        "error_category": null,
+        "capability_ids": [
+          "secondary_structure_annotation",
+          "quality_qc"
+        ],
+        "cost_prior": 0.223,
+        "risk_prior": 0.154,
+        "latency_prior": 0.2,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mkdssp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mkdssp",
+          "capabilities": {
+            "tool_id": "dssp",
+            "adapter_id": "dssp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "dssp",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [
+            "secondary_structure_annotation"
+          ],
+          "compute_cost_prior": 0.22,
+          "latency_cost_prior": 0.2,
+          "failure_impact_prior": 0.35,
+          "human_dependency_prior": 0.1,
+          "reliability_prior": 0.82,
+          "structural_risk_prior": 0.2,
+          "execution_risk_prior": 0.16,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.223,
+          "step_risk": 0.154,
+          "is_evidence_layer": true,
+          "description": "二级结构与质量补充，适合作为低成本验证和 fallback。"
+        }
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "biopython_qc",
+    "fallback_tool_ids": [
+      "dssp"
+    ],
+    "cost_prior": 0.1865,
+    "risk_prior": 0.14,
+    "suggested_recovery": null,
+    "reason": "adapter registered",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "biopython_qc",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "quality_qc"
+        ],
+        "cost_prior": 0.15,
+        "risk_prior": 0.126,
+        "latency_prior": 0.12,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "biopython_qc",
+            "adapter_id": "biopython_qc",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "biopython_qc",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.12,
+          "latency_cost_prior": 0.12,
+          "failure_impact_prior": 0.3,
+          "human_dependency_prior": 0.08,
+          "reliability_prior": 0.9,
+          "structural_risk_prior": 0.18,
+          "execution_risk_prior": 0.1,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.08,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.15,
+          "step_risk": 0.126,
+          "is_evidence_layer": true,
+          "description": "低成本质量门禁，是 evidence layer 的核心工具。"
+        }
+      },
+      {
+        "tool_id": "dssp",
+        "status": "ready",
+        "reason": "binary 'mkdssp' resolved",
+        "error_category": null,
+        "capability_ids": [
+          "secondary_structure_annotation",
+          "quality_qc"
+        ],
+        "cost_prior": 0.223,
+        "risk_prior": 0.154,
+        "latency_prior": 0.2,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mkdssp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mkdssp",
+          "capabilities": {
+            "tool_id": "dssp",
+            "adapter_id": "dssp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "dssp",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [
+            "secondary_structure_annotation"
+          ],
+          "compute_cost_prior": 0.22,
+          "latency_cost_prior": 0.2,
+          "failure_impact_prior": 0.35,
+          "human_dependency_prior": 0.1,
+          "reliability_prior": 0.82,
+          "structural_risk_prior": 0.2,
+          "execution_risk_prior": 0.16,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.223,
+          "step_risk": 0.154,
+          "is_evidence_layer": true,
+          "description": "二级结构与质量补充，适合作为低成本验证和 fallback。"
+        }
+      }
+    ]
+  },
+  {
+    "capability_id": "objective_scoring",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "objective_ranker",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "objective_scoring"
+        ],
+        "cost_prior": 0.278,
+        "risk_prior": 0.14,
+        "latency_prior": 0.24,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "objective_ranker",
+            "adapter_id": "objective_ranker",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "objective_ranker",
+          "capability_id": "objective_scoring",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.28,
+          "latency_cost_prior": 0.24,
+          "failure_impact_prior": 0.44,
+          "human_dependency_prior": 0.12,
+          "reliability_prior": 0.84,
+          "structural_risk_prior": 0.18,
+          "execution_risk_prior": 0.14,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "objective_scoring",
+          "step_cost": 0.278,
+          "step_risk": 0.14,
+          "is_evidence_layer": false,
+          "description": "中低成本打分器，主要风险在目标偏差与分数不稳定。"
+        }
+      },
+      {
+        "tool_id": "blastp",
+        "status": "degraded",
+        "reason": "binary 'blastp' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.35,
+        "risk_prior": null,
+        "latency_prior": 0.35,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'blastp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/blastp",
+          "capabilities": {
+            "tool_id": "blastp",
+            "adapter_id": "blastp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mmseqs2",
+        "status": "degraded",
+        "reason": "binary 'mmseqs' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.25,
+        "risk_prior": null,
+        "latency_prior": 0.25,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mmseqs' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mmseqs",
+          "capabilities": {
+            "tool_id": "mmseqs2",
+            "adapter_id": "mmseqs2",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "foldseek",
+        "status": "ready",
+        "reason": "Foldseek Web API is reachable",
+        "error_category": null,
+        "capability_ids": [
+          "structure_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.28,
+        "risk_prior": null,
+        "latency_prior": 0.28,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "Foldseek Web API is reachable",
+          "api_base_url": "https://search.foldseek.com/api",
+          "configured_databases": [
+            "afdb-swissprot"
+          ],
+          "available_database_count": 24,
+          "capabilities": {
+            "tool_id": "foldseek",
+            "adapter_id": "foldseek",
+            "execution_mode": "foldseek_api",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "capability_id": "structure_similarity_search",
+            "io_type": "structure_to_similarity_hits",
+            "format_output": [
+              "query",
+              "target",
+              "evalue",
+              "bits",
+              "alntmscore",
+              "qtmscore",
+              "ttmscore",
+              "lddt",
+              "alnlen",
+              "qlen",
+              "tlen",
+              "prob"
+            ],
+            "api_base_url": "https://search.foldseek.com/api",
+            "api_database_env_keys": [
+              "FOLDSEEK_API_DATABASES",
+              "FOLDSEEK_API_DATABASE"
+            ],
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mda_analysis",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "stability_simulation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.22,
+        "risk_prior": null,
+        "latency_prior": 0.22,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "mda_analysis",
+            "adapter_id": "mda_analysis",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "blocked_tools": [
+      {
+        "tool_id": "autodock_vina",
+        "status": "unavailable",
+        "reason": "binary 'vina' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "docking_scoring",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.52,
+        "risk_prior": null,
+        "latency_prior": 0.52,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'vina' not installed",
+          "capabilities": {
+            "tool_id": "autodock_vina",
+            "adapter_id": "autodock_vina",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "interproscan",
+        "status": "unavailable",
+        "reason": "binary 'interproscan.sh' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "function_annotation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.45,
+        "risk_prior": null,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'interproscan.sh' not installed",
+          "capabilities": {
+            "tool_id": "interproscan",
+            "adapter_id": "interproscan",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "degraded_reasons": [
+      "blastp: database_missing: binary 'blastp' resolved; local similarity database path is not configured",
+      "mmseqs2: database_missing: binary 'mmseqs' resolved; local similarity database path is not configured",
+      "autodock_vina: binary_missing: binary 'vina' not installed",
+      "interproscan: binary_missing: binary 'interproscan.sh' not installed"
+    ],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "objective_ranker",
+    "fallback_tool_ids": [
+      "blastp",
+      "mmseqs2",
+      "autodock_vina",
+      "foldseek",
+      "interproscan",
+      "mda_analysis"
+    ],
+    "cost_prior": 0.335429,
+    "risk_prior": 0.14,
+    "suggested_recovery": null,
+    "reason": "adapter registered",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "objective_ranker",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "objective_scoring"
+        ],
+        "cost_prior": 0.278,
+        "risk_prior": 0.14,
+        "latency_prior": 0.24,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "objective_ranker",
+            "adapter_id": "objective_ranker",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "objective_ranker",
+          "capability_id": "objective_scoring",
+          "secondary_capability_ids": [],
+          "compute_cost_prior": 0.28,
+          "latency_cost_prior": 0.24,
+          "failure_impact_prior": 0.44,
+          "human_dependency_prior": 0.12,
+          "reliability_prior": 0.84,
+          "structural_risk_prior": 0.18,
+          "execution_risk_prior": 0.14,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "objective_scoring",
+          "step_cost": 0.278,
+          "step_risk": 0.14,
+          "is_evidence_layer": false,
+          "description": "中低成本打分器，主要风险在目标偏差与分数不稳定。"
+        }
+      },
+      {
+        "tool_id": "blastp",
+        "status": "degraded",
+        "reason": "binary 'blastp' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.35,
+        "risk_prior": null,
+        "latency_prior": 0.35,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'blastp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/blastp",
+          "capabilities": {
+            "tool_id": "blastp",
+            "adapter_id": "blastp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mmseqs2",
+        "status": "degraded",
+        "reason": "binary 'mmseqs' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.25,
+        "risk_prior": null,
+        "latency_prior": 0.25,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mmseqs' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mmseqs",
+          "capabilities": {
+            "tool_id": "mmseqs2",
+            "adapter_id": "mmseqs2",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "autodock_vina",
+        "status": "unavailable",
+        "reason": "binary 'vina' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "docking_scoring",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.52,
+        "risk_prior": null,
+        "latency_prior": 0.52,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'vina' not installed",
+          "capabilities": {
+            "tool_id": "autodock_vina",
+            "adapter_id": "autodock_vina",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "foldseek",
+        "status": "ready",
+        "reason": "Foldseek Web API is reachable",
+        "error_category": null,
+        "capability_ids": [
+          "structure_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.28,
+        "risk_prior": null,
+        "latency_prior": 0.28,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "Foldseek Web API is reachable",
+          "api_base_url": "https://search.foldseek.com/api",
+          "configured_databases": [
+            "afdb-swissprot"
+          ],
+          "available_database_count": 24,
+          "capabilities": {
+            "tool_id": "foldseek",
+            "adapter_id": "foldseek",
+            "execution_mode": "foldseek_api",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "capability_id": "structure_similarity_search",
+            "io_type": "structure_to_similarity_hits",
+            "format_output": [
+              "query",
+              "target",
+              "evalue",
+              "bits",
+              "alntmscore",
+              "qtmscore",
+              "ttmscore",
+              "lddt",
+              "alnlen",
+              "qlen",
+              "tlen",
+              "prob"
+            ],
+            "api_base_url": "https://search.foldseek.com/api",
+            "api_database_env_keys": [
+              "FOLDSEEK_API_DATABASES",
+              "FOLDSEEK_API_DATABASE"
+            ],
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "interproscan",
+        "status": "unavailable",
+        "reason": "binary 'interproscan.sh' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "function_annotation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.45,
+        "risk_prior": null,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'interproscan.sh' not installed",
+          "capabilities": {
+            "tool_id": "interproscan",
+            "adapter_id": "interproscan",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mda_analysis",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "stability_simulation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.22,
+        "risk_prior": null,
+        "latency_prior": 0.22,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "mda_analysis",
+            "adapter_id": "mda_analysis",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "sequence_similarity_search",
+    "status": "degraded",
+    "available_tools": [
+      {
+        "tool_id": "blastp",
+        "status": "degraded",
+        "reason": "binary 'blastp' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.35,
+        "risk_prior": null,
+        "latency_prior": 0.35,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'blastp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/blastp",
+          "capabilities": {
+            "tool_id": "blastp",
+            "adapter_id": "blastp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mmseqs2",
+        "status": "degraded",
+        "reason": "binary 'mmseqs' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.25,
+        "risk_prior": null,
+        "latency_prior": 0.25,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mmseqs' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mmseqs",
+          "capabilities": {
+            "tool_id": "mmseqs2",
+            "adapter_id": "mmseqs2",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [
+      "blastp: database_missing: binary 'blastp' resolved; local similarity database path is not configured",
+      "mmseqs2: database_missing: binary 'mmseqs' resolved; local similarity database path is not configured"
+    ],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "blastp",
+    "fallback_tool_ids": [
+      "mmseqs2"
+    ],
+    "cost_prior": 0.3,
+    "risk_prior": null,
+    "suggested_recovery": "Configure required local databases or select a non-database fallback.",
+    "reason": "tool registered but health is degraded",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "blastp",
+        "status": "degraded",
+        "reason": "binary 'blastp' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.35,
+        "risk_prior": null,
+        "latency_prior": 0.35,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'blastp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/blastp",
+          "capabilities": {
+            "tool_id": "blastp",
+            "adapter_id": "blastp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      },
+      {
+        "tool_id": "mmseqs2",
+        "status": "degraded",
+        "reason": "binary 'mmseqs' resolved; local similarity database path is not configured",
+        "error_category": "database_missing",
+        "capability_ids": [
+          "sequence_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.25,
+        "risk_prior": null,
+        "latency_prior": 0.25,
+        "suggested_recovery": "Configure a local database path for the similarity adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mmseqs' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mmseqs",
+          "capabilities": {
+            "tool_id": "mmseqs2",
+            "adapter_id": "mmseqs2",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "secondary_structure_annotation",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "dssp",
+        "status": "ready",
+        "reason": "binary 'mkdssp' resolved",
+        "error_category": null,
+        "capability_ids": [
+          "secondary_structure_annotation",
+          "quality_qc"
+        ],
+        "cost_prior": 0.223,
+        "risk_prior": 0.154,
+        "latency_prior": 0.2,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mkdssp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mkdssp",
+          "capabilities": {
+            "tool_id": "dssp",
+            "adapter_id": "dssp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "dssp",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [
+            "secondary_structure_annotation"
+          ],
+          "compute_cost_prior": 0.22,
+          "latency_cost_prior": 0.2,
+          "failure_impact_prior": 0.35,
+          "human_dependency_prior": 0.1,
+          "reliability_prior": 0.82,
+          "structural_risk_prior": 0.2,
+          "execution_risk_prior": 0.16,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.223,
+          "step_risk": 0.154,
+          "is_evidence_layer": true,
+          "description": "二级结构与质量补充，适合作为低成本验证和 fallback。"
+        }
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "dssp",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.223,
+    "risk_prior": 0.154,
+    "suggested_recovery": null,
+    "reason": "binary 'mkdssp' resolved",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "dssp",
+        "status": "ready",
+        "reason": "binary 'mkdssp' resolved",
+        "error_category": null,
+        "capability_ids": [
+          "secondary_structure_annotation",
+          "quality_qc"
+        ],
+        "cost_prior": 0.223,
+        "risk_prior": 0.154,
+        "latency_prior": 0.2,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "binary 'mkdssp' resolved",
+          "binary_path": "/home/yurikon/.local/bin/mkdssp",
+          "capabilities": {
+            "tool_id": "dssp",
+            "adapter_id": "dssp",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": {
+          "tool_id": "dssp",
+          "capability_id": "quality_qc",
+          "secondary_capability_ids": [
+            "secondary_structure_annotation"
+          ],
+          "compute_cost_prior": 0.22,
+          "latency_cost_prior": 0.2,
+          "failure_impact_prior": 0.35,
+          "human_dependency_prior": 0.1,
+          "reliability_prior": 0.82,
+          "structural_risk_prior": 0.2,
+          "execution_risk_prior": 0.16,
+          "safety_risk_prior": 0.06,
+          "coupling_risk_prior": 0.12,
+          "high_cost_flag": false,
+          "evidence_role": "cheap_validation",
+          "step_cost": 0.223,
+          "step_risk": 0.154,
+          "is_evidence_layer": true,
+          "description": "二级结构与质量补充，适合作为低成本验证和 fallback。"
+        }
+      }
+    ]
+  },
+  {
+    "capability_id": "structure_similarity_search",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "foldseek",
+        "status": "ready",
+        "reason": "Foldseek Web API is reachable",
+        "error_category": null,
+        "capability_ids": [
+          "structure_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.28,
+        "risk_prior": null,
+        "latency_prior": 0.28,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "Foldseek Web API is reachable",
+          "api_base_url": "https://search.foldseek.com/api",
+          "configured_databases": [
+            "afdb-swissprot"
+          ],
+          "available_database_count": 24,
+          "capabilities": {
+            "tool_id": "foldseek",
+            "adapter_id": "foldseek",
+            "execution_mode": "foldseek_api",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "capability_id": "structure_similarity_search",
+            "io_type": "structure_to_similarity_hits",
+            "format_output": [
+              "query",
+              "target",
+              "evalue",
+              "bits",
+              "alntmscore",
+              "qtmscore",
+              "ttmscore",
+              "lddt",
+              "alnlen",
+              "qlen",
+              "tlen",
+              "prob"
+            ],
+            "api_base_url": "https://search.foldseek.com/api",
+            "api_database_env_keys": [
+              "FOLDSEEK_API_DATABASES",
+              "FOLDSEEK_API_DATABASE"
+            ],
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "foldseek",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.28,
+    "risk_prior": null,
+    "suggested_recovery": null,
+    "reason": "Foldseek Web API is reachable",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "foldseek",
+        "status": "ready",
+        "reason": "Foldseek Web API is reachable",
+        "error_category": null,
+        "capability_ids": [
+          "structure_similarity_search",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.28,
+        "risk_prior": null,
+        "latency_prior": 0.28,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "Foldseek Web API is reachable",
+          "api_base_url": "https://search.foldseek.com/api",
+          "configured_databases": [
+            "afdb-swissprot"
+          ],
+          "available_database_count": 24,
+          "capabilities": {
+            "tool_id": "foldseek",
+            "adapter_id": "foldseek",
+            "execution_mode": "foldseek_api",
+            "provider": "foldseek_web",
+            "endpoint_type": "rest",
+            "capability_id": "structure_similarity_search",
+            "io_type": "structure_to_similarity_hits",
+            "format_output": [
+              "query",
+              "target",
+              "evalue",
+              "bits",
+              "alntmscore",
+              "qtmscore",
+              "ttmscore",
+              "lddt",
+              "alnlen",
+              "qlen",
+              "tlen",
+              "prob"
+            ],
+            "api_base_url": "https://search.foldseek.com/api",
+            "api_database_env_keys": [
+              "FOLDSEEK_API_DATABASES",
+              "FOLDSEEK_API_DATABASE"
+            ],
+            "database_env_keys": [
+              "FOLDSEEK_DB_PATH",
+              "PROTEIN_STRUCTURE_DB_PATH",
+              "PROTEIN_DATABASE_PATH"
+            ]
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "function_annotation",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [
+      {
+        "tool_id": "interproscan",
+        "status": "unavailable",
+        "reason": "binary 'interproscan.sh' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "function_annotation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.45,
+        "risk_prior": null,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'interproscan.sh' not installed",
+          "capabilities": {
+            "tool_id": "interproscan",
+            "adapter_id": "interproscan",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "degraded_reasons": [
+      "interproscan: binary_missing: binary 'interproscan.sh' not installed"
+    ],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "interproscan",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.45,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "interproscan: binary_missing: binary 'interproscan.sh' not installed",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "interproscan",
+        "status": "unavailable",
+        "reason": "binary 'interproscan.sh' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "function_annotation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.45,
+        "risk_prior": null,
+        "latency_prior": 0.45,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'interproscan.sh' not installed",
+          "capabilities": {
+            "tool_id": "interproscan",
+            "adapter_id": "interproscan",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "stability_simulation",
+    "status": "ready",
+    "available_tools": [
+      {
+        "tool_id": "mda_analysis",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "stability_simulation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.22,
+        "risk_prior": null,
+        "latency_prior": 0.22,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "mda_analysis",
+            "adapter_id": "mda_analysis",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "mda_analysis",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.22,
+    "risk_prior": null,
+    "suggested_recovery": null,
+    "reason": "adapter registered",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "mda_analysis",
+        "status": "ready",
+        "reason": "adapter registered",
+        "error_category": null,
+        "capability_ids": [
+          "stability_simulation",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.22,
+        "risk_prior": null,
+        "latency_prior": 0.22,
+        "suggested_recovery": "Inspect adapter health details and use a fallback if available.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "ready",
+          "reason": "adapter registered",
+          "capabilities": {
+            "tool_id": "mda_analysis",
+            "adapter_id": "mda_analysis",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "motif_scaffolding",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": null,
+    "fallback_tool_ids": [],
+    "cost_prior": null,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "no registered tool is ready",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": []
+  },
+  {
+    "capability_id": "backbone_generation",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": null,
+    "fallback_tool_ids": [],
+    "cost_prior": null,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "no registered tool is ready",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": []
+  },
+  {
+    "capability_id": "binding_design",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": null,
+    "fallback_tool_ids": [],
+    "cost_prior": null,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "no registered tool is ready",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": []
+  },
+  {
+    "capability_id": "docking_scoring",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [
+      {
+        "tool_id": "autodock_vina",
+        "status": "unavailable",
+        "reason": "binary 'vina' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "docking_scoring",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.52,
+        "risk_prior": null,
+        "latency_prior": 0.52,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'vina' not installed",
+          "capabilities": {
+            "tool_id": "autodock_vina",
+            "adapter_id": "autodock_vina",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ],
+    "degraded_reasons": [
+      "autodock_vina: binary_missing: binary 'vina' not installed"
+    ],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": "autodock_vina",
+    "fallback_tool_ids": [],
+    "cost_prior": 0.52,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "autodock_vina: binary_missing: binary 'vina' not installed",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": [
+      {
+        "tool_id": "autodock_vina",
+        "status": "unavailable",
+        "reason": "binary 'vina' not installed",
+        "error_category": "binary_missing",
+        "capability_ids": [
+          "docking_scoring",
+          "objective_scoring"
+        ],
+        "cost_prior": 0.52,
+        "risk_prior": null,
+        "latency_prior": 0.52,
+        "suggested_recovery": "Install the required local binary or choose a fallback adapter.",
+        "last_checked_at": "2026-05-09T18:50:07+00:00",
+        "checked_at": null,
+        "details": {
+          "status": "unavailable",
+          "reason": "binary 'vina' not installed",
+          "capabilities": {
+            "tool_id": "autodock_vina",
+            "adapter_id": "autodock_vina",
+            "execution_mode": null,
+            "provider": null,
+            "endpoint_type": null
+          },
+          "cost_estimate": {
+            "level": "medium"
+          },
+          "latency_estimate": {
+            "level": "medium"
+          },
+          "healthcheck_timeout_s": 2.0
+        },
+        "metadata_profile": null
+      }
+    ]
+  },
+  {
+    "capability_id": "enzyme_design",
+    "status": "unavailable",
+    "available_tools": [],
+    "blocked_tools": [],
+    "degraded_reasons": [],
+    "last_checked_at": "2026-05-09T18:50:07+00:00",
+    "primary_tool_id": null,
+    "fallback_tool_ids": [],
+    "cost_prior": null,
+    "risk_prior": null,
+    "suggested_recovery": "Use available fallback tools or inspect adapter health details.",
+    "reason": "no registered tool is ready",
+    "checked_at": "2026-05-09T18:50:07+00:00",
+    "tools": []
+  }
+]
