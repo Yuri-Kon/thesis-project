@@ -256,3 +256,48 @@ def test_zai_provider_empty_response_raises_with_diagnostic_summary(monkeypatch)
     assert observed["request"]["prompt"]["user"]["chars"] > 0
     assert "content_length" in observed["response"]
     assert "structured_output_mode_may_be_unsupported_or_unsatisfied" in observed["possible_causes"]
+
+
+def test_zai_provider_invocation_failure_raises_with_diagnostic_summary(monkeypatch):
+    task = _sample_task()
+    calls = {}
+
+    class DummyCompletions:
+        def create(self, **kwargs):
+            calls["request_kwargs"] = kwargs
+            raise ConnectionError("Connection refused")
+
+    class DummyZai:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.chat = SimpleNamespace(completions=DummyCompletions())
+
+    monkeypatch.setattr(provider_module, "ZAI_AVAILABLE", True)
+    monkeypatch.setattr(provider_module, "ZaiClient", DummyZai, raising=False)
+
+    provider = ZaiChatProvider(
+        ProviderConfig(
+            model_name="glm-5",
+            api_key="test-key",
+            max_tokens=1048576,
+            structured_output_mode="json_schema",
+            extra_body={"thinking": {"type": "enabled"}},
+        )
+    )
+
+    try:
+        provider.call_planner(task, _sample_registry())
+    except ProviderPayloadValidationError as exc:
+        payload = exc.as_event_payload()
+    else:
+        raise AssertionError("expected ProviderPayloadValidationError")
+
+    assert payload["failure_code"] == "provider_invocation_failed"
+    failure = payload["failures"][0]
+    assert failure["code"] == "PROVIDER_INVOCATION_FAILED"
+    observed = failure["observed"]
+    assert observed["provider"] == "zai_chat"
+    assert observed["model"] == "glm-5"
+    assert observed["request"]["max_tokens"] == 1048576
+    assert observed["exception"]["type"] == "ConnectionError"
+    assert "provider_connection_failure" in observed["possible_causes"]

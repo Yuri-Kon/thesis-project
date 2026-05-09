@@ -1,0 +1,2 @@
+run_id,task_id,group_id,replicate,reason,final_status,event_log_path
+thesis-final-smoke-fourgroup-t5-lite-rerun-001_lite_belief_state_t2_trpcage_sequence_eval_r01,thesis-final-smoke-fourgroup-t5-lite-rerun-001_lite_belief_state_t2_trpcage_sequence_eval_r01,lite_belief_state,1,waiting_chain_incomplete,DONE,/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t5-lite-rerun-001_lite_belief_state_t2_trpcage_sequence_eval_r01.jsonl

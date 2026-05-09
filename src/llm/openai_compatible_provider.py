@@ -23,6 +23,7 @@ except ImportError:
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
 from src.llm.response_diagnostics import (
     build_empty_response_error,
+    build_provider_invocation_error,
     collect_stream_content_with_summary,
     extract_message_content_with_summary,
 )
@@ -99,6 +100,7 @@ class OpenAICompatibleProvider(BaseProvider):
 
         # 调用 LLM
         start_time = time.time()
+        request_kwargs = {}
         try:
             request_kwargs = self._build_request_kwargs(
                 system_prompt=system_prompt,
@@ -108,7 +110,16 @@ class OpenAICompatibleProvider(BaseProvider):
             )
             response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
-            raise Exception(f"LLM API 调用失败: {e}")
+            raise build_provider_invocation_error(
+                candidate_kind="plan",
+                provider_name="openai_compatible",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=time.time() - start_time,
+                request_kwargs=request_kwargs,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+                error=e,
+            )
 
         elapsed = time.time() - start_time
 
@@ -232,6 +243,7 @@ class OpenAICompatibleProvider(BaseProvider):
         schema_model,
     ) -> Dict | None:
         start_time = time.time()
+        request_kwargs = {}
         try:
             request_kwargs = self._build_request_kwargs(
                 system_prompt=system_prompt,
@@ -241,7 +253,16 @@ class OpenAICompatibleProvider(BaseProvider):
             )
             response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
-            raise Exception(f"LLM API 调用失败: {e}")
+            raise build_provider_invocation_error(
+                candidate_kind=schema_name,
+                provider_name="openai_compatible",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=time.time() - start_time,
+                request_kwargs=request_kwargs,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+                error=e,
+            )
 
         elapsed = time.time() - start_time
         if self.config.stream:

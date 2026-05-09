@@ -5,8 +5,8 @@
     "cif_path": "openfold3_request/seed_42/openfold3_request_seed_42_sample_1_model.cif"
   },
   "metadata": {
-    "job_id": "openfold3_4b92440d5c5e44f9bb820ac0b160065f",
-    "task_id": "thesis-final-smoke-fourgroup-t4-full-diagnostic-001_dynamic_no_belief_state_t2_trpcage_sequence_",
+    "job_id": "openfold3_250ffc3ea5d4420e8538076775a889c7",
+    "task_id": "thesis-final-smoke-fourgroup-t6-clean-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r01",
     "step_id": "S1",
     "device_used": "cuda",
     "predict_bin": "/root/autodl-tmp/envs/plm/bin/run_openfold",

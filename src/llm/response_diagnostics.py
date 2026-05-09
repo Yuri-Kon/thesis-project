@@ -156,6 +156,68 @@ def build_empty_response_error(
     )
 
 
+def build_provider_invocation_error(
+    *,
+    candidate_kind: str,
+    provider_name: str,
+    model: str,
+    endpoint: str,
+    elapsed_seconds: float,
+    request_kwargs: Mapping[str, object],
+    prompt_context: Mapping[str, str],
+    error: Exception,
+) -> ProviderPayloadValidationError:
+    """构造 provider 调用阶段失败的安全诊断错误。
+
+    Args:
+        candidate_kind: `plan`、`patch` 或 `replan`。
+        provider_name: provider 实现名。
+        model: 模型名。
+        endpoint: endpoint 标识。
+        elapsed_seconds: API 调用耗时。
+        request_kwargs: 已构造的请求参数；只抽取非敏感字段。
+        prompt_context: system/user prompt 文本；只记录长度与哈希。
+        error: SDK 或网络层抛出的异常。
+
+    Returns:
+        可被 Planner 统一记录的 ProviderPayloadValidationError。
+    """
+
+    error_type = type(error).__name__
+    error_message = str(error)
+    diagnostic_summary = {
+        "provider": provider_name,
+        "model": model,
+        "endpoint": endpoint,
+        "elapsed_seconds": round(elapsed_seconds, 6),
+        "candidate_kind": candidate_kind,
+        "request": _request_summary(request_kwargs, prompt_context),
+        "exception": {
+            "type": error_type,
+            "message": error_message,
+        },
+        "possible_causes": _infer_invocation_failure_causes(
+            error_type=error_type,
+            error_message=error_message,
+        ),
+    }
+    issue = {
+        "code": "PROVIDER_INVOCATION_FAILED",
+        "path": "$.api_call",
+        "message": "LLM provider call failed before a usable response was returned",
+        "observed": diagnostic_summary,
+        "repair_hint": (
+            "check provider availability, timeout, endpoint configuration, "
+            "rate limits, and API key validity before rerunning"
+        ),
+    }
+    return ProviderPayloadValidationError(
+        candidate_kind=candidate_kind,
+        failure_type="provider_invocation_failed",
+        issues=[issue],
+    )
+
+
 def _request_summary(
     request_kwargs: Mapping[str, object],
     prompt_context: Mapping[str, str],
@@ -228,6 +290,30 @@ def _infer_empty_response_causes(
             causes.append("structured_output_mode_may_be_unsupported_or_unsatisfied")
     if not causes:
         causes.append("provider_returned_blank_message_content")
+    return causes
+
+
+def _infer_invocation_failure_causes(
+    *,
+    error_type: str,
+    error_message: str,
+) -> list[str]:
+    text = f"{error_type} {error_message}".lower()
+    causes: list[str] = []
+    if "timeout" in text or "timed out" in text:
+        causes.append("provider_request_timeout")
+    if "connection" in text or "connect" in text or "refused" in text:
+        causes.append("provider_connection_failure")
+    if "rate" in text or "429" in text or "quota" in text:
+        causes.append("provider_rate_limit_or_quota")
+    if "401" in text or "403" in text or "auth" in text or "api key" in text:
+        causes.append("provider_auth_or_permission")
+    if "400" in text or "invalid" in text or "bad request" in text:
+        causes.append("provider_rejected_request_payload")
+    if "500" in text or "502" in text or "503" in text or "504" in text:
+        causes.append("provider_server_error")
+    if not causes:
+        causes.append("provider_api_call_failed")
     return causes
 
 

@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, cast
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -362,6 +362,7 @@ class ScenarioGatePreviewResponse(BaseModel):
 class TaskReportDetail(BaseModel):
     task_id: str
     report_path: Optional[str] = None
+    structure_pdb_path: Optional[str] = None
     scores: Dict[str, Any] = Field(default_factory=dict)
     objective_scoring: Dict[str, Any] = Field(default_factory=dict)
     structure_similarity: Dict[str, Any] = Field(default_factory=dict)
@@ -1631,11 +1632,47 @@ async def get_task_report(task_id: str) -> TaskReportDetail:
     return TaskReportDetail(
         task_id=task_id,
         report_path=design_result.report_path,
+        structure_pdb_path=design_result.structure_pdb_path,
         scores=dict(design_result.scores or {}),
         objective_scoring=objective_scoring,
         structure_similarity=structure_similarity,
         metadata=metadata,
     )
+
+
+@app.get("/tasks/{task_id}/structure", response_class=PlainTextResponse)
+async def get_task_structure(task_id: str) -> PlainTextResponse:
+    """读取任务结构文件，供前端结构查看器加载。"""
+
+    record = TASK_STORE.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    design_result = record.design_result
+    if design_result is None or not design_result.structure_pdb_path:
+        raise HTTPException(status_code=404, detail="task structure not found")
+    structure_path = _resolve_structure_artifact_path(design_result.structure_pdb_path)
+    if structure_path is None or not structure_path.exists() or not structure_path.is_file():
+        raise HTTPException(status_code=404, detail="task structure artifact not found")
+    return PlainTextResponse(
+        structure_path.read_text(encoding="utf-8", errors="replace"),
+        media_type="chemical/x-pdb",
+    )
+
+
+def _resolve_structure_artifact_path(raw_path: str) -> Path | None:
+    path = Path(raw_path).expanduser()
+    if path.suffix.lower() not in {".pdb", ".cif", ".mmcif"}:
+        return None
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    resolved = path.resolve()
+    allowed_roots = [Path.cwd().resolve(), Path("/tmp").resolve()]
+    output_dir = os.getenv("PROTEIN_OUTPUT_DIR")
+    if output_dir:
+        allowed_roots.append(Path(output_dir).expanduser().resolve())
+    if any(resolved == root or root in resolved.parents for root in allowed_roots):
+        return resolved
+    return None
 
 
 def _event_matches_filters(
