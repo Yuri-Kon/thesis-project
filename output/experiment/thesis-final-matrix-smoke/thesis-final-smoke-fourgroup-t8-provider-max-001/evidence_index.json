@@ -1,0 +1,58 @@
+[
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t8-provider-max-001_static_top1_t2_trpcage_sequence_eval_r01",
+    "group_id": "static_top1",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_configs/thesis-final-smoke-fourgroup-t8-provider-max-001_static_top1_t2_trpcage_sequence_eval_r01.json",
+    "event_log_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_static_top1_t2_trpcage_sequence_eval_r01.jsonl",
+    "snapshot_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/snapshots/thesis-final-smoke-fourgroup-t8-provider-max-001_static_top1_t2_trpcage_sequence_eval_r01.jsonl",
+    "report_path": "output/reports/thesis-final-smoke-fourgroup-t8-provider-max-001_static_top1_t2_trpcage_sequence_eval_r01.json",
+    "summary_row_id": "3c9b27db2b32",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t8-provider-max-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r01",
+    "group_id": "fixed_threshold_gate",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_configs/thesis-final-smoke-fourgroup-t8-provider-max-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r01.json",
+    "event_log_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r.jsonl",
+    "snapshot_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/snapshots/thesis-final-smoke-fourgroup-t8-provider-max-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r.jsonl",
+    "report_path": "output/reports/thesis-final-smoke-fourgroup-t8-provider-max-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r.json",
+    "summary_row_id": "c0ceaf2edef7",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t8-provider-max-001_dynamic_no_belief_state_t2_trpcage_sequence_eval_r01",
+    "group_id": "dynamic_no_belief_state",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_configs/thesis-final-smoke-fourgroup-t8-provider-max-001_dynamic_no_belief_state_t2_trpcage_sequence_eval_r01.json",
+    "event_log_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_dynamic_no_belief_state_t2_trpcage_sequence_eva.jsonl",
+    "snapshot_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/snapshots/thesis-final-smoke-fourgroup-t8-provider-max-001_dynamic_no_belief_state_t2_trpcage_sequence_eva.jsonl",
+    "report_path": "output/reports/thesis-final-smoke-fourgroup-t8-provider-max-001_dynamic_no_belief_state_t2_trpcage_sequence_eva.json",
+    "summary_row_id": "0fcc62d796b0",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t8-provider-max-001_lite_belief_state_t2_trpcage_sequence_eval_r01",
+    "group_id": "lite_belief_state",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_configs/thesis-final-smoke-fourgroup-t8-provider-max-001_lite_belief_state_t2_trpcage_sequence_eval_r01.json",
+    "event_log_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_lite_belief_state_t2_trpcage_sequence_eval_r01.jsonl",
+    "snapshot_path": "/home/yurikon/Documents/thesis/thesis-project.dev/data/snapshots/thesis-final-smoke-fourgroup-t8-provider-max-001_lite_belief_state_t2_trpcage_sequence_eval_r01.jsonl",
+    "report_path": "output/reports/thesis-final-smoke-fourgroup-t8-provider-max-001_lite_belief_state_t2_trpcage_sequence_eval_r01.json",
+    "summary_row_id": "c39b02ffb2dd",
+    "artifact_complete": true
+  }
+]
