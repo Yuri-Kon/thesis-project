@@ -1,7 +1,7 @@
 {
     "experiment_settings": {
         "mode": "predict",
-        "output_dir": "/root/autodl-tmp/remote/openfold3_jobs/openfold3_96a12a662e95419b8f2314699a06df46/artifacts",
+        "output_dir": "/root/autodl-tmp/remote/openfold3_jobs/openfold3_4b92440d5c5e44f9bb820ac0b160065f/artifacts",
         "log_dir": null,
         "seeds": [
             42
@@ -133,7 +133,7 @@
         "server_user_agent": "openfold",
         "server_url": "https://api.colabfold.com/",
         "save_mappings": true,
-        "msa_output_directory": "/tmp/of3_openfold3_96a12a662e95419b8f2314699a06df46/of3_colabfold_msas",
+        "msa_output_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_colabfold_msas",
         "cleanup_msa_dir": true
     },
     "template_preprocessor_settings": {
@@ -155,12 +155,12 @@
         "create_logs": false,
         "n_processes": 1,
         "chunksize": 1,
-        "structure_directory": "/tmp/of3_openfold3_96a12a662e95419b8f2314699a06df46/of3_template_data/template_structures",
+        "structure_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data/template_structures",
         "structure_file_format": "cif",
-        "output_directory": "/tmp/of3_openfold3_96a12a662e95419b8f2314699a06df46/of3_template_data",
+        "output_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data",
         "precache_directory": null,
         "structure_array_directory": null,
-        "cache_directory": "/tmp/of3_openfold3_96a12a662e95419b8f2314699a06df46/of3_template_data/template_cache",
+        "cache_directory": "/tmp/of3_openfold3_4b92440d5c5e44f9bb820ac0b160065f/of3_template_data/template_cache",
         "log_directory": null,
         "ccd_file_path": null
     }
