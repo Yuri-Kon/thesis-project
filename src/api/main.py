@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from copy import deepcopy
 from pathlib import Path
@@ -1332,53 +1333,72 @@ async def create_structure_viewer_demo_task() -> dict[str, str]:
 def _demo_structure_pdb_text() -> str:
     """返回用于前端结构查看器的固定 PDB 示例。"""
 
-    return "\n".join(
-        [
-            "HEADER    STRUCTURE VIEWER DEMO",
-            "ATOM      1  N   ALA A   1       0.000   1.200   0.000  1.00 88.00           N",
-            "ATOM      2  CA  ALA A   1       1.450   1.050   0.200  1.00 88.00           C",
-            "ATOM      3  C   ALA A   1       2.050  -0.250   0.650  1.00 88.00           C",
-            "ATOM      4  O   ALA A   1       1.420  -1.250   0.520  1.00 88.00           O",
-            "ATOM      5  N   CYS A   2       3.280  -0.220   1.170  1.00 86.00           N",
-            "ATOM      6  CA  CYS A   2       4.020  -1.420   1.690  1.00 86.00           C",
-            "ATOM      7  C   CYS A   2       5.360  -1.020   2.300  1.00 86.00           C",
-            "ATOM      8  O   CYS A   2       6.100  -1.850   2.820  1.00 86.00           O",
-            "ATOM      9  N   ASP A   3       5.690   0.250   2.250  1.00 89.00           N",
-            "ATOM     10  CA  ASP A   3       6.970   0.760   2.780  1.00 89.00           C",
-            "ATOM     11  C   ASP A   3       7.640   1.690   1.780  1.00 89.00           C",
-            "ATOM     12  O   ASP A   3       8.850   1.890   1.820  1.00 89.00           O",
-            "ATOM     13  N   GLU A   4       6.850   2.260   0.870  1.00 91.00           N",
-            "ATOM     14  CA  GLU A   4       7.360   3.180  -0.150  1.00 91.00           C",
-            "ATOM     15  C   GLU A   4       8.200   2.430  -1.190  1.00 91.00           C",
-            "ATOM     16  O   GLU A   4       9.110   3.000  -1.790  1.00 91.00           O",
-            "ATOM     17  N   PHE A   5       7.880   1.150  -1.390  1.00 87.00           N",
-            "ATOM     18  CA  PHE A   5       8.610   0.310  -2.340  1.00 87.00           C",
-            "ATOM     19  C   PHE A   5       9.980  -0.070  -1.780  1.00 87.00           C",
-            "ATOM     20  O   PHE A   5      10.900  -0.410  -2.520  1.00 87.00           O",
-            "ATOM     21  N   GLY A   6      10.100  -0.010  -0.460  1.00 90.00           N",
-            "ATOM     22  CA  GLY A   6      11.360  -0.340   0.190  1.00 90.00           C",
-            "ATOM     23  C   GLY A   6      12.390   0.770   0.060  1.00 90.00           C",
-            "ATOM     24  O   GLY A   6      13.580   0.510   0.240  1.00 90.00           O",
-            "ATOM     25  N   HIS A   7      11.930   2.000  -0.250  1.00 92.00           N",
-            "ATOM     26  CA  HIS A   7      12.800   3.160  -0.430  1.00 92.00           C",
-            "ATOM     27  C   HIS A   7      13.250   3.270  -1.890  1.00 92.00           C",
-            "ATOM     28  O   HIS A   7      14.310   3.820  -2.180  1.00 92.00           O",
-            "ATOM     29  N   ILE A   8      12.430   2.740  -2.800  1.00 89.00           N",
-            "ATOM     30  CA  ILE A   8      12.730   2.780  -4.230  1.00 89.00           C",
-            "ATOM     31  C   ILE A   8      13.850   1.810  -4.580  1.00 89.00           C",
-            "ATOM     32  O   ILE A   8      14.540   1.990  -5.580  1.00 89.00           O",
-            "ATOM     33  N   LYS A   9      14.030   0.790  -3.740  1.00 88.00           N",
-            "ATOM     34  CA  LYS A   9      15.080  -0.200  -3.950  1.00 88.00           C",
-            "ATOM     35  C   LYS A   9      16.450   0.420  -3.690  1.00 88.00           C",
-            "ATOM     36  O   LYS A   9      17.430  -0.030  -4.280  1.00 88.00           O",
-            "ATOM     37  N   LEU A  10      16.510   1.450  -2.840  1.00 90.00           N",
-            "ATOM     38  CA  LEU A  10      17.760   2.150  -2.550  1.00 90.00           C",
-            "ATOM     39  C   LEU A  10      18.090   3.120  -3.680  1.00 90.00           C",
-            "ATOM     40  O   LEU A  10      19.260   3.420  -3.920  1.00 90.00           O",
-            "TER",
-            "END",
-            "",
-        ]
+    residues = (
+        "ALA", "LEU", "LYS", "GLU", "PHE", "GLY", "HIS", "ILE",
+        "ASN", "ARG", "SER", "THR", "VAL", "TYR", "ASP", "GLN",
+    )
+    lines = [
+        "HEADER    STRUCTURE VIEWER DEMO",
+        "TITLE     SYNTHETIC HELIX-BUNDLE DEMO, NO MODEL INFERENCE",
+    ]
+    serial = 1
+    for index in range(72):
+        residue = residues[index % len(residues)]
+        turn = index / 11.0
+        strand = index // 24
+        local = index % 24
+        direction = 1 if strand % 2 == 0 else -1
+        base_x = direction * (local * 1.45 - 16.0) + strand * 3.6
+        base_y = 8.0 * math.sin(turn * 1.7) + strand * 4.8
+        base_z = 8.0 * math.cos(turn * 1.7) + math.sin(index * 0.42) * 2.4
+        confidence = 92.0 - abs(36 - index) * 0.38
+        atom_offsets = {
+            "N": (-0.58, 0.52, -0.18),
+            "CA": (0.0, 0.0, 0.0),
+            "C": (0.72, -0.48, 0.22),
+            "O": (1.10, -1.26, 0.42),
+            "CB": (-0.22, 1.34, 0.74),
+        }
+        for atom_name, offset in atom_offsets.items():
+            x = base_x + offset[0]
+            y = base_y + offset[1]
+            z = base_z + offset[2]
+            element = atom_name[0]
+            lines.append(
+                _format_demo_pdb_atom(
+                    serial=serial,
+                    atom_name=atom_name,
+                    residue=residue,
+                    residue_index=index + 1,
+                    x=x,
+                    y=y,
+                    z=z,
+                    confidence=confidence,
+                    element=element,
+                )
+            )
+            serial += 1
+    lines.extend(["TER", "END", ""])
+    return "\n".join(lines)
+
+
+def _format_demo_pdb_atom(
+    *,
+    serial: int,
+    atom_name: str,
+    residue: str,
+    residue_index: int,
+    x: float,
+    y: float,
+    z: float,
+    confidence: float,
+    element: str,
+) -> str:
+    """格式化 demo PDB ATOM 行。"""
+
+    return (
+        f"ATOM  {serial:5d} {atom_name:^4s}{residue:>4s} A{residue_index:4d}    "
+        f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00{confidence:6.2f}          {element:>2s}"
     )
 
 

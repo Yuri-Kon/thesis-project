@@ -319,7 +319,7 @@ class TestAPIEndpoints:
         assert task_response.json()["status"] == "DONE"
         assert structure_response.status_code == 200
         assert "HEADER    STRUCTURE VIEWER DEMO" in structure_response.text
-        assert "ATOM     26  CA  HIS" in structure_response.text
+        assert structure_response.text.count("\nATOM") >= 300
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
