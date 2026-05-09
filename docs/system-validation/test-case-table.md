@@ -1,6 +1,6 @@
 # 系统验证测试用例表
 
-更新时间：2026-05-09
+更新时间：2026-05-10
 
 本文档用于汇总毕业论文第五章“系统测试与验证”的测试用例、执行方式、预期结果和证据路径。它连接 `docs/experiment/final-thesis-experiment-design.md` 中的 `EXP-S1` 到 `EXP-S7` 与 `docs/system-validation/system-validation-checklist.md` 中的 `SV-*` 验证点。
 
@@ -28,9 +28,9 @@
 | TC-S06 | 快照恢复与运行时状态边界验证 | EXP-S3 | SV-14、SV-28、SV-29 | 单元 / 集成 | 待执行 | snapshot JSON、recovery 测试日志、plan 对照 |
 | TC-S07 | Web 关键页面可用性验证 | EXP-S4 | SV-01、SV-30 | UI / 手工 / smoke | 待执行 | Dashboard、Task Builder、Task Detail、Timeline 截图 |
 | TC-S08 | CLI 关键命令可用性验证 | EXP-S4 | SV-02、SV-03、SV-25、SV-26、SV-30 | CLI / 手工 / 自动化 | 待执行 | CLI 输出、task JSON、timeline JSON |
-| TC-S09 | 正常端到端任务流程验证 | EXP-S5 | SV-16、SV-25、SV-26 | 集成 / API | 待执行 | TaskRecord、StepResult、DesignResult、report artifact |
+| TC-S09 | 正常端到端任务流程验证 | EXP-S5 | SV-16、SV-25、SV-26 | 集成 / API | 部分通过 | t8 四组 smoke run、TaskRecord、StepResult、report artifact；API report focused test 待补 |
 | TC-S10 | 异常输入与安全 warn/block 验证 | EXP-S6 | SV-04、SV-05、SV-06、SV-11、SV-13、SV-21、SV-24 | 单元 / API | 待执行 | 错误响应 JSON、SafetyResult、状态未变更日志 |
-| TC-S11 | 工具链执行与 I/O 边界验证 | EXP-S5、EXP-S6 | SV-16、SV-17 | 集成 / 单元 | 待执行 | StepResult、candidate validation log、artifact |
+| TC-S11 | 工具链执行与 I/O 边界验证 | EXP-S5、EXP-S6 | SV-16、SV-17 | 集成 / 单元 | 部分通过 | t8 OpenFold3 REST 成功日志、StepResult、artifact；异常 I/O 边界 focused test 待补 |
 | TC-S12 | 失败恢复 retry -> patch -> replan 验证 | EXP-S7 | SV-18、SV-19、SV-20、SV-22 | 单元 / 集成 | 待执行 | recovery trace、Plan diff、EventLog |
 | TC-S13 | 恢复止损与审计链路验证 | EXP-S7 | SV-21、SV-23、SV-25 | 集成 / API | 待执行 | terminal_stop 记录、FAILED TaskRecord、timeline JSON |
 
@@ -46,9 +46,9 @@
 | TC-S06 | snapshot store 可写；存在等待态或运行态任务 | 1. 运行 `tests/unit/test_task_snapshot.py` 和 `tests/integration/test_snapshot_recovery.py`。<br>2. 保存等待态 snapshot。<br>3. 执行恢复流程。<br>4. 对比 Plan 与 snapshot artifacts。 | snapshot 可恢复 plan、completed steps、pending action 和 runtime_state；恢复到 `WAITING_*` 后不自动推进；runtime_state 仅在 snapshot artifacts 持久化，不污染 Plan。 | 待执行 | `docs/system-validation/04-data-consistency/snapshots/`；`docs/system-validation/04-data-consistency/runtime-state/`；`docs/system-validation/07-test-runs/pytest-snapshot-recovery.log` | 待验证 |
 | TC-S07 | API 服务启动；前端静态资源可访问；至少存在一个测试任务 | 1. 打开 `/ui`。<br>2. 打开 `/ui/task-builder` 并完成 intake 创建/确认。<br>3. 打开 `/ui/tasks/{task_id}`。<br>4. 查看 timeline 和 pending review 面板。 | Dashboard、Task Builder、Task Detail、Timeline 可加载；同一 task_id 的状态、pending_action_id、事件链可在页面展示；人工确认入口可见。 | 待执行 | `docs/system-validation/06-ui-screenshots/dashboard.png`；`docs/system-validation/06-ui-screenshots/task-builder.png`；`docs/system-validation/06-ui-screenshots/task-detail.png`；`docs/system-validation/06-ui-screenshots/timeline.png` | 待验证 |
 | TC-S08 | CLI 可通过 `python -m src.cli` 调用；API 或本地存储可访问 | 1. 运行 `python -m src.cli intake schema --json`。<br>2. 创建、查看并确认 intake。<br>3. 查询 task、timeline、pending、report。<br>4. 保存 JSON 与人类可读输出。 | CLI 能输出 JSON 和人类可读摘要；CLI 与 Web/API 展示的 task_id、status、pending_action_id、event 数量一致。 | 待执行 | `docs/system-validation/07-test-runs/cli-intake.log`；`docs/system-validation/07-test-runs/cli-task.log`；`docs/system-validation/07-test-runs/cli-timeline.log` | 待验证 |
-| TC-S09 | mock 或可用远程 provider 就绪；正常任务样例已确定 | 1. 运行 `tests/integration/test_mock_remote_full_flow.py`、`tests/integration/test_esmfold_summarizer_integration.py`、`tests/integration/test_workflow.py`。<br>2. 创建一个正常设计或序列评估任务。<br>3. 查询最终报告。 | 任务进入 `DONE`；至少包含一个 `StepResult`；`/tasks/{id}/report` 返回 `DesignResult`；报告包含 scores、risk_flags、report_path 或 structure artifact。 | 待执行 | `docs/system-validation/01-core-flows/normal-task-flow/`；`docs/system-validation/01-core-flows/final-report-flow/`；`docs/system-validation/07-test-runs/pytest-e2e.log` | 待验证 |
+| TC-S09 | mock 或可用远程 provider 就绪；正常任务样例已确定 | 1. 运行 `tests/integration/test_mock_remote_full_flow.py`、`tests/integration/test_esmfold_summarizer_integration.py`、`tests/integration/test_workflow.py`。<br>2. 创建一个正常设计或序列评估任务。<br>3. 查询最终报告。 | 任务进入 `DONE`；至少包含一个 `StepResult`；`/tasks/{id}/report` 返回 `DesignResult`；报告包含 scores、risk_flags、report_path 或 structure artifact。 | 2026-05-10 已有 t8 四组 smoke 证据：`thesis-final-smoke-fourgroup-t8-provider-max-001` 共 4 run，4 个 `DONE`，`artifact_complete_count=4`，`rerun_candidate_count=0`，`abnormal_samples.csv` 为空；尚未运行本用例列出的 API/report focused tests。 | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_log_index.csv`；`output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl`；`output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/validation_summary.json` | 部分通过 |
 | TC-S10 | 安全规则与异常输入测试可运行 | 1. 运行 `tests/unit/test_safety_agent.py`、`tests/unit/test_decision_validation.py`、`tests/api/test_api_endpoints.py`。<br>2. 提交缺失必要字段的请求。<br>3. 提交 safety warn 未 acknowledge 的请求。<br>4. 提交 safety block 请求。<br>5. 对终态任务继续提交 decision。 | warn 必须显式 acknowledge；block 不允许创建正式执行任务；错误 decision 被拒绝且不改变任务状态；终态不可再决策。 | 待执行 | `docs/system-validation/03-exceptions-boundaries/invalid-input/`；`docs/system-validation/03-exceptions-boundaries/safety-block/`；`docs/system-validation/03-exceptions-boundaries/terminal-state/` | 待验证 |
-| TC-S11 | 工具 registry 与候选校验逻辑可用 | 1. 运行包含工具执行的集成测试。<br>2. 构造正常工具调用，检查 `StepResult`、metrics、artifacts。<br>3. 构造 schema 或 I/O 引用错误候选。 | 正常步骤产生 `StepResult`、metrics 和 artifact；工具 schema/I-O 引用错误必须淘汰候选或产生明确失败，不静默执行。 | 待执行 | `docs/system-validation/01-core-flows/normal-task-flow/`；`docs/system-validation/03-exceptions-boundaries/tool-io-validation/` | 待验证 |
+| TC-S11 | 工具 registry 与候选校验逻辑可用 | 1. 运行包含工具执行的集成测试。<br>2. 构造正常工具调用，检查 `StepResult`、metrics、artifacts。<br>3. 构造 schema 或 I/O 引用错误候选。 | 正常步骤产生 `StepResult`、metrics 和 artifact；工具 schema/I-O 引用错误必须淘汰候选或产生明确失败，不静默执行。 | 2026-05-10 已有 t8 正常工具链证据：四组均执行 `openfold`，事件日志显示 `execution_mode=openfold3_rest` 且 `status=success`；`static_top1` 额外完成 `biopython_qc` 与 `mda_analysis`；未再出现 `DUMMY`、`ProviderPayloadValidationError` 或 OpenFold3 输入异常。schema/I-O 错误候选淘汰仍需 focused test。 | `data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_*.jsonl`；`output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/requirement2_tool_capability_slices.csv`；`output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/abnormal_samples.csv` | 部分通过 |
 | TC-S12 | 可触发 retry 耗尽、patch 和 replan 的测试任务可用 | 1. 运行 `test_run_plan_triggers_patch_after_retry_exhausted`。<br>2. 运行 `test_auto_replan_resolves_pending_action`。<br>3. 运行 `tests/integration/test_recovery_layered_patch.py` 和 `tests/integration/test_s6_control_layer_e2e.py`。<br>4. 保存 Plan diff 与 EventLog。 | retry 耗尽后不直接 `FAILED`；局部可修时进入 patch_confirm；patch accept 后只修改目标步骤或后缀；replan 保留可保留前缀。 | 待执行 | `docs/system-validation/02-hitl/patch-confirm/`；`docs/system-validation/02-hitl/replan-confirm/`；`docs/system-validation/04-data-consistency/plan-patch-diff/`；`docs/system-validation/07-test-runs/pytest-recovery.log` | 待验证 |
 | TC-S13 | 存在安全 block、结构性失败或 terminal_stop 场景 | 1. 触发 safety block 或结构性失败。<br>2. 生成 replan/stop 候选。<br>3. 接受 terminal_stop 候选。<br>4. 查询 task 与 events。 | Safety block 禁止 continue，并进入 replan/stop 候选；terminal_stop 接受后进入 `FAILED`；`/tasks/{id}/events` 可还原恢复与止损链路。 | 待执行 | `docs/system-validation/03-exceptions-boundaries/safety-block/`；`docs/system-validation/04-data-consistency/event-logs/`；`docs/system-validation/05-api-results/timelines/` | 待验证 |
 
@@ -75,7 +75,7 @@
 | API 合约验证 | TC-S02、TC-S03 | intake、task、pending action、events、report、计划候选 | 待填 | API JSON、pytest-api.log |
 | FSM 与 HITL 验证 | TC-S04、TC-S05、TC-S06 | 等待态、人工决策、快照恢复、终态不可变 | 待填 | EventLog、snapshot、pytest-fsm.log |
 | Web / CLI 可用性验证 | TC-S07、TC-S08 | 前端页面、CLI 命令、同一任务证据展示 | 待填 | 截图、CLI 输出 |
-| 端到端流程验证 | TC-S09、TC-S11 | 正常任务执行、StepResult、DesignResult、工具 I/O | 待填 | TaskRecord、report、artifact |
+| 端到端流程验证 | TC-S09、TC-S11 | 正常任务执行、StepResult、DesignResult、工具 I/O | 部分通过 | t8 四组 smoke run、run_log_index、run_level_results、OpenFold3 REST artifact |
 | 异常与安全边界验证 | TC-S10、TC-S13 | 缺字段、错误决策、安全 warn/block、止损 | 待填 | 错误响应、SafetyResult、timeline |
 | 失败恢复验证 | TC-S12、TC-S13 | retry、patch、replan、terminal stop、恢复审计链 | 待填 | recovery trace、Plan diff、EventLog |
 

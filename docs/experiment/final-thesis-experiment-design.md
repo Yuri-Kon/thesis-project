@@ -435,6 +435,31 @@ uv run python scripts/run_thesis_experiment_matrix.py \
 | dynamic_no_belief_state | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 0 |
 | lite_belief_state | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
 
+当前 smoke 执行记录：
+
+| run_id | 日期 | planner_provider | task_key | selection | runs | success | rerun_candidates | abnormal_samples | 结论 |
+|:---|:---|:---|:---|:---|---:|---:|---:|---:|:---|
+| `thesis-final-smoke-fourgroup-t8-provider-max-001` | 2026-05-10 | `deepseek-v4-pro` | `t2_trpcage_sequence_eval` | `four-group-t8-provider-max-selection.json` | 4 | 4 | 0 | 0 | 四组 smoke 通过；provider max_tokens 与 OpenFold3 REST 链路恢复正常 |
+
+当前 smoke 结果表：
+
+| group_id | runs | success_rate | first_pass_success_rate | executable_plan_rate | duration_ms_mean | tool_usage | trace_ref |
+|:---|---:|---:|---:|---:|---:|:---|:---|
+| `static_top1` | 1 | 1.0000 | 1.0000 | 1.0000 | 183000.0 | `openfold=1, biopython_qc=1, mda_analysis=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `fixed_threshold_gate` | 1 | 1.0000 | 1.0000 | 1.0000 | 290000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `dynamic_no_belief_state` | 1 | 1.0000 | 1.0000 | 1.0000 | 207000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `lite_belief_state` | 1 | 1.0000 | 1.0000 | 1.0000 | 253000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+
+Provider 与 OpenFold3 修复验证：
+
+| 验证项 | t8 观察结果 | 证据 |
+|:---|:---|:---|
+| DeepSeek V4 `max_tokens` 上限 | 未再出现 `Invalid max_tokens value` 或 `provider_invocation_failed` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_log_index.csv` |
+| OpenFold3 输入序列 | 未再出现 `DUMMY`；事件日志中的输入摘要为真实 20 aa 序列 `NLYIQWLKDGGPSSGRPPPS` | `data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_*.jsonl` |
+| OpenFold3 REST 执行 | 四组均完成 `openfold`，`execution_mode=openfold3_rest`，`status=success` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/requirement2_tool_capability_slices.csv` |
+
+限制说明：t8 是单任务、单重复的 smoke 结果，可用于证明链路可用和修复生效；正式论文主结果仍需扩大任务数或补充失败恢复/安全边界样本。当前 `high_cost_call_mean` 在 t8 汇总中为 0，但四组工具切片均记录 `openfold=1`，高代价计数口径需要在后续评估器修复或结果解释中单独说明。
+
 通过标准：
 
 - 四组均能生成 run manifest。
