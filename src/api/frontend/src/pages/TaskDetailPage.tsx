@@ -12,6 +12,7 @@ import { StructureViewerPanel } from "../components/StructureViewerPanel";
 import { TaskDetailSkeleton } from "../components/SkeletonCard";
 import { TaskSearch } from "../components/TaskSearch";
 import { TheoryObjectSummary } from "../components/TheoryObjectSummary";
+import { statusLabel } from "../utils/displayText";
 
 interface TaskDetailPageProps {
   state: WorkspaceState;
@@ -24,46 +25,46 @@ interface TaskDetailPageProps {
 
 export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh, onInspectorChange }: TaskDetailPageProps) {
   const task = state.task;
-  const pendingLabel = task?.pending_action?.pending_action_id ?? "none";
+  const pendingLabel = task?.pending_action?.pending_action_id ?? "无";
 
   useEffect(() => {
     onInspectorChange([
       {
         key: "inspector-overview",
-        title: "Inspector",
+        title: "检查器",
         statusBadge: <StatusBadge value={task?.status} />,
         children: (
           <dl className="kv compact-kv">
-            <dt>Task</dt>
-            <dd>{task?.id ?? (taskId || "none")}</dd>
-            <dt>External</dt>
-            <dd>{task?.status ?? "not loaded"}</dd>
-            <dt>Internal</dt>
-            <dd>{task?.internal_status ?? "not loaded"}</dd>
-            <dt>Pending</dt>
+            <dt>任务</dt>
+            <dd>{task?.id ?? (taskId || "无")}</dd>
+            <dt>外部状态</dt>
+            <dd>{statusLabel(task?.status)}</dd>
+            <dt>内部状态</dt>
+            <dd>{statusLabel(task?.internal_status)}</dd>
+            <dt>待处理</dt>
             <dd>{pendingLabel}</dd>
-            <dt>Updated</dt>
+            <dt>更新时间</dt>
             <dd>{task?.updated_at ?? "-"}</dd>
           </dl>
         ),
       },
       {
         key: "theory-objects",
-        title: "Theory Objects",
-        statusBadge: state.pendingActionDetail ? <span className="pill">core</span> : undefined,
+        title: "理论对象",
+        statusBadge: state.pendingActionDetail ? <span className="pill">核心</span> : undefined,
         children: <TheoryObjectSummary detail={state.pendingActionDetail} />,
       },
       {
         key: "operation",
-        title: "Operation",
+        title: "操作",
         children: (
           <dl className="kv compact-kv">
-            <dt>Candidates</dt>
+            <dt>候选方案</dt>
             <dd>{state.pendingActionDetail?.candidates.length ?? 0}</dd>
-            <dt>Default</dt>
-            <dd>{state.pendingActionDetail?.default_suggestion ?? "none"}</dd>
-            <dt>Report</dt>
-            <dd>{state.report?.report_path ?? task?.design_result?.report_path ?? "not available"}</dd>
+            <dt>默认建议</dt>
+            <dd>{state.pendingActionDetail?.default_suggestion ?? "无"}</dd>
+            <dt>报告</dt>
+            <dd>{state.report?.report_path ?? task?.design_result?.report_path ?? "不可用"}</dd>
           </dl>
         ),
       },
@@ -82,39 +83,39 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
     <div className="task-detail-layout">
       <section className="workspace-hero">
         <div>
-          <h2>Task Detail</h2>
-          <p>{task ? task.goal : "Load a task to inspect status, context, pending review, and artifacts."}</p>
+          <h2>任务详情</h2>
+          <p>{task ? task.goal : "加载任务后查看状态、上下文、待复核内容和产物。"}</p>
         </div>
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onLoadTask} onRefresh={onRefresh} />
       </section>
-      <section className="metric-strip" aria-label="Task overview">
-        <MetricCard label="External status" value={task?.status ?? "not loaded"} tone={task?.status?.includes("WAITING") ? "amber" : task?.status === "DONE" ? "green" : "blue"} />
-        <MetricCard label="Internal state" value={task?.internal_status ?? "not loaded"} />
-        <MetricCard label="Pending action" value={pendingLabel} detail={task?.updated_at ? `updated ${task.updated_at}` : undefined} tone={task?.pending_action ? "amber" : "neutral"} />
+      <section className="metric-strip" aria-label="任务概览">
+        <MetricCard label="外部状态" value={statusLabel(task?.status)} tone={task?.status?.includes("WAITING") ? "amber" : task?.status === "DONE" ? "green" : "blue"} />
+        <MetricCard label="内部状态" value={statusLabel(task?.internal_status)} />
+        <MetricCard label="待处理操作" value={pendingLabel} detail={task?.updated_at ? `更新于 ${task.updated_at}` : undefined} tone={task?.pending_action ? "amber" : "neutral"} />
       </section>
       <section className="detail-grid">
       <section className="panel">
         <div className="panel-header">
-          <h2>Task Snapshot</h2>
+          <h2>任务快照</h2>
           <StatusBadge value={task?.status} />
         </div>
         {task ? (
           <dl className="kv">
-            <dt>Task ID</dt>
+            <dt>任务 ID</dt>
             <dd>{task.id}</dd>
-            <dt>Internal status</dt>
-            <dd>{task.internal_status}</dd>
-            <dt>Created</dt>
+            <dt>内部状态</dt>
+            <dd>{statusLabel(task.internal_status)}</dd>
+            <dt>创建时间</dt>
             <dd>{task.created_at}</dd>
-            <dt>Updated</dt>
+            <dt>更新时间</dt>
             <dd>{task.updated_at}</dd>
-            <dt>Pending action</dt>
-            <dd>{task.pending_action?.pending_action_id ?? "none"}</dd>
-            <dt>Constraints</dt>
-            <dd><JsonDisclosure title="Constraints JSON" value={task.constraints} /></dd>
+            <dt>待处理操作</dt>
+            <dd>{task.pending_action?.pending_action_id ?? "无"}</dd>
+            <dt>约束</dt>
+            <dd><JsonDisclosure title="约束 JSON" value={task.constraints} /></dd>
           </dl>
         ) : (
-          <p className="muted">Task not loaded.</p>
+          <p className="muted">任务未加载。</p>
         )}
       </section>
       <PendingReviewWorkspace detail={state.pendingActionDetail} onDecisionSubmitted={onRefresh} />

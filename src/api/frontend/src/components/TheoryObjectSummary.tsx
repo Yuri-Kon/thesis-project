@@ -1,4 +1,5 @@
 import type { PendingActionDetail } from "../api/types";
+import { identifierLabel } from "../utils/displayText";
 
 interface TheoryObjectSummaryProps {
   detail: PendingActionDetail | null;
@@ -82,48 +83,48 @@ function selectedUtility(theory: Record<string, unknown>): string {
 
 export function TheoryObjectSummary({ detail }: TheoryObjectSummaryProps) {
   if (!detail) {
-    return <p className="muted">No pending runtime explanation.</p>;
+    return <p className="muted">暂无待处理运行时解释。</p>;
   }
 
   const theory = detail.theory_objects ?? {};
-  const selectedAction = stringValue(theory.selected_action) ?? detail.action_type;
+  const selectedAction = identifierLabel(stringValue(theory.selected_action) ?? detail.action_type);
   const staticScore = theory.static_score ?? detail.score_breakdown?.overall;
   const runtimeAdjustment = theory.runtime_adjustment;
   const finalScore = theory.final_score ?? detail.score_breakdown?.overall;
   const runtimeSummary = detail.runtime_state_summary ?? {};
 
   const flow: TheoryToken[] = [
-    { key: "static", label: "static_score", value: formatScore(staticScore) },
+    { key: "static", label: "静态分", value: formatScore(staticScore) },
     {
       key: "runtime",
-      label: "runtime_adjustment",
+      label: "运行时调整",
       value: formatDelta(runtimeAdjustment),
       tone: valueTone(runtimeAdjustment),
     },
-    { key: "final", label: "final_score", value: formatScore(finalScore) },
-    { key: "action", label: "selected_action", value: selectedAction },
+    { key: "final", label: "最终分", value: formatScore(finalScore) },
+    { key: "action", label: "选中操作", value: selectedAction },
   ];
 
   const support: TheoryToken[] = [
     {
       key: "utility",
-      label: "action_utility",
+      label: "操作效用",
       value: selectedUtility(theory),
     },
     {
       key: "evidence",
-      label: "evidence_sufficiency",
+      label: "证据充分性",
       value: formatScore(theory.evidence_sufficiency ?? runtimeSummary.evidence_sufficiency),
     },
     {
       key: "budget",
-      label: "budget_pressure",
+      label: "预算压力",
       value: formatScore(theory.budget_pressure ?? runtimeSummary.budget_pressure),
     },
   ];
 
   return (
-    <div className="theory-summary" aria-label="Core theory objects">
+    <div className="theory-summary" aria-label="核心理论对象">
       <ol className="theory-flow">
         {flow.map((item, index) => (
           <li className="theory-flow__item" key={item.key}>
@@ -135,7 +136,7 @@ export function TheoryObjectSummary({ detail }: TheoryObjectSummaryProps) {
           </li>
         ))}
       </ol>
-      <div className="theory-support" aria-label="Supporting theory signals">
+      <div className="theory-support" aria-label="辅助理论信号">
         {support.map((item) => (
           <span className="theory-support__item" key={item.key}>
             <span>{item.label}</span>

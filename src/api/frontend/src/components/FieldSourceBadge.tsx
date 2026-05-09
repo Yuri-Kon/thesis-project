@@ -1,3 +1,5 @@
+import { identifierLabel } from "../utils/displayText";
+
 interface FieldSourceBadgeProps {
   source: string;
   confidence?: number;
@@ -5,14 +7,7 @@ interface FieldSourceBadgeProps {
 }
 
 function sourceLabel(source: string): string {
-  const labels: Record<string, string> = {
-    user_explicit: "user",
-    llm_extract: "extract",
-    system_default: "default",
-    kg_derived: "kg",
-    user_modified: "edited",
-  };
-  return labels[source] ?? source;
+  return identifierLabel(source);
 }
 
 export function FieldSourceBadge({ source, confidence, warning = false }: FieldSourceBadgeProps) {

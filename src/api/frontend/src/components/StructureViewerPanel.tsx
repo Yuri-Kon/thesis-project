@@ -54,6 +54,7 @@ interface ViewerOptions {
 
 const BACKBONE_ATOMS = new Set(["N", "CA", "C", "O", "P"]);
 const CHAIN_COLORS = ["#2f6fbb", "#1f9d68", "#a35bb8", "#c78318", "#d14f45", "#5d6fc5"];
+const CANVAS_FONT = "\"Noto Sans SC\", \"Microsoft YaHei\", sans-serif";
 
 export function StructureViewerPanel({ task, report }: StructureViewerPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -230,15 +231,15 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
     <section className={panelClassName}>
       <div className="panel-header structure-viewer-head">
         <div>
-          <h2>Structure Viewer</h2>
+          <h2>结构查看器</h2>
           {atoms.length ? (
-            <p className="muted">{residueSummary.residueCount} residues · {atoms.length} atoms · {residueSummary.chainCount} chains</p>
+            <p className="muted">{residueSummary.residueCount} 个残基 · {atoms.length} 个原子 · {residueSummary.chainCount} 条链</p>
           ) : null}
         </div>
         <div className="structure-head-actions">
-          {visibleAtoms.length ? <span className="pill">{visibleAtoms.length} shown</span> : null}
+          {visibleAtoms.length ? <span className="pill">显示 {visibleAtoms.length} 个</span> : null}
           <button type="button" onClick={() => setExpanded((current) => !current)}>
-            {expanded ? "Restore" : "Full screen"}
+            {expanded ? "恢复" : "全屏"}
           </button>
         </div>
       </div>
@@ -248,38 +249,38 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
             <canvas
               ref={canvasRef}
               className="structure-canvas"
-              aria-label="Protein structure molecular viewer"
+              aria-label="蛋白质结构分子查看器"
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
               onPointerCancel={handlePointerEnd}
             />
             <div className="structure-stage-badge">
-              Drag rotate · Wheel zoom · Click atom
+              拖动旋转 · 滚轮缩放 · 点击原子
             </div>
           </div>
-          <aside className="structure-controls" aria-label="Structure controls">
+          <aside className="structure-controls" aria-label="结构控制">
             <div className="structure-control-grid">
               <label>
-                <span>Representation</span>
+                <span>显示方式</span>
                 <select value={displayMode} onChange={(event) => setDisplayMode(event.target.value as DisplayMode)}>
-                  <option value="cartoon">Cartoon ribbon</option>
-                  <option value="trace">Trace</option>
-                  <option value="backbone">Backbone atoms</option>
-                  <option value="sticks">Sticks</option>
-                  <option value="all">All atoms</option>
+                  <option value="cartoon">卡通带状图</option>
+                  <option value="trace">主链轨迹</option>
+                  <option value="backbone">主链原子</option>
+                  <option value="sticks">棍状模型</option>
+                  <option value="all">全部原子</option>
                 </select>
               </label>
               <label>
-                <span>Color</span>
+                <span>配色</span>
                 <select value={colorMode} onChange={(event) => setColorMode(event.target.value as ColorMode)}>
-                  <option value="confidence">Confidence</option>
-                  <option value="element">Element</option>
-                  <option value="chain">Chain</option>
+                  <option value="confidence">置信度</option>
+                  <option value="element">元素</option>
+                  <option value="chain">链</option>
                 </select>
               </label>
               <label>
-                <span>Zoom {zoom.toFixed(2)}x</span>
+                <span>缩放 {zoom.toFixed(2)}x</span>
                 <input
                   type="range"
                   min="0.55"
@@ -290,7 +291,7 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
                 />
               </label>
               <label>
-                <span>Atom size {atomRadius.toFixed(1)}</span>
+                <span>原子大小 {atomRadius.toFixed(1)}</span>
                 <input
                   type="range"
                   min="1.5"
@@ -301,7 +302,7 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
                 />
               </label>
               <label>
-                <span>{displayMode === "cartoon" ? "Ribbon width" : "Bond width"} {bondWidth.toFixed(1)}</span>
+                <span>{displayMode === "cartoon" ? "带状宽度" : "键宽度"} {bondWidth.toFixed(1)}</span>
                 <input
                   type="range"
                   min="1"
@@ -317,61 +318,61 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
                   checked={showLabels}
                   onChange={(event) => setShowLabels(event.target.checked)}
                 />
-                <span>Show residue labels</span>
+                <span>显示残基标签</span>
               </label>
             </div>
             <div className="structure-toolbar">
-              <button type="button" title="Rotate structure left" onClick={() => setRotation((current) => ({ ...current, y: current.y - 0.35 }))}>
-                Rotate left
+              <button type="button" title="向左旋转结构" onClick={() => setRotation((current) => ({ ...current, y: current.y - 0.35 }))}>
+                向左旋转
               </button>
-              <button type="button" title="Rotate structure right" onClick={() => setRotation((current) => ({ ...current, y: current.y + 0.35 }))}>
-                Rotate right
+              <button type="button" title="向右旋转结构" onClick={() => setRotation((current) => ({ ...current, y: current.y + 0.35 }))}>
+                向右旋转
               </button>
-              <button type="button" title="Reset structure view" onClick={resetView}>
-                Reset
+              <button type="button" title="重置结构视图" onClick={resetView}>
+                重置
               </button>
               <a className="button-link" href={structureUrl ?? "#"} target="_blank" rel="noreferrer">
-                Open PDB
+                打开 PDB
               </a>
             </div>
             <div className="structure-selection">
-              <h3>Selected Node</h3>
+              <h3>选中节点</h3>
               {selectedAtom ? (
                 <dl className="kv compact-kv structure-meta">
-                  <dt>Atom</dt>
+                  <dt>原子</dt>
                   <dd>{selectedAtom.atomName} #{selectedAtom.serial}</dd>
-                  <dt>Residue</dt>
+                  <dt>残基</dt>
                   <dd>{selectedAtom.residueName} {selectedAtom.residueSeq}</dd>
-                  <dt>Chain</dt>
+                  <dt>链</dt>
                   <dd>{selectedAtom.chainId || "-"}</dd>
-                  <dt>Element</dt>
+                  <dt>元素</dt>
                   <dd>{selectedAtom.element || "-"}</dd>
-                  <dt>Coordinates</dt>
+                  <dt>坐标</dt>
                   <dd>{formatCoord(selectedAtom.x)}, {formatCoord(selectedAtom.y)}, {formatCoord(selectedAtom.z)}</dd>
-                  <dt>Confidence</dt>
+                  <dt>置信度</dt>
                   <dd>{selectedAtom.bFactor === null ? "-" : selectedAtom.bFactor.toFixed(2)}</dd>
                 </dl>
               ) : (
-                <p className="muted">Click a rendered node to inspect atom and residue details.</p>
+                <p className="muted">点击已渲染节点可查看原子和残基详情。</p>
               )}
             </div>
             <dl className="kv compact-kv structure-meta">
-              <dt>Artifact</dt>
+              <dt>产物</dt>
               <dd>{structurePath}</dd>
-              <dt>Visible atoms</dt>
-              <dd>{visibleAtoms.length || "not parsed"}</dd>
-              <dt>Total atoms</dt>
-              <dd>{atoms.length || "not parsed"}</dd>
+              <dt>可见原子</dt>
+              <dd>{visibleAtoms.length || "未解析"}</dd>
+              <dt>总原子数</dt>
+              <dd>{atoms.length || "未解析"}</dd>
             </dl>
-            {loading ? <p className="muted">Loading structure artifact...</p> : null}
+            {loading ? <p className="muted">正在加载结构产物...</p> : null}
             {error ? <p className="error-text">{error}</p> : null}
             {!loading && !error && source && atoms.length === 0 ? (
-              <p className="muted">Structure file loaded, but no PDB ATOM/HETATM coordinates were parsed.</p>
+              <p className="muted">结构文件已加载，但未解析到 PDB ATOM/HETATM 坐标。</p>
             ) : null}
           </aside>
         </div>
       ) : (
-        <p className="muted">No structure artifact is available for this task.</p>
+        <p className="muted">当前任务没有可用结构产物。</p>
       )}
     </section>
   );
@@ -465,8 +466,8 @@ function renderStructure(
 
   if (!atoms.length) {
     ctx.fillStyle = "#8e98a8";
-    ctx.font = "600 13px Inter, sans-serif";
-    ctx.fillText("No parsed coordinates", 18, 28);
+    ctx.font = `600 13px ${CANVAS_FONT}`;
+    ctx.fillText("未解析到坐标", 18, 28);
     return [];
   }
 
@@ -673,7 +674,7 @@ function drawAtoms(
 
 function drawLabels(ctx: CanvasRenderingContext2D, projected: ProjectedAtom[], selectedSerial: number | null) {
   const stride = Math.max(1, Math.ceil(projected.length / 70));
-  ctx.font = "700 11px Inter, sans-serif";
+  ctx.font = `700 11px ${CANVAS_FONT}`;
   ctx.textBaseline = "middle";
   for (let index = 0; index < projected.length; index += 1) {
     const point = projected[index];
@@ -718,8 +719,8 @@ function drawViewerBackground(ctx: CanvasRenderingContext2D, width: number, heig
     ctx.stroke();
   }
   ctx.fillStyle = "rgba(31, 41, 55, 0.72)";
-  ctx.font = "700 12px Inter, sans-serif";
-  ctx.fillText(colorMode === "confidence" ? "Prediction score (pLDDT)" : "Molecular preview", 18, 26);
+  ctx.font = `700 12px ${CANVAS_FONT}`;
+  ctx.fillText(colorMode === "confidence" ? "预测置信度（pLDDT）" : "分子结构预览", 18, 26);
 }
 
 function calculateBounds(atoms: AtomPoint[]) {
@@ -849,7 +850,7 @@ function drawConfidenceLegend(
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = "rgba(31, 41, 55, 0.82)";
-  ctx.font = "700 12px Inter, sans-serif";
+  ctx.font = `700 12px ${CANVAS_FONT}`;
   for (const item of [
     { label: "100", value: 1 },
     { label: "90", value: 0.9 },
@@ -872,7 +873,7 @@ function drawAxes(ctx: CanvasRenderingContext2D, rotation: ViewRotation, width: 
     { label: "Z", color: "#4f7cff", vector: rotatePoint({ x: 0, y: 0, z: 1 }, rotation) },
   ];
   ctx.lineWidth = 3;
-  ctx.font = "700 10px Inter, sans-serif";
+  ctx.font = `700 10px ${CANVAS_FONT}`;
   for (const axis of axes) {
     const end = {
       x: origin.x + axis.vector.x * 30,

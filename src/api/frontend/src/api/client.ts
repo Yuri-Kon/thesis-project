@@ -19,7 +19,7 @@ export class ApiError extends Error {
   readonly detail: unknown;
 
   constructor(status: number, detail: unknown) {
-    super(typeof detail === "string" ? detail : `API request failed with ${status}`);
+    super(typeof detail === "string" ? detail : `API 请求失败，状态码 ${status}`);
     this.status = status;
     this.detail = detail;
   }
