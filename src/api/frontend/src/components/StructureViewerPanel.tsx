@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent, type WheelEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { apiClient, apiErrorMessage } from "../api/client";
 import type { TaskRecord, TaskReportDetail } from "../api/types";
 
@@ -7,7 +7,7 @@ interface StructureViewerPanelProps {
   report: TaskReportDetail | null;
 }
 
-type DisplayMode = "trace" | "backbone" | "sidechain" | "all";
+type DisplayMode = "cartoon" | "trace" | "backbone" | "sticks" | "all";
 type ColorMode = "element" | "chain" | "confidence";
 
 interface AtomPoint {
@@ -47,6 +47,7 @@ interface ViewerOptions {
   atomRadius: number;
   bondWidth: number;
   colorMode: ColorMode;
+  displayMode: DisplayMode;
   showLabels: boolean;
   zoom: number;
 }
@@ -64,11 +65,11 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [rotation, setRotation] = useState<ViewRotation>({ x: -0.35, y: 0.55 });
-  const [displayMode, setDisplayMode] = useState<DisplayMode>("trace");
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("cartoon");
   const [colorMode, setColorMode] = useState<ColorMode>("confidence");
-  const [zoom, setZoom] = useState(1);
-  const [atomRadius, setAtomRadius] = useState(4.2);
-  const [bondWidth, setBondWidth] = useState(2.6);
+  const [zoom, setZoom] = useState(1.05);
+  const [atomRadius, setAtomRadius] = useState(3.4);
+  const [bondWidth, setBondWidth] = useState(16);
   const [showLabels, setShowLabels] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [selectedSerial, setSelectedSerial] = useState<number | null>(null);
@@ -113,8 +114,8 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
   );
   const residueSummary = useMemo(() => summarizeResidues(atoms), [atoms]);
   const options = useMemo<ViewerOptions>(
-    () => ({ atomRadius, bondWidth, colorMode, showLabels, zoom }),
-    [atomRadius, bondWidth, colorMode, showLabels, zoom],
+    () => ({ atomRadius, bondWidth, colorMode, displayMode, showLabels, zoom }),
+    [atomRadius, bondWidth, colorMode, displayMode, showLabels, zoom],
   );
 
   useEffect(() => {
@@ -126,6 +127,23 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
       selectedSerial,
     );
   }, [options, rotation, selectedSerial, visibleAtoms]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return undefined;
+    }
+    const handleNativeWheel = (event: globalThis.WheelEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const direction = event.deltaY > 0 ? -0.08 : 0.08;
+      setZoom((current) => clamp(current + direction, 0.55, 3));
+    };
+    canvas.addEventListener("wheel", handleNativeWheel, { passive: false });
+    return () => {
+      canvas.removeEventListener("wheel", handleNativeWheel);
+    };
+  }, [structurePath]);
 
   useEffect(() => {
     if (!expanded) {
@@ -178,12 +196,6 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
     }
   }
 
-  function handleWheel(event: WheelEvent<HTMLCanvasElement>) {
-    event.preventDefault();
-    const direction = event.deltaY > 0 ? -0.08 : 0.08;
-    setZoom((current) => clamp(current + direction, 0.55, 3));
-  }
-
   function selectNearestAtom(event: PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -206,9 +218,9 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
 
   function resetView() {
     setRotation({ x: -0.35, y: 0.55 });
-    setZoom(1);
-    setAtomRadius(4.2);
-    setBondWidth(2.6);
+    setZoom(1.05);
+    setAtomRadius(3.4);
+    setBondWidth(16);
     setSelectedSerial(null);
   }
 
@@ -241,7 +253,6 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerEnd}
               onPointerCancel={handlePointerEnd}
-              onWheel={handleWheel}
             />
             <div className="structure-stage-badge">
               Drag rotate · Wheel zoom · Click atom
@@ -252,9 +263,10 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
               <label>
                 <span>Representation</span>
                 <select value={displayMode} onChange={(event) => setDisplayMode(event.target.value as DisplayMode)}>
+                  <option value="cartoon">Cartoon ribbon</option>
                   <option value="trace">Trace</option>
                   <option value="backbone">Backbone atoms</option>
-                  <option value="sidechain">Sidechain atoms</option>
+                  <option value="sticks">Sticks</option>
                   <option value="all">All atoms</option>
                 </select>
               </label>
@@ -278,7 +290,7 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
                 />
               </label>
               <label>
-                <span>Node size {atomRadius.toFixed(1)}</span>
+                <span>Atom size {atomRadius.toFixed(1)}</span>
                 <input
                   type="range"
                   min="1.5"
@@ -289,12 +301,12 @@ export function StructureViewerPanel({ task, report }: StructureViewerPanelProps
                 />
               </label>
               <label>
-                <span>Bond width {bondWidth.toFixed(1)}</span>
+                <span>{displayMode === "cartoon" ? "Ribbon width" : "Bond width"} {bondWidth.toFixed(1)}</span>
                 <input
                   type="range"
-                  min="0.8"
-                  max="7"
-                  step="0.2"
+                  min="1"
+                  max="28"
+                  step="0.5"
                   value={bondWidth}
                   onChange={(event) => setBondWidth(Number(event.target.value))}
                 />
@@ -405,11 +417,11 @@ function selectVisibleAtoms(atoms: AtomPoint[], mode: DisplayMode): AtomPoint[] 
   if (mode === "all") {
     return atoms;
   }
+  if (mode === "sticks") {
+    return atoms.filter((atom) => atom.atomName !== "H");
+  }
   if (mode === "backbone") {
     return atoms.filter((atom) => BACKBONE_ATOMS.has(atom.atomName));
-  }
-  if (mode === "sidechain") {
-    return atoms.filter((atom) => !BACKBONE_ATOMS.has(atom.atomName));
   }
   const trace = atoms.filter((atom) => atom.atomName === "CA" || atom.atomName === "P");
   return trace.length ? trace : atoms.filter((atom) => BACKBONE_ATOMS.has(atom.atomName));
@@ -449,10 +461,10 @@ function renderStructure(
   }
   ctx.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
   ctx.clearRect(0, 0, cssWidth, cssHeight);
-  drawViewerBackground(ctx, cssWidth, cssHeight);
+  drawViewerBackground(ctx, cssWidth, cssHeight, options.colorMode);
 
   if (!atoms.length) {
-    ctx.fillStyle = "#777983";
+    ctx.fillStyle = "#8e98a8";
     ctx.font = "600 13px Inter, sans-serif";
     ctx.fillText("No parsed coordinates", 18, 28);
     return [];
@@ -480,12 +492,134 @@ function renderStructure(
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  drawBonds(ctx, projected, span, options);
-  drawAtoms(ctx, projected, span, options, selectedSerial);
+  if (options.displayMode === "cartoon") {
+    drawCartoonRibbon(ctx, projected, span, options, selectedSerial);
+  } else {
+    drawBonds(ctx, projected, span, options);
+    drawAtoms(ctx, projected, span, options, selectedSerial);
+  }
   if (options.showLabels || selectedSerial !== null) {
     drawLabels(ctx, projected, selectedSerial);
   }
+  drawAxes(ctx, rotation, cssWidth, cssHeight);
+  drawConfidenceLegend(ctx, cssWidth, cssHeight, options.colorMode);
   return projected;
+}
+
+function drawCartoonRibbon(
+  ctx: CanvasRenderingContext2D,
+  projected: ProjectedAtom[],
+  span: number,
+  options: ViewerOptions,
+  selectedSerial: number | null,
+) {
+  if (projected.length < 2) {
+    drawAtoms(ctx, projected, span, options, selectedSerial);
+    return;
+  }
+  ctx.shadowColor = "rgba(35, 45, 62, 0.22)";
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 6;
+  drawRibbonStroke(ctx, projected, span, options, options.bondWidth + 5, 0.16, true);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  drawRibbonStroke(ctx, projected, span, options, options.bondWidth, 0.94, false);
+  drawRibbonStroke(ctx, projected, span, options, Math.max(2, options.bondWidth * 0.22), 0.48, false, true);
+  drawRibbonArrowCaps(ctx, projected, span, options);
+  drawSidechainHints(ctx, projected, span, options);
+  if (selectedSerial !== null) {
+    drawAtoms(ctx, projected.filter((point) => point.atom.serial === selectedSerial), span, options, selectedSerial);
+  }
+}
+
+function drawRibbonStroke(
+  ctx: CanvasRenderingContext2D,
+  projected: ProjectedAtom[],
+  span: number,
+  options: ViewerOptions,
+  width: number,
+  alpha: number,
+  outline: boolean,
+  highlight = false,
+) {
+  for (let index = 1; index < projected.length; index += 1) {
+    const prev = projected[index - 1];
+    const current = projected[index];
+    if (prev.atom.chainId !== current.atom.chainId || distance(prev.atom, current.atom) > 5.8) {
+      continue;
+    }
+    const depth = normalizedDepth((prev.z + current.z) / 2, span);
+    ctx.strokeStyle = outline
+      ? `rgba(31, 41, 55, ${alpha})`
+      : ribbonSegmentColor(prev.atom, current.atom, depth, options.colorMode, alpha);
+    ctx.lineWidth = width * (0.72 + depth * 0.52);
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    const midX = (prev.x + current.x) / 2;
+    const midY = (prev.y + current.y) / 2;
+    const next = projected[index + 1] ?? current;
+    const ctrlX = current.x * 0.72 + next.x * 0.28;
+    const ctrlY = current.y * 0.72 + next.y * 0.28;
+    ctx.quadraticCurveTo(midX, midY, ctrlX, ctrlY);
+    ctx.stroke();
+    if (highlight) {
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.1 + depth * 0.18})`;
+      ctx.lineWidth = Math.max(1, width * 0.5);
+      ctx.beginPath();
+      ctx.moveTo(prev.x, prev.y - width * 0.18);
+      ctx.quadraticCurveTo(midX, midY - width * 0.22, ctrlX, ctrlY - width * 0.18);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawRibbonArrowCaps(
+  ctx: CanvasRenderingContext2D,
+  projected: ProjectedAtom[],
+  span: number,
+  options: ViewerOptions,
+) {
+  const stride = Math.max(6, Math.floor(projected.length / 7));
+  for (let index = stride; index < projected.length - 1; index += stride) {
+    const prev = projected[index - 1];
+    const current = projected[index];
+    const next = projected[index + 1];
+    if (!next || distance(current.atom, next.atom) > 5.8) {
+      continue;
+    }
+    const angle = Math.atan2(next.y - prev.y, next.x - prev.x);
+    const depth = normalizedDepth(current.z, span);
+    const length = options.bondWidth * (0.85 + depth * 0.25);
+    const width = options.bondWidth * (0.46 + depth * 0.16);
+    ctx.fillStyle = atomColor(current.atom, depth, options.colorMode, 0.82);
+    ctx.beginPath();
+    ctx.moveTo(current.x + Math.cos(angle) * length, current.y + Math.sin(angle) * length);
+    ctx.lineTo(current.x + Math.cos(angle + 2.35) * width, current.y + Math.sin(angle + 2.35) * width);
+    ctx.lineTo(current.x + Math.cos(angle - 2.35) * width, current.y + Math.sin(angle - 2.35) * width);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawSidechainHints(
+  ctx: CanvasRenderingContext2D,
+  projected: ProjectedAtom[],
+  span: number,
+  options: ViewerOptions,
+) {
+  const sidechain = projected.filter((point) => !isTraceAtom(point.atom));
+  const stride = Math.max(1, Math.ceil(sidechain.length / 34));
+  for (let index = 0; index < sidechain.length; index += stride) {
+    const point = sidechain[index];
+    const depth = normalizedDepth(point.z, span);
+    ctx.strokeStyle = `rgba(177, 220, 118, ${0.18 + depth * 0.22})`;
+    ctx.lineWidth = Math.max(1, options.bondWidth * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    ctx.lineTo(point.x + Math.cos(index) * 12, point.y + Math.sin(index) * 12);
+    ctx.stroke();
+  }
 }
 
 function drawBonds(
@@ -502,7 +636,7 @@ function drawBonds(
       continue;
     }
     const depth = normalizedDepth((prev.z + current.z) / 2, span);
-    ctx.strokeStyle = `rgba(44, 56, 78, ${0.28 + depth * 0.38})`;
+    ctx.strokeStyle = `rgba(182, 199, 224, ${0.28 + depth * 0.45})`;
     ctx.lineWidth = options.bondWidth * (0.62 + depth * 0.7);
     ctx.beginPath();
     ctx.moveTo(prev.x, prev.y);
@@ -521,7 +655,7 @@ function drawAtoms(
   for (const point of [...projected].sort((left, right) => left.z - right.z)) {
     const depth = normalizedDepth(point.z, span);
     ctx.fillStyle = atomColor(point.atom, depth, options.colorMode);
-    ctx.strokeStyle = point.atom.serial === selectedSerial ? "#111318" : "rgba(255, 255, 255, 0.88)";
+    ctx.strokeStyle = point.atom.serial === selectedSerial ? "#f8fafc" : "rgba(255, 255, 255, 0.82)";
     ctx.lineWidth = point.atom.serial === selectedSerial ? 2.5 : 1;
     ctx.beginPath();
     ctx.arc(point.x, point.y, point.radius, 0, Math.PI * 2);
@@ -562,26 +696,30 @@ function drawLabels(ctx: CanvasRenderingContext2D, projected: ProjectedAtom[], s
   }
 }
 
-function drawViewerBackground(ctx: CanvasRenderingContext2D, width: number, height: number) {
+function drawViewerBackground(ctx: CanvasRenderingContext2D, width: number, height: number, colorMode: ColorMode) {
   const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#fbfcfe");
-  gradient.addColorStop(1, "#edf1f7");
+  gradient.addColorStop(0, "#ffffff");
+  gradient.addColorStop(0.6, "#f8fafc");
+  gradient.addColorStop(1, "#eef3f8");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "rgba(31, 31, 35, 0.07)";
+  ctx.strokeStyle = "rgba(86, 103, 125, 0.08)";
   ctx.lineWidth = 1;
-  for (let x = 24; x < width; x += 36) {
+  for (let x = 28; x < width; x += 38) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, height);
     ctx.stroke();
   }
-  for (let y = 24; y < height; y += 36) {
+  for (let y = 28; y < height; y += 38) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(width, y);
     ctx.stroke();
   }
+  ctx.fillStyle = "rgba(31, 41, 55, 0.72)";
+  ctx.font = "700 12px Inter, sans-serif";
+  ctx.fillText(colorMode === "confidence" ? "Prediction score (pLDDT)" : "Molecular preview", 18, 26);
 }
 
 function calculateBounds(atoms: AtomPoint[]) {
@@ -636,24 +774,29 @@ function isTraceAtom(atom: AtomPoint): boolean {
   return atom.atomName === "CA" || atom.atomName === "P";
 }
 
-function atomColor(atom: AtomPoint, depth: number, colorMode: ColorMode): string {
-  const alpha = 0.74 + depth * 0.2;
+function ribbonSegmentColor(
+  prev: AtomPoint,
+  current: AtomPoint,
+  depth: number,
+  colorMode: ColorMode,
+  alpha: number,
+): string {
+  if (colorMode === "confidence") {
+    const prevScore = prev.bFactor ?? 70;
+    const currentScore = current.bFactor ?? prevScore;
+    return confidenceColor((prevScore + currentScore) / 2, alpha);
+  }
+  return atomColor(current, depth, colorMode, alpha);
+}
+
+function atomColor(atom: AtomPoint, depth: number, colorMode: ColorMode, alphaOverride?: number): string {
+  const alpha = alphaOverride ?? (0.74 + depth * 0.2);
   if (colorMode === "chain") {
     const chainIndex = Math.abs(hashString(atom.chainId || "A")) % CHAIN_COLORS.length;
     return hexWithAlpha(CHAIN_COLORS[chainIndex], alpha);
   }
   if (colorMode === "confidence") {
-    const score = atom.bFactor ?? 70;
-    if (score >= 90) {
-      return `rgba(31, 148, 105, ${alpha})`;
-    }
-    if (score >= 70) {
-      return `rgba(58, 115, 196, ${alpha})`;
-    }
-    if (score >= 50) {
-      return `rgba(204, 143, 44, ${alpha})`;
-    }
-    return `rgba(203, 71, 58, ${alpha})`;
+    return confidenceColor(atom.bFactor ?? 70, alpha);
   }
   switch (atom.element.toUpperCase()) {
     case "N":
@@ -666,6 +809,85 @@ function atomColor(atom: AtomPoint, depth: number, colorMode: ColorMode): string
       return `rgba(149, 93, 190, ${alpha})`;
     default:
       return `rgba(55, 137, 93, ${alpha})`;
+  }
+}
+
+function confidenceColor(score: number, alpha: number): string {
+  if (score >= 90) {
+    return `rgba(206, 239, 30, ${alpha})`;
+  }
+  if (score >= 70) {
+    return `rgba(108, 210, 76, ${alpha})`;
+  }
+  if (score >= 50) {
+    return `rgba(38, 171, 162, ${alpha})`;
+  }
+  return `rgba(116, 42, 154, ${alpha})`;
+}
+
+function drawConfidenceLegend(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  colorMode: ColorMode,
+) {
+  if (colorMode !== "confidence" || width < 420 || height < 300) {
+    return;
+  }
+  const legendHeight = Math.min(260, height - 104);
+  const x = width - 46;
+  const y = 58;
+  const gradient = ctx.createLinearGradient(0, y + legendHeight, 0, y);
+  gradient.addColorStop(0, "#742a9a");
+  gradient.addColorStop(0.5, "#26aba2");
+  gradient.addColorStop(0.72, "#6cd24c");
+  gradient.addColorStop(1, "#ceef1e");
+  ctx.fillStyle = gradient;
+  roundRect(ctx, x, y, 18, legendHeight, 4);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.22)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "rgba(31, 41, 55, 0.82)";
+  ctx.font = "700 12px Inter, sans-serif";
+  for (const item of [
+    { label: "100", value: 1 },
+    { label: "90", value: 0.9 },
+    { label: "70", value: 0.7 },
+    { label: "50", value: 0.5 },
+    { label: "0", value: 0 },
+  ]) {
+    ctx.fillText(item.label, x - 32, y + legendHeight - item.value * legendHeight + 4);
+  }
+}
+
+function drawAxes(ctx: CanvasRenderingContext2D, rotation: ViewRotation, width: number, height: number) {
+  if (width < 320 || height < 260) {
+    return;
+  }
+  const origin = { x: 42, y: height - 46 };
+  const axes = [
+    { label: "X", color: "#e5484d", vector: rotatePoint({ x: 1, y: 0, z: 0 }, rotation) },
+    { label: "Y", color: "#42c86b", vector: rotatePoint({ x: 0, y: 1, z: 0 }, rotation) },
+    { label: "Z", color: "#4f7cff", vector: rotatePoint({ x: 0, y: 0, z: 1 }, rotation) },
+  ];
+  ctx.lineWidth = 3;
+  ctx.font = "700 10px Inter, sans-serif";
+  for (const axis of axes) {
+    const end = {
+      x: origin.x + axis.vector.x * 30,
+      y: origin.y - axis.vector.y * 30,
+    };
+    ctx.strokeStyle = axis.color;
+    ctx.fillStyle = axis.color;
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(end.x, end.y, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillText(axis.label, end.x + 5, end.y + 4);
   }
 }
 
