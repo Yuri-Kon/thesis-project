@@ -113,7 +113,7 @@ CLI 验证显示，`intake schema --json` 可以输出完整字段注册表，`t
 
 ## 6.7 端到端流程与工具链验证
 
-端到端流程验证由 TC-S09 和 TC-S11 覆盖。TC-S09 关注从任务输入到 DesignResult 的完整成功路径，TC-S11 关注工具链执行和 I/O 边界。t8 四组 smoke run 和 t9 四组 clean run 共覆盖 20 次运行，涉及 denovo、sequence evaluation、patchable 和 safety 等任务类型，全部以 DONE 终态完成。聚合结果显示，这些运行的 success rate、schema valid rate 和 executable plan rate 均为 1.0。
+端到端流程验证由 TC-S09 和 TC-S11 覆盖。TC-S09 关注从任务输入到 DesignResult 的完整成功路径，TC-S11 关注工具链执行和 I/O 边界。t8 四组 smoke run 和 t9 四组 clean run 共覆盖 20 次运行，涉及 denovo、sequence evaluation、patchable 和 safety 等任务类型，全部以 DONE 终态完成；对应证据为 EVD-EXP-01、EVD-LOG-05 和第七章表 7-8 所列实验产物。聚合结果显示，这些运行的 success rate、schema valid rate 和 executable plan rate 均为 1.0。
 
 每个 DONE 任务至少包含一个 StepResult，报告接口可以返回 scores、risk flags、report path 或 structure artifact 等结果字段。未完成任务请求 report 时返回 404，这一边界避免了系统将中间状态误呈现为最终结果。工具链执行方面，实验运行中的 openfold、protgpt2、biopython_qc 等工具调用均以 success 状态完成，未出现 dummy 输入或 provider payload validation error。针对候选 schema 不匹配和上游 I/O 引用错误的确定性测试也确认，系统会在执行前结构化拒绝无效候选，而不是让错误在工具调用阶段静默扩散。
 

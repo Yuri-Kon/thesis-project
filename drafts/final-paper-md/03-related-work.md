@@ -50,7 +50,7 @@ AlphaFold2 显著提升了蛋白质结构预测精度，成为结构预测领域
 
 ## 2.6 相关系统与本文定位
 
-近期蛋白质设计相关预印本显示，越来越多研究开始关注多目标搜索、属性引导和系统化设计流程。例如，RosettaSearch 关注蛋白质序列设计中的推理时多目标搜索[@rosettasearch2026]，AutoBinder Agent 探索面向 binder 设计的端到端 Agent 系统[@autobinder2026]，property-driven inverse folding 相关工作则讨论多目标偏好与 developability 约束[@preferenceinversefolding2026]。这些工作说明蛋白质设计正在从单模型预测走向多目标、多工具和系统化流程。
+近期蛋白质设计相关预印本中已有工作开始关注多目标搜索、属性引导和系统化设计流程。例如，RosettaSearch 关注蛋白质序列设计中的推理时多目标搜索[@rosettasearch2026]，AutoBinder Agent 探索面向 binder 设计的端到端 Agent 系统[@autobinder2026]，property-driven inverse folding 相关工作则讨论多目标偏好与 developability 约束[@preferenceinversefolding2026]。这些相关预印本提示，蛋白质设计正在从单模型预测走向多目标、多工具和系统化流程。
 
 本文与这些工作的侧重点不同。本文不提出新的蛋白质生成模型，也不声称在湿实验层面验证设计蛋白功能；本文关注的是工作流控制层：如何在已有工具之上组织候选工作流，如何用工具知识图谱约束工具链生成，如何用 Lite belief-state 进行运行时重排序，如何在失败、风险和预算压力下进行可审计恢复。换言之，本文的贡献主要是系统架构、工作流规划算法和工程验证，而不是底层蛋白质模型本身。
 

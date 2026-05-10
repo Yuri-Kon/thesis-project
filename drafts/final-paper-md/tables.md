@@ -29,11 +29,11 @@
 |---|---|---|---|---|---|
 | 表 5-1 | 表格 | 后端核心模块与论文架构层对应关系 | 5.1 技术选型与工程结构 | `drafts/final-term/implementation/01-tech-stack-and-structure.md` | 将 `src/api`、`src/workflow`、`src/models`、`src/adapters` 等目录映射到论文中的架构层，避免实现章变成目录罗列。 |
 | 代码清单 5-1 | 代码清单 | 任务创建请求的互斥入口校验 | 5.2 任务接入与后端 API 实现 | `../thesis-project.dev/src/api/main.py:166` | 说明 API 边界如何约束 `goal`、`query`、`confirmed_task_spec` 三种创建模式互斥。 |
-| 代码清单 5-2 | 代码清单 | ToolAdapter 抽象接口 | 5.6 工具适配器与能力管理 | `../thesis-project.dev/src/adapters/base_tool_adapter.py:14` | 说明系统如何通过统一接口封装本地脚本、远程 REST 服务和外部工具。 |
-| 代码清单 5-3 | 代码清单 | WorkflowContext 统一写入步骤结果并触发 RuntimeState 更新 | 5.4 工作流运行时与执行引擎 | `../thesis-project.dev/src/workflow/context.py:90` | 说明 RuntimeState 更新不是分散修改，而是通过运行时上下文集中接入。 |
-| 代码清单 5-4 | 代码清单 | StepRunner 的有界重试微循环 | 5.4 工作流运行时与执行引擎 | `../thesis-project.dev/src/workflow/step_runner.py:140` | 说明单步执行如何处理可重试失败、不可重试失败和重试耗尽。 |
+| 代码清单 5-2 | 代码清单 | WorkflowContext 统一写入步骤结果并触发 RuntimeState 更新 | 5.4 工作流运行时与执行引擎 | `../thesis-project.dev/src/workflow/context.py:90` | 说明 RuntimeState 更新不是分散修改，而是通过运行时上下文集中接入。 |
+| 代码清单 5-3 | 代码清单 | StepRunner 的有界重试微循环 | 5.4 工作流运行时与执行引擎 | `../thesis-project.dev/src/workflow/step_runner.py:140` | 说明单步执行如何处理可重试失败、不可重试失败和重试耗尽。 |
+| 代码清单 5-4 | 代码清单 | 进入 WAITING 状态前写入 PendingAction 与审计信息 | 5.4.3 等待状态、审计与快照 | `../thesis-project.dev/src/workflow/pending_action.py:101` | 说明 HITL 是受控工作流状态，不是前端临时按钮。 |
 | 代码清单 5-5 | 代码清单 | RuntimeEvaluator 候选重排 | 5.5 CEBRA-WP 的工程落点 | `../thesis-project.dev/src/workflow/runtime_evaluator.py:331` | 说明 CEBRA-WP 的 runtime adjustment 与 rerank 如何落地。 |
-| 代码清单 5-6 | 代码清单 | 进入 WAITING 状态前写入 PendingAction 与审计信息 | 5.4 或 5.5 | `../thesis-project.dev/src/workflow/pending_action.py:101` | 说明 HITL 是受控工作流状态，不是前端临时按钮。 |
+| 代码清单 5-6 | 代码清单 | ToolAdapter 抽象接口 | 5.6 工具适配器与能力管理 | `../thesis-project.dev/src/adapters/base_tool_adapter.py:14` | 说明系统如何通过统一接口封装本地脚本、远程 REST 服务和外部工具。 |
 | 代码清单 5-7 | 备选代码清单 | 构建任务快照 | 5.4 恢复闭环或附录 | `../thesis-project.dev/src/workflow/snapshots.py:34` | 用于补充说明快照如何固化 runtime_state、pending_action 和 artifacts。正文篇幅不足时可放附录。 |
 
 正文建议最多放 4 至 6 个代码清单。`PendingReviewWorkspace` 等前端代码片段可作为附录候选，不建议放入正文主线。

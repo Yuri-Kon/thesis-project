@@ -13,7 +13,7 @@
 【图 7-1 实验设计框架】
 插图文件：`paper/figures/experiment-design-framework.drawio.svg`
 
-图 7-1 的作用是限定本章统计结果的来源。后续表 7-1 至表 7-8 均来自 `thesis-final-v1-001` 实验矩阵及其配套日志、快照和聚合产物。
+图 7-1 的作用是限定本章统计结果的来源。后续表 7-1 至表 7-8 均来自 `thesis-final-v1-001` 实验矩阵及其配套日志、快照和聚合产物；对应内部证据入口为 `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` 和 `../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/`。
 
 **表 7-1 实验矩阵配置表**
 
@@ -30,7 +30,7 @@
 | 执行时间 | 约 6 小时 |
 | 产物路径 | `../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/` |
 
-任务集覆盖 8 类场景：简单 de novo 设计、序列评估、多约束稳定性优化、高代价结构预测、可修复参数失败、远程服务降级、结构性重规划和安全探测。涉及的公开结构包括 Trp-cage、Villin HP35、GB1、Ubiquitin、Top7 和 de novo oligomer。该任务集使实验同时包含低成本成功路径、中等压力路径和高代价结构预测路径。
+任务集覆盖 8 类场景：简单 de novo 设计、序列评估、多约束稳定性优化、高代价结构预测、可修复参数失败、远程服务降级、结构性重规划和安全探测。涉及的公开结构包括 Trp-cage、Villin HP35、GB1、Ubiquitin、Top7 和 de novo oligomer。任务定义与分层依据来自 `../thesis-project.dev/docs/experiment/final-thesis-experiment-design.md` 和 `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md`。该任务集使实验同时包含低成本成功路径、中等压力路径和高代价结构预测路径。
 
 ## 7.2 指标定义
 
@@ -44,7 +44,7 @@ patch/replan 事件来自 event log，表示实际执行过的恢复动作；act
 
 **表 7-2 四组消融主实验结果**
 
-| 指标 | static_top1 | fixed_threshold_gate | dynamic_no_belief | lite_belief |
+| 指标 | static_top1 | fixed_threshold_gate | dynamic_no_belief_state | lite_belief_state |
 |---|---:|---:|---:|---:|
 | runs | 21 | 21 | 21 | 21 |
 | DONE | 21 | 20 | 20 | 20 |
