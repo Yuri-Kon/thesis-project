@@ -11,7 +11,19 @@
 - 第七章实验表格以 `thesis-final-v1-001` 的 84-run 聚合结果为证据主线。
 - 进入终稿时，表中涉及文献背景的解释仍需回到 `references.md` 补充 `[@...]` 引用。
 
-## 2. 第五章：系统实现表格与代码清单
+## 2. 第四章：系统设计算法表格与算法流程
+
+| 编号 | 类型 | 标题 | 推荐位置 | 主要来源 | 作用 |
+|---|---|---|---|---|---|
+| 表 4-1 | 表格 | CEBRA-WP 符号与语义定义 | 4.6 CEBRA-WP 形式化定义 | `../thesis-project.design/docs/design/core-algorithm-spec.md` | 固定 `g`、`C`、`K`、`h_t`、`o_t`、`x_t`、`Pi_t`、`S_static`、`G_post`、`U_pi`、`a_t` 等核心符号，避免算法说明散落在正文中。 |
+| 表 4-2 | 表格 | Lite belief-state 状态变量 | 4.8 Lite belief-state 与观测更新 | `../thesis-project.design/docs/design/runtime-adaptation-formalization.md` | 说明 `p_success`、`p_structural_failure`、`recovery_margin`、`expected_remaining_cost`、`evidence_sufficiency` 的取值、来源和决策作用。 |
+| 表 4-3 | 表格 | 恢复动作与 FSM/HITL 映射 | 4.10 恢复动作选择与 HITL 映射 | `core-algorithm-spec.md`、`runtime-adaptation-formalization.md`、FSM 设计 | 将 `continue`、`patch_local`、`suffix_replan`、`stop` 对应到系统状态、人工确认和审计产物。 |
+| 表 4-4 | 表格 | 四组消融策略与算法机制开关 | 4.11 策略组与实验可验证性 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md`、`../thesis-project.design/docs/experiment/algorithm-group-paper-mapping.md` | 为第七章实验解释提供前置定义，说明四组策略分别开启哪些算法机制。 |
+| 算法 4-1 | 算法流程 | CEBRA-WP 主流程 | 4.10 恢复动作选择与 HITL 映射 | `core-algorithm-spec.md` | 以伪代码形式串联候选生成、可行性过滤、静态评分、信念更新、运行时重排序、Top-K 和动作选择。 |
+
+第四章的算法表格应进入正文主线，不建议放入附录。表 4-1 和表 4-2 用于定义算法对象，表 4-3 用于连接算法与系统状态机，表 4-4 用于连接算法设计与第七章消融实验。
+
+## 3. 第五章：系统实现表格与代码清单
 
 | 编号 | 类型 | 标题 | 推荐位置 | 主要来源 | 作用 |
 |---|---|---|---|---|---|
@@ -26,7 +38,7 @@
 
 正文建议最多放 4 至 6 个代码清单。`PendingReviewWorkspace` 等前端代码片段可作为附录候选，不建议放入正文主线。
 
-## 3. 第六章：系统测试与验证表格
+## 4. 第六章：系统测试与验证表格
 
 | 编号 | 标题 | 推荐位置 | 主要来源 | 作用 |
 |---|---|---|---|---|
@@ -37,7 +49,7 @@
 
 第六章正文可保留表 6-1 和表 6-2 为主表，表 6-3、表 6-4 可按篇幅放入正文或附录。
 
-## 4. 第七章：实验与结果分析表格
+## 5. 第七章：实验与结果分析表格
 
 | 编号 | 标题 | 推荐位置 | 主要来源 | 作用 |
 |---|---|---|---|---|
@@ -52,7 +64,7 @@
 
 当前不建议新增“四组消融主实验结果图”。第七章应以表 7-1 至表 7-8 承载量化证据，以图 7-1 和图 7-2 承担框架和机制解释。
 
-## 5. 结论强度边界
+## 6. 结论强度边界
 
 | 可写结论 | 证据表 | 表述边界 |
 |---|---|---|
@@ -61,4 +73,3 @@
 | fixed_threshold_gate 暴露了无 runtime rerank 的恢复代价 | 表 7-4、表 7-5、表 7-7 | 可写“提供必要性证据”，不要写成严格因果证明。 |
 | lite_belief_state 的增量价值主要体现在机制可解释和预算感知 | 表 7-6、表 7-7 | 可写“机制优势已验证，性能增益仍受任务规模限制”。 |
 | 成本控制存在方向性证据 | 表 7-5 | 可写“趋势”或“在本实验设置下”，不要写统计显著结论。 |
-
