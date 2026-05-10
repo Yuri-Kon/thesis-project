@@ -13,7 +13,7 @@
 | 3 系统需求分析 | `chapters/03-system-requirements.tex` | 🟡 需拆分 | 素材在 Ch3 草稿 §3.1 |
 | 4 系统总体设计 | `chapters/04-system-design.tex` | 🟡 需拆分 | 素材在 Ch3 草稿 §3.2–3.4 |
 | 5 系统实现 | `chapters/05-system-implementation.tex` | ❌ 文件缺失 | 素材在 `implementation/` |
-| 6 系统测试与验证 | `chapters/06-system-testing.tex` | ❌ 文件缺失 | 证据体系已建立 |
+| 6 系统测试与验证 | `chapters/06-system-testing.tex` | ✅ 草稿完成 | ~20KB Markdown，13 TC 全覆盖 |
 | 7 策略对比实验与结果分析 | `chapters/07-experiments.tex` | ❌ 占位符 | ⚠️ 等待 84-run 完整数据 |
 | 8 总结与展望 | `chapters/08-conclusion.tex` | ❌ 占位符 | 最后写 |
 
@@ -28,7 +28,7 @@
 | `sections/03-module-design.md` | 模块设计素材（已被整合章节替代） | 第 3 章 | 原始素材 |
 | `sections/03-system-requirements-and-design.md` | 第三章完整草稿（需求+架构+模块+CEBRA-WP），32KB，修正稿 | 第 3+4 章 | ⭐⭐⭐ 需按新结构拆分为两章 |
 | `toc-and-content-guide.md` | **8 章目录结构与内容指示**（含详细小节标题、篇幅建议、证据引用、图表清单、写作状态） | 全局 | 规划文档 |
-| `implementation/01-tech-stack-and-structure.md` | 技术栈、目录结构、关键选型 | 第 4 章 | ⭐⭐ 素材，需压缩 |
+| `sections/06-system-testing-and-validation.md` | **第六章草稿**（系统测试与验证，~20KB） | 第 6 章 | ⭐⭐⭐ 初稿，13 TC + 30 SV 全覆盖，证据引用完整 |
 | `implementation/02-backend-api-implementation.md` | 后端 API、数据契约、HITL 接口 | 第 4 章 | ⭐⭐ 素材，需压缩 |
 | `implementation/03-frontend-workbench-implementation.md` | React 工作台、页面结构 | 第 4 章 | ⭐⭐ 素材，需压缩 |
 | `implementation/04-workflow-runtime-implementation.md` | Workflow、PlanRunner、StepRunner、RuntimeState | 第 4 章 | ⭐⭐ 素材，需压缩 |
