@@ -1,6 +1,6 @@
 # 第七章 实验与结果分析
 
-第六章已验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程基础。本章在该基础上分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定为工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
+第六章已验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程基础。本章在此基础上分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定为工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
 
 本章围绕四个研究问题展开：
 
@@ -70,7 +70,7 @@
 | action_continue_mean | 1.0952 | 1.5238 | 0.9524 | 0.9524 |
 | action_patch_local_mean | 0.0000 | 0.2857 | 0.0000 | 0.0000 |
 
-表 7-2 显示出三个结果。第一，static_top1 在该矩阵中成功率最高，提示任务集中的多数初始候选已经具备较强可执行性。第二，fixed_threshold_gate 是唯一触发真实局部修补的组，平均局部修补次数为 0.2857，同时高代价调用总数升至 28。第三，lite_belief_state 是唯一 runtime_state_observable_rate 为 1.0000 的组，说明其 Lite belief-state / 轻量信念状态链路在所有 run 中均产生可追踪输出。
+表 7-2 显示出三个主要现象。static_top1 在该矩阵中成功率最高，提示任务集中的多数初始候选已经具备较强可执行性。fixed_threshold_gate 是唯一触发真实局部修补的组，平均局部修补次数为 0.2857，同时高代价调用总数升至 28。lite_belief_state 是唯一 runtime_state_observable_rate 为 1.0000 的组，说明其 Lite belief-state / 轻量信念状态链路在所有 run 中均产生可追踪输出。
 
 ## 7.4 分层结果与机制增量
 
@@ -105,7 +105,7 @@
 | dynamic→lite | high_cost_call_count | 0.0000 | 21 | 两组高代价调用均值相同。 |
 | dynamic→lite | duration_ms | +45,524 | 21 | lite 组平均耗时高于 dynamic。 |
 
-表 7-4 表明，fixed_threshold_gate 引入了可观测的局部修补行为，也引入了额外高代价调用。dynamic_no_belief_state 相比 fixed_threshold_gate 降低了高代价调用和耗时。lite_belief_state 相比 dynamic_no_belief_state 的主要差异体现在 schema valid、RuntimeState 和 action utility 的机制信息。
+表 7-4 表明，fixed_threshold_gate 引入了可观测的局部修补行为，同时带来额外高代价调用。dynamic_no_belief_state 相比 fixed_threshold_gate 降低了高代价调用和耗时。lite_belief_state 相比 dynamic_no_belief_state 的主要差异，则体现在 schema valid、RuntimeState 和 action utility 等机制信息上。
 
 ## 7.5 成本与恢复行为分析
 
@@ -122,7 +122,7 @@
 
 由表 7-5 可计算得出，与 fixed_threshold_gate 相比，dynamic_no_belief_state 和 lite_belief_state 的高代价调用总数从 28 降至 20，降幅为 28.6%。与 static_top1 相比，两组高代价调用总数从 21 降至 20，差异来自各自 1 个失败 run 在高代价结构预测前终止。运行时间上，dynamic_no_belief_state 最短，fixed_threshold_gate 最长，lite_belief_state 介于二者之间。
 
-恢复事件方面，四组均未产生真实重规划或后缀重规划；真实局部修补仅出现在 fixed_threshold_gate 组，总数 6 次，均为 tool-level patch。该结果说明，本次矩阵对局部修补机制产生了真实压力，对重规划机制的矩阵级触发不足；第六章中的 focused tests 已覆盖后缀重规划和 `terminal_stop` 的可达性，本章的批量实验结论以局部修补和高代价调用为主。
+恢复事件方面，四组均未产生真实重规划或后缀重规划；真实局部修补仅出现在 fixed_threshold_gate 组，总数 6 次，均为 tool-level patch。该结果说明，本次矩阵对局部修补机制产生了真实压力，但对重规划机制的矩阵级触发不足。第六章中的 focused tests 已覆盖后缀重规划和 `terminal_stop` 的可达性，因此本章的批量实验结论以局部修补和高代价调用为主。
 
 ## 7.6 Lite belief-state 机制可观测性
 
@@ -140,7 +140,7 @@
 | action_utilities | 空对象或不可用 | `continue`、`patch_local`、`suffix_replan`、`stop` 均有 utility |
 | high_cost_call_mean | static=1.0000，fixed=1.3333，dynamic=0.9524 | 0.9524 |
 
-Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有效 RuntimeState，且 budget pressure 来自运行时观测而非默认回退。该结果说明，CEBRA-WP 的运行时状态更新、预算压力估计和动作效用计算均已在矩阵实验中执行。与 dynamic_no_belief_state 相比，lite_belief_state 的 success_rate 和 high_cost_call_mean 相同，增量主要体现为完整的 RuntimeState 和动作效用记录。
+Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有效 RuntimeState，且 budget pressure 来自运行时观测而非默认回退。该结果说明，CEBRA-WP 的运行时状态更新、预算压力估计和动作效用计算均已在矩阵实验中执行。与 dynamic_no_belief_state 相比，lite_belief_state 的 success_rate 和 high_cost_call_mean 相同，其增量主要体现为完整的 RuntimeState 和动作效用记录。
 
 ## 7.7 典型失败案例
 
@@ -159,7 +159,7 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 | lite_belief_state | `t2_ubiquitin_sequence_eval` | r01 | auto decision loop exhausted | 多次 WAITING_PATCH 循环中 budget_pressure 升至 1.5，runtime adjustment 已产生但未打破循环。 | 说明 belief-state 链路可观测，且该机制仍受候选质量和循环控制限制。 |
 | dynamic_no_belief_state | `t3_gb1_stability_optimization` | r01 | `CANDIDATE_IO_CLOSURE_BROKEN` | 候选 step 输出字段无法被下游引用，候选验证在执行前失败。 | 说明候选可执行性校验能够阻断无效 plan。 |
 
-三个失败案例均有 event log 和 snapshot，是可追溯的边界样本。fixed_threshold_gate 的 t2 案例解释了表 7-5 中高代价调用增加的来源；lite_belief_state 的 t2 案例展示了 RuntimeState 的动态演化；dynamic_no_belief_state 的 t3 案例对应表 7-2 中 schema_valid_rate=0.9524。
+三个失败案例均有 event log 和 snapshot，可作为可追溯的边界样本。fixed_threshold_gate 的 t2 案例解释了表 7-5 中高代价调用增加的来源；lite_belief_state 的 t2 案例展示了 RuntimeState 的动态演化；dynamic_no_belief_state 的 t3 案例对应表 7-2 中 schema_valid_rate=0.9524。
 
 ## 7.8 证据产物与本章结论
 
@@ -179,8 +179,8 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 | run 级结果 | `run_level_results.jsonl` | 失败案例、RuntimeState、tool usage、artifact linkage | 7.6、7.7 |
 | 事件日志与快照 | `data/logs/thesis-final-v1-001_*.jsonl`、`data/snapshots/thesis-final-v1-001_*.jsonl` | 决策链、恢复链、运行时状态和失败追踪 | 7.7 |
 
-本章得到以下结论。第一，在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，lite_belief_state 组 21/21 runs 产生 RuntimeState，runtime_state_observable_rate 为 1.0000。第二，fixed_threshold_gate 触发 6 次真实局部修补，同时高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，也带来额外执行成本。第三，dynamic_no_belief_state 与 lite_belief_state 的 high_cost_call_mean 均为 0.9524，低于 fixed_threshold_gate 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。第四，3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
+本章得到以下结论。首先，在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，lite_belief_state 组 21/21 runs 产生 RuntimeState，runtime_state_observable_rate 为 1.0000。其次，fixed_threshold_gate 触发 6 次真实局部修补，高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，也会带来额外执行成本。再次，dynamic_no_belief_state 与 lite_belief_state 的 high_cost_call_mean 均为 0.9524，低于 fixed_threshold_gate 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。最后，3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
 
 在当前 `thesis-final-v1-001` 设置下，实验支持“CEBRA-WP 机制已实现且可观测”“固定阈值门控恢复存在额外成本”“Lite belief-state / 轻量信念状态提供运行时决策解释信息”等结论。成功率方面，static_top1 为 1.0000，其余三组为 0.9524，最终成功率提升并非本章的主要实验结论。
 
-基于上述实验结论与边界，第八章进一步总结本文贡献并讨论后续改进方向。
+基于上述实验结论与边界，第八章将进一步总结本文贡献，并讨论后续改进方向。
