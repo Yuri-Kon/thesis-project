@@ -164,6 +164,7 @@
 
 > 篇幅建议：18–25 页。素材集中于 `drafts/final-term/implementation/`（6 个 Markdown 文件，约 30KB），需大幅压缩。
 > 避免逐文件罗列代码，以关键流程和接口说明为主。
+> **当前状态：Markdown 初稿已完成**（`sections/05-system-implementation.md`，约 21KB），后续需补齐图表编号并转 LaTeX。
 
 5.1　技术选型与工程结构
 　—— Python 3.12 + FastAPI + Pydantic / React 19 + TypeScript + Vite
@@ -377,10 +378,10 @@
 | 第 2 章 相关技术 | — | 占位符 | 可在第 3-7 章后补写 |
 | **第 3 章 需求分析** | 🟡 需从 Ch3 草稿拆分 | 待创建 | ✅ 立即可 |
 | **第 4 章 总体设计** | 🟡 需从 Ch3 草稿拆分 | 待创建 | ✅ 立即可 |
-| 第 5 章 系统实现 | 🔴 素材散落 | 待创建 | ✅ 素材充足 |
+| **第 5 章 系统实现** | ✅ Markdown 初稿完成 | 待创建 | 待转 LaTeX |
 | **第 6 章 测试与验证** | ✅ Markdown 初稿完成 | 待创建 | 待转 LaTeX |
 | **第 7 章 策略实验** | ✅ Markdown 初稿完成 | 待创建 | 待转 LaTeX |
 | 第 8 章 总结展望 | — | 占位符 | 最后写 |
 
-> **当前重点**：第 6、7 章已完成 Markdown 初稿；下一步应拆分第 3/4 章、压缩第 5 章，并同步 `final.tex` 为 8 章结构。
+> **当前重点**：第 5、6、7 章已完成 Markdown 初稿；下一步应拆分第 3/4 章，并同步 `final.tex` 为 8 章结构。
 > **第三章草稿**（`sections/03-system-requirements-and-design.md`，约 32KB）在拆分前可作为第 3+4 章的共享素材。
