@@ -34,7 +34,7 @@
 | 代码清单 5-4 | 代码清单 | 进入 WAITING 状态前写入 PendingAction 与审计信息 | 5.4.3 等待状态、审计与快照 | `../thesis-project.dev/src/workflow/pending_action.py:101` | 说明 HITL 是受控工作流状态，不是前端临时按钮。 |
 | 代码清单 5-5 | 代码清单 | RuntimeEvaluator 候选重排 | 5.5 CEBRA-WP 的工程落点 | `../thesis-project.dev/src/workflow/runtime_evaluator.py:331` | 说明 CEBRA-WP 的 runtime adjustment 与 rerank 如何落地。 |
 | 代码清单 5-6 | 代码清单 | ToolAdapter 抽象接口 | 5.6 工具适配器与能力管理 | `../thesis-project.dev/src/adapters/base_tool_adapter.py:14` | 说明系统如何通过统一接口封装本地脚本、远程 REST 服务和外部工具。 |
-| 代码清单 5-7 | 备选代码清单 | 构建任务快照 | 5.4 恢复闭环或附录 | `../thesis-project.dev/src/workflow/snapshots.py:34` | 用于补充说明快照如何固化 runtime_state、pending_action 和 artifacts。正文篇幅不足时可放附录。 |
+| 代码清单 5-7 | 备选代码清单 | 构建任务快照 | 5.4 恢复闭环或附录 | `../thesis-project.dev/src/workflow/snapshots.py:34` | 当前正文未使用；仅在需要补充说明快照如何固化 runtime_state、pending_action 和 artifacts 时放入附录。 |
 
 正文建议最多放 4 至 6 个代码清单。`PendingReviewWorkspace` 等前端代码片段可作为附录候选，不建议放入正文主线。
 
