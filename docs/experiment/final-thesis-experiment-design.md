@@ -458,7 +458,7 @@ Provider 与 OpenFold3 修复验证：
 | OpenFold3 输入序列 | 未再出现 `DUMMY`；事件日志中的输入摘要为真实 20 aa 序列 `NLYIQWLKDGGPSSGRPPPS` | `data/logs/thesis-final-smoke-fourgroup-t8-provider-max-001_*.jsonl` |
 | OpenFold3 REST 执行 | 四组均完成 `openfold`，`execution_mode=openfold3_rest`，`status=success` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/requirement2_tool_capability_slices.csv` |
 
-限制说明：t8 是单任务、单重复的 smoke 结果，可用于证明链路可用和修复生效；正式论文主结果仍需扩大任务数或补充失败恢复/安全边界样本。当前 `high_cost_call_mean` 在 t8 汇总中为 0，但四组工具切片均记录 `openfold=1`，高代价计数口径需要在后续评估器修复或结果解释中单独说明。
+限制说明：t8 是单任务、单重复的 smoke 结果，可用于证明链路可用和修复生效；正式论文主结果仍需扩大任务数或补充失败恢复/安全边界样本。高代价计数口径已修正，t8 四组均记录 `openfold=1` 与 `high_cost_call_mean=1.0`。
 
 通过标准：
 

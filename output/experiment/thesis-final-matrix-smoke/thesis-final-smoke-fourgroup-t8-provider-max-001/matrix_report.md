@@ -1,6 +1,6 @@
 # Thesis Four-Group Experiment Matrix Report
 
-- generated_at: `2026-05-09T18:19:07+00:00`
+- generated_at: `2026-05-10T02:47:49+00:00`
 - freeze_id: `issue209-baseline-freeze-20260326`
 - run_manifest: `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/runs_manifest.json`
 
@@ -15,10 +15,10 @@
 
 | group | runs | success_rate | first_pass | schema_valid | executable | high_cost_mean | patch_mean | replan_mean | duration_ms_mean |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| static_top1 | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 183000.00 |
-| fixed_threshold_gate | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 290000.00 |
-| dynamic_no_belief_state | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 207000.00 |
-| lite_belief_state | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 0.0000 | 253000.00 |
+| static_top1 | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 183000.00 |
+| fixed_threshold_gate | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 290000.00 |
+| dynamic_no_belief_state | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 207000.00 |
+| lite_belief_state | 1 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 253000.00 |
 
 ## Mechanism Increment Deltas
 

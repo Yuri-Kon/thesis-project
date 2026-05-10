@@ -73,9 +73,11 @@
       "stability_simulation": 1,
       "objective_scoring": 1
     },
-    "high_cost_call_count": 0,
+    "high_cost_call_count": 1,
     "high_cost_failure_count": 0,
-    "high_cost_rule_hits": {},
+    "high_cost_rule_hits": {
+      "structure_mapping": 1
+    },
     "requirement2_coverage": {
       "sequence_core": false,
       "quality_qc": true,
@@ -218,9 +220,11 @@
     "capability_usage": {
       "structure_prediction": 1
     },
-    "high_cost_call_count": 0,
+    "high_cost_call_count": 1,
     "high_cost_failure_count": 0,
-    "high_cost_rule_hits": {},
+    "high_cost_rule_hits": {
+      "structure_mapping": 1
+    },
     "requirement2_coverage": {
       "sequence_core": false,
       "quality_qc": false,
@@ -363,9 +367,11 @@
     "capability_usage": {
       "structure_prediction": 1
     },
-    "high_cost_call_count": 0,
+    "high_cost_call_count": 1,
     "high_cost_failure_count": 0,
-    "high_cost_rule_hits": {},
+    "high_cost_rule_hits": {
+      "structure_mapping": 1
+    },
     "requirement2_coverage": {
       "sequence_core": false,
       "quality_qc": false,
@@ -508,9 +514,11 @@
     "capability_usage": {
       "structure_prediction": 1
     },
-    "high_cost_call_count": 0,
+    "high_cost_call_count": 1,
     "high_cost_failure_count": 0,
-    "high_cost_rule_hits": {},
+    "high_cost_rule_hits": {
+      "structure_mapping": 1
+    },
     "requirement2_coverage": {
       "sequence_core": false,
       "quality_qc": false,

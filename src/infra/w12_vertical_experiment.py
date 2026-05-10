@@ -334,7 +334,13 @@ def _match_high_cost_rule(
     capability_ids = set(rule.get("capability_ids") or [])
 
     step_id = row.get("step_id")
-    if stage_ids and not (isinstance(step_id, str) and step_id in stage_ids):
+    stage_id = _nested(row, "data", "stage_id")
+    observed_stage_ids = {
+        value
+        for value in (step_id, stage_id)
+        if isinstance(value, str) and value
+    }
+    if stage_ids and not stage_ids.intersection(observed_stage_ids):
         return False
     if tool_ids and tool not in tool_ids:
         return False
