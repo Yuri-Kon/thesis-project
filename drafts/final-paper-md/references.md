@@ -46,7 +46,7 @@
 | 原编号 | 引用键 | 参考文献 | 本地/补全来源 | 使用场景 |
 |---|---|---|---|---|
 | R23 | `[@leaverfay2011rosetta3]` | Leaver-Fay, A., et al. (2011). *ROSETTA3: an object-oriented software suite for the simulation and design of macromolecules*. Methods in Enzymology, 487, 545-574. https://doi.org/10.1016/B978-0-12-381270-4.00019-6 | 联网补齐 | 传统蛋白设计平台和固定流程对比。 |
-| R24 | `[@cock2009biopython]` | Cock, P. J. A., et al. (2009). *Biopython: freely available Python tools for computational molecular biology and bioinformatics*. Bioinformatics, 25(11), 1422-1423. https://doi.org/10.1093/bioinformatics/btp163 | RDF + PDF | BioPython 工具和工程实现背景。 |
+| R24 | `[@cock2009biopython]` | Cock, P. J. A., et al. (2009). *Biopython: freely available Python tools for computational molecular biology and bioinformatics*. Bioinformatics, 25(11), 1422-1423. https://doi.org/10.1093/bioinformatics/btp163 | RDF + PDF | Biopython 工具和工程实现背景。 |
 
 ## 五、科学工作流与系统工程
 

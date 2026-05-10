@@ -2,7 +2,7 @@
 
 本章在需求分析的基础上说明系统的总体设计。前一章已经给出蛋白质设计任务的主要需求：用户输入往往不完整，工具链具有多阶段依赖，高代价结构预测与目标评分不宜盲目调用，执行失败后需要保留已有证据并进行可追溯恢复。因此，本文系统设计的核心并不是把若干工具串接成固定流水线，而是在可执行约束、安全约束和预算约束下，为蛋白质设计任务提供一个可规划、可恢复、可审计的工作流运行框架。
 
-本章首先介绍系统分层架构、核心组件、有限状态机和六阶段蛋白质设计工作流；随后重点定义本文的核心算法 CEBRA-WP（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，约束与证据感知、信念引导、恢复自适应的工作流规划算法），并说明其提出背景、形式化对象、评分函数、运行时状态、恢复动作和实验可验证性。
+本章首先介绍系统分层架构、核心组件、有限状态机和六阶段蛋白质设计工作流；随后重点定义本文的核心算法约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP），并说明其提出背景、形式化对象、评分函数、运行时状态、恢复动作和实验可验证性。
 
 ## 4.1 设计目标与总体架构
 
@@ -38,14 +38,14 @@ ToolAdapter 层为外部工具提供统一调用接口。工具注册表面向�
 
 ## 4.3 任务生命周期、FSM 与 HITL 约束
 
-系统使用有限状态机（Finite State Machine, FSM）控制任务生命周期，如图 4-3 所示。
+系统使用有限状态机（Finite State Machine，FSM）控制任务生命周期，如图 4-3 所示。
 
 【图 4-3 FSM 状态转移图】
 插图文件：`paper/figures/fsm-state-transition.drawio.svg`
 
 任务对外状态包括 CREATED、PLANNING、WAITING_PLAN_CONFIRM、PLANNED、RUNNING、WAITING_PATCH_CONFIRM、WAITING_REPLAN_CONFIRM、SUMMARIZING、DONE、FAILED 和 CANCELLED。WAITING_* 状态具有明确语义：系统已经暂停自动推进，等待人类提交结构化 Decision。DONE、FAILED 和 CANCELLED 为终态，进入后不再被自动修改。
 
-HITL（人在环决策，Human-in-the-loop）不是任意插入的人机交互按钮，而是由成本、风险和不确定性共同触发的受控状态。图 4-4 展示了不同等待状态的进入条件。
+人在环决策（Human-in-the-loop，HITL）不是任意插入的人机交互按钮，而是由成本、风险和不确定性共同触发的受控状态。图 4-4 展示了不同等待状态的进入条件。
 
 【图 4-4 HITL 决策条件】
 插图文件：`paper/figures/hitl-decision-conditions.drawio.png`
