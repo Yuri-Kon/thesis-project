@@ -1,91 +1,9 @@
-# Master 分支专用
+# paper 分支专用
+resources/Protein Design/files/
+.DS_Store
 
-# 需要忽略的文件
+*.~lock.*
 
-# 1. Latex编译生成文件
+*.drawio
 
-*.aux
-*.bbl
-*.bcf
-*.blg
-*.brf
-*.idx
-*.ilg
-*.ind
-*.ist
-*.lof
-*.lot
-*.out
-*.toc
-*.fls
-*.fdb_latexmk
-*.synctex.gz
-*.synctex
-*.run.xml
-*.xdv
-*.nav
-*.snm
-*.log
-*.pdfsync
-
-# 2. 输出目录
-
-
-# 3. 临时文件 & 备份文件
-
-*.bak
-*.backup
-*.tmp
-*.swp
-*.swo
-*.lock
-*.DS_Store
-Thumbs.db
-
-# 4. vscode工作环境
-
-.vscode/
-*.code-workspace
-
-
-# 5. 参考与大文件
-shared/
-resources/papers/
-resources/data/
-resources/raw/
-iresources/tmp/
-
-# 6. Latex目录
-
-
-# 7. ppt
-
-
-# 8. Python编译产物
-
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-
-# 9. 虚拟环境
-
-.venv/
-venv/
-.env
-.env.*
-*.egg-info/
-
-# 10. 日志与中间数据
-
-data/logs/
-data/outputs/
-output/
-data/inputs/tmp/
-*.log
-
-#  11. Nextflow / workflow 相关中间文件
-.nextflow/
-.nextflow.log
-nf/work/
-nf/.nextflow/
+# 需要跟踪的内容
