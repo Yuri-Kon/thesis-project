@@ -14,7 +14,7 @@
 | R06 | Yao, S. et al. *Tree of Thoughts: Deliberate Problem Solving with Large Language Models*. 2023 | arXiv | https://arxiv.org/abs/2305.10601 | 外部基线对照 + Top-K diversity 保留多候选 |
 | R07 | Shinn, N. et al. *Reflexion: Language Agents with Verbal Reinforcement Learning*. 2023 | arXiv | https://arxiv.org/abs/2303.11366 | 外部基线对照 + 利用失败反馈形成结构化恢复 |
 | R08 | Xie, T. et al. *OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments*. 2024 | arXiv | https://arxiv.org/abs/2404.07972 | 执行结果、恢复能力和外部环境稳健性评估 agent |
-| R09 | Simmhan, Y. et al. *Reliable Data Pipelines Using Scientific Workflows*. 2009 | Microsoft Research | — | fail-fast、记录 provenance、recovery baked into workflow design |
+| R09 | Simmhan, Y. et al. *Reliable Management of Community Data Pipelines Using Scientific Workflows*. 2009 | Microsoft Research Technical Report MSR-TR-2009-125 | https://www.microsoft.com/en-us/research/publication/reliable-management-of-community-data-pipelines-using-scientific-workflows/ | fail-fast、记录 provenance、recovery baked into workflow design |
 
 ## 二、蛋白质设计工具类
 
@@ -35,7 +35,7 @@
 | R17 | *RosettaSearch: Multi-Objective Inference-Time Search for Protein Sequence Design* | 2026, arXiv | https://arxiv.org/abs/2604.17175 | 相关工作对比：workflow-level reranking vs sequence-level search |
 | R18 | *AutoBinder Agent: An MCP-Based Agent for End-to-End Protein Binder Design* | 2026, arXiv | https://arxiv.org/abs/2602.00019 | 最接近系统型相关工作，related work 必须提及 |
 | R19 | *Property-driven Protein Inverse Folding With Multi-Objective Preference Alignment* | 2026, arXiv | https://arxiv.org/abs/2603.06748 | lambda_m 目标权重和 developability 工程化依据 |
-| R20 | *ProteinGuide: Guide your favorite protein sequence generative model* | 2025, arXiv | https://arxiv.org/abs/2505.04823 | property guidance 与 evidence-guided generation |
+| R20 | Xiong, J. et al. *ProteinGuide: On-the-fly property guidance for protein sequence generative models* | 2025, arXiv | https://arxiv.org/abs/2505.04823 | property guidance 与 evidence-guided generation |
 | R21 | *ProteinZero: Self-Improving Protein Generation via Online Reinforcement Learning* | 2025, arXiv | https://arxiv.org/abs/2506.07459 | 未来扩展方向（不要把 CEBRA-WP 写成 online RL） |
 | R22 | *PDB-Struct: A Comprehensive Benchmark for Structure-based Protein Design* | 2023, arXiv | https://arxiv.org/abs/2312.00080 | 校准 objective_score 与 evidence_sufficiency 讨论 |
 
@@ -44,7 +44,7 @@
 | 编号 | 作者/标题 | 出版信息 | 链接 | 论文中使用场景 |
 |------|----------|---------|------|--------------|
 | R23 | Leaver-Fay, A. et al. *ROSETTA3: an object-oriented software suite for the simulation and design of macromolecules*. 2011 | Methods in Enzymology, 487:545-574 | — | 固定流水线平台对比，第 1/2 章 |
-| R24 | Cock, P.J.A. et al. *Biopython: freely available Python tools for biological computation*. 2009 | Bioinformatics, 25(11):1422-1423 | https://doi.org/10.1093/bioinformatics/btp163 | BioPython 工具背景 |
+| R24 | Cock, P.J.A. et al. *Biopython: freely available Python tools for computational molecular biology and bioinformatics*. 2009 | Bioinformatics, 25(11):1422-1423 | https://doi.org/10.1093/bioinformatics/btp163 | BioPython 工具背景 |
 
 ## 五、科学工作流与系统工程
 
