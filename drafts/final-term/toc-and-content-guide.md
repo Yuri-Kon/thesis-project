@@ -264,9 +264,9 @@
 
 ### 第 7 章　策略对比实验与结果分析
 
-> 篇幅建议：20–30 页。核心依据：`docs/experiment/final-thesis-experiment-design.md`。
+> 篇幅建议：20–30 页。核心依据：`docs/experiment/final-thesis-experiment-design.md` 与 `docs/experiment/thesis-final-v1-results.md`。
 > 此章回答「CEBRA-WP 是否比基线更好」，对应实验设计书的「CEBRA-WP 算法验证」主线（EXP-A1~A5）。
-> **⚠️ 此章依赖 84-run 正式矩阵完整结果，当前仅 smoke/clean run（t8 + t9，20 runs）可用。主表指标待填。**
+> **当前状态：Markdown 初稿已完成**（`sections/07-experiments-and-analysis.md`，约 23KB）。84-run 正式矩阵已完成，核心结果为 81/84 DONE，四组策略均完成 21 runs。
 
 7.1　实验设计与研究问题
 　—— 七个研究问题（RQ-S1~S3 对应系统验证已在第 6 章回答，RQ-A1~A4 由本章回答）
@@ -284,46 +284,48 @@
 　—— planner_provider: deepseek-v4-pro
 　—— 工具执行环境：OpenFold3 REST（远程）、ProtGPT2 PLM REST（远程）、BioPython QC（本地）
 　—— 矩阵执行方式：`scripts/run_thesis_experiment_matrix.py`
+　—— 实验 ID：`thesis-final-v1-001`，产物路径：`output/experiment/thesis-final-matrix/thesis-final-v1-001/`
 
 7.4　CEBRA-WP 机制可行性验证（EXP-A1）
 　—— 四个 policy mode 的机制链路验证
 　—— lite_belief_state 是唯一产生 runtime_state_summary 和 action_utility 的策略组
 　—— 候选 metadata 中的 runtime_adjustment、action_utility、rerank_reason 字段
-　—— 当前证据：t9 clean run 中 lite_belief 的 budget_pressure.source="observed"（其他三组 fallback 到 "default"）
+　—— 当前证据：84-run 中 lite_belief_state 的 runtime_state_observable_rate=1.0，action_utility_source=computed
 
 7.5　四组策略消融主实验（EXP-A2）
 　—— static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state
-　—— 主结果表（待填 84-run 数据）：
-　【表 7-1：四组消融主实验结果】
+　—— 主结果：static_top1 成功率 1.0000；fixed_threshold_gate、dynamic_no_belief_state、lite_belief_state 成功率均为 0.9524
+　—— 重点叙事：不夸大 lite 的成功率优势，转向机制可观测性、恢复开销与高代价调用控制
+　—— 表 7-1：四组消融主实验结果
 
 7.6　静态规划的必要性分析（EXP-A3）
-　—— 静态组在失败场景和高代价步骤前的不足
-　—— 当前证据局限：t9 clean run 四组 success_rate 均为 1.0，无失败场景可分析
-　—— 互补证据：focused test 中的确定性 retry → patch 恢复链路
+　—— static_top1 是唯一 100% 成功组，但缺少运行时恢复与信念观测机制
+　—— fixed_threshold_gate 触发 6 次真实 patch 与额外高代价调用，证明固定门控会带来恢复开销
+　—— 3 个 FAILED run 用于分析固定门控循环、belief-state 确定性不足和候选 I/O 闭包失败
 
 7.7　信念状态的增量价值分析（EXP-A4）
 　—— dynamic_no_belief_state vs lite_belief_state 的定向对比
-　—— 当前证据：lite_belief 在 runtime_state、action_utility 等维度已有非零观测
-　—— 待补：84-run 后对比 rerank_delta、stop_quality、high_cost_call_count
+　—— lite_belief_state 在全部 21 runs 中产生 runtime_state 与 action_utility，可作为 CEBRA-WP 可执行性的最强证据
+　—— lite/dynamic 相比 fixed_threshold_gate 减少高代价调用；lite 通过预防性 rerank 避免 fixed 的 patch 触发
 
 7.8　典型案例分析（EXP-A5）
-　—— 案例选取：C1 正常成功（t1_trpcage_denovo）、C2 局部失败恢复（t5_trpcage_patchable）、C3 高风险重规划（t7_top7_suffix_replan）
-　—— 当前状态：C1 已验证；C2 和 C3 等待 84-run 中诱发恢复/安全阻断的任务变体
+　—— 案例选取：fixed/t2_ubiquitin patch 循环耗尽；lite/t2_ubiquitin belief-state 观测但未稳定打破循环；dynamic/t3_gb1 candidate I/O closure hard-fail
+　—— 这些案例用于说明机制边界，而非回避失败结果
 
 7.9　外部基线对照（EXP-A6，可选）
 　—— ReAct-style / ToT-style / Reflexion-style 与内部方法对比
 　—— 当前状态：尚未执行，不作为论文通过的必要条件
 
 7.10　结论边界与限制说明
-　—— 当前 t9 clean run（N=16）仅证明链路可用，不构成算法有效性结论
-　—— 论文结论的三层边界：可行性（已有）→ 必要性（待 84-run）→ 优势（待 84-run）
-　—— 如果 lite_belief_state 未提升成功率但减少了高代价调用，应以「成本控制」而非「成功率」为主结论
+　—— n=2 统计效力有限，避免强统计显著性声称
+　—— t5/t8 未触发预期 patch/safety 行为，需以 focused tests 作为补充机制证据
+　—— lite_belief_state 未体现成功率优势，论文主结论应落在机制可观测性、运行时控制和成本/恢复开销差异
 
 7.11　本章小结
 
 **实验设计依据**：`docs/experiment/final-thesis-experiment-design.md`（12 实验 × 7 RQ × 指标体系 × 三层结论边界）
 **任务集设计**：`docs/experiment/final-task-set-design.md`（12 task_key，8 类设计场景，6 个真实蛋白质结构来源）
-**当前执行状态**：`docs/experiment/t9-four-group-clean-run-results.md`（16/16 DONE，100% 成功率，lite_belief 机制观测有效）
+**完整结果依据**：`docs/experiment/thesis-final-v1-results.md`（84-run，81/84 DONE，四组策略消融与机制增量分析）
 
 ---
 
@@ -349,7 +351,7 @@
 | 图 4-5 | 第 4 章 | 核心数据契约 UML | `asserts/figures/uml-contracts.drawio` |
 | 图 5-x | 第 5 章 | 系统实现相关截图（待确定） | `implementation/06-figure-placeholders.md` |
 | 图 6-x | 第 6 章 | 系统测试截图（FIG-SV-01~18） | `docs/system-validation/06-ui-screenshots/` |
-| 图 7-x | 第 7 章 | 实验结果图表（待 84-run 数据） | — |
+| 图 7-x | 第 7 章 | 实验结果图表（成功率、高代价调用、机制增量、失败案例） | `docs/experiment/thesis-final-v1-results.md`、`output/experiment/thesis-final-matrix/thesis-final-v1-001/` |
 
 ---
 
@@ -360,9 +362,10 @@
 | 表 3-1 | 第 3 章 | 系统功能需求与验证点映射 | `test-case-table.md` |
 | 表 4-1 | 第 4 章 | FSM 状态转移规则 | `AGENT_CONTRACT.md`、`architecture.md` |
 | 表 6-1 | 第 6 章 | 测试用例汇总（TC-S01~S13） | `test-case-table.md` |
-| 表 7-1 | 第 7 章 | 四组消融主实验结果 | 84-run 矩阵（待填） |
+| 表 7-1 | 第 7 章 | 四组消融主实验结果 | `thesis-final-v1-001` 84-run 矩阵 |
 | 表 7-2 | 第 7 章 | 实验任务集 | `final-task-set-design.md` |
 | 表 7-3 | 第 7 章 | 指标体系定义 | `final-thesis-experiment-design.md` §7 |
+| 表 7-4 | 第 7 章 | FAILED run 典型案例分析 | `thesis-final-v1-results.md` §4 |
 
 ---
 
@@ -370,14 +373,14 @@
 
 | 章 | 草稿 | LaTeX | 可开始写 |
 |----|------|-------|----------|
-| 第 1 章 绪论 | — | 占位符 | 等待主体定稿 |
-| 第 2 章 相关技术 | — | 占位符 | 可在系统章节后 |
+| 第 1 章 绪论 | — | 占位符 | 系统与实验章节定型后写 |
+| 第 2 章 相关技术 | — | 占位符 | 可在第 3-7 章后补写 |
 | **第 3 章 需求分析** | 🟡 需从 Ch3 草稿拆分 | 待创建 | ✅ 立即可 |
 | **第 4 章 总体设计** | 🟡 需从 Ch3 草稿拆分 | 待创建 | ✅ 立即可 |
 | 第 5 章 系统实现 | 🔴 素材散落 | 待创建 | ✅ 素材充足 |
-| **第 6 章 测试与验证** | 🔴 未开始 | 待创建 | ✅ 证据充足 |
-| 第 7 章 策略实验 | 🔴 未开始 | 待创建 | ⚠️ 等待 84-run |
+| **第 6 章 测试与验证** | ✅ Markdown 初稿完成 | 待创建 | 待转 LaTeX |
+| **第 7 章 策略实验** | ✅ Markdown 初稿完成 | 待创建 | 待转 LaTeX |
 | 第 8 章 总结展望 | — | 占位符 | 最后写 |
 
-> **当前阻塞**：第 7 章主实验表需 84-run 完成后方可填写。其余章均可独立推进。
+> **当前重点**：第 6、7 章已完成 Markdown 初稿；下一步应拆分第 3/4 章、压缩第 5 章，并同步 `final.tex` 为 8 章结构。
 > **第三章草稿**（`sections/03-system-requirements-and-design.md`，约 32KB）在拆分前可作为第 3+4 章的共享素材。
