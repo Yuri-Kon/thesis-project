@@ -1,12 +1,12 @@
 """API端点测试"""
 import json
+from pathlib import Path
 
 import pytest
 import httpx
 
 from src.api.main import app, INTAKE_STORE, TASK_STORE
 from src.models.contracts import (
-    DecisionChoice,
     DesignResult,
     PendingAction,
     PendingActionCandidate,
@@ -253,6 +253,140 @@ class TestAPIEndpoints:
         assert data["objective_scoring"]["top_k"][0]["candidate_id"] == "cand_a"
         assert data["objective_scoring"]["rank_reason"].startswith("cand_a ranks")
         assert data["structure_similarity"]["top_hit"]["hit_id"] == "1abc_A"
+
+    async def test_task_report_endpoint_done_contract_and_unfinished_404(
+        self,
+        client: httpx.AsyncClient,
+    ):
+        """报告接口应只对已生成 DesignResult 的任务返回稳定报告。"""
+
+        unfinished_task_id = "test_api_report_unfinished"
+        TASK_STORE[unfinished_task_id] = TaskRecord(
+            id=unfinished_task_id,
+            status=ExternalStatus.RUNNING,
+            internal_status=InternalStatus.RUNNING,
+            goal="运行中任务",
+            constraints={},
+            metadata={},
+            design_result=None,
+        )
+        done_task_id = "test_api_report_done_contract"
+        TASK_STORE[done_task_id] = TaskRecord(
+            id=done_task_id,
+            status=ExternalStatus.DONE,
+            internal_status=InternalStatus.DONE,
+            goal="稳定性评估",
+            constraints={"sequence": "ACDEFGHIKLMNPQRSTVWY"},
+            metadata={"source": "focused_test"},
+            design_result=DesignResult(
+                task_id=done_task_id,
+                sequence="ACDEFGHIKLMNPQRSTVWY",
+                structure_pdb_path="output/pdb/test_api_report_done_contract.pdb",
+                scores={"plddt": 87.5, "objective_score": 0.76},
+                risk_flags=[],
+                report_path="output/reports/test_api_report_done_contract.json",
+                metadata={
+                    "objective_scoring": {
+                        "top_k": [
+                            {
+                                "candidate_id": "seq_eval",
+                                "objective_score": 0.76,
+                            }
+                        ],
+                        "rank_reason": "seq_eval ranks by objective_score=0.760",
+                    },
+                    "structure_similarity": {
+                        "hit_count": 0,
+                        "artifact_refs": [],
+                    },
+                    "evidence": {
+                        "step_result_count": 1,
+                        "structure_artifact": "output/pdb/test_api_report_done_contract.pdb",
+                    },
+                },
+            ),
+        )
+
+        unfinished_response = await client.get(f"/tasks/{unfinished_task_id}/report")
+        done_response = await client.get(f"/tasks/{done_task_id}/report")
+
+        assert unfinished_response.status_code == 404
+        assert unfinished_response.json()["detail"] == "task report not found"
+        assert done_response.status_code == 200
+        data = done_response.json()
+        assert data["task_id"] == done_task_id
+        assert data["report_path"] == "output/reports/test_api_report_done_contract.json"
+        assert data["structure_pdb_path"] == "output/pdb/test_api_report_done_contract.pdb"
+        assert data["scores"] == {"plddt": 87.5, "objective_score": 0.76}
+        assert data["objective_scoring"]["top_k"][0]["candidate_id"] == "seq_eval"
+        assert data["structure_similarity"]["hit_count"] == 0
+        assert data["metadata"]["evidence"]["step_result_count"] == 1
+
+    async def test_task_structure_endpoint_returns_pdb_artifact(
+        self,
+        client: httpx.AsyncClient,
+        tmp_path: Path,
+    ):
+        """结构文件接口应返回 DesignResult 记录的 PDB 文本。"""
+
+        pdb_path = tmp_path / "test_api_structure.pdb"
+        pdb_text = (
+            "ATOM      1  N   ALA A   1      11.104  13.207   9.201  1.00 20.00           N\n"
+            "ATOM      2  CA  ALA A   1      12.104  13.907   9.701  1.00 20.00           C\n"
+            "ATOM      3  CA  GLY A   2      13.204  14.407  10.201  1.00 20.00           C\n"
+            "END\n"
+        )
+        pdb_path.write_text(pdb_text, encoding="utf-8")
+        task_id = "test_api_structure"
+        TASK_STORE[task_id] = TaskRecord(
+            id=task_id,
+            status=ExternalStatus.DONE,
+            internal_status=InternalStatus.DONE,
+            goal="展示结构",
+            constraints={},
+            metadata={},
+            design_result=DesignResult(
+                task_id=task_id,
+                sequence="AG",
+                structure_pdb_path=str(pdb_path),
+                scores={},
+                risk_flags=[],
+                report_path="output/reports/test_api_structure.json",
+                metadata={},
+            ),
+        )
+
+        report_response = await client.get(f"/tasks/{task_id}/report")
+        structure_response = await client.get(f"/tasks/{task_id}/structure")
+
+        assert report_response.status_code == 200
+        assert report_response.json()["structure_pdb_path"] == str(pdb_path)
+        assert structure_response.status_code == 200
+        assert "ATOM      2  CA  ALA" in structure_response.text
+        assert structure_response.headers["content-type"].startswith("chemical/x-pdb")
+
+    async def test_demo_structure_viewer_fixture_seeds_done_task(
+        self,
+        client: httpx.AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        """Demo fixture 应无需真实推理即可创建可展示结构的 DONE 任务。"""
+
+        monkeypatch.setenv("PROTEIN_ENABLE_DEMO_FIXTURES", "1")
+
+        create_response = await client.post("/demo/structure-viewer-task")
+        task_response = await client.get("/tasks/demo_structure_viewer")
+        structure_response = await client.get("/tasks/demo_structure_viewer/structure")
+
+        assert create_response.status_code == 200
+        payload = create_response.json()
+        assert payload["task_id"] == "demo_structure_viewer"
+        assert payload["ui_url"] == "/ui/tasks/demo_structure_viewer"
+        assert task_response.status_code == 200
+        assert task_response.json()["status"] == "DONE"
+        assert structure_response.status_code == 200
+        assert "HEADER    STRUCTURE VIEWER DEMO" in structure_response.text
+        assert structure_response.text.count("\nATOM") >= 300
 
     async def test_create_task_with_minimal_data(self, client: httpx.AsyncClient):
         """测试使用最少数据创建任务"""
@@ -1415,7 +1549,8 @@ class TestAPIEndpoints:
         """React 前端宿主页面和静态资源可访问。"""
         dashboard_response = await client.get("/ui")
         assert dashboard_response.status_code == 200
-        assert "Protein Design Operator Workspace" in dashboard_response.text
+        assert "蛋白质设计操作工作台" in dashboard_response.text
+        assert 'id="root"' in dashboard_response.text
         assert '"/static/web/assets/app.js"' in dashboard_response.text
         assert '"view": "dashboard"' in dashboard_response.text
 
@@ -1424,24 +1559,25 @@ class TestAPIEndpoints:
         assert '"taskId": "task_demo_001"' in task_view_response.text
         assert '"view": "task_detail"' in task_view_response.text
 
-        static_response = await client.get("/static/web/assets/app.js")
-        assert static_response.status_code == 200
-        assert "/pending-actions" in static_response.text
-        assert "/capabilities/readiness" in static_response.text
-        assert "Submit Decision" in static_response.text
-        assert "/task-intakes/schema" in static_response.text
-        assert "Task Builder" in static_response.text
-        assert "experimental" in static_response.text
-        assert "unsupported" in static_response.text
-        assert "No schema options are currently available" in static_response.text
+        app_js = Path("src/api/static/web/assets/app.js")
+        assert app_js.exists()
+        static_text = app_js.read_text(encoding="utf-8")
+        assert "/pending-actions" in static_text
+        assert "/capabilities/readiness" in static_text
+        assert "提交决策" in static_text
+        assert "/task-intakes/schema" in static_text
+        assert "任务构建器" in static_text
+        assert "实验性" in static_text
+        assert "暂不支持" in static_text
+        assert "当前没有可用的 Schema 选项" in static_text
 
         timeline_response = await client.get("/ui/tasks/task_demo_001/events")
         assert timeline_response.status_code == 200
         assert '"view": "event_timeline"' in timeline_response.text
 
-        style_response = await client.get("/static/web/assets/style.css")
-        assert style_response.status_code == 200
-        assert "--surface" in style_response.text
+        style_css = Path("src/api/static/web/assets/style.css")
+        assert style_css.exists()
+        assert "--surface" in style_css.read_text(encoding="utf-8")
 
         builder_response = await client.get("/ui/task-builder")
         assert builder_response.status_code == 200

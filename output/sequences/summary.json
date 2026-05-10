@@ -1,10 +1,10 @@
 {
-  "job_id": "plm_e3eb279b8fe54e7cadbde627ff01f282",
-  "task_id": "issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02_attempt4",
+  "job_id": "plm_8cb196e3968c43e38b6d38a0c6082bb9",
+  "task_id": "thesis-final-v1-001_fixed_threshold_gate_t1_villin_like_helix_bundle_r02",
   "step_id": "S1",
   "num_candidates": 4,
   "device_used": "cuda",
-  "prompt_length": 50,
+  "prompt_length": 122,
   "max_new_tokens": 128,
   "model_dir": "/root/autodl-tmp/models/plm/ProtGPT2"
 }

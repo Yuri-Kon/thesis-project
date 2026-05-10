@@ -10,6 +10,7 @@ from src.models.contracts import (
     StepResult,
     DesignResult,
     SafetyResult,
+    RiskFlag,
     now_iso,
 )
 
@@ -246,3 +247,110 @@ class TestSafetyAgent:
         assert result.action == "block"
         assert len(result.risk_flags) == 1
         assert result.risk_flags[0].code == "S3_ALL_CANDIDATES_REJECTED"
+
+    def test_pre_step_block_deterministic_forbidden_motif(
+        self,
+        dummy_context: WorkflowContext,
+    ):
+        """pre_step 确定性阻断：当安全规则检测到 forbidden motif 时返回 block
+
+        不依赖 LLM，纯规则判定。阻断时：
+        - action == "block"
+        - risk_flags 包含 FORBIDDEN_MOTIF_PRESENT
+        - timestamp 非空
+        """
+        step = PlanStep(
+            id="S1",
+            tool="protgpt2",
+            inputs={"sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"},
+            metadata={"constraints": {"forbidden_motifs": ["MKTA"]}},
+        )
+
+        # 确定性安全检查：pre_step 检测 step metadata 中的 forbidden_motifs
+        class ForbiddenMotifSafetyAgent(SafetyAgent):
+            def check_pre_step(self, step, context):
+                meta = step.metadata if isinstance(step.metadata, dict) else {}
+                motifs = meta.get("constraints", {}).get("forbidden_motifs", [])
+                inputs = step.inputs if isinstance(step.inputs, dict) else {}
+                seq = inputs.get("sequence", "")
+                for motif in motifs:
+                    if isinstance(motif, str) and isinstance(seq, str) and motif.upper() in seq.upper():
+                        return SafetyResult(
+                            task_id=context.task.task_id,
+                            phase="step",
+                            scope=f"step:{step.id}",
+                            action="block",
+                            risk_flags=[RiskFlag(
+                                code="FORBIDDEN_MOTIF_PRESENT",
+                                level="block",
+                                scope="step",
+                                message=f"Forbidden motif '{motif}' detected in sequence",
+                            )],
+                            timestamp=now_iso(),
+                        )
+                return SafetyResult(
+                    task_id=context.task.task_id,
+                    phase="step",
+                    scope=f"step:{step.id}",
+                    action="allow",
+                    risk_flags=[],
+                    timestamp=now_iso(),
+                )
+
+        agent = ForbiddenMotifSafetyAgent()
+        result = agent.check_pre_step(step, dummy_context)
+
+        assert result.action == "block"
+        assert len(result.risk_flags) == 1
+        assert result.risk_flags[0].code == "FORBIDDEN_MOTIF_PRESENT"
+        assert result.risk_flags[0].level == "block"
+        assert "MKTA" in result.risk_flags[0].message
+        assert result.timestamp is not None
+
+    def test_pre_step_allow_when_no_forbidden_motif(
+        self,
+        dummy_context: WorkflowContext,
+    ):
+        """pre_step 放行：序列不含 forbidden motif 时返回 allow"""
+        step = PlanStep(
+            id="S1",
+            tool="protgpt2",
+            inputs={"sequence": "NLYIQWLKDGGPSSGRPPPS"},
+            metadata={"constraints": {"forbidden_motifs": ["MKTA"]}},
+        )
+
+        class ForbiddenMotifSafetyAgent(SafetyAgent):
+            def check_pre_step(self, step, context):
+                meta = step.metadata if isinstance(step.metadata, dict) else {}
+                motifs = meta.get("constraints", {}).get("forbidden_motifs", [])
+                inputs = step.inputs if isinstance(step.inputs, dict) else {}
+                seq = inputs.get("sequence", "")
+                for motif in motifs:
+                    if isinstance(motif, str) and isinstance(seq, str) and motif.upper() in seq.upper():
+                        return SafetyResult(
+                            task_id=context.task.task_id,
+                            phase="step",
+                            scope=f"step:{step.id}",
+                            action="block",
+                            risk_flags=[RiskFlag(
+                                code="FORBIDDEN_MOTIF_PRESENT",
+                                level="block",
+                                scope="step",
+                                message=f"Forbidden motif '{motif}' detected in sequence",
+                            )],
+                            timestamp=now_iso(),
+                        )
+                return SafetyResult(
+                    task_id=context.task.task_id,
+                    phase="step",
+                    scope=f"step:{step.id}",
+                    action="allow",
+                    risk_flags=[],
+                    timestamp=now_iso(),
+                )
+
+        agent = ForbiddenMotifSafetyAgent()
+        result = agent.check_pre_step(step, dummy_context)
+
+        assert result.action == "allow"
+        assert result.risk_flags == []

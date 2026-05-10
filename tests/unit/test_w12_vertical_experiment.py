@@ -126,6 +126,58 @@ def test_extract_run_metrics_and_requirement2(tmp_path: Path) -> None:
     assert metrics["high_cost_rule_hits"]["structure_mapping"] == 1
 
 
+def test_extract_run_metrics_matches_high_cost_rule_by_logged_stage_id(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "logs" / "openfold_stage.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_stage",
+                "step_id": "S1",
+                "tool": "openfold",
+                "status": "success",
+                "timestamp": "2026-05-10T10:00:00+00:00",
+                "data": {"stage_id": "S2"},
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_stage",
+                "from_status": "SUMMARIZING",
+                "to_status": "DONE",
+                "timestamp": "2026-05-10T10:00:01+00:00",
+            },
+        ],
+    )
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "stage-r1",
+            "task_id": "task_stage",
+            "task_key": "k1",
+            "group_id": "A0",
+            "replicate": 1,
+            "event_log_path": str(log_path),
+            "status_external": "DONE",
+        },
+        tool_capability_map={"openfold": ["structure_prediction"]},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+        high_cost_rules=[
+            {
+                "rule_id": "structure_mapping",
+                "stage_ids": ["S2"],
+                "tool_ids": ["openfold"],
+                "capability_ids": ["structure_prediction"],
+            }
+        ],
+    )
+
+    assert metrics["high_cost_call_count"] == 1
+    assert metrics["high_cost_rule_hits"]["structure_mapping"] == 1
+
+
 def test_replay_sample_materialization_extracts_runtime_snapshot_and_shadow_fields(
     tmp_path: Path,
 ) -> None:
@@ -384,11 +436,73 @@ def test_extract_run_metrics_tracks_action_counts_and_shadow_agreement(
     assert metrics["action_patch_local_count"] == 1
     assert metrics["action_suffix_replan_count"] == 1
     assert metrics["action_stop_count"] == 1
+    assert metrics["suffix_replan_event_count"] == 1
     assert metrics["shadow_action_observation_count"] == 4
     assert metrics["shadow_action_agreement_count"] == 3
     assert metrics["shadow_action_agreement_rate"] == 0.75
     assert metrics["shadow_actual_bias_count"] == 1
     assert metrics["shadow_actual_bias_rate"] == 0.25
+
+
+def test_extract_run_metrics_does_not_count_action_utility_as_suffix_replan_event(
+    tmp_path: Path,
+) -> None:
+    log_path = tmp_path / "logs" / "task_action_utility_shadow.jsonl"
+    _write_jsonl(
+        log_path,
+        [
+            {
+                "event": "STEP_FINISHED",
+                "task_id": "task_action_utility_shadow",
+                "step_id": "S1",
+                "tool": "esmfold",
+                "status": "success",
+                "timestamp": "2026-04-16T10:20:01+00:00",
+                "data": {
+                    "action_name": "continue",
+                    "runtime_policy": "lite_belief_state",
+                    "action_utility_source": "computed",
+                    "action_utilities": {
+                        "continue": {"action": "continue", "utility": 0.41},
+                        "patch_local": {"action": "patch_local", "utility": 0.32},
+                        "suffix_replan": {
+                            "action": "suffix_replan",
+                            "utility": 0.29,
+                        },
+                        "stop": {"action": "stop", "utility": 0.05},
+                    },
+                },
+            },
+            {
+                "event": "TASK_STATUS_CHANGED",
+                "task_id": "task_action_utility_shadow",
+                "from_status": "SUMMARIZING",
+                "to_status": "DONE",
+                "timestamp": "2026-04-16T10:20:02+00:00",
+            },
+        ],
+    )
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "r_action_utility_shadow",
+            "task_id": "task_action_utility_shadow",
+            "task_key": "k_action_utility_shadow",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "freeze_id": "f_action_utility_shadow",
+            "event_log_path": str(log_path),
+            "status_external": "DONE",
+        },
+        tool_capability_map={"esmfold": ["structure_prediction"]},
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+
+    assert metrics["success"] is True
+    assert metrics["action_continue_count"] == 1
+    assert metrics["action_suffix_replan_count"] == 0
+    assert metrics["replan_event_count"] == 0
+    assert metrics["suffix_replan_event_count"] == 0
 
 
 def test_aggregate_and_deltas(tmp_path: Path) -> None:

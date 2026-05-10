@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { identifierLabel } from "../utils/displayText";
 
 interface DraftProtectionDialogProps {
   intakeId: string;
@@ -42,33 +43,32 @@ export function DraftProtectionDialog({
         className="draft-dialog"
         role="alertdialog"
         aria-modal="true"
-        aria-label="Unsaved Intake Draft"
+        aria-label="未保存的任务录入草稿"
       >
-        <h3>Unsaved Intake Draft</h3>
+        <h3>未保存的任务录入草稿</h3>
         <p>
-          You have an active intake draft{" "}
-          <strong>{intakeId}</strong> that has not been confirmed as a task.
+          当前存在尚未确认成任务的录入草稿 <strong>{intakeId}</strong>。
         </p>
         <div className="draft-dialog-meta">
           <span>
-            Last updated: <strong>{updatedAt}</strong>
+            最后更新：<strong>{updatedAt}</strong>
           </span>
           <span>
-            Status: <strong>{status.replace(/_/g, " ")}</strong>
+            状态：<strong>{identifierLabel(status)}</strong>
           </span>
         </div>
         <div className="draft-dialog-actions">
           <button type="button" className="text-button" onClick={onCancel}>
-            Cancel
+            取消
           </button>
           <button type="button" className="secondary-button danger-text" onClick={onDiscardAndLeave}>
-            Discard &amp; Leave
+            丢弃并离开
           </button>
           <button type="button" ref={saveRef} onClick={onSaveAndLeave}>
-            Save &amp; Leave
+            保存并离开
           </button>
           <button type="button" className="secondary-button" onClick={onContinueEditing}>
-            Continue Editing
+            继续编辑
           </button>
         </div>
       </div>

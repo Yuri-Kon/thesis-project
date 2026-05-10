@@ -12,15 +12,15 @@ export function CapabilityReadinessPanel({ readiness }: CapabilityReadinessPanel
   return (
     <section className="panel capability-readiness-panel">
       <div className="panel-header">
-        <h2>Capability Readiness</h2>
+        <h2>能力就绪状态</h2>
         <div className="row-meta">
-          {blockedCount ? <span className="source-chip danger">{blockedCount} blocked</span> : null}
-          {degradedCount ? <span className="source-chip warning">{degradedCount} degraded</span> : null}
+          {blockedCount ? <span className="source-chip danger">{blockedCount} 个阻塞</span> : null}
+          {degradedCount ? <span className="source-chip warning">{degradedCount} 个降级</span> : null}
           <span className="counter">{readiness.length}</span>
         </div>
       </div>
       <div className="readiness-list">
-        {readiness.length === 0 ? <p className="muted">No readiness entries.</p> : null}
+        {readiness.length === 0 ? <p className="muted">暂无能力就绪记录。</p> : null}
         {readiness.map((entry) => (
           <article key={entry.capability_id} className="readiness-row">
             <div className="readiness-copy">
@@ -29,7 +29,7 @@ export function CapabilityReadinessPanel({ readiness }: CapabilityReadinessPanel
             </div>
             <div className="readiness-meta">
               <StatusBadge value={entry.status} />
-              <span className="source-chip">{entry.primary_tool_id ?? entry.available_tools[0]?.tool_id ?? "no tool"}</span>
+              <span className="source-chip">{entry.primary_tool_id ?? entry.available_tools[0]?.tool_id ?? "无工具"}</span>
             </div>
           </article>
         ))}

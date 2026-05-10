@@ -1,6 +1,6 @@
 import pytest
 
-from src.models.contracts import Plan, PlanStep, ProteinDesignTask
+from src.models.contracts import PendingActionCandidate, Plan, PlanStep, ProteinDesignTask
 from src.models.validation import (
     CandidateExecutionValidationError,
     validate_plan_executability,
@@ -16,7 +16,7 @@ def _task() -> ProteinDesignTask:
     )
 
 
-def _kg() -> dict:
+def _kg() -> dict[str, object]:
     return {
         "capabilities": [
             {"capability_id": "sequence_generation"},
@@ -151,3 +151,60 @@ def test_validate_plan_executability_rejects_invalid_params() -> None:
         )
 
     assert any(issue.code == "CANDIDATE_PARAMS_INVALID" for issue in exc_info.value.issues)
+
+
+@pytest.mark.unit
+def test_validate_plan_executability_reports_candidate_schema_and_io_boundary() -> None:
+    task = _task()
+    plan = Plan(
+        task_id=task.task_id,
+        steps=[
+            PlanStep(
+                id="S1",
+                tool="seq_tool",
+                inputs={"goal": task.goal},
+                metadata={},
+            ),
+            PlanStep(
+                id="S2",
+                tool="fold_tool",
+                inputs={"sequence": "S1.pdb_path"},
+                metadata={},
+            ),
+        ],
+        constraints={},
+        metadata={},
+    )
+    candidate = PendingActionCandidate(
+        candidate_id="bad_io_candidate",
+        payload=plan,
+        tool_id="fold_tool",
+        capability_id="sequence_generation",
+        io_type="goal_to_sequence",
+        adapter_id="fold_tool",
+    )
+
+    with pytest.raises(CandidateExecutionValidationError) as exc_info:
+        validate_plan_executability(
+            plan,
+            task,
+            candidate=candidate,
+            kg_loader=_kg,
+            adapter_resolver=_adapter_resolver,
+        )
+
+    issues = exc_info.value.issues
+    assert any(
+        issue.code == "CANDIDATE_SCHEMA_INVALID"
+        and issue.tool_id == "fold_tool"
+        and issue.capability_id == "sequence_generation"
+        and issue.io_type == "goal_to_sequence"
+        for issue in issues
+    )
+    assert any(
+        issue.code == "CANDIDATE_IO_CLOSURE_BROKEN"
+        and issue.step_id == "S2"
+        and issue.tool_id == "fold_tool"
+        and issue.details == {"input_key": "sequence", "reference": "S1.pdb_path"}
+        for issue in issues
+    )

@@ -1,0 +1,134 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-10T05:09:56+00:00",
+  "run_id": "thesis-final-v1-dry_lite_belief_state_t3_gb1_stability_optimization_r02",
+  "task_id": "thesis-final-v1-dry_lite_belief_state_t3_gb1_stability_optimization_r02",
+  "group": {
+    "id": "lite_belief_state",
+    "label": "Lite belief-state",
+    "comparison_order": 3,
+    "implementation_status": "implemented",
+    "runtime_policy": "lite_belief_state",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 3,
+      "patch_top_k": 3,
+      "replan_top_k": 3,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.75,
+      "high_cost_min_overall": 0.85
+    },
+    "output_fields": [
+      "success_rate",
+      "high_cost_call_mean",
+      "high_cost_failure_mean",
+      "patch_events_mean",
+      "replan_events_mean"
+    ],
+    "notes": "Lite belief-state baseline with runtime rerank and adaptive action selection enabled."
+  },
+  "task": {
+    "task_key": "t3_gb1_stability_optimization",
+    "goal": "Design a 50-60 residue GB1-like alpha/beta domain optimized for foldability and solubility, without requiring immunoglobulin binding.",
+    "display_name": "GB1-like stability optimization",
+    "difficulty": "medium",
+    "budget_tier": "standard",
+    "rationale": "",
+    "task_class": "T3",
+    "real_case": {
+      "source_ids": [
+        "1PGB",
+        "2GB1"
+      ],
+      "rationale": "Protein G B1 is a small stable alpha/beta domain suitable for multi-constraint optimization tests."
+    },
+    "expected_focus": [
+      "candidate_filtering",
+      "objective_scoring",
+      "plan_candidate_ranking"
+    ],
+    "oracle_action": "prefer_candidate_with_balanced_qc_and_structure_evidence",
+    "constraints": {
+      "prompt": "Design a 50-60 residue GB1-like alpha/beta domain optimized for foldability and solubility, without requiring immunoglobulin binding.",
+      "length_range": [
+        50,
+        60
+      ],
+      "objective_type": "multi_constraint_stability",
+      "secondary_structure_bias": {
+        "helix_fraction_range": [
+          0.15,
+          0.35
+        ],
+        "beta_fraction_range": [
+          0.25,
+          0.5
+        ]
+      },
+      "prefer_low_hydrophobic_surface": true
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "fallback_tool_ids": [
+      "esmfold",
+      "nim_esmfold"
+    ],
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 3,
+    "patch_top_k": 3,
+    "replan_top_k": 3,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.75,
+    "high_cost_min_overall": 0.85,
+    "prompt": "Design a 50-60 residue GB1-like alpha/beta domain optimized for foldability and solubility, without requiring immunoglobulin binding.",
+    "length_range": [
+      50,
+      60
+    ],
+    "objective_type": "multi_constraint_stability",
+    "secondary_structure_bias": {
+      "helix_fraction_range": [
+        0.15,
+        0.35
+      ],
+      "beta_fraction_range": [
+        0.25,
+        0.5
+      ]
+    },
+    "prefer_low_hydrophobic_surface": true,
+    "runtime_policy": "lite_belief_state"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "thesis_experiment_matrix",
+    "group_id": "lite_belief_state",
+    "group_label": "Lite belief-state",
+    "task_key": "t3_gb1_stability_optimization",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "medium",
+    "budget_tier": "standard"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
+    "baseline_freeze_config_hash": "37b097d77785",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "8ba8b17d98c8"
+  }
+}

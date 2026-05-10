@@ -1,0 +1,15 @@
+[
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t5-lite-rerun-001_lite_belief_state_t2_trpcage_sequence_eval_r01",
+    "group_id": "lite_belief_state",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "abnormal:waiting_chain_incomplete"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t5-lite-rerun-001/run_configs/thesis-final-smoke-fourgroup-t5-lite-rerun-001_lite_belief_state_t2_trpcage_sequence_eval_r01.json"
+  }
+]

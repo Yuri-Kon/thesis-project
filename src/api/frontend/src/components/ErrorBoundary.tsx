@@ -36,15 +36,20 @@ export class ColumnErrorBoundary extends Component<
 
   render() {
     if (this.state.hasError) {
-      const message = this.state.error?.message ?? "Unknown error";
+      const message = this.state.error?.message ?? "未知错误";
       const truncated =
         message.length > 120 ? message.slice(0, 120) + "..." : message;
+      const nameLabels: Record<ColumnErrorBoundaryProps["name"], string> = {
+        sidebar: "侧边栏",
+        main: "主工作区",
+        inspector: "检查器",
+      };
       return (
         <div className="column-error-card">
-          <strong>{this.props.name} 不可用</strong>
+          <strong>{nameLabels[this.props.name]}不可用</strong>
           <p>{truncated}</p>
           <button type="button" onClick={this.handleRetry}>
-            Retry
+            重试
           </button>
         </div>
       );
@@ -78,14 +83,13 @@ export class AppErrorBoundary extends Component<
     if (this.state.hasError) {
       return (
         <div className="app-error-fallback">
-          <h2>Something went wrong</h2>
+          <h2>页面出现异常</h2>
           <p className="muted">
-            The workspace encountered an unexpected error. Please reload the
-            page.
+            工作区遇到未预期错误，请重新加载页面。
           </p>
-          <pre>{this.state.error?.message ?? "Unknown error"}</pre>
+          <pre>{this.state.error?.message ?? "未知错误"}</pre>
           <button type="button" onClick={() => window.location.reload()}>
-            Reload Page
+            重新加载页面
           </button>
         </div>
       );

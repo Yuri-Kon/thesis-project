@@ -78,7 +78,7 @@
                 "sigma_data": 16,
                 "no_samples": 48,
                 "no_mini_rollout_samples": 1,
-                "no_full_rollout_samples": 1,
+                "no_full_rollout_samples": 5,
                 "no_mini_rollout_steps": 20,
                 "no_full_rollout_steps": 200,
                 "use_conditioning_prob": 1.0

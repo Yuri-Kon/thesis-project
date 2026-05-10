@@ -19,9 +19,9 @@ export function TaskSearch({ taskId, onTaskIdChange, onSubmit, onRefresh }: Task
 
   return (
     <form className="task-search" onSubmit={submit}>
-      <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="task_id" />
-      <button type="submit">Load</button>
-      <button type="button" onClick={onRefresh}>Refresh</button>
+      <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="任务 ID" />
+      <button type="submit">加载</button>
+      <button type="button" onClick={onRefresh}>刷新</button>
     </form>
   );
 }

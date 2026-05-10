@@ -12,6 +12,12 @@ except ImportError:
     ZAI_AVAILABLE = False
 
 from src.llm.base_llm_provider import BaseProvider, ProviderConfig
+from src.llm.response_diagnostics import (
+    build_empty_response_error,
+    build_provider_invocation_error,
+    collect_stream_content_with_summary,
+    extract_message_content_with_summary,
+)
 from src.models.contracts import (
     PatchRequest,
     Plan,
@@ -130,6 +136,7 @@ class ZaiChatProvider(BaseProvider):
         schema_model,
     ) -> Dict | None:
         start_time = time.time()
+        request_kwargs: dict[str, Any] = {}
         try:
             request_kwargs = self._build_request_kwargs(
                 system_prompt=system_prompt,
@@ -139,15 +146,33 @@ class ZaiChatProvider(BaseProvider):
             )
             response = self.client.chat.completions.create(**request_kwargs)
         except Exception as e:
-            raise Exception(f"LLM API 调用失败: {e}")
+            raise build_provider_invocation_error(
+                candidate_kind=schema_name,
+                provider_name="zai_chat",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=time.time() - start_time,
+                request_kwargs=request_kwargs,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+                error=e,
+            )
 
         elapsed = time.time() - start_time
         if self.config.stream:
-            content = self._collect_stream_content(response)
+            content, response_summary = collect_stream_content_with_summary(response)
         else:
-            content = response.choices[0].message.content
+            content, response_summary = extract_message_content_with_summary(response)
         if not content:
-            raise ValueError("LLM 返回空响应")
+            raise build_empty_response_error(
+                candidate_kind=schema_name,
+                provider_name="zai_chat",
+                model=self.config.model_name,
+                endpoint=self.endpoint or "default",
+                elapsed_seconds=elapsed,
+                request_kwargs=request_kwargs,
+                response_summary=response_summary,
+                prompt_context={"system": system_prompt, "user": user_prompt},
+            )
         content = _strip_markdown_json_fence(content)
         try:
             payload = json.loads(content)

@@ -1,6 +1,6 @@
 # 毕业论文最终实验设计
 
-更新时间：2026-05-07
+更新时间：2026-05-10
 
 ## 1. 实验定位
 
@@ -67,6 +67,8 @@
 ## 5. 实验任务集设计
 
 最终任务集不宜只使用一个成功路径。建议固定 8 类任务，每类至少 3 个样本，主实验每组至少重复 3 次；若时间不足，最小集可用每类 1 个样本、每组重复 2 次。
+
+> 2026-05-10 执行状态：最小验证包已跑通。t9 clean run 使用 4 任务（t1/t2/t5/t8）× 4 组 × 1 repeat，16/16 DONE，基础设施和四组矩阵链路确认可用。下一步按最小包策略扩到 8 任务 + 2 repeat。
 
 | 任务类 | 任务目标 | 设计目的 | 预期触发 |
 |:---|:---|:---|:---|
@@ -435,6 +437,90 @@ uv run python scripts/run_thesis_experiment_matrix.py \
 | dynamic_no_belief_state | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 0 |
 | lite_belief_state | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 | 待填 |
 
+当前 smoke 执行记录：
+
+| run_id | 日期 | planner_provider | task_key | selection | runs | success | rerun_candidates | abnormal_samples | 结论 |
+|:---|:---|:---|:---|:---|---:|---:|---:|---:|:---|
+| `thesis-final-smoke-fourgroup-t8-provider-max-001` | 2026-05-09 | `deepseek-v4-pro` | `t2_trpcage_sequence_eval` | `four-group-t8-provider-max-selection.json` | 4 | 4 | 0 | 0 | 四组 smoke 通过；provider max_tokens 与 OpenFold3 REST 链路恢复正常 |
+| `thesis-final-smoke-fourgroup-t9-clean-001` | 2026-05-10 | `deepseek-v4-pro` | t1/t2/t5/t8 | `four-group-t9-clean-selection.json` | 16 | 16 | 0 | 0 | 四组 × 四任务 clean run 通过；基础设施无阻塞问题 |
+
+t8 smoke 结果表（单任务 `t2_trpcage_sequence_eval`）：
+
+| group_id | runs | success_rate | first_pass_success_rate | executable_plan_rate | duration_ms_mean | tool_usage | trace_ref |
+|:---|---:|---:|---:|---:|---:|:---|:---|
+| `static_top1` | 1 | 1.0000 | 1.0000 | 1.0000 | 183000.0 | `openfold=1, biopython_qc=1, mda_analysis=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `fixed_threshold_gate` | 1 | 1.0000 | 1.0000 | 1.0000 | 290000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `dynamic_no_belief_state` | 1 | 1.0000 | 1.0000 | 1.0000 | 207000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+| `lite_belief_state` | 1 | 1.0000 | 1.0000 | 1.0000 | 253000.0 | `openfold=1` | `output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t8-provider-max-001/run_level_results.jsonl` |
+
+t9 clean run 结果表（4 任务 `t1/t2/t5/t8`，每组 4 runs）：
+
+| group_id | runs | success_rate | first_pass | schema_valid | executable | high_cost_mean | patch | replan | duration_ms_mean |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `static_top1` | 4 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 203500.0 |
+| `fixed_threshold_gate` | 4 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 172750.0 |
+| `dynamic_no_belief_state` | 4 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 209000.0 |
+| `lite_belief_state` | 4 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 225500.0 |
+
+t9 关键发现：
+
+| 发现 | 说明 |
+|:---|:---|
+| 基础设施通过 | 16/16 DONE，无 rerun、无 abnormal_samples |
+| 成功率无区分度 | 所有四组 success_rate=1.0，n=1 无法支撑统计检验 |
+| 恢复机制未触发 | t5（patchable_length_failure）未能诱发 patch/replan，所有步骤 `status=success` |
+| 恢复 focused test 已补 | `test_deterministic_retry_patch_to_done_produces_recovery_metrics` 确定性触发 retry exhausted -> tool-level patch -> DONE，并验证 `patch_event_count=1` |
+| API/report 与 I/O 边界 focused test 已补 | `test_task_report_endpoint_done_contract_and_unfinished_404` 覆盖 DONE report 与未完成 404；`test_validate_plan_executability_reports_candidate_schema_and_io_boundary` 覆盖候选 schema/I-O 结构化拒绝 |
+| lite_belief_state 有效观测 | `runtime_state_summary` 非 null，`budget_pressure` source=`observed`（其他组 fallback 到 `default=1.0`），`action_utility_source`=`computed`（其他组 `missing`） |
+| 安全任务未阻断 | t8 四组均正常执行，`safety_terminality=0.0`，forbidden_motif 未触发越权阻断 |
+| 时序反直觉 | `fixed_threshold_gate` 最快（172.75s），`static_top1` 因 dual-route planning 反而更慢（203.5s） |
+| suffix_replan 计数口径已修正 | 重算后四组 `suffix_replan_events_total=0.0`；`action_utilities.suffix_replan` 仅作为候选效用证据，不计入真实恢复事件 |
+
+Provider 与 OpenFold3 修复验证（t8 + t9 联合）：
+
+| 验证项 | 观察结果 | 证据 |
+|:---|:---|:---|
+| DeepSeek V4 `max_tokens` 上限 | 未再出现 `Invalid max_tokens value` 或 `provider_invocation_failed` | t8 + t9 `run_log_index.csv` |
+| OpenFold3 输入序列 | 未再出现 `DUMMY`；t8 输入为 `NLYIQWLKDGGPSSGRPPPS`，t9 为正常生成序列 | t8 + t9 event logs |
+| OpenFold3 REST 执行 | t8 + t9 共 20 runs，所有 `openfold` 调用 `execution_mode=openfold3_rest`，`status=success` | `requirement2_tool_capability_slices.csv` |
+| 工具链完整性 | t9 覆盖 `openfold`(S2) + `protgpt2`(S1) + `biopython_qc`(S3)，全部通过 | `action_distribution.csv` |
+
+限制说明：t8 是单任务 smoke，t9 是 4 任务 × 1 repeat 的 clean run。两次结果均 100% 成功率，可用于证明链路可用和修复生效。正式论文主结果仍需扩大任务数（8 类）、增加 repeats（n≥2）、并引入能诱发恢复/安全阻断的任务变体。高代价计数口径已修正，所有 run 均记录 `high_cost_call_mean=1.0`。
+
+---
+
+**v1 正式矩阵结果**（`thesis-final-v1-001`，2026-05-10）：12 任务 × 4 组 × max 2 repeats = 84 runs，81/84 DONE（96.4%），3 FAILED。
+
+v1 结果表：
+
+| group_id | runs | success_rate | first_pass | schema_valid | executable | high_cost_mean | patch_mean | replan_mean | duration_ms_mean |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `static_top1` | 21 | **1.0000** | **1.0000** | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 241905 |
+| `fixed_threshold_gate` | 21 | 0.9524 | 0.9048 | 1.0000 | 0.9524 | **1.3333** | **0.2857** | 0.0000 | 300238 |
+| `dynamic_no_belief_state` | 21 | 0.9524 | 0.9524 | 0.9524 | 1.0000 | **0.9524** | 0.0000 | 0.0000 | **226571** |
+| `lite_belief_state` | 21 | 0.9524 | 0.9524 | 1.0000 | 1.0000 | **0.9524** | 0.0000 | 0.0000 | 272095 |
+
+v1 关键发现：
+
+| 发现 | 说明 |
+|:---|:---|
+| 成功率首次出现差异化 | static=1.0, 其余三组=0.9524（各 20/21 DONE），打破了 t9 的天花板效应 |
+| fixed 是唯一触发真实 patch 的组 | 6 次 tool-level patch（patch_mean=0.29），高代价调用因此涨到 1.33/run |
+| dynamic/lite 省高代价调用 | high_cost_mean=0.95 vs static=1.0 vs fixed=1.33，lite 在成功率持平 fixed 时少 28.6% |
+| lite belif-state 持续有效 | 21/21 runs runtime_state_observable=1.0, action_utility_source=computed |
+| 3 个 FAILED 各不同因 | fixed: patch loop 耗尽（t2_ubiquitin r02）；lite: patch loop 耗尽（t2_ubiquitin r01, 36 次）；dynamic: IO_CLOSURE_BROKEN（t3_gb1 r01） |
+| t2_ubiquitin（76aa 大蛋白）是主要压力点 | 在 2/4 组失败，是展示策略差异的最佳案例任务 |
+| lite 的"预防性"优势 | lite 通过 runtime rerank 避免了进入 patch 状态（0 patch vs fixed 6 patch），而 fixed 在运行时才发现问题 |
+
+v1 论文叙事框架：
+
+- **成功率**：static_top1=100%，诚实表述，不以此作为 CEBRA-WP 主优势
+- **恢复能力**：fixed_threshold_gate 的 6 次 patch 证明拦截-修复可用，但 loop 耗尽也暴露无 runtime rerank 的局限（必要性证据）
+- **成本控制**：lite/dynamic 比 fixed 少 28.6% 高代价调用，比 static 少 5%（量化优势）
+- **belief-state 价值**：lite 通过"预防性 rerank"避免触发 patch，而非在运行时拦截
+
+完整分析：`docs/experiment/thesis-final-v1-results.md`
+
 通过标准：
 
 - 四组均能生成 run manifest。
@@ -616,12 +702,12 @@ output/experiment/thesis-final-*/
 
 如果时间紧，最低限度建议完成以下 6 项：
 
-1. 运行 API / Web / CLI 系统验证，补充截图和 CLI 输出。
-2. 运行 FSM / HITL / recovery focused tests，保存 pytest log。
-3. 运行 CEBRA-WP 机制单测，证明四组 policy mode 可切换。
-4. 运行一次四组矩阵，哪怕任务数较少，也要保留 manifest 和 metrics。
-5. 专门补一次 `dynamic_observation_only` vs `lite_belief_state` 定向对照。
-6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。
+1. 运行 API / Web / CLI 系统验证，补充截图和 CLI 输出。 ✅ 已完成（2026-05-10）
+2. 运行 FSM / HITL / recovery focused tests，保存 pytest log。 ✅ 已完成（2026-05-10）
+3. 运行 CEBRA-WP 机制单测，证明四组 policy mode 可切换。 ✅ 已完成
+4. 运行一次四组矩阵，哪怕任务数较少，也要保留 manifest 和 metrics。 ✅ 已完成 — t9 clean run（16/16）+ v1 正式矩阵（81/84 DONE，12 任务 × 4 组）
+5. 专门补一次 `dynamic_observation_only` vs `lite_belief_state` 定向对照。 ⬜ 待执行 — v1 已包含两组 21 runs 对比数据，但缺定向任务设计
+6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。 🔄 部分 — v1 提供 t2_ubiquitin lite r01（36 次 patch 循环）；其余待打包
 
 最小包可以支撑的论文结论：
 
@@ -632,16 +718,16 @@ output/experiment/thesis-final-*/
 
 ## 12. 推荐执行顺序
 
-| 顺序 | 动作 | 输出 |
-|:---|:---|:---|
-| 1 | 冻结最终任务集和工具白名单 | `thesis_final_task_set.json`、配置 hash |
-| 2 | 运行系统验证 focused tests | pytest logs |
-| 3 | 启动 API，补 Web / CLI 手工证据 | 截图、CLI 输出、API JSON |
-| 4 | 运行 CEBRA-WP 机制测试 | policy mode 和 runtime trace 证据 |
-| 5 | 运行四组消融矩阵 | metrics CSV、matrix report |
-| 6 | 运行 belief-state 定向对照 | incremental value table |
-| 7 | 选择 3 个案例并打包证据 | case bundle |
-| 8 | 写 `final-result-claim-boundary.md` | 论文结果表述边界 |
+| 顺序 | 动作 | 输出 | 状态 |
+|:---|:---|:---|:---|
+| 1 | 冻结最终任务集和工具白名单 | `thesis_final_task_set.json`、配置 hash | ✅ 已完成 |
+| 2 | 运行系统验证 focused tests | pytest logs | ✅ 已完成 |
+| 3 | 启动 API，补 Web / CLI 手工证据 | 截图、CLI 输出、API JSON | ✅ 已完成 |
+| 4 | 运行 CEBRA-WP 机制测试 | policy mode 和 runtime trace 证据 | ✅ 已完成 |
+| 5 | 运行四组消融矩阵 | metrics CSV、matrix report | ✅ v1 正式矩阵完成（81/84 DONE）；完整分析见 `docs/experiment/thesis-final-v1-results.md` |
+| 6 | 运行 belief-state 定向对照 | incremental value table | ⬜ 待执行 |
+| 7 | 选择 3 个案例并打包证据 | case bundle | ⬜ 待执行 |
+| 8 | 写 `final-result-claim-boundary.md` | 论文结果表述边界 | ⬜ 待执行 |
 
 ## 13. 论文图表产出
 

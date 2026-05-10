@@ -784,8 +784,8 @@ def _extract_patch_candidates(
     if top_k.default_recommendation:
         pairs.sort(
             key=lambda pair: (
-                0 if pair[0].candidate_id == top_k.default_recommendation else 1,
                 _recovery_layer_rank(pair[1]),
+                0 if pair[0].candidate_id == top_k.default_recommendation else 1,
                 pair[0].candidate_id,
             )
         )

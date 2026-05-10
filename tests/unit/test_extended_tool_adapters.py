@@ -449,6 +449,41 @@ def test_mda_analysis_adapter_generates_stability_proxy_metrics(tmp_path: Path) 
     assert metrics["frame_count"] == 1
 
 
+def test_mda_analysis_adapter_reads_openfold3_mmcif_coordinates(
+    tmp_path: Path,
+) -> None:
+    cif_path = tmp_path / "openfold3_model.cif"
+    _ = cif_path.write_text(
+        "data_structure\n"
+        "#\n"
+        "loop_\n"
+        "_atom_site.group_PDB\n"
+        "_atom_site.type_symbol\n"
+        "_atom_site.label_atom_id\n"
+        "_atom_site.label_asym_id\n"
+        "_atom_site.label_seq_id\n"
+        "_atom_site.auth_asym_id\n"
+        "_atom_site.auth_seq_id\n"
+        "_atom_site.Cartn_x\n"
+        "_atom_site.Cartn_y\n"
+        "_atom_site.Cartn_z\n"
+        "_atom_site.id\n"
+        "ATOM C CA A 1 A 1 1.000 0.000 0.000 1\n"
+        "ATOM C CA A 2 A 2 3.000 0.000 0.000 2\n"
+        "ATOM C CA A 3 A 3 5.000 0.000 0.000 3\n"
+        "#\n",
+        encoding="utf-8",
+    )
+    adapter = MDAnalysisAdapter()
+
+    outputs, metrics = adapter.run_local({"pdb_path": str(cif_path)})
+
+    assert outputs["capability_id"] == "stability_simulation"
+    assert outputs["stability_metrics"]["atom_count"] == 3
+    assert outputs["stability_metrics"]["residue_count"] == 3
+    assert metrics["frame_count"] == 1
+
+
 def test_autodock_vina_adapter_runs_local_and_extracts_binding_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

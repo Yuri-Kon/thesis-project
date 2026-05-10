@@ -334,7 +334,13 @@ def _match_high_cost_rule(
     capability_ids = set(rule.get("capability_ids") or [])
 
     step_id = row.get("step_id")
-    if stage_ids and not (isinstance(step_id, str) and step_id in stage_ids):
+    stage_id = _nested(row, "data", "stage_id")
+    observed_stage_ids = {
+        value
+        for value in (step_id, stage_id)
+        if isinstance(value, str) and value
+    }
+    if stage_ids and not stage_ids.intersection(observed_stage_ids):
         return False
     if tool_ids and tool not in tool_ids:
         return False
@@ -790,10 +796,8 @@ def extract_run_metrics(
             if isinstance(layer, str) and layer:
                 layer_counter[layer] += 1
 
-        if event_name in {"RECOVERY_ESCALATED", "DECISION_APPLIED", "STEP_FINISHED", "STEP_FAILED"}:
-            encoded = json.dumps(row, ensure_ascii=False)
-            if "suffix_replan" in encoded:
-                suffix_replan_event_count += 1
+        if event_name == "RECOVERY_ESCALATED" and actual_action == "suffix_replan":
+            suffix_replan_event_count += 1
 
         prefix_preserved = _nested(row, "data", "recovery", "prefix_preserved")
         if isinstance(prefix_preserved, bool):

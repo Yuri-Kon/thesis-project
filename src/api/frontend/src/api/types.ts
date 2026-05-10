@@ -338,6 +338,7 @@ export interface TaskTimelineEvent {
 export interface TaskReportDetail {
   task_id: string;
   report_path?: string | null;
+  structure_pdb_path?: string | null;
   scores: Record<string, unknown>;
   objective_scoring: Record<string, unknown>;
   structure_similarity: Record<string, unknown>;

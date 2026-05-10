@@ -11,6 +11,7 @@ import type {
   TaskIntakeTaskProfile,
   TaskIntakeToolOption,
 } from "../api/types";
+import { identifierLabel, supportLabel as supportLabelText } from "../utils/displayText";
 
 interface TaskDraftFormProps {
   schema: TaskIntakeSchema | null;
@@ -27,33 +28,24 @@ type FieldValue = string | number | boolean | string[] | number[] | null;
 const LIST_TYPES = new Set(["string_list", "residue_list", "tool_id_list", "artifact_ref_list"]);
 
 function fieldLabel(name: string): string {
-  return name.replace(/_/g, " ");
+  return identifierLabel(name);
 }
 
 function supportLabel(supportLevel: string): string {
-  if (supportLevel === "P0") {
-    return "supported";
-  }
-  if (supportLevel === "P1") {
-    return "experimental";
-  }
-  if (supportLevel === "P2") {
-    return "unsupported";
-  }
-  return supportLevel;
+  return supportLabelText(supportLevel);
 }
 
 function formatDefault(value: unknown): string {
   if (value === null || value === undefined) {
-    return "none";
+    return "无";
   }
   if (Array.isArray(value)) {
-    return value.length ? value.join(", ") : "empty";
+    return value.length ? value.map((item) => identifierLabel(String(item))).join(", ") : "空";
   }
   if (value && typeof value === "object") {
     return JSON.stringify(value);
   }
-  return String(value);
+  return typeof value === "string" ? identifierLabel(value) : String(value);
 }
 
 function defaultValue(definition: TaskIntakeFieldDefinition): FieldValue {
@@ -230,13 +222,13 @@ function CapabilityStatusBadge({
   unavailableReason?: string;
 }) {
   const status = readiness?.status ?? "unavailable";
-  const reason = readiness?.reason ?? unavailableReason ?? hint.degraded_message ?? "capability readiness is unavailable";
+  const reason = readiness?.reason ?? unavailableReason ?? hint.degraded_message ?? "能力就绪状态不可用";
   return (
     <span className={`capability-status capability-${status}`} title={reason}>
       <strong>{hint.name}</strong>
       <small>
-        {status}
-        {hint.required ? " · required" : " · optional"}
+        {identifierLabel(status)}
+        {hint.required ? " · 必需" : " · 可选"}
         {hint.io_type ? ` · ${hint.io_type}` : ""}
       </small>
     </span>
@@ -413,7 +405,7 @@ export function TaskDraftForm({
               key={option}
               onClick={() => setFieldValue(name, option)}
             >
-              {option}
+              {identifierLabel(option)}
             </button>
           ))}
         </div>
@@ -428,7 +420,7 @@ export function TaskDraftForm({
             checked={Boolean(value)}
             onChange={(event) => setFieldValue(name, event.target.checked)}
           />
-          <span>{Boolean(value) ? "Enabled" : "Disabled"}</span>
+          <span>{Boolean(value) ? "已启用" : "未启用"}</span>
         </label>
       );
     }
@@ -442,7 +434,7 @@ export function TaskDraftForm({
             min={typeof definition.validators.min === "number" ? definition.validators.min : undefined}
             max={typeof definition.validators.max === "number" ? definition.validators.max : undefined}
             value={String(min ?? "")}
-            placeholder="min"
+            placeholder="最小值"
             onChange={(event) => setFieldValue(name, [event.target.value, max as string])}
           />
           <input
@@ -450,7 +442,7 @@ export function TaskDraftForm({
             min={typeof definition.validators.min === "number" ? definition.validators.min : undefined}
             max={typeof definition.validators.max === "number" ? definition.validators.max : undefined}
             value={String(max ?? "")}
-            placeholder="max"
+            placeholder="最大值"
             onChange={(event) => setFieldValue(name, [min as string, event.target.value])}
           />
         </div>
@@ -469,7 +461,7 @@ export function TaskDraftForm({
     if (definition.ui_control === "multi_select" || definition.type === "tool_id_list") {
       const selected = Array.isArray(value) ? value.map(String) : [];
       if (!definition.options.length) {
-        return <p className="muted">No schema options are currently available.</p>;
+        return <p className="muted">当前没有可用的 Schema 选项。</p>;
       }
       return (
         <div className="checkbox-grid">
@@ -480,7 +472,7 @@ export function TaskDraftForm({
                 checked={selected.includes(option)}
                 onChange={(event) => toggleListValue(name, option, event.target.checked)}
               />
-              <span>{option}</span>
+              <span>{identifierLabel(option)}</span>
             </label>
           ))}
         </div>
@@ -494,7 +486,7 @@ export function TaskDraftForm({
           <textarea
             value={textValue}
             rows={2}
-            placeholder="artifact://, task://, or path"
+            placeholder="artifact://、task:// 或路径"
             onChange={(event) => setFieldValue(name, event.target.value)}
           />
           <input
@@ -547,46 +539,46 @@ export function TaskDraftForm({
     <form className="task-draft-form" onSubmit={handleSubmit}>
       <section className="panel builder-input-panel">
         <div className="panel-header">
-          <h2>Task Draft</h2>
-          <span className="pill">{schema?.version ?? "schema"}</span>
+          <h2>任务草稿</h2>
+          <span className="pill">{schema?.version ?? "Schema"}</span>
         </div>
         <textarea
           className="natural-language-input"
           value={text}
           onChange={(event) => onTextChange(event.target.value)}
-          placeholder="Design a stable de novo protein around 120 aa, balanced profile, require plan confirmation."
+          placeholder="设计一个约 120 个氨基酸的稳定从头蛋白，使用平衡运行模式，并需要计划确认。"
         />
         <div className="button-row">
           <button type="submit" disabled={busy || !schema || !hasAnyInput}>
-            Parse Draft
+            解析草稿
           </button>
           <button type="button" onClick={() => onPatch(structuredFields)} disabled={busy || !schema || !intake}>
-            Update Draft
+            更新草稿
           </button>
         </div>
         {activeProfile ? (
           <div className={`profile-summary support-${activeProfile.support_level.toLowerCase()}`}>
             <div className="profile-summary-head">
-              <span className="source-chip">{taskKind.replace(/_/g, " ")}</span>
+              <span className="source-chip">{identifierLabel(taskKind)}</span>
               <span className="source-chip">{supportLabel(activeProfile.support_level)}</span>
             </div>
             <div className="profile-summary-grid">
               <div>
-                <strong>Required</strong>
+                <strong>必填</strong>
                 <span>{activeProfile.required.map(fieldLabel).join(", ")}</span>
               </div>
               <div>
-                <strong>Conditional</strong>
+                <strong>条件必填</strong>
                 <span>
                 {activeProfile.conditional_required.length
                   ? activeProfile.conditional_required
-                      .map((rule) => `${rule.required.map(fieldLabel).join(", ")} when ${rule.if?.field ?? "condition"}=${String(rule.if?.equals ?? "true")}`)
+                      .map((rule) => `${rule.required.map(fieldLabel).join(", ")}，当 ${fieldLabel(rule.if?.field ?? "condition")} = ${identifierLabel(String(rule.if?.equals ?? "true"))}`)
                       .join("; ")
-                  : "none"}
+                  : "无"}
                 </span>
               </div>
               <div>
-                <strong>Capabilities</strong>
+                <strong>能力</strong>
                 <span className="capability-status-list">
                   {activeCapabilityHints.length
                     ? activeCapabilityHints.map((hint) => (
@@ -597,7 +589,7 @@ export function TaskDraftForm({
                           unavailableReason={scenarioGatePreviewError ?? undefined}
                         />
                       ))
-                    : "none"}
+                    : "无"}
                 </span>
               </div>
             </div>
@@ -621,7 +613,7 @@ export function TaskDraftForm({
                 const role = fieldRole(name);
                 const isConditional = conditionalFields.has(name);
                 const defaultLabel = definition.default !== null && definition.default !== undefined
-                  ? `default: ${formatDefault(definition.default)}`
+                  ? `默认值：${formatDefault(definition.default)}`
                   : null;
                 return (
                   <label
@@ -635,7 +627,7 @@ export function TaskDraftForm({
                           {supportLabel(definition.support_level)}
                         </span>
                         <span className={role === "required" || isConditional ? "source-chip warning" : "source-chip"}>
-                          {role}
+                          {identifierLabel(role)}
                         </span>
                       </span>
                     </span>

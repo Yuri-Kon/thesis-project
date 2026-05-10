@@ -194,6 +194,6 @@ function App() {
 
 const root = document.getElementById("root");
 if (!root) {
-  throw new Error("React root not found");
+  throw new Error("未找到 React 挂载节点");
 }
 createRoot(root).render(<App />);

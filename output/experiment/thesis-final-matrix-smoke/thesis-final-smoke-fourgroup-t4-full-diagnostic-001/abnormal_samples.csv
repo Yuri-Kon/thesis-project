@@ -1,0 +1,2 @@
+run_id,task_id,group_id,replicate,reason,final_status,event_log_path
+thesis-final-smoke-fourgroup-t4-full-diagnostic-001_lite_belief_state_t2_trpcage_sequence_eval_r01,thesis-final-smoke-fourgroup-t4-full-diagnostic-001_lite_belief_state_t2_trpcage_sequence_eval_r,lite_belief_state,1,terminal_or_waiting_status:FAILED,FAILED,/home/yurikon/Documents/thesis/thesis-project.dev/data/logs/thesis-final-smoke-fourgroup-t4-full-diagnostic-001_lite_belief_state_t2_trpcage_sequence_eval_r.jsonl

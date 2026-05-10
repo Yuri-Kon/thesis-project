@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 from copy import deepcopy
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any, Dict, Optional, cast
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
@@ -18,6 +19,7 @@ from src.models.contracts import (
     DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
+    DesignResult,
     FINAL_SCORE_METADATA_KEY,
     PendingAction,
     PendingActionCandidate,
@@ -362,6 +364,7 @@ class ScenarioGatePreviewResponse(BaseModel):
 class TaskReportDetail(BaseModel):
     task_id: str
     report_path: Optional[str] = None
+    structure_pdb_path: Optional[str] = None
     scores: Dict[str, Any] = Field(default_factory=dict)
     objective_scoring: Dict[str, Any] = Field(default_factory=dict)
     structure_similarity: Dict[str, Any] = Field(default_factory=dict)
@@ -1273,6 +1276,132 @@ async def get_capability_readiness() -> list[CapabilityReadinessEntry]:
     return [CapabilityReadinessEntry(**entry) for entry in entries]
 
 
+@app.post("/demo/structure-viewer-task")
+async def create_structure_viewer_demo_task() -> dict[str, str]:
+    """创建前端结构查看器演示任务。
+
+    Args:
+        无。
+
+    Returns:
+        演示任务 ID、UI URL、结构接口 URL 与 PDB 文件路径。
+    """
+
+    if os.getenv("PROTEIN_ENABLE_DEMO_FIXTURES") != "1":
+        raise HTTPException(status_code=404, detail="demo fixtures are disabled")
+    task_id = "demo_structure_viewer"
+    pdb_path = Path("output/pdb/demo_structure_viewer.pdb")
+    pdb_path.parent.mkdir(parents=True, exist_ok=True)
+    pdb_path.write_text(_demo_structure_pdb_text(), encoding="utf-8")
+    TASK_STORE[task_id] = TaskRecord(
+        id=task_id,
+        status=ExternalStatus.DONE,
+        internal_status=InternalStatus.DONE,
+        goal="Demo fixture: render a fixed alpha-helix PDB in the web structure viewer",
+        constraints={
+            "task_kind": "sequence_evaluation",
+            "objective_type": "structure_viewer_demo",
+            "sequence": "ACDEFGHIKLMN",
+        },
+        metadata={
+            "source": "demo_fixture",
+            "fixture": "structure_viewer",
+            "note": "This task is seeded directly and does not run model inference.",
+        },
+        design_result=DesignResult(
+            task_id=task_id,
+            sequence="ACDEFGHIKLMN",
+            structure_pdb_path=str(pdb_path),
+            scores={"plddt_mean": 88.2, "sequence_length": 12},
+            risk_flags=[],
+            report_path="output/reports/demo_structure_viewer.json",
+            metadata={
+                "created_at": now_iso(),
+                "report_source": "demo_fixture",
+                "structure_viewer_demo": True,
+            },
+        ),
+    )
+    return {
+        "task_id": task_id,
+        "ui_url": f"/ui/tasks/{task_id}",
+        "structure_url": f"/tasks/{task_id}/structure",
+        "pdb_path": str(pdb_path),
+    }
+
+
+def _demo_structure_pdb_text() -> str:
+    """返回用于前端结构查看器的固定 PDB 示例。"""
+
+    residues = (
+        "ALA", "LEU", "LYS", "GLU", "PHE", "GLY", "HIS", "ILE",
+        "ASN", "ARG", "SER", "THR", "VAL", "TYR", "ASP", "GLN",
+    )
+    lines = [
+        "HEADER    STRUCTURE VIEWER DEMO",
+        "TITLE     SYNTHETIC HELIX-BUNDLE DEMO, NO MODEL INFERENCE",
+    ]
+    serial = 1
+    for index in range(72):
+        residue = residues[index % len(residues)]
+        turn = index / 11.0
+        strand = index // 24
+        local = index % 24
+        direction = 1 if strand % 2 == 0 else -1
+        base_x = direction * (local * 1.45 - 16.0) + strand * 3.6
+        base_y = 8.0 * math.sin(turn * 1.7) + strand * 4.8
+        base_z = 8.0 * math.cos(turn * 1.7) + math.sin(index * 0.42) * 2.4
+        confidence = 92.0 - abs(36 - index) * 0.38
+        atom_offsets = {
+            "N": (-0.58, 0.52, -0.18),
+            "CA": (0.0, 0.0, 0.0),
+            "C": (0.72, -0.48, 0.22),
+            "O": (1.10, -1.26, 0.42),
+            "CB": (-0.22, 1.34, 0.74),
+        }
+        for atom_name, offset in atom_offsets.items():
+            x = base_x + offset[0]
+            y = base_y + offset[1]
+            z = base_z + offset[2]
+            element = atom_name[0]
+            lines.append(
+                _format_demo_pdb_atom(
+                    serial=serial,
+                    atom_name=atom_name,
+                    residue=residue,
+                    residue_index=index + 1,
+                    x=x,
+                    y=y,
+                    z=z,
+                    confidence=confidence,
+                    element=element,
+                )
+            )
+            serial += 1
+    lines.extend(["TER", "END", ""])
+    return "\n".join(lines)
+
+
+def _format_demo_pdb_atom(
+    *,
+    serial: int,
+    atom_name: str,
+    residue: str,
+    residue_index: int,
+    x: float,
+    y: float,
+    z: float,
+    confidence: float,
+    element: str,
+) -> str:
+    """格式化 demo PDB ATOM 行。"""
+
+    return (
+        f"ATOM  {serial:5d} {atom_name:^4s}{residue:>4s} A{residue_index:4d}    "
+        f"{x:8.3f}{y:8.3f}{z:8.3f}  1.00{confidence:6.2f}          {element:>2s}"
+    )
+
+
 @app.get(
     "/capabilities/scenario-gate/preview",
     response_model=ScenarioGatePreviewResponse,
@@ -1631,11 +1760,63 @@ async def get_task_report(task_id: str) -> TaskReportDetail:
     return TaskReportDetail(
         task_id=task_id,
         report_path=design_result.report_path,
+        structure_pdb_path=design_result.structure_pdb_path,
         scores=dict(design_result.scores or {}),
         objective_scoring=objective_scoring,
         structure_similarity=structure_similarity,
         metadata=metadata,
     )
+
+
+@app.get("/tasks/{task_id}/structure", response_class=PlainTextResponse)
+async def get_task_structure(task_id: str) -> PlainTextResponse:
+    """读取任务结构文件，供前端结构查看器加载。
+
+    Args:
+        task_id: 任务 ID。
+
+    Returns:
+        结构文件文本响应。
+    """
+
+    record = TASK_STORE.get(task_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    design_result = record.design_result
+    if design_result is None or not design_result.structure_pdb_path:
+        raise HTTPException(status_code=404, detail="task structure not found")
+    structure_path = _resolve_structure_artifact_path(design_result.structure_pdb_path)
+    if structure_path is None or not structure_path.exists() or not structure_path.is_file():
+        raise HTTPException(status_code=404, detail="task structure artifact not found")
+    return PlainTextResponse(
+        structure_path.read_text(encoding="utf-8", errors="replace"),
+        media_type="chemical/x-pdb",
+    )
+
+
+def _resolve_structure_artifact_path(raw_path: str) -> Path | None:
+    """解析允许前端读取的结构产物路径。
+
+    Args:
+        raw_path: DesignResult 中记录的结构文件路径。
+
+    Returns:
+        位于允许目录内的本地文件路径；不合法时返回 None。
+    """
+
+    path = Path(raw_path).expanduser()
+    if path.suffix.lower() not in {".pdb", ".cif", ".mmcif"}:
+        return None
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    resolved = path.resolve()
+    allowed_roots = [Path.cwd().resolve(), Path("/tmp").resolve()]
+    output_dir = os.getenv("PROTEIN_OUTPUT_DIR")
+    if output_dir:
+        allowed_roots.append(Path(output_dir).expanduser().resolve())
+    if any(resolved == root or root in resolved.parents for root in allowed_roots):
+        return resolved
+    return None
 
 
 def _event_matches_filters(

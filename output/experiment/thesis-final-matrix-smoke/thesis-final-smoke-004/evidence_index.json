@@ -1,0 +1,58 @@
+[
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01",
+    "group_id": "static_top1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01.json",
+    "event_log_path": "data/logs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+    "snapshot_path": "data/snapshots/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+    "report_path": "",
+    "summary_row_id": "b1448e06fbf5",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02",
+    "group_id": "static_top1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02.json",
+    "event_log_path": "data/logs/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02.jsonl",
+    "snapshot_path": "data/snapshots/thesis-final-smoke-004_static_top1_t1_trpcage_denovo_short_peptide_r02.jsonl",
+    "report_path": "",
+    "summary_row_id": "2b1b037dbcb3",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01",
+    "group_id": "static_top1",
+    "task_key": "t1_villin_like_helix_bundle",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01.json",
+    "event_log_path": "data/logs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01.jsonl",
+    "snapshot_path": "data/snapshots/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r01.jsonl",
+    "report_path": "",
+    "summary_row_id": "7e1ffc80c279",
+    "artifact_complete": true
+  },
+  {
+    "run_id": "thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02",
+    "group_id": "static_top1",
+    "task_key": "t1_villin_like_helix_bundle",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-004/run_configs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02.json",
+    "event_log_path": "data/logs/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02.jsonl",
+    "snapshot_path": "data/snapshots/thesis-final-smoke-004_static_top1_t1_villin_like_helix_bundle_r02.jsonl",
+    "report_path": "",
+    "summary_row_id": "04b7fdf558b9",
+    "artifact_complete": true
+  }
+]

@@ -7,6 +7,7 @@ import { ModelInvocationPanel } from "../components/ModelInvocationPanel";
 import { PendingActionList } from "../components/PendingActionList";
 import { TaskSearch } from "../components/TaskSearch";
 import { DashboardSkeleton } from "../components/SkeletonCard";
+import { statusLabel } from "../utils/displayText";
 
 interface DashboardPageProps {
   state: WorkspaceState;
@@ -34,29 +35,29 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
     onInspectorChange([
       {
         key: "inspector-overview",
-        title: "Inspector",
-        statusBadge: <span className="pill">overview</span>,
+        title: "检查器",
+        statusBadge: <span className="pill">概览</span>,
         children: (
           <dl className="kv compact-kv">
-            <dt>Pending</dt>
+            <dt>待处理</dt>
             <dd>{state.pendingActions.length}</dd>
-            <dt>Capabilities</dt>
+            <dt>能力</dt>
             <dd>{state.readiness.length}</dd>
-            <dt>Blocked</dt>
+            <dt>阻塞</dt>
             <dd>{blockedCapabilities}</dd>
-            <dt>Loaded task</dt>
-            <dd>{state.task?.id ?? "none"}</dd>
+            <dt>已加载任务</dt>
+            <dd>{state.task?.id ?? "无"}</dd>
           </dl>
         ),
       },
       {
         key: "action-required",
-        title: "Action required",
+        title: "需要处理",
         tone: "warning",
         children: (
           <>
-            <p>{state.pendingActions.length ? "Open a pending action to review candidates and submit a decision." : "No pending review is currently reported by the API."}</p>
-            <a className="inspector-action" href="/ui/task-builder" onClick={handleNewIntakeClick}>New intake</a>
+            <p>{state.pendingActions.length ? "打开待处理操作，复核候选方案并提交决策。" : "API 当前没有返回待复核操作。"}</p>
+            <a className="inspector-action" href="/ui/task-builder" onClick={handleNewIntakeClick}>新建任务录入</a>
           </>
         ),
       },
@@ -75,16 +76,16 @@ export function DashboardPage({ state, taskId, onTaskIdChange, onOpenTask, onRef
     <div className="dashboard-layout">
       <section className="workspace-hero">
         <div>
-          <p className="eyebrow">Operator Console</p>
-          <h2>Dashboard</h2>
-          <p>Review queue, task lookup, and capability health from the public API boundary.</p>
+          <p className="eyebrow">操作控制台</p>
+          <h2>仪表盘</h2>
+          <p>从公共 API 边界查看复核队列、任务查询和能力健康状态。</p>
         </div>
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onOpenTask} onRefresh={onRefresh} />
       </section>
-      <section className="metric-strip" aria-label="Workspace overview">
-        <MetricCard label="Pending reviews" value={state.pendingActions.length} detail="human decisions waiting" tone={state.pendingActions.length ? "amber" : "green"} />
-        <MetricCard label="Capabilities" value={state.readiness.length} detail={`${blockedCapabilities} blocked - ${degradedCapabilities} degraded`} tone={blockedCapabilities ? "red" : degradedCapabilities ? "amber" : "blue"} />
-        <MetricCard label="Loaded task" value={state.task?.status ?? "none"} detail={state.task?.id ?? "open a task to inspect"} />
+      <section className="metric-strip" aria-label="工作区概览">
+        <MetricCard label="待复核" value={state.pendingActions.length} detail="等待人工决策" tone={state.pendingActions.length ? "amber" : "green"} />
+        <MetricCard label="能力" value={state.readiness.length} detail={`${blockedCapabilities} 个阻塞 · ${degradedCapabilities} 个降级`} tone={blockedCapabilities ? "red" : degradedCapabilities ? "amber" : "blue"} />
+        <MetricCard label="已加载任务" value={statusLabel(state.task?.status)} detail={state.task?.id ?? "打开任务后可查看"} />
       </section>
       <section className="dashboard-grid">
         <PendingActionList pendingActions={state.pendingActions} onOpenTask={onOpenTask} />

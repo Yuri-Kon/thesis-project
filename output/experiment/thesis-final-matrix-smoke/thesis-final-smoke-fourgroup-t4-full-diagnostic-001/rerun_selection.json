@@ -1,0 +1,10 @@
+{
+  "generated_at": "2026-05-09T12:49:46+00:00",
+  "runs": [
+    {
+      "group_id": "lite_belief_state",
+      "task_key": "t2_trpcage_sequence_eval",
+      "replicate": 1
+    }
+  ]
+}

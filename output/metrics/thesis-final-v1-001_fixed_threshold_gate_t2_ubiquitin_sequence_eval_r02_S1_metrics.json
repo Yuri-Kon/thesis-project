@@ -1,0 +1,10 @@
+{
+  "task_id": "thesis-final-v1-001_fixed_threshold_gate_t2_ubiquitin_sequence_eval_r02",
+  "step_id": "S1",
+  "tool": "esmfold",
+  "sequence_length": 27,
+  "plddt_mean": 0.85,
+  "plddt_std": 0.12,
+  "confidence": "high",
+  "prediction_time_s": 10.5
+}

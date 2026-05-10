@@ -2,6 +2,8 @@
 
 本文档用于支撑论文或项目材料中的“系统测试 / 系统验证”章节。后续执行验证时，可在每个 `SV-*` 用例后补充实际结果、截图路径、接口返回文件、日志路径和结论。
 
+当前集中证据索引见 `docs/system-validation/evidence-index.md`，测试用例汇总见 `docs/system-validation/test-case-table.md`。截至 2026-05-10，已归档 17 张 UI 截图、2 个 API JSON、4 组 pytest focused 日志、4 个 CLI 输出日志，并对已完成 smoke/clean 实验、EventLog、Snapshot、Report 原始产物建立了 `EVD-*` 编号。
+
 ## 1. 系统核心功能
 
 | 编号 | 核心功能 | 主要入口 | 期望输出 |
@@ -66,36 +68,65 @@
 
 | ID | 验证点 | 覆盖类型 | 建议证据 | 实际证据路径 | 结论 |
 |---|---|---|---|---|---|
-| SV-01 | `/health`、UI 首页、任务详情页可访问 | 正常流程 | 接口返回、截图 | 待补充 | 待验证 |
-| SV-02 | intake schema 能返回字段注册表 | 正常流程 | `/task-intakes/schema` JSON | 待补充 | 待验证 |
-| SV-03 | 自由文本创建 intake，未确认前不直接执行正式任务 | 正常流程/一致性 | API 返回、EventLog | 待补充 | 待验证 |
-| SV-04 | 缺失必要字段时 confirm 失败 | 异常输入 | 422/400 响应 | 待补充 | 待验证 |
-| SV-05 | safety warn 必须显式 acknowledge | 权限/边界 | API 错误与成功对照 | 待补充 | 待验证 |
-| SV-06 | safety block 不允许创建正式任务 | 权限/安全 | 阻断响应 | 待补充 | 待验证 |
-| SV-07 | `/tasks` 三种创建模式互斥：`goal/query/confirmed_task_spec` | 异常输入 | 422 响应 | 待补充 | 待验证 |
-| SV-08 | `PlannerAgent` 只生成候选，不执行工具、不改状态 | 权限/角色边界 | 单测、日志 | 待补充 | 待验证 |
-| SV-09 | Plan candidate 必须含候选 ID、payload、评分、风险、成本、解释 | 数据一致性 | JSON、单测 | 待补充 | 待验证 |
-| SV-10 | `WAITING_PLAN_CONFIRM` 必须有 `PendingAction(plan_confirm)` | 正常/HITL | task JSON、pending JSON | 待补充 | 待验证 |
-| SV-11 | accept 决策缺少 `selected_candidate_id` 必须失败 | 异常输入 | 400 响应 | 待补充 | 待验证 |
-| SV-12 | 已决策的 PendingAction 再次提交必须 409 | 边界/一致性 | 409 响应 | 待补充 | 待验证 |
-| SV-13 | 错误 task/pending_action 绑定必须拒绝 | 权限/一致性 | 400/409 响应 | 待补充 | 待验证 |
-| SV-14 | 进入任意 `WAITING_*` 前必须写快照和 WAITING_ENTER 日志 | 数据一致性 | snapshot 文件、timeline | 待补充 | 待验证 |
-| SV-15 | 等待态下 Executor 不继续执行工具 | 权限/角色边界 | 无后续 STEP 日志 | 待补充 | 待验证 |
-| SV-16 | 正常执行步骤产生 `StepResult`、metrics、artifacts | 正常流程 | task JSON、日志、产物 | 待补充 | 待验证 |
-| SV-17 | 工具 schema/I-O 引用错误必须淘汰候选或失败 | 异常输入 | candidate validation log | 待补充 | 待验证 |
-| SV-18 | retry 耗尽且局部可修时进入 patch_confirm | 恢复流程 | PendingAction、EventLog | 待补充 | 待验证 |
-| SV-19 | Patch accept 后只应用所选 Patch 并恢复执行 | 数据一致性 | Plan diff、timeline | 待补充 | 待验证 |
-| SV-20 | Patch replan 选择能转为 replan_confirm | 恢复流程 | 新 PendingAction | 待补充 | 待验证 |
-| SV-21 | Safety block 禁止 continue，进入 replan/stop 候选 | 安全边界 | SafetyResult、timeline | 待补充 | 待验证 |
-| SV-22 | Replan accept 保留可保留前缀，后缀替换正确 | 边界/恢复 | snapshot、Plan | 待补充 | 待验证 |
-| SV-23 | terminal_stop 候选接受后进入 FAILED | 终态 | TaskRecord、EventLog | 待补充 | 待验证 |
-| SV-24 | DONE/FAILED/CANCELLED 终态不可再变更 | 边界/FSM | 单测、API 响应 | 待补充 | 待验证 |
-| SV-25 | `/tasks/{id}/events` 支持 event/tool/capability 过滤 | 正常/API | JSON 返回 | 待补充 | 待验证 |
-| SV-26 | `/tasks/{id}/report` 在未完成前返回 404 | 边界 | 404 响应 | 待补充 | 待验证 |
-| SV-27 | 远程 adapter 不可用时 readiness 有清晰状态 | 异常环境 | `/capabilities/readiness` | 待补充 | 待验证 |
-| SV-28 | 快照恢复到 `WAITING_*` 不自动推进 | 恢复一致性 | recovery 测试、日志 | 待补充 | 待验证 |
-| SV-29 | runtime_state 只在 snapshot artifacts 持久化，不污染 Plan | 数据边界 | snapshot/plan 对照 | 待补充 | 待验证 |
-| SV-30 | 前端 Dashboard、Task Builder、Task Detail、Timeline 可展示同一任务证据链 | 系统验证 | 运行截图 | 待补充 | 待验证 |
+| SV-01 | `/health`、UI 首页、任务详情页可访问 | 正常流程 | 接口返回、截图 | EVD-API-01、EVD-TEST-01、FIG-SV-01、FIG-SV-02 | 通过 |
+| SV-02 | intake schema 能返回字段注册表 | 正常流程 | `/task-intakes/schema` JSON | EVD-TEST-01、EVD-CLI-01 | 通过 |
+| SV-03 | 自由文本创建 intake，未确认前不直接执行正式任务 | 正常流程/一致性 | API 返回、EventLog | EVD-TEST-01、EVD-LOG-04 | 通过 |
+| SV-04 | 缺失必要字段时 confirm 失败 | 异常输入 | 422/400 响应 | EVD-TEST-01、EVD-TEST-03 | 通过 |
+| SV-05 | safety warn 必须显式 acknowledge | 权限/边界 | API 错误与成功对照 | EVD-TEST-03、FIG-SV-10 | 通过 |
+| SV-06 | safety block 不允许创建正式任务 | 权限/安全 | 阻断响应 | EVD-TEST-03 | 通过 |
+| SV-07 | `/tasks` 三种创建模式互斥：`goal/query/confirmed_task_spec` | 异常输入 | 422 响应 | EVD-TEST-01 | 通过 |
+| SV-08 | `PlannerAgent` 只生成候选，不执行工具、不改状态 | 权限/角色边界 | 单测、日志 | EVD-TEST-02、EVD-LOG-04 | 通过 |
+| SV-09 | Plan candidate 必须含候选 ID、payload、评分、风险、成本、解释 | 数据一致性 | JSON、单测 | EVD-TEST-02、EVD-LOG-04 | 通过 |
+| SV-10 | `WAITING_PLAN_CONFIRM` 必须有 `PendingAction(plan_confirm)` | 正常/HITL | task JSON、pending JSON | EVD-TEST-02、FIG-SV-15 | 通过 |
+| SV-11 | accept 决策缺少 `selected_candidate_id` 必须失败 | 异常输入 | 400 响应 | EVD-TEST-02、EVD-TEST-03 | 通过 |
+| SV-12 | 已决策的 PendingAction 再次提交必须 409 | 边界/一致性 | 409 响应 | EVD-TEST-02 | 通过 |
+| SV-13 | 错误 task/pending_action 绑定必须拒绝 | 权限/一致性 | 400/409 响应 | EVD-TEST-02、EVD-TEST-03 | 通过 |
+| SV-14 | 进入任意 `WAITING_*` 前必须写快照和 WAITING_ENTER 日志 | 数据一致性 | snapshot 文件、timeline | EVD-TEST-02、EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 | 通过 |
+| SV-15 | 等待态下 Executor 不继续执行工具 | 权限/角色边界 | 无后续 STEP 日志 | EVD-TEST-02 | 通过 |
+| SV-16 | 正常执行步骤产生 `StepResult`、metrics、artifacts | 正常流程 | task JSON、日志、产物 | EVD-EXP-01、EVD-TEST-03、EVD-LOG-05 | 通过 |
+| SV-17 | 工具 schema/I-O 引用错误必须淘汰候选或失败 | 异常输入 | candidate validation log | EVD-TEST-03 | 通过 |
+| SV-18 | retry 耗尽且局部可修时进入 patch_confirm | 恢复流程 | PendingAction、EventLog | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02 | 通过 |
+| SV-19 | Patch accept 后只应用所选 Patch 并恢复执行 | 数据一致性 | Plan diff、timeline | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02 | 通过 |
+| SV-20 | Patch replan 选择能转为 replan_confirm | 恢复流程 | 新 PendingAction | EVD-TEST-03、EVD-LOG-03、EVD-LOG-04 | 通过 |
+| SV-21 | Safety block 禁止 continue，进入 replan/stop 候选 | 安全边界 | SafetyResult、timeline | EVD-TEST-03、EVD-LOG-03 | 通过 |
+| SV-22 | Replan accept 保留可保留前缀，后缀替换正确 | 边界/恢复 | snapshot、Plan | EVD-TEST-03、EVD-LOG-03、EVD-LOG-04 | 通过 |
+| SV-23 | terminal_stop 候选接受后进入 FAILED | 终态 | TaskRecord、EventLog | EVD-TEST-02、EVD-TEST-03、EVD-LOG-03 | 通过 |
+| SV-24 | DONE/FAILED/CANCELLED 终态不可再变更 | 边界/FSM | 单测、API 响应 | EVD-TEST-02、EVD-TEST-03 | 通过 |
+| SV-25 | `/tasks/{id}/events` 支持 event/tool/capability 过滤 | 正常/API | JSON 返回 | EVD-TEST-01、EVD-TEST-04、EVD-LOG-04 | 通过 |
+| SV-26 | `/tasks/{id}/report` 在未完成前返回 404 | 边界 | 404 响应 | EVD-TEST-01、EVD-TEST-04 | 通过 |
+| SV-27 | 远程 adapter 不可用时 readiness 有清晰状态 | 异常环境 | `/capabilities/readiness` | EVD-API-02、EVD-TEST-01 | 通过 |
+| SV-28 | 快照恢复到 `WAITING_*` 不自动推进 | 恢复一致性 | recovery 测试、日志 | EVD-TEST-02、EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 | 通过 |
+| SV-29 | runtime_state 只在 snapshot artifacts 持久化，不污染 Plan | 数据边界 | snapshot/plan 对照 | EVD-TEST-02、EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 | 通过 |
+| SV-30 | 前端 Dashboard、Task Builder、Task Detail、Timeline 可展示同一任务证据链 | 系统验证 | 运行截图 | FIG-SV-01 至 FIG-SV-17、EVD-TEST-01、EVD-CLI-02 | 通过；Timeline 单独截图待补 |
+
+## 4.1 当前证据编号覆盖
+
+本节用于把第 4 节的 `SV-*` 验证点映射到可直接引用的测试用例与证据编号。第 4 节原表保留为逐点执行清单；论文写作和归档时优先使用本节编号。
+
+| 验证点 | 对应用例 | 当前证据编号 | 当前判定 |
+|---|---|---|---|
+| SV-01、SV-27 | TC-S01 | EVD-API-01、EVD-API-02、EVD-TEST-01、FIG-SV-01、FIG-SV-02 | 通过 |
+| SV-02、SV-03、SV-04、SV-07、SV-25、SV-26 | TC-S02 | EVD-TEST-01、EVD-CLI-01、EVD-API-01、EVD-API-02 | 通过；典型 task/pending/events/report API JSON 建议补齐 |
+| SV-08、SV-09、SV-10 | TC-S03 | EVD-TEST-02、EVD-LOG-04、EVD-EXP-01 | 通过 |
+| SV-10、SV-11、SV-12、SV-13、SV-15 | TC-S04 | EVD-TEST-02、FIG-SV-15 | 通过 |
+| SV-14、SV-23、SV-24 | TC-S05 | EVD-TEST-02、EVD-LOG-03 | 通过 |
+| SV-14、SV-28、SV-29 | TC-S06 | EVD-TEST-02、EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 | 通过 |
+| SV-01、SV-30 | TC-S07 | FIG-SV-01 至 FIG-SV-17、EVD-TEST-01 | 通过；单独 Timeline 截图待补 |
+| SV-02、SV-03、SV-25、SV-26、SV-30 | TC-S08 | EVD-TEST-04、EVD-CLI-01、EVD-CLI-02、EVD-CLI-03、EVD-CLI-04 | 部分通过；CLI timeline/report 子命令未实现 |
+| SV-16、SV-25、SV-26 | TC-S09 | EVD-EXP-01、EVD-LOG-05、FIG-SV-16、FIG-SV-17 | 通过；84-run 正式矩阵完成后更新最终实验证据 |
+| SV-04、SV-05、SV-06、SV-11、SV-13、SV-21、SV-24 | TC-S10 | EVD-TEST-03、FIG-SV-10 | 通过 |
+| SV-16、SV-17 | TC-S11 | EVD-TEST-03、EVD-EXP-01、EVD-API-02 | 通过 |
+| SV-18、SV-19、SV-20、SV-22 | TC-S12 | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 | 通过；Plan diff 样本建议集中归档 |
+| SV-21、SV-23、SV-25 | TC-S13 | EVD-TEST-02、EVD-TEST-03、EVD-LOG-03、EVD-LOG-04 | 通过 |
+
+## 4.2 当前证据缺口
+
+| 缺口 | 影响范围 | 后续处理 |
+|---|---|---|
+| 单独 Timeline 页面截图缺失 | SV-30、TC-S07 | 已由 Web smoke 和 Task Detail 截图间接覆盖；论文若需要 UI 图，补 `FIG-SV-18` |
+| 典型任务 API 响应未全部单独归档 | SV-02、SV-03、SV-10、SV-25、SV-26、TC-S02、TC-S03 | 当前由 EVD-TEST-01/EVD-TEST-02 支撑；建议补 `/task-intakes/schema`、`/tasks/{id}`、`/pending-actions/{id}`、`/tasks/{id}/events`、`/tasks/{id}/report` JSON |
+| Snapshot/Plan diff 样本未集中复制到 `docs/system-validation/04-data-consistency/` | SV-14、SV-18 至 SV-22、SV-28、SV-29、TC-S06、TC-S12 | 已建立路径索引；可按论文附录需要再复制关键样本 |
+| 84-run 正式矩阵尚未形成最终聚合 | TC-S09、TC-S11、实验章节 | 当前只作为进行中证据；最终结论等待完整 `matrix_metrics_summary`、`run_level_results` 和 `matrix_report` |
 
 ## 5. 验证材料清单
 
@@ -171,4 +202,3 @@ docs/system-validation/
     ├── pytest-api.log
     └── basedpyright-focused.log
 ```
-

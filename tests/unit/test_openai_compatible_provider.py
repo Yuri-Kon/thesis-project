@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from src.agents.planner import ToolSpec
 from src.llm.base_llm_provider import ProviderConfig
+from src.llm.provider_payload_parser import ProviderPayloadValidationError
 from src.models.contracts import PatchRequest, Plan, PlanStep, ProteinDesignTask
 import src.llm.openai_compatible_provider as provider_module
 
@@ -323,3 +324,85 @@ def test_openai_provider_uses_plan_patch_schema_for_patch(monkeypatch):
 
     assert patch is not None
     assert calls["request_kwargs"]["response_format"]["json_schema"]["name"] == "plan_patch"
+
+
+def test_openai_provider_empty_response_raises_with_diagnostic_summary(monkeypatch):
+    task = _sample_task()
+    _setup_dummy_openai(monkeypatch, response_content="")
+
+    provider = provider_module.OpenAICompatibleProvider(
+        ProviderConfig(
+            model_name="test-model",
+            api_key="test-key",
+            max_tokens=8,
+            structured_output_mode="json_schema",
+        ),
+        endpoint="http://example.test/v1",
+    )
+
+    try:
+        provider.call_planner(task, _sample_registry())
+    except ProviderPayloadValidationError as exc:
+        payload = exc.as_event_payload()
+    else:
+        raise AssertionError("expected ProviderPayloadValidationError")
+
+    assert payload["failure_code"] == "empty_response"
+    failure = payload["failures"][0]
+    assert failure["code"] == "EMPTY_PROVIDER_RESPONSE"
+    observed = failure["observed"]
+    assert observed["provider"] == "openai_compatible"
+    assert observed["model"] == "test-model"
+    assert observed["endpoint"] == "http://example.test/v1"
+    assert observed["request"]["max_tokens"] == 8
+    assert observed["request"]["response_format_type"] == "json_schema"
+    assert observed["request"]["prompt"]["system"]["chars"] > 0
+    assert observed["response"]["choices_count"] == 1
+    assert "structured_output_mode_may_be_unsupported_or_unsatisfied" in observed["possible_causes"]
+
+
+def test_openai_provider_invocation_failure_raises_with_diagnostic_summary(
+    monkeypatch,
+):
+    task = _sample_task()
+    calls = {}
+
+    class DummyCompletions:
+        def create(self, **kwargs):
+            calls["request_kwargs"] = kwargs
+            raise TimeoutError("Request timed out.")
+
+    class DummyOpenAI:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.chat = SimpleNamespace(completions=DummyCompletions())
+
+    monkeypatch.setattr(provider_module, "OPENAI_AVAILABLE", True)
+    monkeypatch.setattr(provider_module, "OpenAI", DummyOpenAI, raising=False)
+
+    provider = provider_module.OpenAICompatibleProvider(
+        ProviderConfig(
+            model_name="test-model",
+            api_key="test-key",
+            timeout=300,
+            max_tokens=393216,
+        ),
+        endpoint="http://example.test/v1",
+    )
+
+    try:
+        provider.call_planner(task, _sample_registry())
+    except ProviderPayloadValidationError as exc:
+        payload = exc.as_event_payload()
+    else:
+        raise AssertionError("expected ProviderPayloadValidationError")
+
+    assert payload["failure_code"] == "provider_invocation_failed"
+    failure = payload["failures"][0]
+    assert failure["code"] == "PROVIDER_INVOCATION_FAILED"
+    observed = failure["observed"]
+    assert observed["provider"] == "openai_compatible"
+    assert observed["model"] == "test-model"
+    assert observed["request"]["max_tokens"] == 393216
+    assert observed["exception"]["type"] == "TimeoutError"
+    assert "provider_request_timeout" in observed["possible_causes"]

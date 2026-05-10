@@ -76,9 +76,6 @@ venv/
 node_modules/
 
 # 11. 日志与中间数据
-
-data/logs/
-data/inputs/tmp/
 *.log
 
 #  12. Nextflow / workflow 相关中间文件

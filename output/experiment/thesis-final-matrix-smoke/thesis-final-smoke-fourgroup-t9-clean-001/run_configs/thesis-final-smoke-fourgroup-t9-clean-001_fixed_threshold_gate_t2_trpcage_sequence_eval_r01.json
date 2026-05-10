@@ -1,0 +1,125 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-10T03:23:56+00:00",
+  "run_id": "thesis-final-smoke-fourgroup-t9-clean-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r01",
+  "task_id": "thesis-final-smoke-fourgroup-t9-clean-001_fixed_threshold_gate_t2_trpcage_sequence_eval_r01",
+  "group": {
+    "id": "fixed_threshold_gate",
+    "label": "固定阈值 gate",
+    "comparison_order": 1,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_threshold_gate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 3,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.75,
+      "high_cost_min_overall": 0.85,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "first_pass_success_rate",
+      "high_cost_call_mean",
+      "patch_minimality_hit_rate",
+      "suffix_replan_prefix_preservation_rate"
+    ],
+    "notes": "Uses current fixed score/risk/cost thresholds without explicit runtime state."
+  },
+  "task": {
+    "task_key": "t2_trpcage_sequence_eval",
+    "goal": "Predict structure and summarize stability/QC evidence for the Trp-cage TC5b sequence.",
+    "display_name": "Trp-cage sequence evaluation",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first",
+    "rationale": "",
+    "task_class": "T2",
+    "real_case": {
+      "source_ids": [
+        "1L2Y"
+      ],
+      "rationale": "Known TC5b sequence gives a small positive-control sequence evaluation task."
+    },
+    "expected_focus": [
+      "sequence_input",
+      "step_result",
+      "report"
+    ],
+    "oracle_action": "continue_when_structure_prediction_available",
+    "constraints": {
+      "prompt": "Predict structure and summarize stability/QC evidence for the Trp-cage TC5b sequence.",
+      "goal_type": "sequence_evaluation",
+      "length_range": [
+        20,
+        20
+      ],
+      "objective_type": "stability",
+      "inputs": {
+        "sequence": "NLYIQWLKDGGPSSGRPPPS"
+      },
+      "sequence": "NLYIQWLKDGGPSSGRPPPS"
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "fallback_tool_ids": [
+      "esmfold",
+      "nim_esmfold"
+    ],
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 3,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.75,
+    "high_cost_min_overall": 0.85,
+    "require_plan_confirm": false,
+    "require_patch_confirm": false,
+    "prompt": "Predict structure and summarize stability/QC evidence for the Trp-cage TC5b sequence.",
+    "goal_type": "sequence_evaluation",
+    "length_range": [
+      20,
+      20
+    ],
+    "objective_type": "stability",
+    "inputs": {
+      "sequence": "NLYIQWLKDGGPSSGRPPPS"
+    },
+    "sequence": "NLYIQWLKDGGPSSGRPPPS",
+    "runtime_policy": "static_threshold_gate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "thesis_experiment_matrix",
+    "group_id": "fixed_threshold_gate",
+    "group_label": "固定阈值 gate",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
+    "baseline_freeze_config_hash": "37b097d77785",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "8ba8b17d98c8"
+  }
+}
