@@ -2,9 +2,27 @@
 
 以下片段来自当前 `../thesis-project.dev/` 实现。论文中不宜大段铺代码，建议每节选 1 个短片段，并配合文字说明其设计意图。
 
+## 终稿推荐使用方式
+
+本文件是“代码片段素材库”，不是正文代码清单的直接拼接稿。进入终稿时建议只选 4 至 6 个片段，且每个片段控制在 15 至 30 行左右。每个代码清单都需要包含三部分说明：该片段解决的实现问题、对应第 4 章的设计点、以及它与测试/实验章节中证据的关系。
+
+推荐优先级如下：
+
+| 推荐编号 | 正文编号建议 | 片段 | 当前源码位置 | 推荐理由 | 正文位置 |
+|---|---|---|---|---|---|
+| S1 | 代码清单 5-1 | 任务创建请求的互斥入口校验 | `../thesis-project.dev/src/api/main.py:166` | 体现 API 边界和任务入口契约，适合连接 Task Intake 与数据校验。 | 5.2 |
+| S2 | 代码清单 5-2 | ToolAdapter 抽象接口 | `../thesis-project.dev/src/adapters/base_tool_adapter.py:14` | 体现异构蛋白质工具统一接入边界，是系统实现章的关键工程证据。 | 5.6 |
+| S3 | 代码清单 5-3 | WorkflowContext 写入 StepResult 并触发 RuntimeState 更新 | `../thesis-project.dev/src/workflow/context.py:90` | 体现运行时状态集中更新，连接 CEBRA-WP 的 belief-state 设计。 | 5.4 |
+| S4 | 代码清单 5-4 | StepRunner 有界重试微循环 | `../thesis-project.dev/src/workflow/step_runner.py:140` | 体现 retry、failure_type 与上层 patch/replan 的边界。 | 5.4 |
+| S5 | 代码清单 5-5 | RuntimeEvaluator 候选重排 | `../thesis-project.dev/src/workflow/runtime_evaluator.py:331` | 体现 CEBRA-WP 在工程中的核心落点，必须优先保留。 | 5.5 |
+| S6 | 代码清单 5-6 | 进入 WAITING 状态前写入 PendingAction 与审计信息 | `../thesis-project.dev/src/workflow/pending_action.py:101` | 体现 HITL 不是 UI 临时状态，而是可恢复、可审计的工作流状态。 | 5.4/5.5 |
+| S7 | 备选 | 构建任务快照 | `../thesis-project.dev/src/workflow/snapshots.py:34` | 可作为恢复与审计的补充代码清单，正文篇幅不足时放附录。 | 5.4 或附录 |
+
+不建议正文优先展示前端 JSX 片段。前端可以通过页面结构说明、截图证据和 API 状态加载流程来证明；代码清单应优先服务系统契约、工作流控制和 CEBRA-WP 落地。
+
 ## 片段 1：任务创建请求的互斥入口校验
 
-来源：`../thesis-project.dev/src/api/main.py:164`
+来源：`../thesis-project.dev/src/api/main.py:166`
 
 ```python
 class TaskCreateRequest(BaseModel):
@@ -78,7 +96,7 @@ async def list_pending_actions(
 
 ## 片段 3：WorkflowContext 统一写入步骤结果并触发 RuntimeState 更新
 
-来源：`../thesis-project.dev/src/workflow/context.py:78`
+来源：`../thesis-project.dev/src/workflow/context.py:90`
 
 ```python
 class WorkflowContext(BaseModel):

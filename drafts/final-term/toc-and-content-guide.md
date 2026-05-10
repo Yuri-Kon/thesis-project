@@ -165,6 +165,7 @@
 > 篇幅建议：18–25 页。素材集中于 `drafts/final-term/implementation/`（6 个 Markdown 文件，约 30KB），需大幅压缩。
 > 避免逐文件罗列代码，以关键流程和接口说明为主。
 > **当前状态：Markdown 初稿已完成**（`sections/05-system-implementation.md`，约 21KB），后续需补齐图表编号并转 LaTeX。
+> 表格与代码清单索引见 `drafts/final-paper-md/tables.md`。当前草稿已补入表 5-1 和代码清单选用规则，终稿转写时再压缩语言并补引用。
 
 5.1　技术选型与工程结构
 　—— Python 3.12 + FastAPI + Pydantic / React 19 + TypeScript + Vite
@@ -273,6 +274,7 @@
 　—— 七个研究问题（RQ-S1~S3 对应系统验证已在第 6 章回答，RQ-A1~A4 由本章回答）
 　—— 内部四组消融 + 外部基线（可选）的实验矩阵
 　—— 实验任务集：12 个 task_key × 8 类设计场景，基于真实蛋白质结构（Trp-cage 1L2Y、Villin 1VII、GB1 1PGB、Ubiquitin 1UBQ、Top7 1QYS）
+　—— 表 7-1：实验矩阵配置表
 
 7.2　指标体系
 　—— 算法正确性指标：plan_valid_rate、first_pass_success_rate、recovery_success_rate
@@ -297,7 +299,10 @@
 　—— static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state
 　—— 主结果：static_top1 成功率 1.0000；fixed_threshold_gate、dynamic_no_belief_state、lite_belief_state 成功率均为 0.9524
 　—— 重点叙事：不夸大 lite 的成功率优势，转向机制可观测性、恢复开销与高代价调用控制
-　—— 表 7-1：四组消融主实验结果
+　—— 表 7-2：四组消融主实验结果
+　—— 表 7-3：按任务难度与预算分层的成功率
+　—— 表 7-4：机制增量配对对比
+　—— 表 7-5：高代价调用与运行时间对比
 
 7.6　静态规划的必要性分析（EXP-A3）
 　—— static_top1 是唯一 100% 成功组，但缺少运行时恢复与信念观测机制
@@ -359,7 +364,7 @@
 | 图 7-1 | 第 7 章 | 实验设计框架 | `paper/figures/experiment-design-framework.drawio.svg` |
 | 图 7-2 | 第 7 章 | 恢复路径对比 | `paper/figures/recovery-path-comparison-timeline.drawio.svg` |
 
-> 第 6 章当前使用表 6-1 和 FIG-SV 证据编号，不单独设置正文图号；FIG-SV-01~18 可在附录或证据索引中引用。当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图像，主结果以表 7-1 至表 7-3 呈现。
+> 第 6 章当前使用表 6-1 至表 6-4 和 FIG-SV 证据编号，不单独设置正文图号；FIG-SV-01~18 可在附录或证据索引中引用。当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图像，主结果和证据索引以表 7-1 至表 7-8 呈现。
 
 ---
 
@@ -369,11 +374,20 @@
 |------|--------|------|----------|
 | 表 3-1 | 第 3 章 | 系统功能需求与验证点映射 | `test-case-table.md` |
 | 表 4-1 | 第 4 章 | FSM 状态转移规则 | `AGENT_CONTRACT.md`、`architecture.md` |
+| 表 5-1 | 第 5 章 | 后端核心模块与论文架构层对应关系 | `drafts/final-term/implementation/01-tech-stack-and-structure.md` |
+| 代码清单 5-1 至 5-6 | 第 5 章 | API 契约、工具适配、RuntimeState 更新、StepRunner 重试、RuntimeEvaluator 重排、HITL 审计写入 | `drafts/final-term/implementation/05-code-snippets.md` |
 | 表 6-1 | 第 6 章 | 测试用例汇总（TC-S01~S13） | `test-case-table.md` |
-| 表 7-1 | 第 7 章 | 四组消融主实验结果 | `thesis-final-v1-001` 84-run 矩阵 |
-| 表 7-2 | 第 7 章 | 实验任务集 | `final-task-set-design.md` |
-| 表 7-3 | 第 7 章 | 指标体系定义 | `final-thesis-experiment-design.md` §7 |
-| 表 7-4 | 第 7 章 | FAILED run 典型案例分析 | `thesis-final-v1-results.md` §4 |
+| 表 6-2 | 第 6 章 | 系统验证证据类型索引 | `evidence-index.md` |
+| 表 6-3 | 第 6 章 | Web 与 CLI 可用性证据汇总 | `evidence-index.md`、`test-case-table.md` |
+| 表 6-4 | 第 6 章 | 恢复与安全边界验证证据表 | `test-case-table.md` |
+| 表 7-1 | 第 7 章 | 实验矩阵配置表 | `thesis-final-v1-results.md` |
+| 表 7-2 | 第 7 章 | 四组消融主实验结果 | `thesis-final-v1-results.md` |
+| 表 7-3 | 第 7 章 | 按难度和预算分层的成功率 | `thesis-final-v1-results.md` |
+| 表 7-4 | 第 7 章 | 机制增量配对对比 | `thesis-final-v1-results.md` |
+| 表 7-5 | 第 7 章 | 高代价调用与运行时间对比 | `thesis-final-v1-results.md` |
+| 表 7-6 | 第 7 章 | Lite belief-state 机制可观测性对比 | `thesis-final-v1-results.md` |
+| 表 7-7 | 第 7 章 | FAILED run 归因表 | `thesis-final-v1-results.md` |
+| 表 7-8 | 第 7 章 | 实验结果证据产物索引 | 实验设计、结果报告、矩阵产物、EventLog/Snapshot |
 
 ---
 

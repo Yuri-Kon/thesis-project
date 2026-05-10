@@ -40,6 +40,21 @@
 
 12 个用例通过，1 个（TC-S08 CLI）部分通过。以下各节按类别详述验证内容、关键证据和发现。
 
+为避免证据编号在正文中显得零散，表 6-2 进一步给出系统验证证据类型索引。该表的作用不是重复列出所有文件，而是说明不同证据前缀分别承担什么论证功能。
+
+**表 6-2：系统验证证据类型索引**
+
+| 证据前缀 | 证据类型 | 当前数量/范围 | 主要支撑内容 | 典型章节位置 |
+|---|---|---|---|---|
+| EVD-API | API 响应 JSON | 8 项 | 健康检查、能力 readiness、任务详情、事件、报告和 pending action 接口 | 6.2、6.3、6.10 |
+| EVD-TEST | pytest 执行日志 | 4 组 | API、Web smoke、FSM/HITL/快照、安全恢复和 CLI 测试通过情况 | 6.1 至 6.10 |
+| EVD-CLI | CLI 输出日志 | 4 项 | intake schema 和 task show 可用，timeline/report 子命令为当前限制 | 6.7 |
+| FIG-SV | 前端截图 | 18 张 | Dashboard、Task Builder、Task Detail、Timeline 页面可用性 | 6.7 或附录 |
+| EVD-LOG | EventLog / Snapshot / Report 样本 | 8 组 | 状态迁移、恢复闭环、terminal_stop、等待态快照与报告产物 | 6.4 至 6.10 |
+| EVD-EXP | 实验矩阵与端到端运行聚合 | 4 项 | smoke/clean run、工具链执行和端到端流程证据 | 6.10、第 7 章 |
+
+表 6-2 对应 `../thesis-project.dev/docs/system-validation/evidence-index.md`。终稿写作时，正文只保留必要证据编号，完整文件路径可放入附录或材料索引。
+
 ---
 
 ## 6.2 API 服务与工具能力就绪验证
@@ -108,6 +123,18 @@
 
 Web 和 CLI 的一致性由 TC-S02 交叉验证：同一 task_id 在 Web 页面、CLI 输出和 API JSON 中的状态、pending_action_id 和事件数量相同。
 
+若终稿篇幅允许，可在本节加入表 6-3，以集中呈现 Web 与 CLI 的可用性证据。
+
+**表 6-3：Web 与 CLI 可用性证据汇总（建议稿）**
+
+| 入口 | 覆盖范围 | 证据编号 | 结论 | 限制 |
+|---|---|---|---|---|
+| Web Dashboard | 任务列表、状态摘要、能力提示 | FIG-SV-01、FIG-SV-02、EVD-TEST-01 | 通过 | 以截图和 smoke test 为主，不代表复杂浏览器兼容性测试。 |
+| Task Builder | 字段注册表、草稿补充、安全预检查、任务确认 | FIG-SV-03 至 FIG-SV-11、EVD-API-03 | 通过 | 截图作为交互证据，字段语义仍由 API schema 支撑。 |
+| Task Detail | 任务状态、运行上下文、候选决策、报告与结构区域 | FIG-SV-12 至 FIG-SV-17、EVD-API-04、EVD-API-06 | 通过 | 结构 3D Viewer 仅作为产物入口/占位，不写成完整三维渲染能力。 |
+| Event Timeline | 状态迁移、StepFinished、WAITING、Decision 事件 | FIG-SV-18、EVD-API-05 | 通过 | 当前以单任务样本展示全生命周期。 |
+| CLI | intake schema、task show、timeline/report 命令 | EVD-CLI-01 至 EVD-CLI-04、EVD-TEST-04 | 部分通过 | timeline 和 report 子命令当前仅输出 usage，需作为限制说明。 |
+
 ---
 
 ## 6.8 失败恢复流程的正确性
@@ -131,6 +158,18 @@ Web 和 CLI 的一致性由 TC-S02 交叉验证：同一 task_id 在 Web 页面�
 **止损机制**：TC-S13 验证了 terminal_stop 作为终止型恢复动作的完整审计链。`test_replan_confirm_accept_terminal_stop_transitions_to_failed` 确认接受 terminal_stop 候选后任务进入 FAILED 终态；`test_terminal_stop_audit_chain_is_recorded_in_event_log` 确认事件日志中记录了从 WAITING_ENTER → DECISION_APPLIED → WAITING_EXIT 的完整审计链，可通过 `/tasks/{id}/events` 还原。safety block 触发 replan 候选生成的路径由 StepRunner 和 RuntimeEvaluator 的集成测试覆盖。
 
 需要注意的是，t9 clean run 中 t8（安全探测任务）四组均正常执行完毕，safety_terminality=0.0，未触发阻断。这不是安全机制的缺失，而是实验任务设计未能将 forbidden_motif 作为 plan constraint 传入 step.metadata——确定性 focused test 已在代码层验证了阻断路径的可用性，矩阵实验中的安全触发需要强化任务约束。
+
+表 6-4 可用于将恢复与安全边界的证据集中到一处，避免第 6 章只用文字描述恢复链路。
+
+**表 6-4：恢复与安全边界验证证据表（建议稿）**
+
+| 验证主题 | 覆盖用例 | 关键行为 | 主要证据 | 结论边界 |
+|---|---|---|---|---|
+| 有界重试 | TC-S12 | 可重试失败进入有限重试，耗尽后交给恢复逻辑 | EVD-TEST-03、EVD-LOG-01 | 证明 retry 机制可达，不等同于所有工具失败都可恢复。 |
+| 局部修补 | TC-S12 | retry exhausted 后生成 patch 候选并进入 WAITING_PATCH_CONFIRM | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02 | 证明 patch 路径可执行，具体成功依赖失败类型。 |
+| 后缀重规划/止损 | TC-S12、TC-S13 | 结构性失败或 terminal_stop 通过 FSM 进入 replan/FAILED | EVD-TEST-02、EVD-TEST-03、EVD-LOG-03 | 证明 stop 不绕过 FSM/HITL。 |
+| 安全 block | TC-S10、TC-S13 | forbidden_motif 在 pre-step 阶段阻断工具调用 | EVD-TEST-03 | 矩阵实验未充分触发 safety block，结论主要来自 focused tests。 |
+| 安全 warn | TC-S10 | warn 放行但记录风险标记和安全事件 | EVD-TEST-03、FIG-SV-10 | 证明风险可记录，不宣称自动生物安全判定完备。 |
 
 ---
 
@@ -169,4 +208,7 @@ TC-S09 和 TC-S11 验证了从自然语言任务到 DesignResult 的完整成功
 | 类型 | 编号 | 标题 | 来源 |
 |------|------|------|------|
 | 表 | 表 6-1 | 系统测试用例汇总 | `docs/system-validation/test-case-table.md`、`docs/system-validation/evidence-index.md` |
+| 表 | 表 6-2 | 系统验证证据类型索引 | `../thesis-project.dev/docs/system-validation/evidence-index.md` |
+| 表 | 表 6-3 | Web 与 CLI 可用性证据汇总（建议稿） | `../thesis-project.dev/docs/system-validation/evidence-index.md`、`test-case-table.md` |
+| 表 | 表 6-4 | 恢复与安全边界验证证据表（建议稿） | `../thesis-project.dev/docs/system-validation/test-case-table.md` |
 | 证据截图 | FIG-SV-01~18 | 前端验证截图，作为证据编号保留，当前不作为正文图编号 | `../thesis-project.dev/docs/system-validation/06-ui-screenshots/` |

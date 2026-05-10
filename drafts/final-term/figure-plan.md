@@ -25,11 +25,10 @@
 | 图 4-8 | 第 4 章 | t1 任务实例走查 | `t1-trpcage-instance-walkthrough.drawio` |
 | 图 5-1 | 第 5 章 | 运行时执行序列 | `runtime-sequence.drawio` |
 | 图 5-2 | 第 5 章 | 工作流泳道式模块协作 | `workflow-swimlane.drawio` |
-| 图 6-1 | 第 6 章 | 测试用例覆盖矩阵 | 文字表 |
 | 图 7-1 | 第 7 章 | 实验设计框架 | `experiment-design-framework.drawio` |
 | 图 7-2 | 第 7 章 | 恢复路径对比 | `recovery-path-comparison-timeline.drawio` |
 
-> 说明：当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图片文件；第 7 章用表 7-1、表 7-2、表 7-3 承载实验主结果，避免引用不存在的图 7-x。
+> 说明：第 6 章测试覆盖矩阵应作为表 6-1，而不是图 6-1。当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图片文件；第 7 章用表 7-1 至表 7-8 承载实验配置、主结果、分层结果、机制对比、成本分析、可观测性、失败归因和证据索引，避免引用不存在的图 7-x。
 
 ### 补充图（可选，按需引用）
 
@@ -49,4 +48,4 @@
 | G04 HITL 触发条件 | ✅ 已绘制 | `hitl-decision-conditions.drawio` |
 | G05 恢复路径对比 | ✅ 已绘制 | `recovery-path-comparison-timeline.drawio` |
 | G06 实现层视觉 | ✅ 已收口 | 第 5 章使用 `runtime-sequence.drawio` 与 `workflow-swimlane.drawio`；第 6 章 FIG-SV 作为证据截图，不单独编号 |
-| 四组消融主实验结果图 | 暂不绘制 | 当前以表 7-1 至表 7-3 呈现，避免引用不存在图片 |
+| 四组消融主实验结果图 | 暂不绘制 | 当前以表 7-1 至表 7-8 呈现，避免引用不存在图片 |

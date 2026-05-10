@@ -59,14 +59,14 @@
 
 | 章节 | 建议引用 |
 |---|---|
-| 第 2 章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@schick2023toolformer]`、`[@yao2022react]` |
-| 第 3 章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@lin2023esmfold]`、`[@dauparas2022proteinmpnn]`、`[@ditommaso2017nextflow]` |
-| 第 4 章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
-| 第 5 章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |
-| 第 6 章 系统实现 | `[@cock2009biopython]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ferruz2022protgpt2]`、`[@ahdritz2024openfold]` |
-| 第 7 章 系统测试与验证 | `[@simmhan2009reliable]`、`[@xie2024osworld]` |
-| 第 8 章 实验与结果分析 | `[@yao2022react]`、`[@yao2023tot]`、`[@shinn2023reflexion]`、`[@rosettasearch2026]`、`[@autobinder2026]`、`[@preferenceinversefolding2026]` |
-| 第 9 章 总结与展望 | `[@proteinguide2025]`、`[@proteinzero2025]`、`[@pdbstruct2023]` |
+| 第一章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@schick2023toolformer]`、`[@yao2022react]` |
+| 第二章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@lin2023esmfold]`、`[@dauparas2022proteinmpnn]`、`[@ditommaso2017nextflow]` |
+| 第三章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
+| 第四章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |
+| 第五章 系统实现 | `[@cock2009biopython]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ferruz2022protgpt2]`、`[@ahdritz2024openfold]` |
+| 第六章 系统测试与验证 | `[@simmhan2009reliable]`、`[@xie2024osworld]` |
+| 第七章 实验与结果分析 | `[@yao2022react]`、`[@yao2023tot]`、`[@shinn2023reflexion]`、`[@rosettasearch2026]`、`[@autobinder2026]`、`[@preferenceinversefolding2026]` |
+| 第八章 总结与展望 | `[@proteinguide2025]`、`[@proteinzero2025]`、`[@pdbstruct2023]` |
 
 ## 七、引用注意事项
 

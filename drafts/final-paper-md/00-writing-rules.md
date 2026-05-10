@@ -23,17 +23,19 @@
 
 ## 2. 章节定位
 
+文件名前缀只用于排序，不等同于最终论文章号。终稿正文建议按“第一章 绪论、第二章 相关技术与理论基础、第三章 需求分析、第四章 系统设计、第五章 系统实现、第六章 系统测试与验证、第七章 实验与结果分析、第八章 总结与展望”组织。
+
 | 文件 | 章节定位 | 写作重点 |
 |---|---|---|
 | `01-title-abstract-keywords.md` | 摘要与关键词 | 概括问题、方法、系统、验证和结果，不展开实现细节。 |
-| `02-introduction.md` | 绪论 | 说明研究背景、问题、目标、主要工作和论文结构。 |
-| `03-related-work.md` | 相关技术与理论基础 | 梳理蛋白质设计工具、科学工作流、LLM Agent 和部分可观测规划依据。 |
-| `04-requirements-analysis.md` | 需求分析 | 写清业务需求、功能需求、非功能需求、约束和问题-方案对应关系。 |
-| `05-system-design.md` | 系统设计 | 写清整体架构、数据模型、状态机、工作流和 CEBRA-WP 算法定义。 |
-| `06-system-implementation.md` | 系统实现 | 写实现落点、模块协作、运行链路和关键工程机制。 |
-| `07-testing-validation.md` | 系统测试与验证 | 写测试目标、测试用例、验证证据、通过情况和限制。 |
-| `08-experiments-analysis.md` | 实验与结果分析 | 写实验设计、任务、对照组、指标、表格结果和分析。 |
-| `09-conclusion.md` | 总结与展望 | 总结已完成工作、限制和后续方向。 |
+| `02-introduction.md` | 第一章 绪论 | 说明研究背景、问题、目标、主要工作和论文结构。 |
+| `03-related-work.md` | 第二章 相关技术与理论基础 | 梳理蛋白质设计工具、科学工作流、LLM Agent 和部分可观测规划依据。 |
+| `04-requirements-analysis.md` | 第三章 需求分析 | 写清业务需求、功能需求、非功能需求、约束和问题-方案对应关系。 |
+| `05-system-design.md` | 第四章 系统设计 | 写清整体架构、数据模型、状态机、工作流和 CEBRA-WP 算法定义。 |
+| `06-system-implementation.md` | 第五章 系统实现 | 写实现落点、模块协作、运行链路和关键工程机制。 |
+| `07-testing-validation.md` | 第六章 系统测试与验证 | 写测试目标、测试用例、验证证据、通过情况和限制。 |
+| `08-experiments-analysis.md` | 第七章 实验与结果分析 | 写实验设计、任务、对照组、指标、表格结果和分析。 |
+| `09-conclusion.md` | 第八章 总结与展望 | 总结已完成工作、限制和后续方向。 |
 
 ## 3. 术语统一
 
@@ -61,7 +63,7 @@
 
 ## 4. 算法写作规则
 
-CEBRA-WP 必须作为第 5 章系统设计中的独立算法定义出现，不能只散落在工作流描述里。算法定义应至少包括：
+CEBRA-WP 必须作为第四章系统设计中的独立算法定义出现，不能只散落在工作流描述里。算法定义应至少包括：
 
 - 问题输入：目标 `g`、约束集合 `C`、ToolKG `K`、历史 `h_t`、观测 `o_t` 和信念状态 `x_t`。
 - 候选生成：`GenerateCandidates(g, C, K, h_t)`。
@@ -82,7 +84,7 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 
 ## 5. 图表引用规则
 
-图表清单以 `figures.md` 为准。正文引用必须满足三个条件：
+插图清单以 `figures.md` 为准，正式表格与代码清单以 `tables.md` 为准。正文引用必须满足三个条件：
 
 1. 前文出现“如图 X-Y 所示”或“如表 X-Y 所示”。
 2. 紧随其后或同一小节内给出对应图表的标题、路径或插入标记。
@@ -102,9 +104,11 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 不要出现：
 
 - 只写“如下图所示”但没有图号。
-- 提到“图 4-6”但 `figures.md` 中不存在。
+- 提到“图 4-6”但 `figures.md` 中不存在，或提到“表 7-5”但 `tables.md` 中不存在。
 - 图后没有解释，只把图当作装饰。
 - 同一张图在不同章节重复编号。
+
+代码片段在正文中称为“代码清单”。每个代码清单都必须说明它解决的实现问题、对应的设计点，以及是否有测试或实验材料支撑。不要把 `drafts/final-term/implementation/05-code-snippets.md` 中的片段原样全部复制进正文。
 
 ## 6. 参考文献引用规则
 
@@ -126,14 +130,14 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 
 | 章节 | 推荐引用 |
 |---|---|
-| 第 2 章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@yao2022react]`、`[@schick2023toolformer]` |
-| 第 3 章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ditommaso2017nextflow]` |
-| 第 4 章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
-| 第 5 章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |
-| 第 6 章 系统实现 | `[@cock2009biopython]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ferruz2022protgpt2]`、`[@ahdritz2024openfold]` |
-| 第 7 章 系统测试与验证 | `[@simmhan2009reliable]`、`[@xie2024osworld]` |
-| 第 8 章 实验与结果分析 | `[@yao2022react]`、`[@yao2023tot]`、`[@shinn2023reflexion]`、`[@rosettasearch2026]`、`[@autobinder2026]`、`[@preferenceinversefolding2026]` |
-| 第 9 章 总结与展望 | `[@proteinguide2025]`、`[@proteinzero2025]`、`[@pdbstruct2023]` |
+| 第一章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@yao2022react]`、`[@schick2023toolformer]` |
+| 第二章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ditommaso2017nextflow]` |
+| 第三章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
+| 第四章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |
+| 第五章 系统实现 | `[@cock2009biopython]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ferruz2022protgpt2]`、`[@ahdritz2024openfold]` |
+| 第六章 系统测试与验证 | `[@simmhan2009reliable]`、`[@xie2024osworld]` |
+| 第七章 实验与结果分析 | `[@yao2022react]`、`[@yao2023tot]`、`[@shinn2023reflexion]`、`[@rosettasearch2026]`、`[@autobinder2026]`、`[@preferenceinversefolding2026]` |
+| 第八章 总结与展望 | `[@proteinguide2025]`、`[@proteinzero2025]`、`[@pdbstruct2023]` |
 
 ## 8. 表述强度
 
@@ -153,7 +157,7 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 
 ## 9. Markdown 书写格式
 
-- 每章使用一级标题作为章名，例如 `# 第五章 系统设计`。
+- 每章使用一级标题作为章名，例如 `# 第四章 系统设计`。
 - 小节使用二级和三级标题，不要跳级。
 - 公式使用 fenced `tex` 代码块或独立 LaTeX 公式，后续再转 Word。
 - 表格优先使用 Markdown 表格。

@@ -21,7 +21,21 @@
 
 质量保证使用 **pytest** 进行行为验证（237 个用例覆盖 API、FSM、HITL、快照、恢复和安全边界），**basedpyright** 约束类型边界以减少契约漂移。
 
-后端模块目录结构可作为表 5-1 或代码清单整理：`src/api/` 对应输入与 API 边界，`src/agents/` 对应 Planner、Executor、Safety 和 Summarizer，`src/workflow/` 对应 FSM、PlanRunner、StepRunner、RuntimeEvaluator 和恢复控制，`src/models/` 对应 Pydantic 契约，`src/adapters/` 与 `src/kg/` 对应工具适配和能力图谱，`src/storage/` 对应日志、快照和文件产物管理。真正需要作为图插入正文的实现图放在 5.4 节和 5.5 节：运行时执行序列见图 5-1，泳道式模块协作见图 5-2。
+后端模块目录结构建议整理为表 5-1，而不是在正文中直接铺开文件树。表 5-1 可将 `src/api/` 对应到输入与 API 边界，`src/agents/` 对应 Planner、Executor、Safety 和 Summarizer，`src/workflow/` 对应 FSM、PlanRunner、StepRunner、RuntimeEvaluator 和恢复控制，`src/models/` 对应 Pydantic 契约，`src/adapters/` 与 `src/kg/` 对应工具适配和能力图谱，`src/storage/` 对应日志、快照和文件产物管理。真正需要作为图插入正文的实现图放在 5.4 节和 5.5 节：运行时执行序列见图 5-1，泳道式模块协作见图 5-2。
+
+**表 5-1：后端核心模块与论文架构层对应关系（建议稿）**
+
+| 实现目录 | 主要职责 | 对应设计层/模块 | 正文说明重点 |
+|---|---|---|---|
+| `src/api/` | FastAPI 入口、任务接口、HITL 接口、前端静态入口 | 输入交互层、任务接入模块 | 说明 API 是任务、事件、报告和人工决策的统一边界。 |
+| `src/models/` | Pydantic 契约、状态枚举、任务记录 | 核心数据契约 | 说明任务、计划、步骤结果、PendingAction、RuntimeState 等对象的结构化约束。 |
+| `src/agents/` | Planner、Executor、Safety、Summarizer | 多 Agent 协作模块 | 强调各 Agent 的职责边界，不写成独立改变状态。 |
+| `src/workflow/` | WorkflowContext、PlanRunner、StepRunner、RuntimeEvaluator、恢复与快照 | 工作流控制层、CEBRA-WP 工程承载 | 说明 FSM、HITL、重试、恢复、runtime rerank 和快照的实现位置。 |
+| `src/adapters/` | ToolAdapter、AdapterRegistry、具体工具适配器 | 工具执行与资源接入层 | 说明如何屏蔽本地工具、远程 REST 服务和脚本差异。 |
+| `src/kg/` | ProteinToolKG JSON 与查询逻辑 | 工具知识图谱 | 说明候选生成时如何查询工具能力、I/O、成本和安全约束。 |
+| `src/storage/` | 事件日志、快照、文件产物管理 | 审计与恢复支撑 | 说明 EventLog 和 TaskSnapshot 如何支撑恢复和复核。 |
+
+代码清单不宜超过正文主线。建议终稿只选 4 至 6 个关键片段：任务创建请求的互斥入口校验、BaseToolAdapter 抽象接口、WorkflowContext 的 RuntimeState 更新入口、StepRunner 的有界重试微循环、RuntimeEvaluator 候选重排，以及进入 WAITING 状态前的 PendingAction/审计写入。完整候选片段见 `drafts/final-term/implementation/05-code-snippets.md`，表格编号与推荐插入位置见 `drafts/final-paper-md/tables.md`。
 
 ---
 
@@ -170,3 +184,10 @@ ProteinToolKG 以 JSON 文件形式维护工具的能力图谱（`src/kg/protein
 |------|------|--------|
 | 图 5-1 | 运行时执行序列：TaskAPI、Workflow、Planner、ToolKG、Executor、Adapter、Safety、Storage | `paper/figures/runtime-sequence.drawio.svg` |
 | 图 5-2 | 工作流泳道式模块协作 | `paper/figures/workflow-swimlane.drawio.svg` |
+
+## 表格与代码清单
+
+| 类型 | 编号 | 标题 | 来源 |
+|------|------|------|------|
+| 表 | 表 5-1 | 后端核心模块与论文架构层对应关系 | `drafts/final-term/implementation/01-tech-stack-and-structure.md`、当前实现目录 |
+| 代码清单 | 代码清单 5-1 至 5-6 | API 契约、工具适配、运行时上下文、重试微循环、候选重排、HITL 审计写入 | `drafts/final-term/implementation/05-code-snippets.md` |

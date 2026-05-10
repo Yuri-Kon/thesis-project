@@ -19,9 +19,28 @@
 
 实验采用四组内部消融设计（static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state），对应算法介入深度的四个递进层次。任务集覆盖 de novo 设计、序列评估、稳定性优化、高代价结构预测、可修复参数失败、远程服务降级、结构性重规划和安全性探测共 8 类设计场景，涉及 12 个 task_key，基于 6 个公开蛋白质结构（Trp-cage 1L2Y、Villin HP35 1VII、GB1 1PGB/2GB1、Ubiquitin 1UBQ、Top7 1QYS、de novo oligomer 5J0H）。每组 21 runs，总计 84 runs，其中 low_cost_first 任务 repeat=2，standard 任务 repeat=2，high_cost_sensitive 任务 repeat=1。
 
-实验设计框架如图 7-1 所示。图中将 84-run 矩阵拆分为任务集合、四组策略、评价指标和证据产物四个层次：任务集合提供不同难度、预算和失败压力；四组策略用于隔离静态选择、固定门控、动态恢复和 Lite belief-state 的贡献；评价指标覆盖成功率、首次成功、高代价调用、恢复事件和运行时状态可观测性；证据产物则由 run_config、event log、snapshot 和矩阵汇总文件构成。后文表 7-1 至表 7-3 的数值均来自这一实验框架下的聚合结果。
+实验设计框架如图 7-1 所示。图中将 84-run 矩阵拆分为任务集合、四组策略、评价指标和证据产物四个层次：任务集合提供不同难度、预算和失败压力；四组策略用于隔离静态选择、固定门控、动态恢复和 Lite belief-state 的贡献；评价指标覆盖成功率、首次成功、高代价调用、恢复事件和运行时状态可观测性；证据产物则由 run_config、event log、snapshot 和矩阵汇总文件构成。后文表 7-1 至表 7-8 均来自这一实验框架下的聚合结果或证据索引。
 
 > **图 7-1**：实验设计框架图，展示任务集、四组策略、指标体系和证据产物之间的关系。来源：`paper/figures/experiment-design-framework.drawio.svg` / `paper/figures/experiment-design-framework.drawio.png`。
+
+为了让实验章节不仅依赖图示说明，表 7-1 先给出实验矩阵配置。该表固定本章所有统计结果的实验范围，后续主结果、分层结果和案例分析均不超出该范围。
+
+**表 7-1：实验矩阵配置表**
+
+| 项目 | 配置 |
+|:---|:---|
+| run_id | `thesis-final-v1-001` |
+| freeze_id | `issue209-baseline-freeze-20260326` |
+| planner_provider | `deepseek-v4-pro` |
+| 任务覆盖 | 12 个 task_keys，覆盖 T1 至 T8 共 8 类场景 |
+| 策略组 | static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state |
+| repeats | low_cost_first=2，standard=2，high_cost_sensitive=1 |
+| 总 runs | 84 runs，每组 21 runs |
+| 完成情况 | 81/84 DONE，3 FAILED |
+| 执行时间 | 约 6 小时 |
+| 产物路径 | `output/experiment/thesis-final-matrix/thesis-final-v1-001/` |
+
+表 7-1 的作用是限制结论边界：本章结论只针对该任务集、该运行配置和该实验产物成立，不扩大为所有蛋白质设计任务上的一般性性能结论。
 
 ---
 
@@ -69,9 +88,9 @@
 
 ### 7.5.1 总体结果
 
-表 7-1 汇总了四组策略的核心指标。
+表 7-2 汇总了四组策略的核心指标。
 
-**表 7-1：四组消融主实验结果**
+**表 7-2：四组消融主实验结果**
 
 | 指标 | static_top1 | fixed_threshold_gate | dynamic_no_belief | lite_belief |
 |---:|---:|---:|---:|---:|
@@ -98,9 +117,9 @@
 
 ### 7.5.2 按难度和预算分层
 
-按任务难度和预算类型的分层结果（表 7-2）揭示了失败分布的规律。
+按任务难度和预算类型的分层结果（表 7-3）揭示了失败分布的规律。
 
-**表 7-2：按难度和预算分层的成功率**
+**表 7-3：按难度和预算分层的成功率**
 
 | 分层 | runs | DONE | FAILED | success_rate |
 |:---|---:|---:|---:|---:|
@@ -115,9 +134,9 @@
 
 ### 7.5.3 机制增量配对对比
 
-表 7-3 通过相邻策略组的配对增量（paired delta）量化了各机制的边际效应。
+表 7-4 通过相邻策略组的配对增量（paired delta）量化了各机制的边际效应。
 
-**表 7-3：机制增量配对对比**
+**表 7-4：机制增量配对对比**
 
 | 对比 | 指标 | delta | 解读 |
 |:---|---:|---:|:---|
@@ -130,6 +149,19 @@
 | dynamic→lite | duration | +45,524ms | lite 因 belief-state 计算慢 20% |
 
 这些 delta 提供了比绝对指标更丰富的解释：static→fixed 的负向 delta 说明固定门控的"拦截-修复"机制虽然可用，但在无运行时重排序的条件下，它的代价（额外的 patch 和高成本调用）超过了收益（成功拦截了部分潜在失败）；fixed→dynamic 的正向 delta 说明取消运行时拦截、依赖规划和候选验证的质量，在本次实验中表现为更低的成本；dynamic→lite 的 delta 说明 belief-state 的计算引入了一定的时间开销，但这种开销是否换来决策质量的提升，需要从机制层面而非指标均值层面来回答。
+
+为进一步支撑成本控制分析，表 7-5 单独列出高代价调用与运行耗时。该表比总体结果表更适合承载“fixed 组恢复代价更高、dynamic/lite 具有较低高代价调用”的论证。
+
+**表 7-5：高代价调用与运行时间对比**
+
+| 组 | high_cost_total | high_cost_mean | 平均耗时 | 主要解释 |
+|:---|---:|---:|---:|:---|
+| static_top1 | 21 | 1.000 | 241,905 ms | 单候选线性执行，未触发 patch。 |
+| fixed_threshold_gate | **28** | **1.333** | 300,238 ms | 6 次 patch 导致 openfold 重跑，另有 1 次结构精修调用。 |
+| dynamic_no_belief_state | 20 | 0.952 | **226,571 ms** | 无 patch 开销，1 个失败在高代价执行前被候选验证拦截。 |
+| lite_belief_state | 20 | 0.952 | 272,095 ms | 高代价调用数低于 fixed，但 belief-state 与 action utility 计算带来额外时间。 |
+
+表 7-5 支持的结论应表述为：在本实验设置下，dynamic 和 lite 两组的高代价调用比 fixed_threshold_gate 低 28.6%，但 lite 未在运行时间上优于 dynamic。因此，lite 的优势主要是机制可观测性和运行时决策解释，而不是绝对耗时最短。
 
 ---
 
@@ -155,6 +187,20 @@ RQ-A3 聚焦 dynamic_no_belief_state 与 lite_belief_state 的定向对比。两
 
 **增量价值的当前证据边界。** 在本次实验中，lite 相比 dynamic 的增量价值主要体现在：（1）产生了全面且持续的信念状态观测，为决策审计提供了 dynamic 组完全缺失的信息维度；（2）通过预防性重排序避免了类似 fixed 组的 patch 触发；（3）在 t2_ubiquitin 压力点上展现了预算感知能力。但 lite 未能将这种机制优势转化为 success_rate、high_cost_call_mean 或 duration 的显著改善——两组在这些指标上的均值完全相同。RQ-A3 的当前回答是：**lite belief-state 的机制优势已得到验证，但其在本次任务集上尚未转化为超越 dynamic 的统计显著性能增益。** 这为未来的定向实验（扩大压力任务样本、引入更强的失败诱导条件）留下了明确的研究空间。
 
+表 7-6 将上述机制差异集中呈现。它是本节最重要的证据表，因为它解释了为什么即使 lite 与 dynamic 在成功率上相同，lite 仍然不是“无差异实现”。
+
+**表 7-6：Lite belief-state 机制可观测性对比**
+
+| 特征 | static_top1 / fixed_threshold_gate / dynamic_no_belief_state | lite_belief_state | 论文解释 |
+|:---|:---|:---|:---|
+| runtime_state_summary | 其他组为 `null` 或无有效观测 | 21/21 runs 产生有效 RuntimeState | 证明 Lite belief-state 链路持续执行。 |
+| budget_pressure source | `"default"` fallback | `"observed"` | 证明 lite 能从运行时状态中估计预算压力。 |
+| action_utility_source | `"missing"` | `"computed"` | 证明 continue、patch_local、suffix_replan、stop 的动作效用被实际计算。 |
+| action_utilities | 空对象或不可用 | 四类动作均有 utility | 支撑恢复动作选择的可解释性。 |
+| runtime_state_observable_rate | 0.0 | 1.0 | 这是 lite 与 dynamic 的核心机制差异。 |
+
+表 7-6 不用于声称 lite 在成功率上优于 dynamic，而用于证明 CEBRA-WP 的信念状态、预算感知和动作效用计算在工程上可执行、可追踪。
+
 ---
 
 ## 7.8 典型案例分析（RQ-A4）
@@ -164,6 +210,16 @@ RQ-A3 聚焦 dynamic_no_belief_state 与 lite_belief_state 的定向对比。两
 > **图 7-2**：恢复路径对比时间线，展示 fixed_threshold_gate 的后置 patch 拦截与 lite_belief_state 的运行时状态驱动重排序。来源：`paper/figures/recovery-path-comparison-timeline.drawio.svg` / `paper/figures/recovery-path-comparison-timeline.drawio.png`。
 
 ### 7.8.1 案例一：static_top1 的线性成功（t1_trpcage_denovo_short_peptide）
+
+表 7-7 先汇总三个 FAILED run 的归因，再展开典型案例。这样可以避免案例分析只依靠叙述，读者可以先看到失败分布、失败类型和证据意义。
+
+**表 7-7：FAILED run 归因表**
+
+| 策略组 | 任务 | repeat | 错误类型 | 根因 | 论文解释 |
+|:---|:---|:---:|:---|:---|:---|
+| fixed_threshold_gate | `t2_ubiquitin_sequence_eval` | r02 | auto decision loop exhausted | 固定门控触发 WAITING_PATCH 循环，patch 后仍触发相同门控条件 | 证明无 runtime rerank 的“拦截-修复”可能引入循环和额外高代价调用。 |
+| lite_belief_state | `t2_ubiquitin_sequence_eval` | r01 | auto decision loop exhausted | 36 次 WAITING_PATCH 循环；budget_pressure 从 0.0 升至 1.5，但 rerank 未打破循环 | 展示 belief-state 可观测和预算感知，但也说明其性能增益存在边界。 |
+| dynamic_no_belief_state | `t3_gb1_stability_optimization` | r01 | `CANDIDATE_IO_CLOSURE_BROKEN` | 候选 step 输出字段无法被下游引用，规划阶段校验失败 | 证明候选验证机制正常工作，宁可拒绝不可执行候选也不静默执行。 |
 
 static_top1 在 t1 任务上的典型执行路径为：Planner 生成单个候选 → FeasibilityFilter 通过 → 静态评分最优 → 自动选择 → Executor 单步执行 → Summarizer 汇总 → DONE。全流程无等待、无重试、无 patch、无 replan。2 个 repeats 均以约 180 秒完成，high_cost_call_count=1（openfold 在 S2 被调用 1 次）。
 
@@ -194,6 +250,19 @@ dynamic_no_belief_state / t3_gb1_stability_optimization / r01 的失败原因是
 ---
 
 ## 7.9 结论边界与限制说明
+
+为保证实验结论可追溯，表 7-8 汇总本章使用的主要证据产物。终稿中可以把该表放在 7.3 实验环境与执行配置之后，或放在 7.9 作为结论边界的支撑。
+
+**表 7-8：实验结果证据产物索引**
+
+| 证据产物 | 路径/来源 | 支撑内容 | 使用位置 |
+|:---|:---|:---|:---|
+| 实验结果报告 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` | 84-run 概况、主结果、分层结果、失败案例和结论边界 | 全章主依据 |
+| 实验设计文档 | `../thesis-project.dev/docs/experiment/final-thesis-experiment-design.md` | 双主线实验定位、研究问题、任务类和指标体系 | 7.1、7.2、7.3 |
+| 分组映射文档 | `../thesis-project.dev/docs/experiment/algorithm-group-paper-mapping.md` | 代码 policy mode 与论文组名的一一对应 | 7.1、7.5 |
+| 矩阵聚合产物 | `output/experiment/thesis-final-matrix/thesis-final-v1-001/` | matrix summary、action distribution、high cost breakdown、run level results | 7.5 至 7.8 |
+| EventLog / Snapshot | `data/logs/thesis-final-v1-001_*.jsonl`、`data/snapshots/thesis-final-v1-001_*.jsonl` | 失败案例、恢复循环、runtime_state 和 decision trace | 7.7、7.8 |
+| 系统验证证据 | `../thesis-project.dev/docs/system-validation/evidence-index.md` | 说明实验基础设施已通过工程验证 | 7.1 前置说明 |
 
 基于上述分析，本章的结论在以下边界内成立：
 
@@ -227,9 +296,20 @@ dynamic_no_belief_state / t3_gb1_stability_optimization / r01 的失败原因是
 
 ---
 
-## 图的清单
+## 图表清单
 
 | 图号 | 标题 | 源文件 |
 |------|------|--------|
 | 图 7-1 | 实验设计框架：任务集、策略组、指标与证据产物 | `paper/figures/experiment-design-framework.drawio.svg` |
 | 图 7-2 | 恢复路径对比：fixed gate 后置 patch 与 lite belief-state 前置重排序 | `paper/figures/recovery-path-comparison-timeline.drawio.svg` |
+
+| 表号 | 标题 | 来源 |
+|------|------|------|
+| 表 7-1 | 实验矩阵配置表 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-2 | 四组消融主实验结果 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-3 | 按难度和预算分层的成功率 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-4 | 机制增量配对对比 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-5 | 高代价调用与运行时间对比 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-6 | Lite belief-state 机制可观测性对比 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-7 | FAILED run 归因表 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` |
+| 表 7-8 | 实验结果证据产物索引 | 实验设计、结果报告、矩阵聚合产物、EventLog/Snapshot |
