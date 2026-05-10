@@ -18,25 +18,23 @@
 | 图 4-1 | 第 4 章 | 系统五层分层架构 | `system-architecture.drawio` |
 | 图 4-2 | 第 4 章 | ProteinToolKG 局部可视化 | `protein-toolkg-local-view.drawio` |
 | 图 4-3 | 第 4 章 | FSM 状态转移图 | `fsm-state-transition.drawio` |
-| 图 4-4 | 第 4 章 | 六阶段 de novo 工作流 | `workflow-flowchart.drawio` |
-| 图 4-5 | 第 4 章 | CEBRA-WP 算法闭环 | `algorithm-loop.drawio` |
-| 图 4-6 | 第 4 章 | 核心数据契约 UML | `uml-contracts.drawio` |
-| 图 4-7 | 第 4 章 | t1 任务实例走查 | `t1-trpcage-instance-walkthrough.drawio` |
-| 图 5-1 | 第 5 章 | 模块目录结构 | 文字/代码生成 |
-| 图 5-2 | 第 5 章 | 前端关键页面截图 | FIG-SV-02/07/13 |
-| 图 5-3 | 第 5 章 | 运行时执行序列 | `runtime-sequence.drawio` |
+| 图 4-4 | 第 4 章 | HITL 触发条件与决策逻辑 | `hitl-decision-conditions.drawio` |
+| 图 4-5 | 第 4 章 | 六阶段 de novo 工作流 | `workflow-flowchart.drawio` |
+| 图 4-6 | 第 4 章 | CEBRA-WP 算法闭环 | `algorithm-loop.drawio` |
+| 图 4-7 | 第 4 章 | 核心数据契约 UML | `uml-contracts.drawio` |
+| 图 4-8 | 第 4 章 | t1 任务实例走查 | `t1-trpcage-instance-walkthrough.drawio` |
+| 图 5-1 | 第 5 章 | 运行时执行序列 | `runtime-sequence.drawio` |
+| 图 5-2 | 第 5 章 | 工作流泳道式模块协作 | `workflow-swimlane.drawio` |
 | 图 6-1 | 第 6 章 | 测试用例覆盖矩阵 | 文字表 |
-| 图 6-2 | 第 6 章 | 前端验证截图 | FIG-SV-02/18 |
 | 图 7-1 | 第 7 章 | 实验设计框架 | `experiment-design-framework.drawio` |
-| 图 7-2 | 第 7 章 | 四组消融主实验结果 | 待 matplotlib 生成 |
-| 图 7-3 | 第 7 章 | 恢复路径对比 | `recovery-path-comparison-timeline.drawio` |
+| 图 7-2 | 第 7 章 | 恢复路径对比 | `recovery-path-comparison-timeline.drawio` |
+
+> 说明：当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图片文件；第 7 章用表 7-1、表 7-2、表 7-3 承载实验主结果，避免引用不存在的图 7-x。
 
 ### 补充图（可选，按需引用）
 
 | 源文件 | 内容 | 可用场景 |
 |--------|------|---------|
-| `hitl-decision-conditions.drawio` | HITL 触发条件与决策逻辑 | 第 4 章 FSM 小节或第 6 章 HITL 测试 |
-| `workflow-swimlane.drawio` | 泳道式工作流总览 | 第 5 章工作流部分 |
 | `technical-route.drawio` | 技术路线概览 | 第 2 章相关技术 |
 
 ---
@@ -50,5 +48,5 @@
 | G03 实例走查 | ✅ 已绘制 | `t1-trpcage-instance-walkthrough.drawio` |
 | G04 HITL 触发条件 | ✅ 已绘制 | `hitl-decision-conditions.drawio` |
 | G05 恢复路径对比 | ✅ 已绘制 | `recovery-path-comparison-timeline.drawio` |
-| G06 实现层视觉 | 🟡 从已有素材选 | FIG-SV 截图 + 文字表 |
-| 图 7-2 实验结果 | ⏳ 待 matplotlib | 依赖数据已就绪，生成脚本待写 |
+| G06 实现层视觉 | ✅ 已收口 | 第 5 章使用 `runtime-sequence.drawio` 与 `workflow-swimlane.drawio`；第 6 章 FIG-SV 作为证据截图，不单独编号 |
+| 四组消融主实验结果图 | 暂不绘制 | 当前以表 7-1 至表 7-3 呈现，避免引用不存在图片 |

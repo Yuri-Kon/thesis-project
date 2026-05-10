@@ -19,6 +19,10 @@
 
 实验采用四组内部消融设计（static_top1 / fixed_threshold_gate / dynamic_no_belief_state / lite_belief_state），对应算法介入深度的四个递进层次。任务集覆盖 de novo 设计、序列评估、稳定性优化、高代价结构预测、可修复参数失败、远程服务降级、结构性重规划和安全性探测共 8 类设计场景，涉及 12 个 task_key，基于 6 个公开蛋白质结构（Trp-cage 1L2Y、Villin HP35 1VII、GB1 1PGB/2GB1、Ubiquitin 1UBQ、Top7 1QYS、de novo oligomer 5J0H）。每组 21 runs，总计 84 runs，其中 low_cost_first 任务 repeat=2，standard 任务 repeat=2，high_cost_sensitive 任务 repeat=1。
 
+实验设计框架如图 7-1 所示。图中将 84-run 矩阵拆分为任务集合、四组策略、评价指标和证据产物四个层次：任务集合提供不同难度、预算和失败压力；四组策略用于隔离静态选择、固定门控、动态恢复和 Lite belief-state 的贡献；评价指标覆盖成功率、首次成功、高代价调用、恢复事件和运行时状态可观测性；证据产物则由 run_config、event log、snapshot 和矩阵汇总文件构成。后文表 7-1 至表 7-3 的数值均来自这一实验框架下的聚合结果。
+
+> **图 7-1**：实验设计框架图，展示任务集、四组策略、指标体系和证据产物之间的关系。来源：`paper/figures/experiment-design-framework.drawio.svg` / `paper/figures/experiment-design-framework.drawio.png`。
+
 ---
 
 ## 7.2 指标体系
@@ -155,6 +159,10 @@ RQ-A3 聚焦 dynamic_no_belief_state 与 lite_belief_state 的定向对比。两
 
 ## 7.8 典型案例分析（RQ-A4）
 
+典型案例分析主要借助恢复路径对比图展开，如图 7-2 所示。该图对比 fixed_threshold_gate 和 lite_belief_state 在恢复控制上的差异：fixed 侧展示“运行时发现问题 → WAITING_PATCH → patch_local → 高代价结构预测重跑 → 可能再次触发门控”的后置拦截路径；lite 侧展示“生成候选 → 运行时状态估计 → runtime rerank → action utility → continue/边界失败”的前置调节路径。图 7-2 的作用不是证明 lite 在本次实验中提升了成功率，而是帮助解释二者机制差异：fixed 的证据是 6 次真实 patch 和更高高代价调用，lite 的证据是 21/21 runs 持续产生 RuntimeState 和 action utility。
+
+> **图 7-2**：恢复路径对比时间线，展示 fixed_threshold_gate 的后置 patch 拦截与 lite_belief_state 的运行时状态驱动重排序。来源：`paper/figures/recovery-path-comparison-timeline.drawio.svg` / `paper/figures/recovery-path-comparison-timeline.drawio.png`。
+
 ### 7.8.1 案例一：static_top1 的线性成功（t1_trpcage_denovo_short_peptide）
 
 static_top1 在 t1 任务上的典型执行路径为：Planner 生成单个候选 → FeasibilityFilter 通过 → 静态评分最优 → 自动选择 → Executor 单步执行 → Summarizer 汇总 → DONE。全流程无等待、无重试、无 patch、无 replan。2 个 repeats 均以约 180 秒完成，high_cost_call_count=1（openfold 在 S2 被调用 1 次）。
@@ -216,3 +224,12 @@ dynamic_no_belief_state / t3_gb1_stability_optimization / r01 的失败原因是
 （5）**三个 FAILED run 是机制洞察的来源**：fixed 的循环耗尽证明了 rerank 的必要性，lite 的预算感知展示了信念状态的动态行为，dynamic 的候选验证失败证明了校验机制的价值。
 
 （6）**统计效力和恢复覆盖仍有限制**：n=2 限制了统计推断的强度，无 replan 事件说明压力条件未充分覆盖恢复路径的全谱。这些限制为后续实验（扩大样本、强化压力任务、定向对照 dynamic vs lite）提供了明确的方向。
+
+---
+
+## 图的清单
+
+| 图号 | 标题 | 源文件 |
+|------|------|--------|
+| 图 7-1 | 实验设计框架：任务集、策略组、指标与证据产物 | `paper/figures/experiment-design-framework.drawio.svg` |
+| 图 7-2 | 恢复路径对比：fixed gate 后置 patch 与 lite belief-state 前置重排序 | `paper/figures/recovery-path-comparison-timeline.drawio.svg` |

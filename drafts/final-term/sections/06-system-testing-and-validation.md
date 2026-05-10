@@ -18,6 +18,8 @@
 
 表 6-1 汇总了全部 13 个测试用例的执行结果。
 
+本章以表格和证据编号为主，不在 `paper/figures/` 中新增独立正文图。FIG-SV-01 至 FIG-SV-18 是系统验证证据截图，适合在附录或验证材料索引中引用；若终稿需要正文截图，可从这些证据中选择 Dashboard、Task Builder、Task Detail 或 Timeline 页面单独编号。当前草稿中凡涉及 FIG-SV 的位置均作为证据编号使用，不写成“如图 6-x 所示”，以避免出现前文引用但正文无对应图表的问题。
+
 **表 6-1：系统测试用例汇总**
 
 | 用例 | 测试类别 | 覆盖验证点 | 执行结果 | 核心证据 |
@@ -159,3 +161,12 @@ TC-S09 和 TC-S11 验证了从自然语言任务到 DesignResult 的完整成功
 （6）失败恢复的 retry → patch → replan 分层策略在单元和集成测试层面通过确定性触发验证。安全边界从判定（SafetyAgent block/warn）到执行（工具调用阻止）到审计（EventLog 记录）的全链路通过 4 个 focused test 覆盖。
 
 系统功能正确性的验证为第 7 章的算法策略对比实验提供了可靠的基础设施——实验矩阵中出现的任何指标差异可以归因于策略配置的不同，而非系统本身的正确性缺陷。
+
+---
+
+## 图表清单
+
+| 类型 | 编号 | 标题 | 来源 |
+|------|------|------|------|
+| 表 | 表 6-1 | 系统测试用例汇总 | `docs/system-validation/test-case-table.md`、`docs/system-validation/evidence-index.md` |
+| 证据截图 | FIG-SV-01~18 | 前端验证截图，作为证据编号保留，当前不作为正文图编号 | `../thesis-project.dev/docs/system-validation/06-ui-screenshots/` |

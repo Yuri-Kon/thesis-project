@@ -2,6 +2,7 @@
 
 > 状态：修正稿 · 2026-05-10 · 目标章节文件 `chapters/03-system-requirements-and-design.tex`
 > 修正项：CEBRA-WP 全称、分层命名对齐设计文档、补充 posterior scoring 与策略组、算法版本号
+> 注意：该文件是早期“需求+总体设计合并稿”的历史草稿。当前终稿草稿已拆分为 `03-system-requirements.md` 与 `04-system-design.md`，图号与算法定义以拆分后的两个文件为准，后续不应再以本文件作为正文转 LaTeX 的依据。
 
 ---
 

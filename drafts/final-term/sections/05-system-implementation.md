@@ -21,7 +21,7 @@
 
 质量保证使用 **pytest** 进行行为验证（237 个用例覆盖 API、FSM、HITL、快照、恢复和安全边界），**basedpyright** 约束类型边界以减少契约漂移。
 
-图 5-1 展示了后端的模块目录结构及其与五层架构的对应关系。
+后端模块目录结构可作为表 5-1 或代码清单整理：`src/api/` 对应输入与 API 边界，`src/agents/` 对应 Planner、Executor、Safety 和 Summarizer，`src/workflow/` 对应 FSM、PlanRunner、StepRunner、RuntimeEvaluator 和恢复控制，`src/models/` 对应 Pydantic 契约，`src/adapters/` 与 `src/kg/` 对应工具适配和能力图谱，`src/storage/` 对应日志、快照和文件产物管理。真正需要作为图插入正文的实现图放在 5.4 节和 5.5 节：运行时执行序列见图 5-1，泳道式模块协作见图 5-2。
 
 ---
 
@@ -76,6 +76,10 @@
 
 ## 5.4 工作流运行时与执行引擎
 
+工作流运行时的核心执行序列如图 5-1 所示。该图从用户/API 创建任务开始，依次展示 Workflow、Planner、ToolKG、Executor、ToolAdapter、Safety 和 Storage 之间的消息关系。图中需要重点说明两点：第一，Planner 负责候选生成和工具能力约束查询，但不执行工具；第二，Executor 通过 StepRunner 和 AdapterRegistry 执行已确认的 PlanStep，并把 StepResult、EventLog 和 TaskSnapshot 写回存储层。这样，运行时执行不是一个隐式的 LLM 调用链，而是由明确对象、消息和状态持久化步骤组成的可审计过程。
+
+> **图 5-1**：运行时执行序列图，展示任务创建、候选生成、计划确认、步骤执行、工具适配、安全审查和存储写入之间的消息顺序。来源：`paper/figures/runtime-sequence.drawio.svg` / `paper/figures/runtime-sequence.drawio.png`。
+
 ### 5.4.1 WorkflowContext：运行时的单一上下文
 
 `WorkflowContext` 是单个任务运行过程中的唯一上下文集散点。它持有原始 ProteinDesignTask、当前 Plan、StepResult 列表、SafetyResult 列表、RuntimeState、最终 DesignResult、当前 PendingAction 和 InternalStatus。模块间不通过全局变量或隐式状态通信，而是读取和修改 WorkflowContext 的明确字段。
@@ -128,6 +132,10 @@ CEBRA-WP 的运行时决策能力通过以下模块在工程中落地。
 
 **候选解释**由 Planner 在生成候选时附加。每个候选的 metadata 中包含 score_breakdown（含 feasibility、objective、risk、cost、recovery_complexity、overall 六个子维度）、runtime_adjustment（含 adjustment 值、触发因子和调整理由）、action_utility（四项动作的效用值）、runtime_state_summary 和 source_refs。这些字段通过 `/pending-actions/{id}` 接口暴露给前端 PendingReviewWorkspace，支撑论文中"可解释人工审查"的实现描述。
 
+图 5-2 从泳道视角补充了上述工程落点：科研人员、Web UI、Task API、Planner、Executor、ToolAdapter、Safety 和 Storage 分别承担不同职责。图中 PendingAction/Decision 横跨 Web UI、API 和 Workflow，是 HITL 的工程接口；EventLog/TaskSnapshot 横跨 Executor、Storage 和恢复流程，是可恢复审计链的工程接口。该图用于解释为什么 CEBRA-WP 虽然是核心算法，但在实现上并不是一个单独 Agent，而是分布在候选生成、RuntimeEvaluator、动作映射和决策展示几个模块中。
+
+> **图 5-2**：工作流泳道图，展示用户、前端、API、Planner、Executor、工具、安全检查和存储模块在一次任务中的职责分工。来源：`paper/figures/workflow-swimlane.drawio.svg` / `paper/figures/workflow-swimlane.drawio.png`。
+
 ## 5.6 工具适配器与能力管理
 
 AdapterRegistry 维护 tool_id 到 ToolAdapter 实例的映射。当 StepRunner 需要执行某个 PlanStep 时，通过 tool_id 查找对应适配器；若 tool_id 未注册，返回明确的配置错误而非静默失败。
@@ -153,3 +161,12 @@ ProteinToolKG 以 JSON 文件形式维护工具的能力图谱（`src/kg/protein
 （5）CEBRA-WP 通过 RuntimeEvaluator、belief-state 更新器和 Planner 候选生成逻辑在工程中落地，四种策略模式共享同一代码基，运行时动作映射到 FSM 合法转移路径。
 
 （6）工具适配器通过 BaseToolAdapter 统一接口和 AdapterRegistry 注册机制实现外部工具的接入，ProteinToolKG 以 JSON 图谱形式为 Planner 提供能力驱动的工具链组合依据。
+
+---
+
+## 图的清单
+
+| 图号 | 标题 | 源文件 |
+|------|------|--------|
+| 图 5-1 | 运行时执行序列：TaskAPI、Workflow、Planner、ToolKG、Executor、Adapter、Safety、Storage | `paper/figures/runtime-sequence.drawio.svg` |
+| 图 5-2 | 工作流泳道式模块协作 | `paper/figures/workflow-swimlane.drawio.svg` |

@@ -345,14 +345,21 @@
 
 | 图号 | 所在章 | 标题 | 源文件 |
 |------|--------|------|--------|
-| 图 4-1 | 第 4 章 | 系统五层分层架构 | `asserts/figures/system-architecture.drawio` |
-| 图 4-2 | 第 4 章 | FSM 状态转移图 | `asserts/figures/fsm-state-transition.drawio` |
-| 图 4-3 | 第 4 章 | 六阶段 de novo 工作流与恢复感知控制 | `asserts/figures/workflow-flowchart.drawio` |
-| 图 4-4 | 第 4 章 | CEBRA-WP 算法闭环 | `asserts/figures/algorithm-loop.drawio` |
-| 图 4-5 | 第 4 章 | 核心数据契约 UML | `asserts/figures/uml-contracts.drawio` |
-| 图 5-x | 第 5 章 | 系统实现相关截图（待确定） | `implementation/06-figure-placeholders.md` |
-| 图 6-x | 第 6 章 | 系统测试截图（FIG-SV-01~18） | `docs/system-validation/06-ui-screenshots/` |
-| 图 7-x | 第 7 章 | 实验结果图表（成功率、高代价调用、机制增量、失败案例） | `docs/experiment/thesis-final-v1-results.md`、`output/experiment/thesis-final-matrix/thesis-final-v1-001/` |
+| 图 3-1 | 第 3 章 | 问题-方案对照：固定流水线 vs 本系统 | `paper/figures/problem-solution-comparison.drawio.svg` |
+| 图 4-1 | 第 4 章 | 系统五层分层架构 | `paper/figures/system-architecture.drawio.svg` |
+| 图 4-2 | 第 4 章 | ProteinToolKG 局部可视化 | `paper/figures/protein-toolkg-local-view.drawio.svg` |
+| 图 4-3 | 第 4 章 | FSM 状态转移图 | `paper/figures/fsm-state-transition.drawio.svg` |
+| 图 4-4 | 第 4 章 | HITL 触发条件与决策逻辑 | `paper/figures/hitl-decision-conditions.drawio.png` |
+| 图 4-5 | 第 4 章 | 六阶段 de novo 工作流与恢复感知控制 | `paper/figures/workflow-flowchart.drawio.svg` |
+| 图 4-6 | 第 4 章 | CEBRA-WP 算法闭环 | `paper/figures/algorithm-loop.drawio.svg` |
+| 图 4-7 | 第 4 章 | 核心数据契约 UML | `paper/figures/uml-contracts.drawio.svg` |
+| 图 4-8 | 第 4 章 | t1 Trp-cage-like 短肽任务实例走查 | `paper/figures/t1-trpcage-instance-walkthrough.drawio.svg` |
+| 图 5-1 | 第 5 章 | 运行时执行序列 | `paper/figures/runtime-sequence.drawio.svg` |
+| 图 5-2 | 第 5 章 | 工作流泳道式模块协作 | `paper/figures/workflow-swimlane.drawio.svg` |
+| 图 7-1 | 第 7 章 | 实验设计框架 | `paper/figures/experiment-design-framework.drawio.svg` |
+| 图 7-2 | 第 7 章 | 恢复路径对比 | `paper/figures/recovery-path-comparison-timeline.drawio.svg` |
+
+> 第 6 章当前使用表 6-1 和 FIG-SV 证据编号，不单独设置正文图号；FIG-SV-01~18 可在附录或证据索引中引用。当前 `paper/figures/` 中没有“四组消融主实验结果”的独立图像，主结果以表 7-1 至表 7-3 呈现。
 
 ---
 
