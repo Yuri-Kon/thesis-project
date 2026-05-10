@@ -1,6 +1,8 @@
 # 第五章 系统实现
 
-本章在第四章系统设计的基础上，说明本文系统在工程层面的实现方式。系统实现的目标不是重新实现蛋白质结构预测或序列设计模型，而是在已有蛋白质设计工具和远程模型服务之上，构建一个能够完成任务接入、候选计划生成、HITL 确认、工具执行、运行时恢复和结果审计的工作流控制系统。蛋白质设计相关能力主要通过 AlphaFold/OpenFold、ESMFold、ProteinMPNN、ProtGPT2、Biopython 等工具或工具适配器接入，这些工具本身已有成熟研究基础[@jumper2021alphafold; @lin2023esmfold; @dauparas2022proteinmpnn; @ferruz2022protgpt2; @ahdritz2024openfold; @cock2009biopython]。本文系统的实现重点在于如何将这些异构能力组织为可追踪、可恢复、可解释的工作流。
+本章在第四章系统设计的基础上，说明本文系统在工程层面的实现方式。系统实现的目标不是重新实现蛋白质结构预测或序列设计模型，而是在已有蛋白质设计工具和远程模型服务之上，构建一个能够完成任务接入、候选计划生成、HITL 确认、工具执行、运行时恢复和结果审计的工作流控制系统。
+
+蛋白质设计相关能力主要通过 AlphaFold/OpenFold、ESMFold、ProteinMPNN、ProtGPT2、Biopython 等工具或工具适配器接入，这些工具本身已有成熟研究基础[@jumper2021alphafold; @lin2023esmfold; @dauparas2022proteinmpnn; @ferruz2022protgpt2; @ahdritz2024openfold; @cock2009biopython]。因此，本文系统的实现重点在于如何将这些异构能力组织为可追踪、可恢复、可解释的工作流。
 
 ## 5.1 技术选型与工程结构
 
