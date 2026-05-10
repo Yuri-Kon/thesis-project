@@ -1,6 +1,6 @@
 # 系统验证证据索引
 
-更新时间：2026-05-10
+更新时间：2026-05-10（补充三条证据缺口：单独 Timeline 截图、API 典型任务响应、EventLog/Snapshot 固定样本）
 
 本文档为论文“系统测试与验证”章节提供证据编号索引。编号仅用于论文、测试用例表和图表引用，不改变原始文件名。若后续 84-run 矩阵继续产生新日志，应在本文末尾追加，不覆盖已编号证据。
 
@@ -36,8 +36,7 @@
 | FIG-SV-15 | `docs/system-validation/06-ui-screenshots/task-detail-ch3.png` | Task Detail | 中文化候选/决策区域 | TC-S04、TC-S07 |
 | FIG-SV-16 | `docs/system-validation/06-ui-screenshots/task-detail-ch4.png` | Task Detail | 中文化报告/结构区域 | TC-S07、TC-S09 |
 | FIG-SV-17 | `docs/system-validation/06-ui-screenshots/task-detail-ch5.png` | Task Detail | 中文化结构查看与证据面板补充截图 | TC-S07、TC-S09 |
-
-说明：当前截图集中缺少单独 Timeline 页面截图。Timeline 的 API 与 smoke 已由 EVD-TEST-01 覆盖；若论文需要完整 UI 图，应后续补 `FIG-SV-18 Timeline`。
+| FIG-SV-18 | `docs/system-validation/06-ui-screenshots/timeline-events.png` | Timeline | 单独 Timeline 页面截图，展示 11 个事件（CREATED→PLANNING→PLANNED→RUNNING→WAITING→DONE 全生命周期） | TC-S07 |
 
 ## 3. API 响应证据
 
@@ -45,8 +44,12 @@
 |---|---|---|---|
 | EVD-API-01 | `docs/system-validation/05-api-results/health.json` | `/health` 返回 `status=ok`，`task_count=0`，包含 KG tool、capability readiness 和路径摘要 | TC-S01、TC-S02 |
 | EVD-API-02 | `docs/system-validation/05-api-results/readiness.json` | `/capabilities/readiness` 返回 15 条能力就绪记录：7 ready、1 degraded、7 unavailable；降级/不可用项包含恢复建议 | TC-S01、TC-S11 |
-
-待补建议：将典型 `/task-intakes/schema`、`/tasks/{id}`、`/pending-actions/{id}`、`/tasks/{id}/events`、`/tasks/{id}/report` 响应补入 `docs/system-validation/05-api-results/`，用于替代“仅由 pytest 证明”的接口证据。
+| EVD-API-03 | `docs/system-validation/05-api-results/task-intakes-schema.json` | `/task-intakes/schema` 返回完整字段注册表（132 KB），覆盖所有任务种类字段定义 | TC-S02、TC-S08 |
+| EVD-API-04 | `docs/system-validation/05-api-results/task-detail.json` | `/tasks/demo_structure_viewer` 返回 DONE 任务详情，含 goal、constraints、scores、report_path | TC-S02、TC-S09 |
+| EVD-API-05 | `docs/system-validation/05-api-results/task-events.json` | `/tasks/demo_structure_viewer/events` 返回 11 条事件（含 STATE_TRANSITION、STEP_FINISHED、WAITING_ENTER/EXIT、DECISION_APPLIED） | TC-S02、TC-S07 |
+| EVD-API-06 | `docs/system-validation/05-api-results/task-report.json` | `/tasks/demo_structure_viewer/report` 返回报告摘要，含 scores、objective_scoring、structure_similarity | TC-S02、TC-S09 |
+| EVD-API-07 | `docs/system-validation/05-api-results/pending-actions.json` | `/pending-actions` 返回空数组（当前 DONE 任务无待决策项，符合预期） | TC-S02 |
+| EVD-API-08 | `docs/system-validation/05-api-results/task-events-experiment.json` | `/tasks/thesis-final-v1-001_dynamic_no_belief_state_t1_trpcage_denovo_short_peptide_r01/events` 返回真实实验任务事件链（25 KB），含 STATE_TRANSITION、STEP_FINISHED，展示事件 API 从 `data/logs/` 读取的能力 | TC-S02、TC-S07 |
 
 ## 4. pytest 自动化测试证据
 
@@ -87,6 +90,8 @@
 | EVD-LOG-04 | `data/logs/task_auto_plan.jsonl`、`data/logs/task_auto_patch_repeat.jsonl`、`data/logs/task_auto_replan*.jsonl` | 自动计划、自动 patch、自动 replan 事件链 | TC-S03、TC-S12、TC-S13 |
 | EVD-LOG-05 | `output/reports/thesis-final-smoke-fourgroup-t9-clean-001_*.json` | t9 clean run 的报告 JSON | TC-S09、TC-S11 |
 | EVD-LOG-06 | `output/reports/task_*.json` | 历史任务报告 JSON 集合 | TC-S09 |
+| EVD-LOG-07 | `docs/system-validation/04-data-consistency/event-logs/thesis-final-v1-001_dynamic_no_belief_state_t1_trpcage_denovo_short_peptide_r01.jsonl`<br>`docs/system-validation/04-data-consistency/snapshots/thesis-final-v1-001_dynamic_no_belief_state_t1_trpcage_denovo_short_peptide_r01.jsonl` | 成功生命周期样本：CREATED→PLANNING→PLANNED→RUNNING→SUMMARIZING→DONE，7 个事件、1 个 DONE 快照 | TC-S04、TC-S09 |
+| EVD-LOG-08 | `docs/system-validation/04-data-consistency/event-logs/thesis-final-v1-001_dynamic_no_belief_state_t3_gb1_stability_optimization_r01.jsonl`<br>`docs/system-validation/04-data-consistency/snapshots/thesis-final-v1-001_dynamic_no_belief_state_t3_gb1_stability_optimization_r01.jsonl` | HITL 决策循环样本：11 个事件含 WAITING_ENTER/EXIT、DECISION_APPLIED、CANDIDATE_VALIDATION_FAILED→FAILED；快照含 WAITING_PLAN_CONFIRM 态与 pending_action_id | TC-S03、TC-S04、TC-S12 |
 
 ## 8. 测试用例到证据编号映射
 
@@ -98,7 +103,7 @@
 | TC-S04 | EVD-TEST-02 | FIG-SV-15 |
 | TC-S05 | EVD-TEST-02 | EVD-LOG-03 |
 | TC-S06 | EVD-TEST-02 | EVD-LOG-01、EVD-LOG-02、EVD-LOG-03 |
-| TC-S07 | FIG-SV-01 至 FIG-SV-17、EVD-TEST-01 | EVD-API-01 |
+| TC-S07 | FIG-SV-01 至 FIG-SV-18、EVD-TEST-01 | EVD-API-01、EVD-API-05 |
 | TC-S08 | EVD-TEST-04、EVD-CLI-01、EVD-CLI-02 | EVD-CLI-03、EVD-CLI-04 |
 | TC-S09 | EVD-EXP-01、EVD-LOG-05 | FIG-SV-16、FIG-SV-17 |
 | TC-S10 | EVD-TEST-03 | FIG-SV-10 |
@@ -110,7 +115,7 @@
 
 | 缺口 | 影响 | 建议补充 |
 |---|---|---|
-| 缺少单独 Timeline 页面截图 | UI 证据链中 timeline 页面只能由 smoke 和 API 支撑 | 补 `FIG-SV-18 Timeline` |
-| API 典型任务响应未全部归档 | TC-S02/TC-S03 目前主要依赖 pytest 日志和源码测试 | 补 task-intake、task、pending action、events、report JSON |
-| Snapshot/Plan diff 未复制到 `docs/system-validation/04-data-consistency/` | 论文引用路径较分散 | 可以保留原路径，但建议建立 `04-data-consistency/README.md` 或复制关键样本 |
+| ~~缺少单独 Timeline 页面截图~~ | ✅ 已补：`FIG-SV-18` 单独 Timeline 截图（11 个事件全生命周期） | — |
+| ~~API 典型任务响应未全部归档~~ | ✅ 已补：`EVD-API-03` 至 `EVD-API-07`（schema、task、events、report、pending） | — |
+| ~~Snapshot/Plan diff 未复制到 `docs/system-validation/04-data-consistency/`~~ | ✅ 已补：`EVD-LOG-07`（成功生命周期）和 `EVD-LOG-08`（WAITING 决策循环）样本已复制至 `04-data-consistency/event-logs/`、`snapshots/` | — |
 | 84-run 正式矩阵仍在进行中 | 不能写最终实验结论 | 等完整聚合产物生成后追加 `EVD-EXP-05` |
