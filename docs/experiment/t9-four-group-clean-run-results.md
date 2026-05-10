@@ -131,11 +131,11 @@ t8 四组均正常执行完毕，`safety_terminality=0.0`，`safety_blocked` 未
 
 | 论文结论 | 当前证据强度 | 缺口 |
 |:---|:---|:---|
-| 系统具备完整工程闭环 | 强 — 16/16 DONE，4 类任务覆盖 | 需补 API report focused test |
+| 系统具备完整工程闭环 | 强 — 16/16 DONE，4 类任务覆盖；API report focused test 已补 | — |
 | CEBRA-WP 机制已实现并可执行 | 强 — lite_belief 四组中唯一产生 runtime_state 和 action_utility | — |
 | CEBRA-WP 具有必要性 | 弱 — 无失败场景，静态组与动态组成功率相同 | 需要能诱发失败的任务 |
 | CEBRA-WP 提供成本/控制优势 | 尚无证据 — 所有组 high_cost_call 相同 | 需要更大样本和差异化任务 |
-| 安全边界有效 | 尚无证据 — 安全任务未触发阻断 | 需要强化 t8 约束 |
+| 安全边界有效 | 中 — t9 矩阵未触发阻断，但确定性 SafetyAgent/StepRunner focused tests 已覆盖 block/warn | 若要做矩阵统计，仍需强化 t8 约束 |
 
 ## 8. 下一步建议
 

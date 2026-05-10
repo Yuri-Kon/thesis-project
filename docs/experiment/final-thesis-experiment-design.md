@@ -469,9 +469,12 @@ t9 关键发现：
 | 基础设施通过 | 16/16 DONE，无 rerun、无 abnormal_samples |
 | 成功率无区分度 | 所有四组 success_rate=1.0，n=1 无法支撑统计检验 |
 | 恢复机制未触发 | t5（patchable_length_failure）未能诱发 patch/replan，所有步骤 `status=success` |
+| 恢复 focused test 已补 | `test_deterministic_retry_patch_to_done_produces_recovery_metrics` 确定性触发 retry exhausted -> tool-level patch -> DONE，并验证 `patch_event_count=1` |
+| API/report 与 I/O 边界 focused test 已补 | `test_task_report_endpoint_done_contract_and_unfinished_404` 覆盖 DONE report 与未完成 404；`test_validate_plan_executability_reports_candidate_schema_and_io_boundary` 覆盖候选 schema/I-O 结构化拒绝 |
 | lite_belief_state 有效观测 | `runtime_state_summary` 非 null，`budget_pressure` source=`observed`（其他组 fallback 到 `default=1.0`），`action_utility_source`=`computed`（其他组 `missing`） |
 | 安全任务未阻断 | t8 四组均正常执行，`safety_terminality=0.0`，forbidden_motif 未触发越权阻断 |
 | 时序反直觉 | `fixed_threshold_gate` 最快（172.75s），`static_top1` 因 dual-route planning 反而更慢（203.5s） |
+| suffix_replan 计数口径已修正 | 重算后四组 `suffix_replan_events_total=0.0`；`action_utilities.suffix_replan` 仅作为候选效用证据，不计入真实恢复事件 |
 
 Provider 与 OpenFold3 修复验证（t8 + t9 联合）：
 
@@ -670,7 +673,7 @@ output/experiment/thesis-final-*/
 3. 运行 CEBRA-WP 机制单测，证明四组 policy mode 可切换。 ✅ 已完成
 4. 运行一次四组矩阵，哪怕任务数较少，也要保留 manifest 和 metrics。 ✅ 已完成 — t9 clean run（4 任务 × 4 组，16/16 DONE）
 5. 专门补一次 `dynamic_observation_only` vs `lite_belief_state` 定向对照。 ⬜ 待执行 — t9 已包含两组数据，但需要能诱发恢复差异的任务
-6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。 ⬜ 待执行 — t9 缺失恢复案例（无 patch/replan 触发）
+6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。 ◐ 部分完成 — 局部失败恢复已有 deterministic focused test；t9 矩阵仍缺真实恢复案例
 
 最小包可以支撑的论文结论：
 

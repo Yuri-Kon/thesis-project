@@ -796,10 +796,8 @@ def extract_run_metrics(
             if isinstance(layer, str) and layer:
                 layer_counter[layer] += 1
 
-        if event_name in {"RECOVERY_ESCALATED", "DECISION_APPLIED", "STEP_FINISHED", "STEP_FAILED"}:
-            encoded = json.dumps(row, ensure_ascii=False)
-            if "suffix_replan" in encoded:
-                suffix_replan_event_count += 1
+        if event_name == "RECOVERY_ESCALATED" and actual_action == "suffix_replan":
+            suffix_replan_event_count += 1
 
         prefix_preserved = _nested(row, "data", "recovery", "prefix_preserved")
         if isinstance(prefix_preserved, bool):

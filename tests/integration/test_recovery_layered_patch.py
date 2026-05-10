@@ -1,17 +1,32 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import NoReturn, override
 
 import pytest
 
 import src.agents.planner as planner_module
 from src.agents.planner import PlannerAgent, ToolSpec
-from src.models.contracts import Plan, PlanStep, ProteinDesignTask, StepResult, now_iso
+from src.infra.w12_vertical_experiment import (
+    DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    extract_run_metrics,
+)
+from src.models.contracts import (
+    PatchRequest,
+    Plan,
+    PlanPatch,
+    PlanPatchOp,
+    PlanStep,
+    ProteinDesignTask,
+    StepResult,
+    now_iso,
+)
 from src.models.db import ExternalStatus, InternalStatus, TaskRecord
 from src.storage.log_store import DEFAULT_LOG_DIR, read_timeline_events
 from src.workflow.context import WorkflowContext
 from src.workflow.errors import FailureType
 from src.workflow.patch_runner import PatchRunner
+from src.workflow.plan_runner import PlanRunner
 
 
 def _cleanup_task_log(task_id: str) -> None:
@@ -213,6 +228,196 @@ class _SingleFailStepRunner:
             logs_path=None,
             timestamp=now_iso(),
         )
+
+
+@pytest.mark.integration
+def test_deterministic_retry_patch_to_done_produces_recovery_metrics() -> None:
+    class RetryThenPatchedSuccessStepRunner:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
+            self.calls.append(step.tool)
+            if step.tool == "failing_tool":
+                return StepResult(
+                    task_id=context.task.task_id,
+                    step_id=step.id,
+                    tool=step.tool,
+                    status="failed",
+                    failure_type=FailureType.RETRYABLE,
+                    error_message="deterministic retry exhaustion",
+                    error_details={"failure_code": "TEST_RETRY_EXHAUSTED"},
+                    outputs={"stage_id": "S2"},
+                    metrics={"retry_exhausted": True},
+                    risk_flags=[],
+                    logs_path=None,
+                    timestamp=now_iso(),
+                )
+            return StepResult(
+                task_id=context.task.task_id,
+                step_id=step.id,
+                tool=step.tool,
+                status="success",
+                failure_type=None,
+                error_message=None,
+                error_details={},
+                outputs={
+                    "pdb_path": "/tmp/deterministic_patch_success.pdb",
+                    "plddt": 0.91,
+                    "stage_id": "S2",
+                },
+                metrics={},
+                risk_flags=[],
+                logs_path=None,
+                timestamp=now_iso(),
+            )
+
+    class DeterministicPatchPlanner(PlannerAgent):
+        def __init__(self) -> None:
+            super().__init__(
+                tool_registry=[
+                    ToolSpec(
+                        id="failing_tool",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=0.6,
+                        safety_level=1,
+                        io_type="sequence_to_structure",
+                        adapter_mode="local",
+                        priority="P0",
+                    ),
+                    ToolSpec(
+                        id="esmfold",
+                        capabilities=("structure_prediction",),
+                        inputs=("sequence",),
+                        outputs=("pdb_path", "plddt"),
+                        cost=0.5,
+                        safety_level=1,
+                        io_type="sequence_to_structure",
+                        adapter_mode="local",
+                        priority="P0",
+                    ),
+                ]
+            )
+            self.requests: list[PatchRequest] = []
+
+        @override
+        def patch_top_k(
+            self,
+            request: PatchRequest,
+            *,
+            k: int = 3,
+            runtime_state: object | None = None,
+        ) -> NoReturn:
+            _ = (request, k, runtime_state)
+            raise RuntimeError("force legacy patch path for deterministic test")
+
+        @override
+        def patch(self, request: PatchRequest) -> PlanPatch:
+            self.requests.append(request)
+            failed_result = request.context_step_results[-1]
+            step = next(
+                item
+                for item in request.original_plan.steps
+                if item.id == failed_result.step_id
+            )
+            patched_step = PlanStep(
+                id=step.id,
+                tool="esmfold",
+                inputs=step.inputs,
+                metadata={**step.metadata, "capability": "structure_prediction"},
+            )
+            return PlanPatch(
+                task_id=request.task_id,
+                operations=[
+                    PlanPatchOp(
+                        op="replace_step",
+                        target=step.id,
+                        step=patched_step,
+                    )
+                ],
+                metadata={
+                    "recovery_layer": "tool_level",
+                    "capability_id": "structure_prediction",
+                    "from_tool": step.tool,
+                    "to_tool": "esmfold",
+                    "reason": "deterministic_retry_patch_to_done",
+                },
+            )
+
+    task_id = "int_deterministic_retry_patch_to_done"
+    _cleanup_task_log(task_id)
+    plan, context, record = _build_runtime_objects(
+        task_id=task_id,
+        constraints={
+            "require_patch_confirm": False,
+            "min_candidate_confidence": 0.0,
+            "high_cost_min_overall": 0.0,
+        },
+        step_tool="failing_tool",
+    )
+    step_runner = RetryThenPatchedSuccessStepRunner()
+    planner = DeterministicPatchPlanner()
+    plan_runner = PlanRunner(step_runner=step_runner, planner_agent=planner)
+
+    returned_plan = plan_runner.run_plan(
+        plan,
+        context,
+        record=record,
+        finalize_status=True,
+    )
+
+    assert step_runner.calls == ["failing_tool", "esmfold"]
+    assert planner.requests
+    assert returned_plan.steps[0].tool == "esmfold"
+    assert context.status == InternalStatus.DONE
+    assert record.status == ExternalStatus.DONE
+    assert context.step_results["S1"].status == "success"
+    assert context.step_results["S1"].tool == "esmfold"
+    patch_meta = context.step_results["S1"].metrics.get("patch")
+    assert isinstance(patch_meta, dict)
+    assert patch_meta.get("applied") is True
+    assert patch_meta.get("from_tool") == "failing_tool"
+    assert patch_meta.get("to_tool") == "esmfold"
+    assert patch_meta.get("layer") == "tool_level"
+
+    events = read_timeline_events(task_id)
+    event_types = [str(event.get("event_type")) for event in events]
+    assert "REPLACE_TOOL" in event_types
+    assert "STEP_FINISHED" in event_types
+    assert event_types[-1] == "STATE_TRANSITION"
+    assert events[-1]["to_status"] == InternalStatus.DONE.value
+    replace_event = next(
+        event for event in events if event.get("event_type") == "REPLACE_TOOL"
+    )
+    assert replace_event["action_name"] == "patch"
+    assert replace_event["from_tool"] == "failing_tool"
+    assert replace_event["to_tool"] == "esmfold"
+
+    metrics = extract_run_metrics(
+        {
+            "run_id": "deterministic_retry_patch_to_done",
+            "task_id": task_id,
+            "task_key": "deterministic_patch_recovery",
+            "group_id": "lite_belief_state",
+            "replicate": 1,
+            "event_log_path": str(Path(DEFAULT_LOG_DIR) / f"{task_id}.jsonl"),
+            "status_external": "DONE",
+            "freeze_id": "deterministic-test",
+        },
+        tool_capability_map={
+            "failing_tool": ["structure_prediction"],
+            "esmfold": ["structure_prediction"],
+        },
+        requirement2_capability_map=DEFAULT_REQUIREMENT2_CAPABILITY_MAP,
+    )
+    assert metrics["success"] is True
+    assert metrics["first_pass_success"] is False
+    assert metrics["patch_event_count"] == 1
+    assert metrics["replan_event_count"] == 0
+    assert metrics["suffix_replan_event_count"] == 0
+    assert metrics["layer_counter"]["tool_level"] == 1
 
 
 @pytest.mark.integration
