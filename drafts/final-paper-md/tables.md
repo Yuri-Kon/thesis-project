@@ -45,7 +45,7 @@
 | 表 6-1 | 系统测试用例覆盖矩阵 | 6.1 测试策略与验证目标 | `../thesis-project.dev/docs/system-validation/test-case-table.md` | 汇总 TC-S01 至 TC-S13、验证点、执行结果和核心证据。 |
 | 表 6-2 | 系统验证证据类型索引 | 6.1 或 6.2 前 | `../thesis-project.dev/docs/system-validation/evidence-index.md` | 解释 EVD-API、EVD-TEST、EVD-CLI、FIG-SV、EVD-LOG、EVD-EXP 的含义和用途。 |
 | 表 6-3 | 前端与 CLI 可用性证据汇总 | 6.7 前端与 CLI 可用性验证 | `evidence-index.md`、`test-case-table.md` | 将 FIG-SV-01 至 FIG-SV-18 和 EVD-CLI-01 至 EVD-CLI-04 汇总，说明 Web 通过、CLI 部分通过。 |
-| 表 6-4 | 恢复与安全边界验证证据表 | 6.8 至 6.9 | `test-case-table.md`、`evidence-index.md` | 汇总 retry、patch、replan、terminal_stop、安全 warn/block 的测试与证据。 |
+| 表 6-4 | 恢复与安全边界验证证据表 | 6.8 至 6.9 | `test-case-table.md`、`evidence-index.md` | 汇总 retry、`patch_local`、`suffix_replan`、`terminal_stop`、安全 warn/block 的测试与证据。 |
 
 第六章正文可保留表 6-1 和表 6-2 为主表，表 6-3、表 6-4 可按篇幅放入正文或附录。
 
@@ -54,11 +54,11 @@
 | 编号 | 标题 | 推荐位置 | 主要来源 | 作用 |
 |---|---|---|---|---|
 | 表 7-1 | 实验矩阵配置表 | 7.1 实验设计与研究问题或 7.3 实验环境 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md` | 固定 run_id、freeze_id、planner_provider、12 task_keys、4 组、84 runs、repeats 和产物路径。 |
-| 表 7-2 | 四组消融主实验结果 | 7.5 四组策略消融主实验 | `thesis-final-v1-results.md` | 展示 success_rate、first_pass_success_rate、schema_valid_rate、high_cost_call_mean、duration、patch/replan 等核心指标。 |
+| 表 7-2 | 四组消融主实验结果 | 7.5 四组策略消融主实验 | `thesis-final-v1-results.md` | 展示 success_rate、first_pass_success_rate、schema_valid_rate、high_cost_call_mean、duration、局部修补/重规划等核心指标。 |
 | 表 7-3 | 按任务难度与预算分层的成功率 | 7.5.2 分层分析 | `thesis-final-v1-results.md` | 说明失败集中在 medium/standard 层，避免只看总体均值。 |
 | 表 7-4 | 机制增量配对对比 | 7.5.3 机制增量配对对比 | `thesis-final-v1-results.md` | 展示 static→fixed、fixed→dynamic、dynamic→lite 的 paired delta。 |
 | 表 7-5 | 高代价调用与运行时间对比 | 7.6 或 7.7 | `thesis-final-v1-results.md` | 支撑“lite/dynamic 比 fixed 低 28.6% 高代价调用”等成本控制叙事。 |
-| 表 7-6 | Lite belief-state 机制可观测性对比 | 7.7 信念状态增量价值分析 | `thesis-final-v1-results.md` | 展示 runtime_state_summary、budget_pressure source、action_utility_source 等机制证据。 |
+| 表 7-6 | Lite belief-state 机制可观测性对比 | 7.7 Lite belief-state 增量价值分析 | `thesis-final-v1-results.md` | 展示 runtime_state_summary、budget_pressure source、action_utility_source 等机制证据。 |
 | 表 7-7 | 失败案例归因表 | 7.8 典型案例分析 | `thesis-final-v1-results.md` | 汇总 3 个 FAILED run 的策略、任务、失败类型、根因和论文解释。 |
 | 表 7-8 | 实验证据产物索引 | 7.3 或 7.9 | `thesis-final-v1-results.md`、实验输出目录 | 说明 matrix summary、event log、snapshot、report、action distribution 等产物分别支撑哪些结论。 |
 

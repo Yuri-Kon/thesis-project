@@ -10,7 +10,7 @@
 
 基于上述特点，系统采用五层分层架构，如图 4-1 所示。
 
-【图 4-1 系统分层架构】
+【图 4-1 系统五层分层架构】
 插图文件：`paper/figures/system-architecture.drawio.svg`
 
 输入层面向 Web 工作台、CLI 和 API，负责接收自然语言目标、结构化约束和人工决策。智能规划层以 PlannerAgent、ProteinToolKG 和 CEBRA-WP 策略为核心，负责生成候选计划、进行可行性过滤、评分和恢复候选生成。执行层由 ExecutorAgent、PlanRunner 和 StepRunner 组成，负责按已确认计划调用工具并记录步骤结果。安全与汇总层包括 SafetyAgent 和 SummarizerAgent，分别负责风险判定与最终报告生成。资源层包括 ToolAdapter 注册表、ProteinToolKG、事件日志、任务快照和文件产物管理。
@@ -21,7 +21,7 @@
 
 系统核心逻辑由四类 Agent 和工具适配层共同完成。
 
-PlannerAgent 是计划生成与恢复候选生成组件。它读取任务目标、约束、执行历史和工具能力图，生成初始 PlanCandidate，或在失败后生成 PatchCandidate、ReplanCandidate。PlannerAgent 的输出必须是结构化候选，而不是无法验证的自然语言建议。每个候选包含候选标识、摘要、结构化载荷、评分分解、风险等级、成本估计、解释文本和来源引用。该设计使候选能够被自动策略排序，也能够被人工审查界面展示。
+PlannerAgent 是计划生成与恢复候选生成组件。它读取任务目标、约束、执行历史和 ProteinToolKG，生成初始 PlanCandidate，或在失败后生成局部修补候选与后缀重规划候选。PlannerAgent 的输出必须是结构化候选，而不是无法验证的自然语言建议。每个候选包含候选标识、摘要、结构化载荷、评分分解、风险等级、成本估计、解释文本和来源引用。该设计使候选能够被自动策略排序，也能够被人工审查界面展示。
 
 ExecutorAgent 是工具调用与计划推进组件。它通过 PlanRunner 管理计划级执行流程，通过 StepRunner 处理单个步骤的输入解析、上游引用求解、适配器调用和结果写入。ExecutorAgent 可以识别失败、重试耗尽和安全阻断等信号，但不自行绕过 Planner 生成修补方案，也不在等待人工确认时继续执行工具。
 
@@ -34,18 +34,18 @@ ToolAdapter 层为外部工具提供统一调用接口。工具注册表面向�
 【图 4-2 ProteinToolKG 局部可视化】
 插图文件：`paper/figures/protein-toolkg-local-view.drawio.svg`
 
-图 4-2 展示了 ProtGPT2、ProteinMPNN、ESMFold/OpenFold、BioPython QC、DSSP 和 objective_ranker 等代表性工具之间的能力节点、输入输出字段、成本风险属性和 I/O 兼容边。该图强调本文使用的 ToolKG 是轻量工具能力图，而非完整生物知识图谱。它的主要作用是为 Planner 提供能力发现、约束校验和候选解释依据。
+图 4-2 展示了 ProtGPT2、ProteinMPNN、ESMFold/OpenFold、Biopython QC、DSSP 和 objective_ranker 等代表性工具之间的能力节点、输入输出字段、成本风险属性和 I/O 兼容边。该图强调本文使用的 ProteinToolKG 是轻量工具能力索引，而非完整生物知识图谱。它的主要作用是为 Planner 提供能力发现、约束校验和候选解释依据。
 
 ## 4.3 任务生命周期、FSM 与 HITL 约束
 
 系统使用有限状态机（Finite State Machine, FSM）控制任务生命周期，如图 4-3 所示。
 
-【图 4-3 FSM 状态转移】
+【图 4-3 FSM 状态转移图】
 插图文件：`paper/figures/fsm-state-transition.drawio.svg`
 
 任务对外状态包括 CREATED、PLANNING、WAITING_PLAN_CONFIRM、PLANNED、RUNNING、WAITING_PATCH_CONFIRM、WAITING_REPLAN_CONFIRM、SUMMARIZING、DONE、FAILED 和 CANCELLED。WAITING_* 状态具有明确语义：系统已经暂停自动推进，等待人类提交结构化 Decision。DONE、FAILED 和 CANCELLED 为终态，进入后不再被自动修改。
 
-HITL（Human-in-the-loop）不是任意插入的人机交互按钮，而是由成本、风险和不确定性共同触发的受控状态。图 4-4 展示了不同等待状态的进入条件。
+HITL（人在环决策，Human-in-the-loop）不是任意插入的人机交互按钮，而是由成本、风险和不确定性共同触发的受控状态。图 4-4 展示了不同等待状态的进入条件。
 
 【图 4-4 HITL 决策条件】
 插图文件：`paper/figures/hitl-decision-conditions.drawio.png`
@@ -63,7 +63,7 @@ PLANNING 阶段，如果候选置信度不足、即将调用高代价工具或 S
 
 六阶段分别为序列探索、结构映射、质量门禁、结构条件精修、目标评分和结果汇总。序列探索阶段生成候选序列；结构映射阶段将序列转换为结构并产生折叠置信度；质量门禁阶段检查序列合法性、结构完整性和低复杂度等工程质量；结构条件精修阶段根据结构反馈进行重设计；目标评分阶段对候选进行多目标排序；结果汇总阶段生成 DesignResult 和报告。
 
-六阶段是能力分层，而不是不可改变的线性流水线。质量门禁失败可以回到序列探索，目标评分不足可以回到结构条件精修，结构映射与精修之间可以形成迭代闭环。CEBRA-WP 的作用正是在这些可替代路径之间进行约束化选择：当证据不足时延后高代价步骤，当局部失败可修复时优先 patch，当后缀不再可靠时保留有效前缀并 replan。
+六阶段是能力分层，而不是不可改变的线性流水线。质量门禁失败可以回到序列探索，目标评分不足可以回到结构条件精修，结构映射与精修之间可以形成迭代闭环。CEBRA-WP 的作用正是在这些可替代路径之间进行约束化选择：当证据不足时延后高代价步骤，当局部失败可修复时优先 `patch_local`（局部修补），当后缀不再可靠时保留有效前缀并进行 `suffix_replan`（后缀重规划）。
 
 ## 4.5 CEBRA-WP 的提出背景
 
@@ -82,7 +82,7 @@ CEBRA-WP 的完整名称为 Constraint- and Evidence-aware Belief-guided Recover
 【图 4-6 CEBRA-WP 算法闭环】
 插图文件：`paper/figures/algorithm-loop.drawio.svg`
 
-图 4-6 的上半部分是静态规划层：系统根据目标、约束、工具能力图和历史记录生成候选工具链，随后执行硬可行性过滤与静态评分。图 4-6 的下半部分是运行时自适应层：系统根据 StepResult、SafetyResult、失败上下文、预算消耗和恢复历史更新 Lite belief-state，再对候选进行运行时重排序，并在 continue、patch_local、suffix_replan 和 stop 之间选择动作建议。
+图 4-6 的上半部分是静态规划层：系统根据目标、约束、ProteinToolKG 和历史记录生成候选工具链，随后执行硬可行性过滤与静态评分。图 4-6 的下半部分是运行时自适应层：系统根据 StepResult、SafetyResult、失败上下文、预算消耗和恢复历史更新 Lite belief-state / 轻量信念状态，再对候选进行运行时重排序，并在 `continue`、`patch_local`、`suffix_replan` 和 `stop` 之间选择动作建议。
 
 算法使用的主要符号如表 4-1 所示。
 
@@ -92,17 +92,17 @@ CEBRA-WP 的完整名称为 Constraint- and Evidence-aware Belief-guided Recover
 |---|---|---|---|
 | `g` | 设计目标 | 用户输入、ConfirmedTaskSpec | 定义任务目标与目标权重 |
 | `C` | 约束集合 | 任务约束、策略配置 | 限定长度、安全、预算、工具白名单和输出要求 |
-| `K` | 工具能力图 | ProteinToolKG | 提供工具能力、I/O schema、兼容关系、成本和风险 |
+| `K` | ProteinToolKG | ProteinToolKG | 提供工具能力、I/O schema、兼容关系、成本和风险 |
 | `h_t` | 时间步 `t` 前的执行历史 | EventLog、TaskSnapshot | 提供已完成步骤、失败记录、恢复历史和人工决策 |
 | `o_t` | 当前运行时观测 | StepResult、SafetyResult、指标、错误细节 | 更新运行时状态并计算后验证据 |
-| `x_t` | Lite belief-state | RuntimeState | 表示成功概率、结构性失败概率、恢复余量、剩余成本和证据充分度 |
+| `x_t` | Lite belief-state / 轻量信念状态 | RuntimeState | 表示成功概率、结构性失败概率、恢复余量、剩余成本和证据充分度 |
 | `Pi_raw,t` | 原始候选集合 | PlannerAgent | 包含初始计划、局部修补或重规划候选 |
 | `Pi_t` | 过滤后的候选集合 | FeasibilityFilter | 只保留可执行或受保护的 degraded feasible 候选 |
 | `S_static` | 静态效用 | score_breakdown | 在运行时观测介入前评价候选先验质量 |
 | `G_post` | 后验目标匹配 | posterior_objective | 根据证据可靠性修正目标评分 |
 | `Delta` | 运行时修正项 | runtime_adjustment | 根据状态变量修正候选排序 |
 | `U_pi` | 候选运行时效用 | RuntimeEvaluator | 输出 Top-K 和默认候选 |
-| `a_t` | 恢复动作 | action_utility | 在 continue、patch、replan、stop 之间选择 |
+| `a_t` | 恢复动作 | action_utility | 在 `continue`、`patch_local`、`suffix_replan`、`stop` 之间选择 |
 
 在时间步 `t`，算法输入为 `(g, C, K, h_t, o_t, x_t)`，输出为结构化 Decision 建议：候选集合 `Pi_t`、默认候选 `pi*`、候选解释、运行时状态摘要和恢复动作 `a_t`。核心计算过程可概括为：
 
@@ -151,11 +151,11 @@ S_static(pi)
 
 `F_s` 是软可行性分数，表示候选在 schema 完整、工具 readiness、fallback depth 等方面的先验质量；`G` 是目标匹配度；`C_norm` 是归一化成本；`R_norm` 是归一化风险；`Rec` 是恢复复杂度；`Q` 是工程可靠性项。权重 `w_*` 由策略配置给出，用于在不同任务设置下调节目标、成本、风险和恢复难度的相对重要性。
 
-静态效用的作用是形成执行前的候选先验排序。它可以偏好成本更低、风险更小、恢复更容易的工具链，但无法感知执行中已经发生的失败、证据不足或预算压力变化。因此，静态效用之后还需要运行时信念状态和后验证据修正。
+静态效用的作用是形成执行前的候选先验排序。它可以偏好成本更低、风险更小、恢复更容易的工具链，但无法感知执行中已经发生的失败、证据不足或预算压力变化。因此，静态效用之后还需要 Lite belief-state / 轻量信念状态和后验证据修正。
 
 ## 4.8 Lite belief-state 与观测更新
 
-CEBRA-WP 使用 Lite belief-state 近似表示执行过程中无法直接完全观测的工作流状态。其设计原则是：只保留对恢复动作选择必要、能从现有日志稳定更新、能够被实验和案例解释的变量。状态向量定义为：
+CEBRA-WP 使用 Lite belief-state / 轻量信念状态近似表示执行过程中无法直接完全观测的工作流状态。其设计原则是：只保留对恢复动作选择必要、能从现有日志稳定更新、能够被实验和案例解释的变量。状态向量定义为：
 
 ```text
 x_t = [
@@ -169,17 +169,17 @@ x_t = [
 
 各状态量的语义如表 4-2 所示。
 
-**表 4-2 Lite belief-state 状态变量**
+**表 4-2 Lite belief-state / 轻量信念状态变量**
 
 | 状态量 | 取值范围 | 含义 | 主要更新来源 | 决策作用 |
 |---|---|---|---|---|
-| `p_success` | `[0,1]` | 当前链路继续执行后完成任务的估计概率 | 步骤成功、质量指标、候选静态分、失败记录 | 支持 continue 与 stop 判断 |
-| `p_structural_failure` | `[0,1]` | 当前链路遭遇结构性失败或后续必须重规划的估计概率 | 结构预测失败、质量门禁失败、安全阻断、重复失败 | 提高 patch/replan/stop 权重 |
+| `p_success` | `[0,1]` | 当前链路继续执行后完成任务的估计概率 | 步骤成功、质量指标、候选静态分、失败记录 | 支持 `continue` 与 `stop` 判断 |
+| `p_structural_failure` | `[0,1]` | 当前链路遭遇结构性失败或后续必须重规划的估计概率 | 结构预测失败、质量门禁失败、安全阻断、重复失败 | 提高 `patch_local`、`suffix_replan`、`stop` 权重 |
 | `recovery_margin` | `[0,1]` | 在保留有效前缀前提下继续恢复的余量 | 已完成步骤比例、失败类型、patch/replan 次数 | 区分局部修补与后缀重规划 |
 | `expected_remaining_cost` | 非负实数 | 从当前状态到任务结束的剩余成本暴露 | 剩余步骤、工具成本先验、预算配置、重试记录 | 派生预算压力并约束高代价动作 |
 | `evidence_sufficiency` | `[0,1]` | 当前证据是否足以支持进入更高代价步骤 | 质量门禁、结构指标、目标评分、证据可靠性 | 控制高代价步骤推进与人工确认 |
 
-运行时观测 `o_t` 来自 StepResult、SafetyResult、失败上下文、patch/replan 历史、已完成步骤、剩余后缀和 HITL 决策记录。派生量如 `budget_pressure`、`intervention_value`、`local_patchability` 和 `prefix_preservability` 不作为持久化主状态，而是根据当前状态和候选上下文按需计算。这样可以避免把与具体候选强相关的临时判断写入长期状态，从而降低状态漂移风险。
+运行时观测 `o_t` 来自 StepResult、SafetyResult、失败上下文、局部修补/重规划历史、已完成步骤、剩余后缀和 HITL 决策记录。派生量如 `budget_pressure`、`intervention_value`、`local_patchability` 和 `prefix_preservability` 不作为持久化主状态，而是根据当前状态和候选上下文按需计算。这样可以避免把与具体候选强相关的临时判断写入长期状态，从而降低状态漂移风险。
 
 以预算压力为例，`expected_remaining_cost` 保留剩余成本原始估计，不直接等同于 `[0,1]` 区间内的预算压力。若任务给出预算上限 `budget_cap`，则：
 
@@ -309,15 +309,15 @@ Output:
 16. return Decision_t(TopK_t, a_t, explanations, evidence_refs)
 ```
 
-算法第 1 至 8 行生成并评价候选，第 9 至 12 行根据运行时状态修正候选效用，第 13 行保留 Top-K 多样性，第 14 至 15 行选择恢复动作。第 15 行的硬优先级包括安全阻断优先、schema/I/O/tool availability 违规淘汰、重试耗尽后优先局部 patch、前缀可保留时优先后缀重规划等约束。这些优先级保证动作选择遵循系统控制边界，而不是只按连续效用值排序。
+算法第 1 至 8 行生成并评价候选，第 9 至 12 行根据运行时状态修正候选效用，第 13 行保留 Top-K 多样性，第 14 至 15 行选择恢复动作。第 15 行的硬优先级包括安全阻断优先、schema/I/O/tool availability 违规淘汰、重试耗尽后优先局部修补、前缀可保留时优先后缀重规划等约束。这些优先级保证动作选择遵循系统控制边界，而不是只按连续效用值排序。
 
 ## 4.11 策略组与实验可验证性
 
-为验证 CEBRA-WP 各组成机制的作用，系统将算法能力拆分为四组策略开关。四组策略不是四套不同系统，而是在同一工程实现上逐步打开静态评分、固定门控、动态恢复和 Lite belief-state 的内部消融配置，如表 4-4 所示。
+为验证 CEBRA-WP 各组成机制的作用，系统将算法能力拆分为四组策略开关。四组策略不是四套不同系统，而是在同一工程实现上逐步打开静态评分、固定阈值门控、动态恢复和 Lite belief-state 的内部消融配置，如表 4-4 所示。
 
 **表 4-4 四组消融策略与算法机制开关**
 
-| 策略组 | 静态评分 | 固定门控 | 动态观测 | Lite belief-state | Runtime rerank | 恢复动作效用 | 主要实验问题 |
+| 策略组 | 静态评分 | 固定阈值门控 | 动态观测 | Lite belief-state | Runtime rerank | 恢复动作效用 | 主要实验问题 |
 |---|---|---|---|---|---|---|---|
 | `static_top1` | 启用 | 未启用 | 未启用 | 未启用 | 未启用 | 未启用 | 单一静态最优候选是否足以完成任务 |
 | `fixed_threshold_gate` | 启用 | 启用 | 有限使用 | 未启用 | 未启用 | 未启用 | 固定阈值是否能控制风险与成本 |
@@ -330,7 +330,7 @@ Output:
 
 系统以统一数据契约支撑算法与工程实现之间的衔接。核心契约关系如图 4-7 所示。
 
-【图 4-7 UML 核心数据契约】
+【图 4-7 核心数据契约 UML】
 插图文件：`paper/figures/uml-contracts.drawio.svg`
 
 ProteinDesignTask 是任务入口契约，包含 task_id、goal 和约束字段。Plan 由多个 PlanStep 组成，步骤之间通过 `S{id}.{field}` 引用语法建立数据依赖。StepResult 记录每个步骤的执行状态、输出、指标、产物路径和失败信息。PendingAction 与 Decision 构成 HITL 的双向契约：前者承载候选集合、默认建议和解释，后者记录用户选择、决策人和时间戳。TaskSnapshot 保存计划版本、已完成步骤、pending_action_id 和 runtime_state 摘要。RuntimeState 持久化 CEBRA-WP 的五个核心状态量。DesignResult 是最终输出契约，包含序列、结构路径、评分、风险标记、报告路径和元数据。

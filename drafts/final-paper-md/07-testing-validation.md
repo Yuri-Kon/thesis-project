@@ -1,6 +1,6 @@
 # 第六章 系统测试与验证
 
-本章在第五章系统实现的基础上，对系统功能正确性和工程可用性进行验证。与第七章的策略对比实验不同，本章关注的问题是：系统是否按照第四章定义的架构、状态机、人在环路机制、工具适配机制和恢复机制正确运行。换言之，本章验证的是“系统能否可靠地承载实验”，第七章再进一步讨论不同规划策略在该系统之上的效果差异。
+本章在第五章系统实现的基础上，对系统功能正确性和工程可用性进行验证。与第七章的策略对比实验不同，本章关注的问题是：系统是否按照第四章定义的架构、状态机、HITL 机制、工具适配机制和恢复机制正确运行。换言之，本章验证的是“系统能否可靠地承载实验”，第七章再进一步讨论不同规划策略在该系统之上的效果差异。
 
 蛋白质设计工作流具有工具链长、单步代价高、输入输出格式差异大和失败恢复路径复杂等特点。如果只验证最终任务是否完成，无法判断错误来自任务设计、工具能力、工作流控制还是人工决策边界。因此，本章采用分层测试和证据追踪相结合的方法，将 API 合约、前端交互、命令行入口、有限状态机、HITL、快照恢复、安全边界和端到端执行分别纳入验证范围。科学工作流研究通常强调执行可靠性、数据来源追踪和失败恢复能力[@simmhan2009reliable]，开放环境 Agent 评测也强调真实交互路径中的执行稳健性和状态可观测性[@xie2024osworld]。本文系统验证沿用这一思路，将“是否可执行”和“是否可追溯”同时作为工程验证目标。
 
@@ -10,7 +10,7 @@
 
 在入口上，系统覆盖 API、Web 工作台和命令行三种访问方式。API 是系统状态的统一事实来源；Web 工作台用于验证任务录入、候选审查、事件时间线和报告浏览；CLI 用于验证自动化或脚本化使用场景。三类入口读取同一任务记录、事件日志和报告产物，因此本章不仅检查单个入口是否可用，也检查同一 `task_id` 在不同入口下的状态一致性。
 
-测试用例以 TC-S01 至 TC-S13 编号，覆盖 30 余个验证点，按功能维度分为环境与能力就绪、任务录入与数据契约、计划候选生成、人在环路决策、有限状态机、快照恢复、前端与 CLI 可用性、失败恢复、安全边界和端到端执行。表 6-1 汇总了各测试用例的覆盖范围、执行结果和核心证据。
+测试用例以 TC-S01 至 TC-S13 编号，覆盖 30 余个验证点，按功能维度分为环境与能力就绪、任务录入与数据契约、计划候选生成、HITL 决策、有限状态机、快照恢复、前端与 CLI 可用性、失败恢复、安全边界和端到端执行。表 6-1 汇总了各测试用例的覆盖范围、执行结果和核心证据。
 
 **表 6-1 系统测试用例覆盖矩阵**
 
@@ -51,27 +51,27 @@
 
 ## 6.2 API 服务与任务录入验证
 
-系统基础可用性首先通过健康检查和能力 readiness 接口验证。健康检查接口返回 `status=ok`、任务数量、工具知识图谱中的能力数量，以及日志、快照和输出目录等路径信息。能力 readiness 接口返回 15 条蛋白质设计工具或工具能力的运行状态，其中可直接调用的能力标记为 `ready`，远程服务不可达但不阻断系统运行的能力标记为 `degraded`，当前环境缺失的外部工具标记为 `unavailable`。每条 degraded 或 unavailable 记录均包含错误类别和建议恢复方式。该结果说明，系统并未将工具可用性写死为静态假设，而是在运行时向 Planner 和用户暴露当前环境的真实能力边界。
+系统基础可用性首先通过健康检查和能力 readiness 接口验证。健康检查接口返回 `status=ok`、任务数量、ProteinToolKG 中的能力数量，以及日志、快照和输出目录等路径信息。能力 readiness 接口返回 15 条蛋白质设计工具或工具能力的运行状态，其中可直接调用的能力标记为 `ready`，远程服务不可达但不阻断系统运行的能力标记为 `degraded`，当前环境缺失的外部工具标记为 `unavailable`。每条 degraded 或 unavailable 记录均包含错误类别和建议恢复方式。该结果说明，系统并未将工具可用性写死为静态假设，而是在运行时向 Planner 和用户暴露当前环境的真实能力边界。
 
 任务录入验证对应 TC-S02。系统通过 Task Intake 链路将自然语言目标转化为结构化任务规格，主要包括字段 schema 获取、草稿创建、字段补充、场景预检查和确认创建任务几个步骤。`/task-intakes/schema` 返回完整字段注册表，用于支撑前端动态表单；自由文本可以创建 intake 草稿；缺失必要字段时 confirm 请求被拒绝；`goal`、`query` 和 `confirmed_task_spec` 三种创建模式同时出现时被明确拒绝。这些验证对应第五章代码清单 5-1 中的互斥入口校验，说明实现层与测试层在任务边界上保持一致。
 
 任务创建后的生命周期接口也被纳入验证范围。`/tasks/{task_id}` 返回任务目标、约束、计划、运行状态和报告路径等信息；`/tasks/{task_id}/events` 返回任务事件时间线；`/tasks/{task_id}/report` 在任务完成后返回设计结果摘要，在任务未完成时返回错误响应。对真实实验任务的 events 查询能够直接从磁盘日志读取 25KB 事件链，说明事件接口不依赖当前进程内的内存任务表，具备服务重启后追溯任务过程的基础。
 
-## 6.3 计划候选与人在环路验证
+## 6.3 计划候选与 HITL 验证
 
 计划候选生成由 TC-S03 覆盖。测试确认 PlannerAgent 生成的 PlanCandidate 包含 `candidate_id`、`score_breakdown`、`risk_level`、`cost_estimate`、`explanation` 和 `source_refs` 等必需字段。该结果说明，候选计划不仅是可执行步骤列表，还包含可用于比较、解释和审计的评分与风险信息。测试同时确认 Planner 只负责生成候选，不直接执行工具，也不越权改变任务状态；这种边界与第四章的多 Agent 职责划分一致。
 
-当候选计划置信度不足，或恢复动作需要人工确认时，系统通过 PendingAction 和 Decision 进入人在环路流程。TC-S04 验证了 PendingAction 的创建、决策提交和异常边界。进入 `WAITING_PLAN_CONFIRM`、`WAITING_PATCH_CONFIRM` 或 `WAITING_REPLAN_CONFIRM` 状态前，系统必须创建对应的 PendingAction；提交 accept 决策时必须包含合法的 `selected_candidate_id`；对已处理的 PendingAction 重复提交决策会返回冲突；将 Decision 提交到不属于该任务的 PendingAction 会被拒绝。
+当候选计划置信度不足，或恢复动作需要人工确认时，系统通过 PendingAction 和 Decision 进入 HITL 流程。TC-S04 验证了 PendingAction 的创建、决策提交和异常边界。进入 `WAITING_PLAN_CONFIRM`、`WAITING_PATCH_CONFIRM` 或 `WAITING_REPLAN_CONFIRM` 状态前，系统必须创建对应的 PendingAction；提交 accept 决策时必须包含合法的 `selected_candidate_id`；对已处理的 PendingAction 重复提交决策会返回冲突；将 Decision 提交到不属于该任务的 PendingAction 会被拒绝。
 
 这些验证说明，HITL 在系统中不是前端界面上的自由按钮，而是受状态机约束的运行时契约。等待态下 Executor 不会继续调用工具；决策生效后，系统写入 `DECISION_APPLIED` 和 `WAITING_EXIT` 等事件，再按有限状态机规则迁移到后续状态。EVD-LOG-08 中记录的 `PENDING_ACTION_CREATED -> WAITING_ENTER -> DECISION_SUBMITTED -> DECISION_APPLIED -> WAITING_EXIT` 事件链，提供了人工决策从创建到应用的完整审计路径。
 
 ## 6.4 状态机、快照与恢复基础验证
 
-有限状态机验证对应 TC-S05。系统允许的状态迁移路径包括从 `CREATED` 到 `PLANNING`，再到 `PLANNED` 或等待人工确认状态；计划执行后进入 `RUNNING`，并根据执行结果进入等待 patch、等待 replan、总结或终态。测试覆盖了合法迁移和关键非法迁移，确认不在规则集合中的状态转换会被拒绝。DONE、FAILED 和 CANCELLED 作为终态，一旦进入便不可再被普通状态更新覆盖。
+有限状态机验证对应 TC-S05。系统允许的状态迁移路径包括从 `CREATED` 到 `PLANNING`，再到 `PLANNED` 或等待人工确认状态；计划执行后进入 `RUNNING`，并根据执行结果进入等待局部修补、等待后缀重规划、总结或终态。测试覆盖了合法迁移和关键非法迁移，确认不在规则集合中的状态转换会被拒绝。DONE、FAILED 和 CANCELLED 作为终态，一旦进入便不可再被普通状态更新覆盖。
 
 快照验证对应 TC-S06。系统要求进入任意 `WAITING_*` 状态前完成 PendingAction 写入、事件日志记录和 TaskSnapshot 保存。该顺序保证了系统即使在等待人工确认期间中断，也可以在恢复后还原 pending action、候选集合、已完成步骤、计划版本和运行时状态。恢复到等待态后，系统不会自动推进执行，而是继续等待人工 Decision，这一点对于保护 HITL 决策边界尤为关键。
 
-快照验证还确认了运行时状态与计划语义字段的隔离。Lite belief-state 中的 `p_success`、`budget_pressure`、`recovery_margin` 等字段保存在 snapshot artifacts 的 runtime state 中，而 Plan 本身仍保持步骤、输入输出和约束定义。这样的隔离避免了运行时估计污染计划语义，也使不同策略配置可以在同一执行框架下比较。
+快照验证还确认了运行时状态与计划语义字段的隔离。Lite belief-state / 轻量信念状态中的 `p_success`、`budget_pressure`、`recovery_margin` 等字段保存在 snapshot artifacts 的 RuntimeState 中，而 Plan 本身仍保持步骤、输入输出和约束定义。这样的隔离避免了运行时估计污染计划语义，也使不同策略配置可以在同一执行框架下比较。
 
 ## 6.5 前端与 CLI 可用性验证
 
@@ -100,14 +100,14 @@ CLI 验证显示，`intake schema --json` 可以输出完整字段注册表，`t
 | 验证主题 | 覆盖用例 | 关键行为 | 主要证据 | 结论边界 |
 |---|---|---|---|---|
 | 有界重试 | TC-S12 | 可重试失败进入有限重试，耗尽后交给恢复逻辑 | EVD-TEST-03、EVD-LOG-01 | 证明 retry 机制可达，不等同于所有工具失败都可恢复。 |
-| 局部修补 | TC-S12 | retry exhausted 后生成 patch 候选并进入 `WAITING_PATCH_CONFIRM` | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02 | 证明 patch 路径可执行，具体成功依赖失败类型。 |
-| 后缀重规划/止损 | TC-S12、TC-S13 | 结构性失败或 terminal_stop 通过 FSM 进入 replan/FAILED | EVD-TEST-02、EVD-TEST-03、EVD-LOG-03 | 证明 stop 不绕过 FSM/HITL。 |
+| 局部修补 | TC-S12 | retry exhausted 后生成 `patch_local` 候选并进入 `WAITING_PATCH_CONFIRM` | EVD-TEST-03、EVD-LOG-01、EVD-LOG-02 | 证明局部修补路径可执行，具体成功依赖失败类型。 |
+| 后缀重规划/止损 | TC-S12、TC-S13 | 结构性失败或 `terminal_stop` 通过 FSM 进入重规划确认或 FAILED | EVD-TEST-02、EVD-TEST-03、EVD-LOG-03 | 证明 `stop` 不绕过 FSM/HITL。 |
 | 安全 block | TC-S10、TC-S13 | forbidden motif 在 pre-step 阶段阻断工具调用 | EVD-TEST-03 | 矩阵实验未充分触发 safety block，结论主要来自 focused tests。 |
 | 安全 warn | TC-S10 | warn 放行但记录风险标记和安全事件 | EVD-TEST-03、FIG-SV-10 | 证明风险可记录，不宣称自动生物安全判定完备。 |
 
-有界重试验证确认，StepRunner 遇到可重试失败时会在限定次数内重试；若重试成功，工作流继续推进；若重试耗尽，则返回结构化失败结果，由上层恢复逻辑决定是否进入 patch 或 replan。局部修补验证通过确定性触发 retry exhausted，随后生成 patch 候选并进入等待人工确认状态。相关日志显示，任务完成后可提取 `patch_event_count=1`、`first_pass_success=False`、`replan_event_count=0` 等恢复指标，说明恢复事件能够被后续实验统计利用。
+有界重试验证确认，StepRunner 遇到可重试失败时会在限定次数内重试；若重试成功，工作流继续推进；若重试耗尽，则返回结构化失败结果，由上层恢复逻辑决定是否进入局部修补或后缀重规划。局部修补验证通过确定性触发 retry exhausted，随后生成 `patch_local` 候选并进入等待人工确认状态。相关日志显示，任务完成后可提取 `patch_event_count=1`、`first_pass_success=False`、`replan_event_count=0` 等恢复指标，说明恢复事件能够被后续实验统计利用。
 
-当局部修补不足以恢复任务时，系统进入后缀重规划或止损路径。后缀重规划优先保留已完成前缀，仅替换失败后的后续步骤；terminal_stop 则作为终止型候选进入 HITL 确认。测试确认，接受 terminal_stop 后任务进入 FAILED 终态，并在事件日志中记录等待进入、决策应用和等待退出链路。这说明止损不是绕过状态机的异常退出，而是可审计的工作流决策。
+当局部修补不足以恢复任务时，系统进入后缀重规划或止损路径。后缀重规划优先保留已完成前缀，仅替换失败后的后续步骤；`terminal_stop` 则作为终止型候选进入 HITL 确认。测试确认，接受 `terminal_stop` 后任务进入 FAILED 终态，并在事件日志中记录等待进入、决策应用和等待退出链路。这说明止损不是绕过状态机的异常退出，而是可审计的工作流决策。
 
 安全边界验证覆盖输入、步骤和输出阶段的风险处理。focused tests 确认 forbidden motif 在 pre-step 阶段可以触发 block，并阻止工具调用；无 forbidden motif 时不会误阻断；warn 场景下系统允许继续执行，但会记录风险标记和安全事件。需要说明的是，批量实验中的安全探测任务未充分触发 safety block，因此安全机制的可达性主要由确定性测试支撑，不能扩大为对所有生物安全风险的自动判定能力。
 
