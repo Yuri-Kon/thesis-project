@@ -39,21 +39,30 @@
 
 ## 3. 术语统一
 
-首次出现缩写时尽量给出中文全称或上下文说明。后文保持同一写法。
+正文首次出现英文缩写时，统一采用“中文名称（英文全称，英文缩写）”格式；后文直接使用缩写或已统一的中文术语。若术语没有稳定中文译名，可使用“英文全称（英文缩写）”。摘要、正文、图注和表注可视为相对独立部分，若同一缩写在不同部分首次出现，按需要重新说明。不要为只出现一两次且不影响阅读的术语强行设置缩写。
+
+示例：
+
+- 大语言模型 Agent（Large Language Model Agent，LLM Agent）
+- 人在环决策（Human-in-the-loop，HITL）
+- 有限状态机（Finite State Machine，FSM）
+- 约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP）
+
+后文保持同一写法，不在“中文全称、英文全称、缩写”之间来回切换。
 
 | 推荐写法 | 说明 |
 |---|---|
 | 蛋白质设计工作流 | 泛指从任务输入到候选方案输出、执行、评估和恢复的流程。 |
-| 大语言模型 Agent | 不写成“智能体系统万能求解器”，强调其规划、调用工具和解释能力。 |
-| ToolKG / 工具知识图谱 | 本系统用于组织工具能力、输入输出、约束、成本和适用场景的知识结构。 |
-| ProteinToolKG | 面向蛋白质设计工具链的 ToolKG 子集或实例化视图。 |
-| FSM / 有限状态机 | 运行时状态控制机制，用于约束执行、等待、恢复和终止。 |
-| HITL / 人在环决策 | 需要人工确认、选择、审批或干预的运行时决策点。 |
+| 大语言模型 Agent（Large Language Model Agent，LLM Agent） | 首次出现后可写 LLM Agent；不写成“智能体系统万能求解器”，强调其规划、调用工具和解释能力。 |
+| ProteinToolKG | 面向蛋白质设计工具链的工具知识图谱实例，用于组织工具能力、输入输出、约束、成本和适用场景。 |
+| 有限状态机（Finite State Machine，FSM） | 首次出现后可写 FSM；用于约束执行、等待、恢复和终止。 |
+| 人在环决策（Human-in-the-loop，HITL） | 首次出现后可写 HITL；表示需要人工确认、选择、审批或干预的运行时决策点。 |
 | Lite belief-state / 轻量信念状态 | CEBRA-WP 中用于刻画成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性的运行时状态向量。 |
-| CEBRA-WP | Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，中文可写为“约束与证据感知、信念引导、恢复自适应的工作流规划算法”。 |
+| 约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP） | 首次出现后可写 CEBRA-WP；定位为工作流层规划、重排序和恢复控制算法。 |
 | 候选工作流 / candidate workflow | 由任务目标、约束、工具知识和历史状态生成的可执行或待筛选工作流方案。 |
 | 硬可行性约束 | 工具、模式、输入输出、安全、硬预算和可用性等必须满足的约束。 |
-| 恢复策略 | 包括继续执行、局部修补、后缀重规划和终止等恢复感知动作。 |
+| 恢复动作 | 包括 `continue`、`patch_local`（局部修补）、`suffix_replan`（后缀重规划）和 `stop`（终止型重规划候选）。 |
+| Biopython | 不写作 BioPython；工具能力或适配器可写 Biopython QC。 |
 
 避免使用：
 
@@ -65,7 +74,7 @@
 
 CEBRA-WP 必须作为第四章系统设计中的独立算法定义出现，不能只散落在工作流描述里。算法定义应至少包括：
 
-- 问题输入：目标 `g`、约束集合 `C`、ToolKG `K`、历史 `h_t`、观测 `o_t` 和信念状态 `x_t`。
+- 问题输入：目标 `g`、约束集合 `C`、ProteinToolKG `K`、历史 `h_t`、观测 `o_t` 和 Lite belief-state / 轻量信念状态 `x_t`。
 - 候选生成：`GenerateCandidates(g, C, K, h_t)`。
 - 硬可行性筛选：工具、schema、输入输出、安全、硬预算和可用性约束均满足后才可进入自动执行。
 - 静态候选效用：综合可行性、目标匹配、成本、风险、恢复开销和解释质量。
@@ -93,12 +102,12 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 推荐写法：
 
 ```md
-如图 4-1 所示，系统采用五层分层架构，将用户交互、运行时控制、工具执行、知识约束和审计记录分离。
+如图 4-1 所示，系统采用五层分层架构，将输入层、智能规划层、执行层、安全与汇总层和资源层分离。
 
 【图 4-1 系统五层分层架构】
 插图文件：`paper/figures/system-architecture.drawio.svg`
 
-图 4-1 强调了控制面与执行面的分离关系。其中，FSM 和 HITL 负责运行时边界控制，ToolKG 负责为候选工作流生成与筛选提供工具约束。
+图 4-1 强调了控制面与执行面的分离关系。其中，FSM 和 HITL 负责运行时边界控制，ProteinToolKG 负责为候选工作流生成与筛选提供工具约束。
 ```
 
 不要出现：
