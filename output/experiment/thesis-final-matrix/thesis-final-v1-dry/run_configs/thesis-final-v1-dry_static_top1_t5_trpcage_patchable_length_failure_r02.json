@@ -1,0 +1,132 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-10T05:09:56+00:00",
+  "run_id": "thesis-final-v1-dry_static_top1_t5_trpcage_patchable_length_failure_r02",
+  "task_id": "thesis-final-v1-dry_static_top1_t5_trpcage_patchable_length_failure_r02",
+  "group": {
+    "id": "static_top1",
+    "label": "静态 Top-1",
+    "comparison_order": 0,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_single_candidate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 1,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.0,
+      "high_cost_min_overall": 0.0,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "patch_events_mean",
+      "replan_events_mean"
+    ],
+    "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+  },
+  "task": {
+    "task_key": "t5_trpcage_patchable_length_failure",
+    "goal": "Design a Trp-cage-like peptide, but start from an intentionally too-short length constraint that should be patched to the realistic 18-24 residue range.",
+    "display_name": "Patchable Trp-cage length failure",
+    "difficulty": "medium",
+    "budget_tier": "standard",
+    "rationale": "",
+    "task_class": "T5",
+    "real_case": {
+      "source_ids": [
+        "1L2Y"
+      ],
+      "rationale": "The reference is 20 residues; an initial 12-14 residue bound should be corrected by a local patch."
+    },
+    "expected_focus": [
+      "retry_exhausted",
+      "WAITING_PATCH_CONFIRM",
+      "PlanPatch"
+    ],
+    "oracle_action": "patch_local",
+    "constraints": {
+      "prompt": "Design a Trp-cage-like peptide, but start from an intentionally too-short length constraint that should be patched to the realistic 18-24 residue range.",
+      "length_range": [
+        12,
+        14
+      ],
+      "objective_type": "foldability",
+      "expected_patch": {
+        "field": "length_range",
+        "patched_value": [
+          18,
+          24
+        ],
+        "reason": "Trp-cage-like compact fold is not realistic under the initial length bound."
+      },
+      "require_patch_confirm": true
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "fallback_tool_ids": [
+      "esmfold",
+      "nim_esmfold"
+    ],
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 1,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0,
+    "require_plan_confirm": false,
+    "require_patch_confirm": true,
+    "prompt": "Design a Trp-cage-like peptide, but start from an intentionally too-short length constraint that should be patched to the realistic 18-24 residue range.",
+    "length_range": [
+      12,
+      14
+    ],
+    "objective_type": "foldability",
+    "expected_patch": {
+      "field": "length_range",
+      "patched_value": [
+        18,
+        24
+      ],
+      "reason": "Trp-cage-like compact fold is not realistic under the initial length bound."
+    },
+    "runtime_policy": "static_single_candidate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "thesis_experiment_matrix",
+    "group_id": "static_top1",
+    "group_label": "静态 Top-1",
+    "task_key": "t5_trpcage_patchable_length_failure",
+    "replicate": 2,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "medium",
+    "budget_tier": "standard"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
+    "baseline_freeze_config_hash": "37b097d77785",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "8ba8b17d98c8"
+  }
+}
