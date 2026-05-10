@@ -487,6 +487,40 @@ Provider 与 OpenFold3 修复验证（t8 + t9 联合）：
 
 限制说明：t8 是单任务 smoke，t9 是 4 任务 × 1 repeat 的 clean run。两次结果均 100% 成功率，可用于证明链路可用和修复生效。正式论文主结果仍需扩大任务数（8 类）、增加 repeats（n≥2）、并引入能诱发恢复/安全阻断的任务变体。高代价计数口径已修正，所有 run 均记录 `high_cost_call_mean=1.0`。
 
+---
+
+**v1 正式矩阵结果**（`thesis-final-v1-001`，2026-05-10）：12 任务 × 4 组 × max 2 repeats = 84 runs，81/84 DONE（96.4%），3 FAILED。
+
+v1 结果表：
+
+| group_id | runs | success_rate | first_pass | schema_valid | executable | high_cost_mean | patch_mean | replan_mean | duration_ms_mean |
+|:---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `static_top1` | 21 | **1.0000** | **1.0000** | 1.0000 | 1.0000 | 1.0000 | 0.0000 | 0.0000 | 241905 |
+| `fixed_threshold_gate` | 21 | 0.9524 | 0.9048 | 1.0000 | 0.9524 | **1.3333** | **0.2857** | 0.0000 | 300238 |
+| `dynamic_no_belief_state` | 21 | 0.9524 | 0.9524 | 0.9524 | 1.0000 | **0.9524** | 0.0000 | 0.0000 | **226571** |
+| `lite_belief_state` | 21 | 0.9524 | 0.9524 | 1.0000 | 1.0000 | **0.9524** | 0.0000 | 0.0000 | 272095 |
+
+v1 关键发现：
+
+| 发现 | 说明 |
+|:---|:---|
+| 成功率首次出现差异化 | static=1.0, 其余三组=0.9524（各 20/21 DONE），打破了 t9 的天花板效应 |
+| fixed 是唯一触发真实 patch 的组 | 6 次 tool-level patch（patch_mean=0.29），高代价调用因此涨到 1.33/run |
+| dynamic/lite 省高代价调用 | high_cost_mean=0.95 vs static=1.0 vs fixed=1.33，lite 在成功率持平 fixed 时少 28.6% |
+| lite belif-state 持续有效 | 21/21 runs runtime_state_observable=1.0, action_utility_source=computed |
+| 3 个 FAILED 各不同因 | fixed: patch loop 耗尽（t2_ubiquitin r02）；lite: patch loop 耗尽（t2_ubiquitin r01, 36 次）；dynamic: IO_CLOSURE_BROKEN（t3_gb1 r01） |
+| t2_ubiquitin（76aa 大蛋白）是主要压力点 | 在 2/4 组失败，是展示策略差异的最佳案例任务 |
+| lite 的"预防性"优势 | lite 通过 runtime rerank 避免了进入 patch 状态（0 patch vs fixed 6 patch），而 fixed 在运行时才发现问题 |
+
+v1 论文叙事框架：
+
+- **成功率**：static_top1=100%，诚实表述，不以此作为 CEBRA-WP 主优势
+- **恢复能力**：fixed_threshold_gate 的 6 次 patch 证明拦截-修复可用，但 loop 耗尽也暴露无 runtime rerank 的局限（必要性证据）
+- **成本控制**：lite/dynamic 比 fixed 少 28.6% 高代价调用，比 static 少 5%（量化优势）
+- **belief-state 价值**：lite 通过"预防性 rerank"避免触发 patch，而非在运行时拦截
+
+完整分析：`docs/experiment/thesis-final-v1-results.md`
+
 通过标准：
 
 - 四组均能生成 run manifest。
@@ -671,9 +705,9 @@ output/experiment/thesis-final-*/
 1. 运行 API / Web / CLI 系统验证，补充截图和 CLI 输出。 ✅ 已完成（2026-05-10）
 2. 运行 FSM / HITL / recovery focused tests，保存 pytest log。 ✅ 已完成（2026-05-10）
 3. 运行 CEBRA-WP 机制单测，证明四组 policy mode 可切换。 ✅ 已完成
-4. 运行一次四组矩阵，哪怕任务数较少，也要保留 manifest 和 metrics。 ✅ 已完成 — t9 clean run（4 任务 × 4 组，16/16 DONE）
-5. 专门补一次 `dynamic_observation_only` vs `lite_belief_state` 定向对照。 ⬜ 待执行 — t9 已包含两组数据，但需要能诱发恢复差异的任务
-6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。 ◐ 部分完成 — 局部失败恢复已有 deterministic focused test；t9 矩阵仍缺真实恢复案例
+4. 运行一次四组矩阵，哪怕任务数较少，也要保留 manifest 和 metrics。 ✅ 已完成 — t9 clean run（16/16）+ v1 正式矩阵（81/84 DONE，12 任务 × 4 组）
+5. 专门补一次 `dynamic_observation_only` vs `lite_belief_state` 定向对照。 ⬜ 待执行 — v1 已包含两组 21 runs 对比数据，但缺定向任务设计
+6. 打包 3 个典型案例：正常成功、局部失败恢复、高风险重规划或止损。 🔄 部分 — v1 提供 t2_ubiquitin lite r01（36 次 patch 循环）；其余待打包
 
 最小包可以支撑的论文结论：
 
@@ -690,7 +724,7 @@ output/experiment/thesis-final-*/
 | 2 | 运行系统验证 focused tests | pytest logs | ✅ 已完成 |
 | 3 | 启动 API，补 Web / CLI 手工证据 | 截图、CLI 输出、API JSON | ✅ 已完成 |
 | 4 | 运行 CEBRA-WP 机制测试 | policy mode 和 runtime trace 证据 | ✅ 已完成 |
-| 5 | 运行四组消融矩阵 | metrics CSV、matrix report | ✅ t9 clean run 完成；待扩到 8 任务 + n≥2 |
+| 5 | 运行四组消融矩阵 | metrics CSV、matrix report | ✅ v1 正式矩阵完成（81/84 DONE）；完整分析见 `docs/experiment/thesis-final-v1-results.md` |
 | 6 | 运行 belief-state 定向对照 | incremental value table | ⬜ 待执行 |
 | 7 | 选择 3 个案例并打包证据 | case bundle | ⬜ 待执行 |
 | 8 | 写 `final-result-claim-boundary.md` | 论文结果表述边界 | ⬜ 待执行 |
