@@ -9,19 +9,35 @@
 \maketitle
 
 \begin{abstract}
-本系统面向 de novo 蛋白质设计场景，构建了一个以多Agent协作和自适应工作流规划为核心的智能科研工作流系统。系统采用分层架构与有限状态机相结合的设计方式，通过 PlannerAgent、ExecutorAgent、SafetyAgent 和 SummarizerAgent 的职责划分，将蛋白质设计从固定流水线升级为证据感知、可恢复、可审计的自动化流程。核心算法 CEBRA-WP（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning）嵌入规划与控制层，负责候选计划生成、运行时状态估计、证据驱动的恢复动作选择和 HITL（Human-in-the-Loop）候选解释。系统支持六阶段 de novo 设计工作流，覆盖候选序列生成、结构预测、质量控制、目标优化和结果汇总，并通过 ToolAdapter 屏蔽生物信息学工具的异构性。系统测试验证了 52 个验证点，实验矩阵在 4 组策略×12 任务集上完成了 84 次独立运行，分析了 CEBRA-WP 在成功率、恢复效率和高代价调用治理等方面的效果。
+本系统面向 de novo 蛋白质设计场景，构建了一个以多Agent协作和自适应工作流规划为核心的智能科研工作流系统。系统采用五层分层架构与有限状态机相结合的设计方式，通过 PlannerAgent、ExecutorAgent、SafetyAgent 和 SummarizerAgent 的职责划分，将蛋白质设计从固定流水线升级为证据感知、可恢复、可审计的自动化流程。核心算法 CEBRA-WP（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning）嵌入规划与控制层，负责候选计划生成、运行时信念状态估计、证据驱动的恢复动作选择和 HITL（Human-in-the-Loop）候选解释。系统支持六阶段 de novo 设计工作流，覆盖候选序列生成、结构预测、质量控制、目标优化和结果汇总，并通过 ToolAdapter 屏蔽生物信息学工具的异构性。系统测试通过 13 个测试用例和 30 余个验证点覆盖了 API 合约、FSM 状态迁移、HITL 决策边界、快照恢复和安全边界。实验矩阵在 4 组策略×12 任务集上完成了 84 次独立运行（81/84 DONE），结果表明 lite\_belief\_state 在所有运行中持续产生有效的信念状态观测，相比 fixed\_threshold\_gate 节省 28.6\% 高代价调用，三个失败案例为机制边界提供了有价值的分析素材。
 \end{abstract}
 
 \tableofcontents
 \newpage
 
+% 第1章：绪论（待写）
 \input{chapters/01-introduction}
+
+% 第2章：相关技术与研究工作（待写）
 \input{chapters/02-related-work}
-\input{chapters/03-system-requirements-and-design}
-\input{chapters/04-system-implementation}
-\input{chapters/05-system-testing-and-validation}
-\input{chapters/06-experiments}
-\input{chapters/07-conclusion}
+
+% 第3章：系统需求分析（草稿完成）
+\input{chapters/03-system-requirements}
+
+% 第4章：系统总体设计（草稿完成）
+\input{chapters/04-system-design}
+
+% 第5章：系统实现（草稿完成）
+\input{chapters/05-system-implementation}
+
+% 第6章：系统测试与验证（草稿完成）
+\input{chapters/06-system-testing}
+
+% 第7章：策略对比实验与结果分析（草稿完成）
+\input{chapters/07-experiments}
+
+% 第8章：总结与展望（待写）
+\input{chapters/08-conclusion}
 
 \bibliographystyle{plain}
 \bibliography{bib/references}
