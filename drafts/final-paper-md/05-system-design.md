@@ -58,7 +58,7 @@ PLANNING 阶段，如果候选置信度不足、即将调用高代价工具或 S
 
 蛋白质设计能力被组织为六个阶段，如图 4-5 所示。
 
-【图 4-5 六阶段 de novo 工作流】
+【图 4-5 六阶段 de novo 蛋白质设计工作流】
 插图文件：`paper/figures/workflow-flowchart.drawio.svg`
 
 六阶段分别为序列探索、结构映射、质量门禁、结构条件精修、目标评分和结果汇总。序列探索阶段生成候选序列；结构映射阶段将序列转换为结构并产生折叠置信度；质量门禁阶段检查序列合法性、结构完整性和低复杂度等工程质量；结构条件精修阶段根据结构反馈进行重设计；目标评分阶段对候选进行多目标排序；结果汇总阶段生成 DesignResult 和报告。
@@ -343,7 +343,7 @@ ProteinDesignTask 是任务入口契约，包含 task_id、goal 和约束字段�
 
 图 4-8 给出了典型任务 t1 的贯穿示例。
 
-【图 4-8 t1 任务贯穿示例】
+【图 4-8 t1 任务实例走查】
 插图文件：`paper/figures/t1-trpcage-instance-walkthrough.drawio.svg`
 
 该示例从任务创建开始，经 Planner 生成候选计划、用户确认、Executor 调用工具、StepResult 写入、RuntimeState 更新、必要时触发恢复候选，最后由 Summarizer 汇总为 DesignResult。它说明 CEBRA-WP 并非孤立算法模块，而是嵌入任务生命周期的规划与恢复层：算法输出通过 PendingAction、PlanPatch、ReplanCandidate 和 RuntimeState 等契约进入系统，系统状态则仍由 FSM 和 Workflow 控制。
