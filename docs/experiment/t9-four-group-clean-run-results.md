@@ -42,6 +42,7 @@
 | high_cost_call_mean | 1.0000 | 1.0000 | 1.0000 | 1.0000 |
 | patch_events_mean | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 | replan_events_mean | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+| suffix_replan_events_mean | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
 | duration_ms_mean | 203,500 | 172,750 | 209,000 | 225,500 |
 | action_continue_mean | 1.50 | 1.50 | 1.00 | 1.00 |
 | runtime_state_observable_rate | 0.0 | 0.0 | 0.0 | 1.0 |
@@ -86,7 +87,9 @@ t5（patchable_length_failure）的设计目标是诱发 patch/replan，但实�
 原因分析：
 - t5 在 planning 阶段被标记为"可能失败"，但 plan 中的工具调用并未包含真正会失败的参数
 - OpenFold3 REST 服务对所有输入均返回成功
-- 需要在 plan 中引入确定性的失败条件（如过短序列导致结构预测拒绝）才能触发恢复
+- 需要在 plan 中引入确定性的失败条件（如过短序列导致结构预测拒绝）才能让矩阵实验触发恢复
+
+补充验证：2026-05-10 已增加 focused test `test_deterministic_retry_patch_to_done_produces_recovery_metrics`，本地确定性触发 retry exhausted，自动 tool-level patch 后进入 DONE，并验证 `patch_event_count=1`、`first_pass_success=False`。因此“恢复主流程可用”已有确定性测试证据，但 t9 矩阵本身仍未形成恢复差异证据。
 
 ### 6.3 安全任务未阻断
 
@@ -97,6 +100,14 @@ t8 四组均正常执行完毕，`safety_terminality=0.0`，`safety_blocked` 未
 - 系统没有在运行时检测到 forbidden motif 的代码路径
 - 需要强化 t8 的 plan 约束，使 safety check 在工具执行前触发
 
+> 2026-05-10 已补确定性安全阻断 focused test（4 个用例，见 `tests/unit/test_safety_agent.py` + `tests/unit/test_step_runner.py`）：
+> - `test_pre_step_block_deterministic_forbidden_motif` — 证明 forbidden_motif 在 pre_step 被检测并返回 block
+> - `test_pre_step_allow_when_no_forbidden_motif` — 证明无误报
+> - `test_run_step_safety_block_forbidden_motif_prevents_tool_execution` — 证明 block 阻止工具调用，SpyAdapter 未被执行
+> - `test_run_step_safety_warn_allows_execution_with_risk_flag` — 证明 warn 放行但记录审计痕迹
+>
+> 上述测试在 SafetyAgent + StepRunner 层覆盖了安全判定链路。t8 实验矩阵中未触发是因为实验 prompt 未将 forbidden_motif 作为 plan constraint 传入 step.metadata，而非安全机制缺失。
+
 ### 6.4 时序反直觉
 
 `fixed_threshold_gate`（172.75s）比 `static_top1`（203.5s）快约 15%。
@@ -106,9 +117,11 @@ t8 四组均正常执行完毕，`safety_terminality=0.0`，`safety_blocked` 未
 - fixed_threshold_gate 有 3 个候选，减少了重规划开销
 - 这说明在候选验证严格的场景下，单候选策略反而更慢
 
-### 6.5 suffix_replan 计数异常
+### 6.5 suffix_replan 计数口径已修正
 
-`patch_replan_breakdown.csv` 记录 lite_belief 有 4 个 `suffix_replan_events`，但 event log 中无对应事件。推测是 action utility 评估中的 suffix_replan 计算被误计为事件。
+初次聚合时 `patch_replan_breakdown.csv` 记录 lite_belief 有 4 个 `suffix_replan_events`，但 event log 中无对应事件。原因是指标抽取曾对整行 JSON 做字符串扫描，导致 `STEP_FINISHED.data.action_utilities.suffix_replan` 被误计为真实恢复事件。
+
+2026-05-10 已修正并重算：真实 `suffix_replan_events_total=0.0`，`suffix_replan_events_mean=0.0`。`action_utilities.suffix_replan` 仍作为候选效用证据保留，但不进入真实恢复事件计数。
 
 ### 6.6 Offline gate 缺失
 
@@ -130,8 +143,7 @@ t8 四组均正常执行完毕，`safety_terminality=0.0`，`safety_blocked` 未
 2. **增加 repeats 到 n≥2**：当前 n=1 无法做统计检验
 3. **修复 t5**：在 plan 中引入确定性失败条件（如序列长度 < 10 aa 触发 OpenFold3 拒绝）
 4. **强化 t8**：让 forbidden_motif 作为 plan constraint 在工具执行前被 safety agent 检查
-5. **修复 suffix_replan 计数**：确认是 metrics bug 还是 feature，避免论文数据存疑
-6. **补 EXP-A4 定向对照**：专门对比 dynamic_no_belief_state vs lite_belief_state
+5. **补 EXP-A4 定向对照**：专门对比 dynamic_no_belief_state vs lite_belief_state
 
 ## 9. 证据索引
 

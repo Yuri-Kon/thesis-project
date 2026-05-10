@@ -816,3 +816,148 @@ def test_run_step_post_safety_block_raises(empty_context):
     # pre/post 安全事件都应写入
     assert len(empty_context.safety_events) == 2
     assert empty_context.safety_events[1].action == "block"
+
+
+def test_run_step_safety_block_forbidden_motif_prevents_tool_execution(empty_context):
+    """确定性安全阻断：forbidden_motif → pre_step block → 工具未调用 → 事件可审计
+
+    不依赖 LLM、不依赖远程服务。验证：
+    - 安全代理在 pre_step 检测 forbidden_motif 并返回 block
+    - StepRunner 不调用工具适配器的 resolve_inputs / run_local
+    - StepResult 携带 failure_type=SAFETY_BLOCK、FORBIDDEN_MOTIF_PRESENT risk flag
+    - context.safety_events 记录阻断事件
+    """
+    from src.agents.safety import SafetyAgent
+    from src.models.contracts import SafetyResult, RiskFlag, now_iso
+
+    # 注册 spy 适配器，用于证明工具未被调用
+    spy = SpyAdapter()
+    ADAPTER_REGISTRY._by_tool_id.clear()
+    ADAPTER_REGISTRY._by_adapter_id.clear()
+    register_adapter(spy)
+
+    class ForbiddenMotifAwareSafety(SafetyAgent):
+        def check_pre_step(self, step, context):
+            # 确定性规则：从 metadata 提取 forbidden_motifs，检查序列
+            meta = step.metadata if isinstance(step.metadata, dict) else {}
+            motifs = meta.get("forbidden_motifs", [])
+            inputs = step.inputs if isinstance(step.inputs, dict) else {}
+            seq = inputs.get("sequence", "")
+            for motif in motifs:
+                if isinstance(motif, str) and isinstance(seq, str):
+                    if motif.upper() in seq.upper():
+                        return SafetyResult(
+                            task_id=context.task.task_id,
+                            phase="step",
+                            scope=f"step:{step.id}",
+                            action="block",
+                            risk_flags=[RiskFlag(
+                                code="FORBIDDEN_MOTIF_PRESENT",
+                                level="block",
+                                scope="step",
+                                message=f"Forbidden motif '{motif}' detected in sequence",
+                            )],
+                            timestamp=now_iso(),
+                        )
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                action="allow",
+                risk_flags=[],
+                timestamp=now_iso(),
+            )
+
+    step = PlanStep(
+        id="S1",
+        tool="spy_tool",
+        inputs={"sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR"},
+        metadata={"forbidden_motifs": ["MKTA"]},
+    )
+
+    runner = StepRunner(safety_agent=ForbiddenMotifAwareSafety())
+
+    result = runner.run_step(step, empty_context)
+
+    # 阻断：工具适配器从未被调用
+    assert spy.resolve_called is False, "safety block should prevent adapter resolution"
+    assert spy.run_called is False, "safety block should prevent tool execution"
+
+    # StepResult 携带正确的阻断信息
+    assert result.status == "failed"
+    assert result.failure_type == FailureType.SAFETY_BLOCK
+    assert result.adapter_id == "safety_precheck"
+    assert "blocked step" in (result.error_message or "")
+
+    # 风险标记正确
+    assert len(result.risk_flags) == 1
+    assert result.risk_flags[0].code == "FORBIDDEN_MOTIF_PRESENT"
+    assert result.risk_flags[0].level == "block"
+
+    # 安全事件已写入 context，可审计
+    assert len(empty_context.safety_events) == 1
+    assert empty_context.safety_events[0].action == "block"
+    assert len(empty_context.safety_events[0].risk_flags) == 1
+    assert empty_context.safety_events[0].risk_flags[0].code == "FORBIDDEN_MOTIF_PRESENT"
+
+
+def test_run_step_safety_warn_allows_execution_with_risk_flag(empty_context):
+    """确定性安全 warn：forbidden_motif → pre_step warn → 工具继续执行 → risk_flags 记录
+
+    block 阻止执行，warn 放行但留下审计痕迹。
+    """
+    from src.agents.safety import SafetyAgent
+    from src.models.contracts import SafetyResult, RiskFlag, now_iso
+
+    class ForbiddenMotifWarnSafety(SafetyAgent):
+        def check_pre_step(self, step, context):
+            meta = step.metadata if isinstance(step.metadata, dict) else {}
+            motifs = meta.get("forbidden_motifs", [])
+            inputs = step.inputs if isinstance(step.inputs, dict) else {}
+            seq = inputs.get("sequence", "")
+            for motif in motifs:
+                if isinstance(motif, str) and isinstance(seq, str):
+                    if motif.upper() in seq.upper():
+                        return SafetyResult(
+                            task_id=context.task.task_id,
+                            phase="step",
+                            scope=f"step:{step.id}",
+                            action="warn",
+                            risk_flags=[RiskFlag(
+                                code="FORBIDDEN_MOTIF_PRESENT",
+                                level="warn",
+                                scope="step",
+                                message=f"Forbidden motif '{motif}' detected in sequence",
+                            )],
+                            timestamp=now_iso(),
+                        )
+            return SafetyResult(
+                task_id=context.task.task_id,
+                phase="step",
+                scope=f"step:{step.id}",
+                action="allow",
+                risk_flags=[],
+                timestamp=now_iso(),
+            )
+
+    step = PlanStep(
+        id="S1",
+        tool="dummy_tool",
+        inputs={"sequence": "MKTA-test", "x": 1},
+        metadata={"forbidden_motifs": ["MKTA"]},
+    )
+
+    runner = StepRunner(safety_agent=ForbiddenMotifWarnSafety())
+
+    result = runner.run_step(step, empty_context)
+
+    # warn 不阻止执行，工具正常完成
+    assert result.status == "success"
+    assert "dummy_output" in result.outputs
+
+    # 安全事件记录 warn，可审计（pre_step risk_flags 写入 safety_events）
+    assert len(empty_context.safety_events) >= 1
+    pre_events = [e for e in empty_context.safety_events if e.phase == "step" and e.action == "warn"]
+    assert len(pre_events) == 1
+    assert pre_events[0].risk_flags[0].code == "FORBIDDEN_MOTIF_PRESENT"
+    assert pre_events[0].risk_flags[0].level == "warn"
