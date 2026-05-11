@@ -165,12 +165,12 @@ belief-state / 轻量信念状态，再对候选进行运行时重排序，并�
 \textbf{表 4-1 CEBRA-WP 符号与语义定义}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 符号
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -180,9 +180,9 @@ belief-state / 轻量信念状态，再对候选进行运行时重排序，并�
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 在算法中的作用
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 \texttt{g} & 设计目标 & 用户输入、ConfirmedTaskSpec &
 定义任务目标与目标权重 \\
@@ -203,7 +203,7 @@ StepResult、SafetyResult、指标、错误细节 &
 只保留可执行或受保护的 degraded feasible 候选 \\
 \texttt{S\_static} & 静态效用 & score\_breakdown &
 在运行时观测介入前评价候选先验质量 \\
-\texttt{G\_post} & 后验目标匹配 & posterior\_objective &
+$G_{\mathrm{post}}$ & 后验目标匹配 & posterior\_objective &
 根据证据可靠性修正目标评分 \\
 \texttt{Delta} & 运行时修正项 & runtime\_adjustment &
 根据状态变量修正候选排序 \\
@@ -221,17 +221,17 @@ StepResult、SafetyResult、指标、错误细节 &
 \texttt{pi*}、候选解释、运行时状态摘要和恢复动作
 \texttt{a\_t}。核心计算过程可概括为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{Pi\_raw,t = GenerateCandidates(g, C, K, h\_t)}
-\NormalTok{Pi\_t     = FeasibilityFilter(Pi\_raw,t, C, K, h\_t)}
-\NormalTok{S\_static = StaticUtility(pi, g, C, K)}
-\NormalTok{x\_t+1    = BeliefUpdate(x\_t, o\_t, h\_t)}
-\NormalTok{G\_post   = PosteriorObjective(pi, g, o\_t)}
-\NormalTok{U\_pi     = RuntimeCandidateUtility(S\_static, G\_post, x\_t+1)}
-\NormalTok{a\_t      = RecoveryAwareActionSelection(x\_t+1, Pi\_t, h\_t, C)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\begin{aligned}
+\Pi_{\mathrm{raw},t} &= \operatorname{GenerateCandidates}(g,C,K,h_t),\\
+\Pi_t &= \operatorname{FeasibilityFilter}(\Pi_{\mathrm{raw},t},C,K,h_t),\\
+S_{\mathrm{static}} &= \operatorname{StaticUtility}(\pi,g,C,K),\\
+x_{t+1} &= \operatorname{BeliefUpdate}(x_t,o_t,h_t),\\
+G_{\mathrm{post}} &= \operatorname{PosteriorObjective}(\pi,g,o_t),\\
+U_{\pi} &= \operatorname{RuntimeCandidateUtility}(S_{\mathrm{static}},G_{\mathrm{post}},x_{t+1}),\\
+a_t &= \operatorname{RecoveryAwareActionSelection}(x_{t+1},\Pi_t,h_t,C).
+\end{aligned}
+\]
 
 该定义突出两点：一是候选生成与候选选择相互分离，Planner
 可以生成多个方案，但只有通过可行性和效用评估的候选才会进入执行或人工确认；二是运行时状态只修正排序和动作建议，不改变
@@ -245,15 +245,16 @@ CEBRA-WP 支持三类候选。PlanCandidate 表示初始完整计划；PatchCand
 优先保留已验证前缀，\texttt{terminal\_stop}
 表示继续投入不划算时的终止型重规划候选。
 
-候选进入评分前必须先通过硬可行性过滤。对候选 \texttt{pi}
+候选进入评分前必须先通过硬可行性过滤。对候选 $\pi$
 定义硬可行性谓词：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{F\_h(pi, C, K, h\_t)}
-\NormalTok{  = F\_tool ∧ F\_schema ∧ F\_io ∧ F\_safety ∧ F\_budget{-}hard ∧ F\_availability}
-\end{Highlighting}
-\end{Shaded}
+\[
+\begin{aligned}
+F_h(\pi,C,K,h_t)
+  &= F_{\mathrm{tool}}\land F_{\mathrm{schema}}\land F_{\mathrm{io}}\land F_{\mathrm{safety}}\\
+  &\quad{}\land F_{\mathrm{budget\mbox{-}hard}}\land F_{\mathrm{availability}}.
+\end{aligned}
+\]
 
 其中，\texttt{F\_tool}
 检查候选中的工具是否存在于能力图或适配器注册表；\texttt{F\_schema}
@@ -263,11 +264,9 @@ safety block；\texttt{F\_budget-hard}
 检查是否突破不可逾越预算上限；\texttt{F\_availability}
 检查关键工具是否可用或是否有明确降级路径。过滤后的集合为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{Pi\_t = \{ pi in Pi\_raw,t | F\_h(pi, C, K, h\_t) = 1 \}}
-\end{Highlighting}
-\end{Shaded}
+\[
+\Pi_t=\{\pi\in\Pi_{\mathrm{raw},t}\mid F_h(\pi,C,K,h_t)=1\}.
+\]
 
 硬可行性过滤承担系统边界约束，因此静态评分不能把硬不可行候选``打高分后救回''。工程实现可以保留
 degraded feasible 候选用于解释或 HITL
@@ -275,17 +274,17 @@ degraded feasible 候选用于解释或 HITL
 
 在候选通过硬过滤后，算法计算静态效用：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{S\_static(pi)}
-\NormalTok{  = w\_f F\_s(pi)}
-\NormalTok{  + w\_g G(pi; g, o\_t)}
-\NormalTok{  {-} w\_c C\_norm(pi)}
-\NormalTok{  {-} w\_r R\_norm(pi)}
-\NormalTok{  {-} w\_rec Rec(pi)}
-\NormalTok{  + w\_q Q(pi)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\begin{aligned}
+S_{\mathrm{static}}(\pi)
+  &= w_f F_s(\pi)
+   + w_g G(\pi;g,o_t)
+   - w_c C_{\mathrm{norm}}(\pi)\\
+  &\quad{}- w_r R_{\mathrm{norm}}(\pi)
+   - w_{\mathrm{rec}}\operatorname{Rec}(\pi)
+   + w_q Q(\pi).
+\end{aligned}
+\]
 
 \texttt{F\_s} 是软可行性分数，表示候选在 schema 完整、工具
 readiness、fallback depth 等方面的先验质量；\texttt{G}
@@ -303,30 +302,30 @@ Lite belief-state / 轻量信念状态和后验证据修正。
 CEBRA-WP 使用 Lite belief-state /
 轻量信念状态近似表示执行过程中无法完全观测的工作流状态。它只保留三类变量：对恢复动作选择必要的变量、能够从现有日志稳定更新的变量，以及能够被实验和案例解释的变量。状态向量定义为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{x\_t = [}
-\NormalTok{  p\_success,}
-\NormalTok{  p\_structural\_failure,}
-\NormalTok{  recovery\_margin,}
-\NormalTok{  expected\_remaining\_cost,}
-\NormalTok{  evidence\_sufficiency}
-\NormalTok{]}
-\end{Highlighting}
-\end{Shaded}
+\[
+x_t=\left[
+\begin{array}{c}
+p_{\mathrm{success}}\\
+p_{\mathrm{structural}}\\
+\statevar{recovery\_margin}\\
+\statevar{expected\_remaining\_cost}\\
+\statevar{evidence\_sufficiency}
+\end{array}
+\right].
+\]
 
 各状态量的语义如表 4-2 所示。
 
 \textbf{表 4-2 Lite belief-state / 轻量信念状态变量}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 状态量
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -338,9 +337,9 @@ CEBRA-WP 使用 Lite belief-state /
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 决策作用
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 \texttt{p\_success} & \texttt{{[}0,1{]}} &
 当前链路继续执行后完成任务的估计概率 &
@@ -376,20 +375,20 @@ HITL 决策记录。派生量如
 保留剩余成本原始估计，不直接等同于 \texttt{{[}0,1{]}}
 区间内的预算压力。若任务给出预算上限 \texttt{budget\_cap}，则：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{budget\_pressure}
-\NormalTok{  = clip(expected\_remaining\_cost / max(budget\_cap, 0.1), 0, 1.5)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\statevar{budget\_pressure}
+=\operatorname{clip}\left(
+\frac{\statevar{expected\_remaining\_cost}}{\max(\statevar{budget\_cap},0.1)},
+0,1.5
+\right).
+\]
 
 若任务未给出预算上限，则使用：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{budget\_pressure = clip(expected\_remaining\_cost, 0, 1.5)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\statevar{budget\_pressure}
+=\operatorname{clip}(\statevar{expected\_remaining\_cost},0,1.5).
+\]
 
 因此，预算压力是由任务上下文派生的动作决策量，而不是 RuntimeState
 的持久化字段。该区分使系统既能记录可解释的剩余成本，也能在不同预算设置下统一比较恢复动作。
@@ -414,59 +413,56 @@ POMDP，也不在线训练策略网络，而是使用可解释变量为候选重
 和安全性等。不同目标的证据来源不同，证据可靠性也不同。为避免把弱证据与直接证据等价处理，CEBRA-WP
 使用证据加权后验目标匹配：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{G\_post(pi; g, o\_t) = Σ\_m λ\_m(g) · ρ\_m(o\_t) · q\_m(pi, o\_t)}
-\end{Highlighting}
-\end{Shaded}
+\[
+G_{\mathrm{post}}(\pi;g,o_t)
+=\sum_m \lambda_m(g)\rho_m(o_t)q_m(\pi,o_t).
+\]
 
-其中，\texttt{m} 表示目标维度，\texttt{λ\_m(g)}
-是由任务目标决定的目标权重，\texttt{q\_m(pi,\ o\_t)}
-是候选在该维度上的归一化分数，\texttt{ρ\_m(o\_t)}
+其中，\texttt{m} 表示目标维度，$\lambda_m(g)$
+是由任务目标决定的目标权重，$q_m(\pi,o_t)$
+是候选在该维度上的归一化分数，$\rho_m(o_t)$
 是证据可靠性权重。证据状态分为 direct、proxy、degraded 和
 missing：direct evidence 指已产生的结构质量指标，proxy evidence
 指由轻量质量门禁推断出的间接信号，degraded evidence
 表示工具降级或证据覆盖不完整，missing
 表示当前没有可用证据。整体证据充分度可写为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{e\_t = clip(Σ\_m λ\_m(g) · ρ\_m(o\_t), 0, 1)}
-\end{Highlighting}
-\end{Shaded}
+\[
+e_t=\operatorname{clip}\left(\sum_m \lambda_m(g)\rho_m(o_t),0,1\right).
+\]
 
 该值进入
 \texttt{evidence\_sufficiency}，影响是否继续进入高代价步骤。若证据不足而候选下一步成本较高，运行时重排序会降低该候选；若已有充分低成本证据支持，则候选可以更合理地进入结构预测或目标评分。
 
-将 \texttt{G\_post}
+将 $G_{\mathrm{post}}$
 替换静态效用中的目标匹配项后，得到包含后验证据的基础分
-\texttt{S\_post}。运行时重排序定义为：
+$S_{\mathrm{post}}$。运行时重排序定义为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{U\_pi(pi, x\_t) = clip(S\_post(pi) + Delta(pi, x\_t), 0, 1)}
-\end{Highlighting}
-\end{Shaded}
+\[
+U_{\pi}(\pi,x_t)
+=\operatorname{clip}\left(S_{\mathrm{post}}(\pi)+\Delta(\pi,x_t),0,1\right).
+\]
 
-其中 \texttt{Delta(pi,\ x\_t)} 是有界运行时修正项，取值范围控制在
+其中 $\Delta(\pi,x_t)$ 是有界运行时修正项，取值范围控制在
 \texttt{{[}-0.35,\ 0.35{]}}。其一般形式为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{Delta(pi, x\_t)}
-\NormalTok{  = k\_s · (p\_success {-} 0.5) · Conf(pi)}
-\NormalTok{  + k\_e · (2 · evidence\_sufficiency {-} 1) · max(Conf(pi), F\_s(pi))}
-\NormalTok{  {-} k\_f · p\_structural\_failure · (1 {-} RiskScore(pi))}
-\NormalTok{  + k\_r · recovery\_margin · RecoveryScore(pi)}
-\NormalTok{  {-} k\_c · budget\_pressure · (1 {-} CostScore(pi))}
-\NormalTok{  + k\_a · ActionBias(pi, x\_t)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\begin{aligned}
+\Delta(\pi,x_t)
+  &= k_s\,(p_{\mathrm{success}}-0.5)\operatorname{Conf}(\pi)\\
+  &\quad{}+k_e\,(2\,\statevar{evidence\_sufficiency}-1)
+       \max(\operatorname{Conf}(\pi),F_s(\pi))\\
+  &\quad{}-k_f\,p_{\mathrm{structural}}\,(1-\operatorname{RiskScore}(\pi))\\
+  &\quad{}+k_r\,\statevar{recovery\_margin}\operatorname{RecoveryScore}(\pi)\\
+  &\quad{}-k_c\,\statevar{budget\_pressure}\,(1-\operatorname{CostScore}(\pi))\\
+  &\quad{}+k_a\,\operatorname{ActionBias}(\pi,x_t).
+\end{aligned}
+\]
 
-其中，\texttt{Conf(pi)} 表示候选置信度，\texttt{RiskScore(pi)} 和
-\texttt{CostScore(pi)}
-为候选的风险与成本质量分数，\texttt{RecoveryScore(pi)}
-表示候选恢复友好度，\texttt{ActionBias(pi,\ x\_t)}
+其中，$\operatorname{Conf}(\pi)$ 表示候选置信度，$\operatorname{RiskScore}(\pi)$ 和
+$\operatorname{CostScore}(\pi)$
+为候选的风险与成本质量分数，$\operatorname{RecoveryScore}(\pi)$
+表示候选恢复友好度，$\operatorname{ActionBias}(\pi,x_t)$
 表示候选与当前恢复动作偏好的匹配程度。其直观含义是：当
 \texttt{p\_structural\_failure}
 和预算压力升高时，算法降低高成本、低可恢复候选的排序；当
@@ -488,13 +484,13 @@ CEBRA-WP
 \textbf{表 4-3 恢复动作与 FSM/HITL 映射}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 动作
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -506,9 +502,9 @@ FSM/HITL 映射
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 审计结果
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 \texttt{continue} & 成功概率较高、证据充分、风险和预算压力可接受 &
 继续执行当前计划后续步骤 & RUNNING 内自动推进或维持 PLANNED/RUNNING &
@@ -530,25 +526,25 @@ replan 候选、前缀保留位置和新后缀 \\
 \texttt{local\_patchability}、\texttt{evidence\_reusability}、\texttt{prefix\_preservability}、\texttt{budget\_relief}、\texttt{goal\_realignment}
 和 \texttt{intervention\_value}。动作效用可写为：
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{U\_continue}
-\NormalTok{  = 0.38s + 0.14e + 0.12r {-} 0.22f {-} 0.14b}
-
-\NormalTok{U\_patch\_local}
-\NormalTok{  = 0.20s + 0.24r + 0.18 · local\_patchability}
-\NormalTok{    + 0.12 · evidence\_reusability {-} 0.14f {-} 0.12b}
-
-\NormalTok{U\_suffix\_replan}
-\NormalTok{  = 0.18(1{-}s) + 0.20f + 0.16(1{-}r)}
-\NormalTok{    + 0.18 · prefix\_preservability + 0.14 · budget\_relief}
-\NormalTok{    + 0.14 · goal\_realignment}
-
-\NormalTok{U\_stop}
-\NormalTok{  = 0.32(1{-}s) + 0.24b + 0.18(1{-}r)}
-\NormalTok{    + 0.16 · safety\_terminality + 0.10(1{-}intervention\_value)}
-\end{Highlighting}
-\end{Shaded}
+\[
+\begin{aligned}
+U_{\mathrm{continue}}
+  &=0.38s+0.14e+0.12r-0.22f-0.14b,\\
+U_{\statevar{patch\_local}}
+  &=0.20s+0.24r+0.18\,\statevar{local\_patchability}
+    +0.12\,\statevar{evidence\_reusability}\\
+  &\quad{}-0.14f-0.12b,\\
+U_{\statevar{suffix\_replan}}
+  &=0.18(1-s)+0.20f+0.16(1-r)
+    +0.18\,\statevar{prefix\_preservability}\\
+  &\quad{}+0.14\,\statevar{budget\_relief}
+    +0.14\,\statevar{goal\_realignment},\\
+U_{\mathrm{stop}}
+  &=0.32(1-s)+0.24b+0.18(1-r)
+    +0.16\,\statevar{safety\_terminality}\\
+  &\quad{}+0.10(1-\statevar{intervention\_value}).
+\end{aligned}
+\]
 
 这组效用函数体现了四类动作的不同偏好：\texttt{continue}
 对较高成功概率、证据充分度和恢复余量更敏感；\texttt{patch\_local}
@@ -614,7 +610,7 @@ Lite belief-state 的内部消融配置，如表 4-4 所示。
 \textbf{表 4-4 四组消融策略与算法机制开关}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
@@ -623,7 +619,7 @@ Lite belief-state 的内部消融配置，如表 4-4 所示。
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
   >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 策略组
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -641,9 +637,9 @@ Runtime rerank
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 主要实验问题
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 \texttt{static\_top1} & 启用 & 未启用 & 未启用 & 未启用 & 未启用 &
 未启用 & 单一静态最优候选是否足以完成任务 \\

@@ -50,18 +50,18 @@ run config、event log、snapshot、report 和聚合 CSV 组成。
 \textbf{表 7-1 实验矩阵配置表}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
   >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 项目
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 配置
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 run\_id & \texttt{thesis-final-v1-001} \\
 freeze\_id & \texttt{issue209-baseline-freeze-20260326} \\
@@ -113,13 +113,13 @@ DONE，其余三组各 1 个 FAILED。
 \textbf{表 7-2 四组消融主实验结果}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1579}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 指标
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
@@ -131,9 +131,9 @@ dynamic\_no\_belief\_state
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
 lite\_belief\_state
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 runs & 21 & 21 & 21 & 21 \\
 DONE & 21 & 20 & 20 & 20 \\
@@ -171,12 +171,12 @@ medium/standard 层。
 \textbf{表 7-3 按任务难度与预算分层的成功率}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}lrrrr@{}}
-\toprule\noalign{}
+\begin{longtable}{@{}lrrrr@{}}
+\toprule
 分层 & runs & DONE & FAILED & success\_rate \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 easy & 32 & 32 & 0 & 1.0000 \\
 medium & 40 & 37 & 3 & 0.9250 \\
@@ -197,13 +197,13 @@ FAILED。hard 层样本量较小，该行仅作为本矩阵中的观察事实。
 \textbf{表 7-4 机制增量配对对比}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2353}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2353}}
   >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 对比
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -215,9 +215,9 @@ delta
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 结果含义
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 static→fixed & success\_rate & -0.0476 & 21 & fixed 组多 1 个失败。 \\
 static→fixed & first\_pass\_success\_rate & -0.0952 & 21 & fixed
@@ -254,14 +254,14 @@ valid、RuntimeState 和 action utility 等机制信息上。
 \textbf{表 7-5 高代价调用与运行时间对比}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1304}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 组
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
@@ -275,9 +275,9 @@ high\_cost\_mean
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
 平均耗时
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 static\_top1 & 21 & 1.0000 & 21 & 0 & 241,905 ms \\
 fixed\_threshold\_gate & 28 & 1.3333 & 27 & 1 & 300,238 ms \\
@@ -308,11 +308,11 @@ focused tests 已覆盖后缀重规划和 \texttt{terminal\_stop}
 \textbf{表 7-6 Lite belief-state 机制可观测性对比}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 特征
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -320,9 +320,9 @@ static\_top1 / fixed\_threshold\_gate / dynamic\_no\_belief\_state
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 lite\_belief\_state
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 runtime\_state\_summary & 无有效运行时状态摘要 & 21/21 runs 产生
 RuntimeState \\
@@ -366,14 +366,14 @@ utility，并据此影响候选排序。
 \textbf{表 7-7 失败案例归因表}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
   >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.2105}}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
   >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 策略组
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -387,9 +387,9 @@ repeat
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 证据意义
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 fixed\_threshold\_gate & \texttt{t2\_ubiquitin\_sequence\_eval} & r02 &
 auto decision loop exhausted & 固定阈值门控触发 WAITING\_PATCH
@@ -420,12 +420,12 @@ snapshot，可作为可追溯的边界样本。fixed\_threshold\_gate 的 t2
 \textbf{表 7-8 实验结果证据产物索引}
 
 {\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
+\begin{longtable}{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
   >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
-\toprule\noalign{}
+\toprule
 \begin{minipage}[b]{\linewidth}\raggedright
 证据产物
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
@@ -435,9 +435,9 @@ snapshot，可作为可追溯的边界样本。fixed\_threshold\_gate 的 t2
 \end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
 使用位置
 \end{minipage} \\
-\midrule\noalign{}
+\midrule
 \endhead
-\bottomrule\noalign{}
+\bottomrule
 \endlastfoot
 实验结果报告 &
 \texttt{../thesis-project.dev/docs/experiment/thesis-final-v1-results.md}

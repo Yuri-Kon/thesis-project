@@ -12,6 +12,13 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stag
 latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final-term stages/final-term-report.tex
 ```
 
+For the final-term report, prefer the wrapper script so relative paths for
+chapters, bibliography, and output stay stable:
+
+```bash
+paper/tex/tools/build_final_term_report.sh
+```
+
 ## Structure
 
 - `paper/tex/common/` shared preamble
@@ -48,6 +55,7 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final-term
 - `paper/format/final-term-docx-template-extracted.md` records the extracted Word style signals from `docs/final-term/结题报告.docx`.
 - `paper/tex/stages/final-term-report.tex` starts directly from Chapter 1 / 绪论. It intentionally does not generate a cover, abstract, or table of contents.
 - The final-term report uses `gbt7714-numerical` for GB/T 7714-2015 numeric references. The build environment must provide the corresponding `.bst` file.
+- `paper/tex/tools/build_final_term_report.sh` can be called from the repository root or any subdirectory.
 - To refresh LaTeX body chapters from Markdown, run:
 
 ```bash
