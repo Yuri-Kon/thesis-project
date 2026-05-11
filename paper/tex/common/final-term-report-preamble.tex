@@ -1,0 +1,125 @@
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{calc}
+\usepackage{tabularx}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{indentfirst}
+\usepackage{xcolor}
+\usepackage{framed}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+
+\geometry{
+  top=3.8cm,
+  bottom=3.0cm,
+  left=3.0cm,
+  right=3.0cm,
+  headheight=14pt,
+  headsep=0.6cm,
+  footskip=1.0cm
+}
+
+\IfFontExistsTF{Times New Roman}{
+  \setmainfont{Times New Roman}
+  \newfontfamily\tnrfont{Times New Roman}
+}{
+  \setmainfont{Liberation Serif}
+  \newfontfamily\tnrfont{Liberation Serif}
+}
+
+\IfFontExistsTF{Noto Serif CJK SC}{
+  \setCJKmainfont{Noto Serif CJK SC}
+  \newCJKfontfamily\termSong{Noto Serif CJK SC}
+}{
+  \newcommand{\termSong}{\songti}
+}
+\IfFontExistsTF{Noto Sans CJK SC}{
+  \setCJKsansfont{Noto Sans CJK SC}[AutoFakeBold=2]
+  \newCJKfontfamily\termHei{Noto Sans CJK SC}[AutoFakeBold=2]
+}{
+  \newcommand{\termHei}{\heiti}
+}
+
+\setlength{\parindent}{2em}
+\setlength{\parskip}{0pt}
+\setstretch{1.25}
+\setlist[itemize]{nosep,leftmargin=2.5em}
+\setlist[enumerate]{nosep,leftmargin=2.8em}
+
+\pagestyle{plain}
+\fancyhf{}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=black,
+  citecolor=black
+}
+
+\setcitestyle{numbers,square,comma,sort&compress}
+
+\renewcommand{\figurename}{图}
+\renewcommand{\tablename}{表}
+\renewcommand{\refname}{参考文献}
+
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+\numberwithin{equation}{section}
+\renewcommand{\thefigure}{\arabic{section}-\arabic{figure}}
+\renewcommand{\thetable}{\arabic{section}-\arabic{table}}
+\renewcommand{\theequation}{\arabic{section}-\arabic{equation}}
+
+\DeclareCaptionFont{termcaption}{\termHei\fontsize{10.5pt}{14pt}\selectfont}
+\captionsetup{justification=centering,singlelinecheck=false,font=termcaption,labelsep=space}
+
+\titleformat{\section}
+  {\centering\termHei\bfseries\fontsize{16pt}{20pt}\selectfont}
+  {第\arabic{section}章}
+  {1em}
+  {}
+
+\titleformat{\subsection}
+  {\termHei\bfseries\fontsize{15pt}{20pt}\selectfont}
+  {\arabic{section}.\arabic{subsection}}
+  {0.75em}
+  {}
+
+\titleformat{\subsubsection}
+  {\termHei\bfseries\fontsize{14pt}{18pt}\selectfont}
+  {\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+  {0.75em}
+  {}
+
+\titlespacing*{\section}{0pt}{1.0em}{0.9em}
+\titlespacing*{\subsection}{0pt}{0.7em}{0.5em}
+\titlespacing*{\subsubsection}{0pt}{0.6em}{0.4em}
+
+% Pandoc-generated Markdown support.
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}\small}{\end{snugshade}}
+\newenvironment{Highlighting}{}{}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\KeywordTok}[1]{\textbf{#1}}
+\newcommand{\DecValTok}[1]{#1}
+\newcommand{\StringTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textit{#1}}
+\newcommand{\AttributeTok}[1]{#1}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ControlFlowTok}[1]{\textbf{#1}}
+\newcommand{\OperatorTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{#1}
+\newcommand{\SpecialStringTok}[1]{#1}
+\newcommand{\VariableTok}[1]{#1}

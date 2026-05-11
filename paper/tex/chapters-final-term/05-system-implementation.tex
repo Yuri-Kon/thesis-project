@@ -1,0 +1,500 @@
+\section{系统实现}\label{ux7cfbux7edfux5b9eux73b0}
+
+本章在第四章系统设计的基础上说明工程实现方式。本文不提出新的底层蛋白质生成模型，而是把已有工具组织为可执行、可恢复、可审计的智能工作流。因此，本章主要讨论任务接入、候选计划生成、HITL
+确认、工具执行、运行时恢复和结果审计等机制如何落实到代码模块和接口中。
+
+蛋白质设计相关能力主要通过
+AlphaFold/OpenFold、ESMFold、ProteinMPNN、ProtGPT2、Biopython
+等工具或工具适配器接入，这些工具本身已有成熟研究基础\citep{jumper2021alphafold, lin2023esmfold, dauparas2022proteinmpnn, ferruz2022protgpt2, ahdritz2024openfold, cock2009biopython}。因此，实现工作的重点在于把这些异构能力组织为可追踪、可恢复、可解释的工作流。
+
+\subsection{技术选型与工程结构}\label{ux6280ux672fux9009ux578bux4e0eux5de5ux7a0bux7ed3ux6784}
+
+系统后端采用 Python 3.12、FastAPI 和 Pydantic 实现。Python
+与生物信息学脚本、结构处理库和模型服务生态兼容，适合封装本地脚本和远程
+REST 服务；FastAPI 提供请求路由、响应模型和自动接口文档；Pydantic
+用于定义任务、计划、步骤结果、待决策对象和运行时状态等数据契约。对于蛋白质设计工作流而言，输入字段缺失、工具输出格式不一致、步骤间引用错误都可能导致后续高代价计算失败，因此系统将结构化校验前移到
+API 和模型边界。
+
+前端采用 React、TypeScript 和 Vite 构建轻量 Web
+工作台。前端不保存独立业务状态，而是通过后端 API
+读取任务记录、待决策对象、事件时间线和报告结果。这样可以避免前端界面与后端工作流状态分叉，使
+Web 页面成为运行时状态的可视化投影。
+
+工作流控制采用自定义
+Workflow/FSM，而不是将全局控制流交给外部流程引擎。Nextflow
+等科学工作流工具在可复现计算流程中具有代表性\citep{ditommaso2017nextflow}，但本文系统需要在任务执行中显式处理
+\texttt{WAITING\_*} 状态、PendingAction、Decision、RuntimeState 和
+TaskSnapshot。如果全局状态变化由外部流程引擎隐式管理，HITL
+暂停、快照恢复和恢复候选审计就难以统一。因此，系统将外部工具和流程后端限定在单个
+PlanStep 内，把多步编排、状态迁移和人工确认保留在自定义运行时中。
+
+表 5-1
+给出了后端核心模块与论文架构层之间的对应关系。该表说明系统实现并非简单的文件目录堆叠，而是围绕任务接入、数据契约、工作流控制、工具适配和审计恢复形成分层实现。
+
+\textbf{表 5-1 后端核心模块与论文架构层对应关系}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+实现目录
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+主要职责
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+对应设计层/模块
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+正文说明重点
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{src/api/} & FastAPI 入口、任务接口、HITL 接口、前端静态入口 &
+输入交互层、任务接入模块 & API
+是任务、事件、报告和人工决策的统一边界。 \\
+\texttt{src/models/} & Pydantic 契约、状态枚举、任务记录 & 核心数据契约
+& 任务、计划、步骤结果、PendingAction、RuntimeState
+等对象均受结构化约束。 \\
+\texttt{src/agents/} & Planner、Executor、Safety、Summarizer & 多 Agent
+协作模块 & 各 Agent 只承担明确职责，不直接越权改变全局状态。 \\
+\texttt{src/workflow/} &
+WorkflowContext、PlanRunner、StepRunner、RuntimeEvaluator、恢复与快照 &
+工作流控制层、CEBRA-WP 工程承载 & FSM、HITL、重试、恢复、runtime rerank
+和快照的主要实现位置。 \\
+\texttt{src/adapters/} & ToolAdapter、AdapterRegistry、具体工具适配器 &
+工具执行与资源接入层 & 屏蔽本地工具、远程 REST 服务和脚本差异。 \\
+\texttt{src/kg/} & ProteinToolKG JSON 与查询逻辑 & ProteinToolKG &
+为候选生成提供工具能力、I/O、成本和安全约束。 \\
+\texttt{src/storage/} & 事件日志、快照、文件产物管理 & 审计与恢复支撑 &
+EventLog 和 TaskSnapshot 支撑恢复、复核和实验证据提取。 \\
+\end{longtable}
+}
+
+\subsection{任务接入与后端 API
+实现}\label{ux4efbux52a1ux63a5ux5165ux4e0eux540eux7aef-api-ux5b9eux73b0}
+
+\subsubsection{渐进式任务录入}\label{ux6e10ux8fdbux5f0fux4efbux52a1ux5f55ux5165}
+
+蛋白质设计任务通常不能仅靠一句自然语言目标完整描述。用户可能输入``设计一个
+30
+残基的稳定短肽''，但长度范围、任务类型、结构模板、预算约束、安全限制和目标评分方式仍需要补充。为降低自由文本直接进入高代价执行的风险，系统实现了
+Task Intake
+链路，将任务录入拆分为草稿创建、字段补充、场景预检查和正式确认几个阶段。
+
+后端提供
+\texttt{/task-intakes/schema}、\texttt{/task-intakes}、\texttt{/task-intakes/\{id\}}
+和 \texttt{/task-intakes/\{id\}/confirm}
+等接口。字段注册表由后端返回，前端 Task Builder
+根据字段类型、是否必填和分组信息动态渲染表单。用户补充字段后，系统进行场景门控和安全预检查，只有确认后的结构化任务规格才会进入正式任务创建路径。
+
+在正式任务创建接口中，系统支持 \texttt{goal}、\texttt{query} 和
+\texttt{confirmed\_task\_spec} 三种入口，但三者必须互斥。代码清单 5-1
+展示了任务创建请求模型中的互斥校验。该校验保证任务来源清晰：自由文本、兼容入口和已确认结构化规格不会混杂进入同一个任务。
+
+\textbf{代码清单 5-1 任务创建请求的互斥入口校验}
+
+来源：\texttt{../thesis-project.dev/src/api/main.py:166}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{class}\NormalTok{ TaskCreateRequest(BaseModel):}
+\NormalTok{    goal: Optional[}\BuiltInTok{str}\NormalTok{] }\OperatorTok{=}\NormalTok{ Field(}\VariableTok{None}\NormalTok{, description}\OperatorTok{=}\StringTok{"蛋白质设计任务目标(自然语言)"}\NormalTok{)}
+\NormalTok{    query: Optional[}\BuiltInTok{str}\NormalTok{] }\OperatorTok{=}\NormalTok{ Field(}\VariableTok{None}\NormalTok{, description}\OperatorTok{=}\StringTok{"兼容自由文本入口；会收敛为 intake"}\NormalTok{)}
+\NormalTok{    confirmed\_task\_spec: Optional[ConfirmedTaskSpec] }\OperatorTok{=}\NormalTok{ Field(}
+        \VariableTok{None}\NormalTok{,}
+\NormalTok{        description}\OperatorTok{=}\StringTok{"已经确认的结构化任务输入"}\NormalTok{,}
+\NormalTok{    )}
+\NormalTok{    constraints: Dict[}\BuiltInTok{str}\NormalTok{, Any] }\OperatorTok{=}\NormalTok{ Field(default\_factory}\OperatorTok{=}\BuiltInTok{dict}\NormalTok{, description}\OperatorTok{=}\StringTok{"结构化约束"}\NormalTok{)}
+\NormalTok{    metadata: Dict[}\BuiltInTok{str}\NormalTok{, Any] }\OperatorTok{=}\NormalTok{ Field(default\_factory}\OperatorTok{=}\BuiltInTok{dict}\NormalTok{)}
+
+    \AttributeTok{@model\_validator}\NormalTok{(mode}\OperatorTok{=}\StringTok{"after"}\NormalTok{)}
+    \KeywordTok{def}\NormalTok{ \_validate\_creation\_mode(}\VariableTok{self}\NormalTok{) }\OperatorTok{{-}\textgreater{}} \StringTok{"TaskCreateRequest"}\NormalTok{:}
+\NormalTok{        modes }\OperatorTok{=}\NormalTok{ [}
+            \VariableTok{self}\NormalTok{.goal }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
+            \VariableTok{self}\NormalTok{.query }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
+            \VariableTok{self}\NormalTok{.confirmed\_task\_spec }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
+\NormalTok{        ]}
+        \ControlFlowTok{if} \KeywordTok{not} \BuiltInTok{any}\NormalTok{(modes):}
+            \ControlFlowTok{raise} \PreprocessorTok{ValueError}\NormalTok{(}\StringTok{"one of goal, query, or confirmed\_task\_spec is required"}\NormalTok{)}
+        \ControlFlowTok{if} \BuiltInTok{sum}\NormalTok{(modes) }\OperatorTok{\textgreater{}} \DecValTok{1}\NormalTok{:}
+            \ControlFlowTok{raise} \PreprocessorTok{ValueError}\NormalTok{(}\StringTok{"choose exactly one of goal, query, or confirmed\_task\_spec"}\NormalTok{)}
+        \ControlFlowTok{return} \VariableTok{self}
+\end{Highlighting}
+\end{Shaded}
+
+代码清单 5-1
+对应第四章中``任务输入需要结构化确认''的设计要求。该校验不直接提高蛋白质设计模型的能力，但可以避免任务入口语义不清导致后续计划生成和审计困难。
+
+\subsubsection{任务生命周期接口}\label{ux4efbux52a1ux751fux547dux5468ux671fux63a5ux53e3}
+
+正式任务创建后，系统通过任务生命周期接口暴露任务状态、事件和报告。\texttt{GET\ /tasks/\{task\_id\}}
+返回任务记录，包括外部状态、内部状态、任务目标、约束、计划、设计结果、待决策对象和安全事件。外部状态用于前端展示，例如
+\texttt{WAITING\_PATCH\_CONFIRM}；内部状态保留执行细节，例如
+\texttt{WAITING\_PATCH} 或 \texttt{PATCHING}。这种双状态设计使 UI
+可以保持简洁，同时不丢失恢复流程所需的精确状态。
+
+\texttt{GET\ /tasks/\{task\_id\}/events}
+返回事件时间线。该接口直接读取事件日志，而不是只依赖内存任务表。因此，只要日志文件存在，服务重启后仍可还原任务的状态迁移、步骤执行、等待进入、决策应用和等待退出等事件。\texttt{GET\ /tasks/\{task\_id\}/report}
+返回最终报告摘要，包含序列、结构文件路径、评分、风险标记和目标评分结果；未完成任务请求报告时返回错误响应，避免把中间状态误认为最终结果。
+
+\subsubsection{HITL 接口}\label{hitl-ux63a5ux53e3}
+
+HITL 机制通过 PendingAction 和 Decision
+建模。\texttt{GET\ /pending-actions}
+返回待审查任务摘要，\texttt{GET\ /pending-actions/\{id\}}
+返回候选详情，\texttt{POST\ /pending-actions/\{id\}/decision}
+接收用户决策。候选详情中包含候选数量、默认建议、评分分解、运行时状态摘要、风险等级、成本估计和解释字段。这些信息使前端能够展示``为什么推荐该候选''，而不是只给出一个不可解释的确认按钮。
+
+当用户提交 Decision 后，后端会验证 PendingAction
+是否属于当前任务、是否仍处于待决策状态、所选候选是否存在。验证通过后，后端根据
+action type 将决策应用到
+plan、局部修补或重规划，并写入决策事件和等待退出事件。这一过程保证人工决策属于工作流状态，而不是前端临时
+UI 状态。
+
+\subsection{前端工作台实现}\label{ux524dux7aefux5de5ux4f5cux53f0ux5b9eux73b0}
+
+前端工作台由 Dashboard、Task Builder、Task Detail 和 Event Timeline
+四类页面组成。Dashboard 展示任务列表、状态摘要和工具能力 readiness；Task
+Builder 承担任务录入、字段补充和确认；Task Detail
+聚合任务状态、候选审查、报告与结构产物入口；Event Timeline
+用于查看任务生命周期事件。
+
+前端启动时从后端注入的 bootstrap payload 获取当前视图和任务 ID，再通过
+API 拉取任务、待决策对象、事件和报告。这种实现方式使前端不需要自行推导
+FSM 状态，也不会在页面刷新或任务切换时产生独立状态源。
+
+在 Task Detail 页面中，PendingReviewWorkspace 是 HITL
+的主要交互区域。当任务进入 \texttt{WAITING\_*}
+状态时，前端展示候选方案对比、评分分解、运行时上下文和决策表单。用户提交决策后，前端仅向后端发送结构化
+Decision，具体的计划应用、状态迁移、快照写入和事件记录均由后端工作流模块完成。
+
+当前前端的结构展示区域主要提供结构文件路径、报告浏览和可视化入口。论文中应将其表述为``结构产物入口与展示区域''，而不扩大为完整的三维结构分析平台。
+
+\subsection{工作流运行时与执行引擎}\label{ux5de5ux4f5cux6d41ux8fd0ux884cux65f6ux4e0eux6267ux884cux5f15ux64ce}
+
+系统运行时的核心执行序列如图 5-1 所示。用户通过 API 创建任务后，Workflow
+创建运行时上下文，Planner 根据任务目标和 ProteinToolKG
+生成候选计划，Executor 在人工确认或自动选择后执行
+PlanStep。执行过程中，StepRunner 调用 ToolAdapter
+解析输入、执行工具、校验输出，并将 StepResult 写回上下文。Safety
+模块在输入、步骤和输出阶段提供风险判定，Storage
+模块负责事件日志、快照和产物写入。
+
+图 5-1 运行时执行序列
+插图文件：\texttt{paper/figures/runtime-sequence.drawio.svg}
+
+图 5-1 的重点在于说明 Planner 和 Executor 的边界：Planner
+生成候选并查询工具知识，不直接执行工具；Executor 只执行已确认的
+PlanStep，并通过 StepRunner 和 ToolAdapter
+与外部工具交互。这一边界保证候选生成、人工确认、工具执行和审计记录可以分别追踪。
+
+\subsubsection{WorkflowContext}\label{workflowcontext}
+
+WorkflowContext
+是单个任务运行期间的上下文对象，保存任务、当前计划、步骤结果、安全事件、RuntimeState、最终结果和
+PendingAction。运行时状态更新不由各模块分散修改，而是通过上下文提供的统一入口触发。代码清单
+5-2 展示了 StepResult 和 SafetyResult 写入时如何触发 RuntimeState 更新。
+
+\textbf{代码清单 5-2 WorkflowContext 中的 RuntimeState 更新入口}
+
+来源：\texttt{../thesis-project.dev/src/workflow/context.py:90}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{def}\NormalTok{ add\_step\_result(}\VariableTok{self}\NormalTok{, result: StepResult) }\OperatorTok{{-}\textgreater{}} \VariableTok{None}\NormalTok{:}
+    \VariableTok{self}\NormalTok{.step\_results[result.step\_id] }\OperatorTok{=}\NormalTok{ result}
+    \ControlFlowTok{if} \KeywordTok{not}\NormalTok{ runtime\_policy\_uses\_belief\_state(}\VariableTok{self}\NormalTok{.task):}
+        \ControlFlowTok{return}
+    \VariableTok{self}\NormalTok{.apply\_runtime\_state\_update(}
+\NormalTok{        step\_result}\OperatorTok{=}\NormalTok{result,}
+\NormalTok{        failure\_context}\OperatorTok{=}\NormalTok{extract\_failure\_context(result),}
+\NormalTok{    )}
+
+\KeywordTok{def}\NormalTok{ add\_safety\_event(}\VariableTok{self}\NormalTok{, event: SafetyResult) }\OperatorTok{{-}\textgreater{}} \VariableTok{None}\NormalTok{:}
+    \VariableTok{self}\NormalTok{.safety\_events.append(event)}
+    \ControlFlowTok{if} \KeywordTok{not}\NormalTok{ runtime\_policy\_uses\_belief\_state(}\VariableTok{self}\NormalTok{.task):}
+        \ControlFlowTok{return}
+    \VariableTok{self}\NormalTok{.apply\_runtime\_state\_update(safety\_result}\OperatorTok{=}\NormalTok{event)}
+\end{Highlighting}
+\end{Shaded}
+
+该实现对应第四章中 Lite belief-state /
+轻量信念状态的设计。系统只有在任务启用相关 runtime policy 时才更新
+RuntimeState，从而支持 static、dynamic 和 lite belief-state
+等策略在同一代码基中切换。
+
+\subsubsection{PlanRunner 与
+StepRunner}\label{planrunner-ux4e0e-steprunner}
+
+PlanRunner 负责计划级执行和 FSM
+状态推进。它在计划开始执行前检查任务和计划的一致性，进入运行状态后按顺序执行
+PlanStep。若执行过程中出现可修复失败，PlanRunner
+会请求局部修补候选并进入
+\texttt{WAITING\_PATCH\_CONFIRM}；若出现结构性失败或安全阻断，则请求后缀重规划候选并进入
+\texttt{WAITING\_REPLAN\_CONFIRM}。PlanRunner
+可以推进合法状态迁移，但不会绕过 PendingAction
+自动应用需要人工确认的候选。
+
+StepRunner
+是单步执行的最小单元。它负责有界重试、安全检查、工具适配、输入解析、工具调用、输出校验和错误归一化。代码清单
+5-3 展示了 StepRunner
+的有界重试微循环。该循环只对可重试失败进行重试；当失败不可重试或重试耗尽时，StepRunner
+返回结构化 StepResult，由上层恢复逻辑决定是否进入
+\texttt{patch\_local}、\texttt{suffix\_replan} 或 \texttt{stop}。
+
+\textbf{代码清单 5-3 StepRunner 的有界重试微循环}
+
+来源：\texttt{../thesis-project.dev/src/workflow/step\_runner.py:140}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{def}\NormalTok{ run\_step(}\VariableTok{self}\NormalTok{, step: PlanStep, context: WorkflowContext) }\OperatorTok{{-}\textgreater{}}\NormalTok{ StepResult:}
+    \CommentTok{"""执行单个 PlanStep（带静态重试），返回最终 StepResult"""}
+\NormalTok{    last\_result: StepResult }\OperatorTok{|} \VariableTok{None} \OperatorTok{=} \VariableTok{None}
+\NormalTok{    attempt\_logs: }\BuiltInTok{list}\NormalTok{[AttemptRecord] }\OperatorTok{=}\NormalTok{ []}
+\NormalTok{    retried\_any }\OperatorTok{=} \VariableTok{False}
+
+    \ControlFlowTok{for}\NormalTok{ attempt\_idx }\KeywordTok{in} \BuiltInTok{range}\NormalTok{(}\DecValTok{1}\NormalTok{, }\VariableTok{self}\NormalTok{.\_retry\_policy.max\_attempts }\OperatorTok{+} \DecValTok{1}\NormalTok{):}
+\NormalTok{        result }\OperatorTok{=} \VariableTok{self}\NormalTok{.\_run\_once(step, context)}
+        \VariableTok{self}\NormalTok{.\_annotate\_attempt\_meta(result, attempt\_idx)}
+\NormalTok{        attempt\_logs.append(}\VariableTok{self}\NormalTok{.\_build\_attempt\_record(result, attempt\_idx))}
+\NormalTok{        last\_result }\OperatorTok{=}\NormalTok{ result}
+
+        \ControlFlowTok{if}\NormalTok{ result.status }\OperatorTok{==} \StringTok{"success"}\NormalTok{:}
+            \ControlFlowTok{return} \VariableTok{self}\NormalTok{.\_finalize\_success(result, attempt\_logs)}
+
+\NormalTok{        failure\_type }\OperatorTok{=} \VariableTok{self}\NormalTok{.\_normalize\_failure\_type(result.failure\_type)}
+\NormalTok{        retried\_any }\OperatorTok{=}\NormalTok{ retried\_any }\KeywordTok{or}\NormalTok{ attempt\_idx }\OperatorTok{\textgreater{}} \DecValTok{1}
+\NormalTok{        exhausted }\OperatorTok{=}\NormalTok{ attempt\_idx }\OperatorTok{\textgreater{}=} \VariableTok{self}\NormalTok{.\_retry\_policy.max\_attempts}
+        \ControlFlowTok{if}\NormalTok{ failure\_type }\KeywordTok{is} \VariableTok{None} \KeywordTok{or} \KeywordTok{not}\NormalTok{ is\_retryable\_failure(failure\_type):}
+            \ControlFlowTok{return} \VariableTok{self}\NormalTok{.\_finalize\_failure(result, attempt\_logs, retried\_any, exhausted)}
+        \ControlFlowTok{if}\NormalTok{ exhausted:}
+            \ControlFlowTok{return} \VariableTok{self}\NormalTok{.\_finalize\_failure(result, attempt\_logs, retried\_any, }\VariableTok{True}\NormalTok{)}
+
+\NormalTok{        backoff\_ms }\OperatorTok{=} \VariableTok{self}\NormalTok{.\_retry\_policy.backoff\_ms\_for(attempt\_idx)}
+        \ControlFlowTok{if}\NormalTok{ backoff\_ms }\OperatorTok{\textgreater{}} \DecValTok{0}\NormalTok{:}
+            \VariableTok{self}\NormalTok{.\_sleep\_fn(backoff\_ms }\OperatorTok{/} \DecValTok{1000}\NormalTok{)}
+
+    \ControlFlowTok{return} \VariableTok{self}\NormalTok{.\_finalize\_failure(last\_result, attempt\_logs, retried\_any, }\VariableTok{True}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+该实现避免工具异常直接扩散到上层模块。无论底层问题是本地脚本失败、远程服务超时，还是输出字段缺失，PlanRunner
+和 CEBRA-WP 接收到的都是统一的 failure\_type、attempt history
+和错误详情。
+
+\subsubsection{等待状态、审计与快照}\label{ux7b49ux5f85ux72b6ux6001ux5ba1ux8ba1ux4e0eux5febux7167}
+
+恢复闭环的关键在于进入等待状态前固化待决策对象和审计信息。代码清单 5-4
+展示了 \texttt{enter\_waiting\_state}
+的核心逻辑：状态迁移前，系统先校验等待状态和 PendingAction
+的匹配关系，再写入 context、TaskRecord
+和事件日志。这样，即使系统在等待人工确认期间中断，恢复后仍可以还原当前等待的决策对象、候选集合和默认建议。
+
+\textbf{代码清单 5-4 进入 WAITING 状态前写入 PendingAction 与审计信息}
+
+来源：\texttt{../thesis-project.dev/src/workflow/pending\_action.py:101}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{def}\NormalTok{ enter\_waiting\_state(}
+\NormalTok{    context: WorkflowContext,}
+\NormalTok{    record: TaskRecord }\OperatorTok{|} \VariableTok{None}\NormalTok{,}
+\NormalTok{    pending\_action: PendingAction,}
+\NormalTok{    to\_status: InternalStatus,}
+    \OperatorTok{*}\NormalTok{,}
+\NormalTok{    reason: Optional[}\BuiltInTok{str}\NormalTok{] }\OperatorTok{=} \VariableTok{None}\NormalTok{,}
+\NormalTok{    event\_logger: EventLogger }\OperatorTok{|} \VariableTok{None} \OperatorTok{=} \VariableTok{None}\NormalTok{,}
+\NormalTok{    snapshot\_writer: SnapshotWriter }\OperatorTok{|} \VariableTok{None} \OperatorTok{=} \VariableTok{None}\NormalTok{,}
+\NormalTok{) }\OperatorTok{{-}\textgreater{}} \VariableTok{None}\NormalTok{:}
+\NormalTok{    \_validate\_waiting\_transition(context, pending\_action, to\_status, record)}
+
+\NormalTok{    prev\_status }\OperatorTok{=}\NormalTok{ to\_external\_status(context.status)}
+\NormalTok{    new\_status }\OperatorTok{=}\NormalTok{ \_to\_external\_waiting\_status(to\_status)}
+
+\NormalTok{    context.pending\_action }\OperatorTok{=}\NormalTok{ pending\_action}
+    \ControlFlowTok{if}\NormalTok{ record }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{:}
+\NormalTok{        record.pending\_action }\OperatorTok{=}\NormalTok{ pending\_action}
+
+\NormalTok{    log\_handler }\OperatorTok{=}\NormalTok{ event\_logger }\KeywordTok{or}\NormalTok{ \_default\_event\_logger}
+\NormalTok{    log\_handler(}
+\NormalTok{        \{}
+            \StringTok{"event"}\NormalTok{: }\StringTok{"PENDING\_ACTION\_CREATED"}\NormalTok{,}
+            \StringTok{"task\_id"}\NormalTok{: context.task.task\_id,}
+            \StringTok{"pending\_action\_id"}\NormalTok{: pending\_action.pending\_action\_id,}
+            \StringTok{"action\_type"}\NormalTok{: pending\_action.action\_type.value,}
+            \StringTok{"candidate\_ids"}\NormalTok{: [c.candidate\_id }\ControlFlowTok{for}\NormalTok{ c }\KeywordTok{in}\NormalTok{ pending\_action.candidates],}
+            \StringTok{"default\_suggestion"}\NormalTok{: pending\_action.default\_suggestion,}
+            \StringTok{"default\_recommendation"}\NormalTok{: pending\_action.default\_recommendation,}
+\NormalTok{        \}}
+\NormalTok{    )}
+\end{Highlighting}
+\end{Shaded}
+
+该代码清单说明，HITL
+在系统中被实现为受控运行时状态，而不是前端组件上的临时按钮。PendingAction、Decision、EventLog
+和 TaskSnapshot 共同构成了可恢复、可复核的 HITL 机制。
+
+\subsection{CEBRA-WP
+的工程落点}\label{cebra-wp-ux7684ux5de5ux7a0bux843dux70b9}
+
+CEBRA-WP 在工程实现中不是一个单独的
+Agent，而是分布在候选生成、RuntimeState
+更新、候选重排、恢复动作映射和候选解释几个环节。Planner
+生成候选及其静态评分，WorkflowContext 维护
+RuntimeState，RuntimeEvaluator 计算 runtime adjustment 和 action
+utility，PlanRunner 则将动作建议映射为
+\texttt{continue}、\texttt{patch\_local}、\texttt{suffix\_replan} 或
+\texttt{terminal\_stop} 等工作流行为。
+
+代码清单 5-5 展示了 RuntimeEvaluator
+对候选进行运行时评估和重排的入口。若策略模式禁用重排，则系统返回静态默认候选；若缺少
+RuntimeState，则只进行 passthrough；当 Lite belief-state /
+轻量信念状态可用时，系统根据 RuntimeState 对候选应用 runtime
+adjustment，并按 final score 重新排序。
+
+\textbf{代码清单 5-5 RuntimeEvaluator 候选重排}
+
+来源：\texttt{../thesis-project.dev/src/workflow/runtime\_evaluator.py:331}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{def}\NormalTok{ evaluate\_candidates(}
+    \VariableTok{self}\NormalTok{,}
+\NormalTok{    candidates: }\BuiltInTok{list}\NormalTok{[PendingActionCandidate],}
+\NormalTok{    runtime\_state: RuntimeStateSchema }\OperatorTok{|}\NormalTok{ Mapping[}\BuiltInTok{str}\NormalTok{, }\BuiltInTok{object}\NormalTok{] }\OperatorTok{|} \VariableTok{None}\NormalTok{,}
+\NormalTok{) }\OperatorTok{{-}\textgreater{}}\NormalTok{ RuntimeEvaluation:}
+    \CommentTok{"""对每个候选计算 runtime\_adjustment 与 final\_score，按 final\_score 降序重排。"""}
+    \ControlFlowTok{if} \KeywordTok{not}\NormalTok{ candidates:}
+        \ControlFlowTok{return}\NormalTok{ RuntimeEvaluation(policy\_mode}\OperatorTok{=}\VariableTok{self}\NormalTok{.\_policy\_mode)}
+
+\NormalTok{    state }\OperatorTok{=}\NormalTok{ \_coerce\_state(runtime\_state)}
+\NormalTok{    static\_default }\OperatorTok{=}\NormalTok{ \_top\_static\_candidate(candidates)}
+
+    \ControlFlowTok{if}\NormalTok{ policy\_disables\_rerank(}\VariableTok{self}\NormalTok{.\_policy\_mode):}
+        \ControlFlowTok{return}\NormalTok{ RuntimeEvaluation(}
+\NormalTok{            candidates}\OperatorTok{=}\BuiltInTok{list}\NormalTok{(candidates),}
+\NormalTok{            static\_default\_id}\OperatorTok{=}\NormalTok{static\_default,}
+\NormalTok{            reranked\_default\_id}\OperatorTok{=}\NormalTok{static\_default,}
+\NormalTok{            rerank\_applied}\OperatorTok{=}\VariableTok{False}\NormalTok{,}
+\NormalTok{            policy\_mode}\OperatorTok{=}\VariableTok{self}\NormalTok{.\_policy\_mode,}
+\NormalTok{        )}
+
+    \ControlFlowTok{if}\NormalTok{ state }\KeywordTok{is} \VariableTok{None}\NormalTok{:}
+\NormalTok{        reranked }\OperatorTok{=}\NormalTok{ [\_apply\_passthrough(c) }\ControlFlowTok{for}\NormalTok{ c }\KeywordTok{in}\NormalTok{ candidates]}
+\NormalTok{        reranked.sort(key}\OperatorTok{=}\NormalTok{\_final\_score\_key, reverse}\OperatorTok{=}\VariableTok{True}\NormalTok{)}
+\NormalTok{        top }\OperatorTok{=}\NormalTok{ reranked[}\DecValTok{0}\NormalTok{].candidate\_id }\ControlFlowTok{if}\NormalTok{ reranked }\ControlFlowTok{else} \VariableTok{None}
+        \ControlFlowTok{return}\NormalTok{ RuntimeEvaluation(}
+\NormalTok{            candidates}\OperatorTok{=}\NormalTok{reranked,}
+\NormalTok{            static\_default\_id}\OperatorTok{=}\NormalTok{static\_default,}
+\NormalTok{            reranked\_default\_id}\OperatorTok{=}\NormalTok{top,}
+\NormalTok{            rerank\_applied}\OperatorTok{=}\VariableTok{False}\NormalTok{,}
+\NormalTok{            policy\_mode}\OperatorTok{=}\VariableTok{self}\NormalTok{.\_policy\_mode,}
+\NormalTok{        )}
+\end{Highlighting}
+\end{Shaded}
+
+该实现对应第四章 CEBRA-WP
+的运行时重排序环节。需要强调的是，RuntimeEvaluator
+只在已经满足硬可行性约束的候选之间调整排序，不绕过工具存在性、schema、I/O、安全和预算硬约束。
+
+图 5-2 从泳道视角展示了这些模块之间的协作关系。科研人员通过 Web UI
+创建任务和提交决策，Task API 负责请求与响应边界，Planner
+生成候选，Executor 调度 StepRunner 和 ToolAdapter，Safety
+提供风险信号，Storage 固化事件和快照。CEBRA-WP
+贯穿其中：候选生成后参与重排，失败或风险出现时参与恢复动作选择，并通过
+PendingAction 将解释信息呈现给人工决策者。
+
+图 5-2 工作流泳道式模块协作
+插图文件：\texttt{paper/figures/workflow-swimlane.drawio.svg}
+
+图 5-2 说明了系统控制面和执行面的分离关系。CEBRA-WP
+影响候选排序和恢复动作，但实际状态迁移仍由 Workflow/FSM
+执行；工具调用仍由 Executor 和 ToolAdapter 完成；人工确认仍通过
+PendingAction/Decision 进入系统。
+
+\subsection{工具适配器与能力管理}\label{ux5de5ux5177ux9002ux914dux5668ux4e0eux80fdux529bux7ba1ux7406}
+
+上述运行时决策最终需要落到具体工具调用，因此还需说明工具适配层如何为
+Executor 提供统一边界。
+
+蛋白质设计工具链具有明显异构性：有的工具是本地 Python
+脚本，有的工具依赖命令行环境，有的工具通过远程 REST
+服务提供能力。为了避免 Executor 绑定具体工具实现，系统通过
+BaseToolAdapter 定义统一工具接口。代码清单 5-6
+展示了适配器抽象基类的核心方法。
+
+\textbf{代码清单 5-6 ToolAdapter 抽象接口}
+
+来源：\texttt{../thesis-project.dev/src/adapters/base\_tool\_adapter.py:14}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{class}\NormalTok{ BaseToolAdapter(ABC):}
+    \CommentTok{"""ToolAdapter 抽象基类，统一工具调用入口"""}
+
+\NormalTok{    tool\_id: }\BuiltInTok{str}
+\NormalTok{    adapter\_id: }\BuiltInTok{str} \OperatorTok{|} \VariableTok{None} \OperatorTok{=} \VariableTok{None}
+
+    \AttributeTok{@abstractmethod}
+    \KeywordTok{def}\NormalTok{ resolve\_inputs(}
+        \VariableTok{self}\NormalTok{, step: PlanStep, context: WorkflowContext}
+\NormalTok{    ) }\OperatorTok{{-}\textgreater{}}\NormalTok{ Dict[}\BuiltInTok{str}\NormalTok{, Any]:}
+        \CommentTok{"""将 PlanStep.inputs 解析为工具实际输入"""}
+
+    \AttributeTok{@abstractmethod}
+    \KeywordTok{def}\NormalTok{ run\_local(}
+        \VariableTok{self}\NormalTok{, inputs: Dict[}\BuiltInTok{str}\NormalTok{, Any]}
+\NormalTok{    ) }\OperatorTok{{-}\textgreater{}}\NormalTok{ Tuple[Dict[}\BuiltInTok{str}\NormalTok{, Any], Dict[}\BuiltInTok{str}\NormalTok{, Any]]:}
+        \CommentTok{"""本地执行工具并返回 (outputs, metrics)"""}
+
+    \KeywordTok{def}\NormalTok{ run\_remote(}
+        \VariableTok{self}\NormalTok{,}
+\NormalTok{        inputs: Dict[}\BuiltInTok{str}\NormalTok{, Any],}
+\NormalTok{        output\_dir: Optional[Path] }\OperatorTok{=} \VariableTok{None}\NormalTok{,}
+\NormalTok{    ) }\OperatorTok{{-}\textgreater{}}\NormalTok{ Tuple[Dict[}\BuiltInTok{str}\NormalTok{, Any], Dict[}\BuiltInTok{str}\NormalTok{, Any]]:}
+        \ControlFlowTok{raise} \PreprocessorTok{NotImplementedError}\NormalTok{(}
+            \SpecialStringTok{f"}\SpecialCharTok{\{}\VariableTok{self}\SpecialCharTok{.}\VariableTok{\_\_class\_\_}\SpecialCharTok{.}\VariableTok{\_\_name\_\_}\SpecialCharTok{\}}\SpecialStringTok{ does not support remote execution"}
+\NormalTok{        )}
+\end{Highlighting}
+\end{Shaded}
+
+该接口将输入解析、执行模式和输出指标统一到同一抽象层。对于 Executor
+而言，不同工具都表现为``接收结构化输入，返回 outputs 和
+metrics''的适配器。具体工具内部是调用 Biopython、远程 OpenFold
+服务还是序列生成模型，对上层工作流保持透明。
+
+AdapterRegistry 维护 tool\_id 到适配器实例的映射。StepRunner 执行某个
+PlanStep 时，先通过 tool\_id 找到适配器，再调用 \texttt{resolve\_inputs}
+解析常量输入和上游步骤引用。若工具未注册、上游引用缺失或输出类型不匹配，系统返回结构化失败，而不是静默跳过或继续执行。
+
+ProteinToolKG 以 JSON
+形式保存工具能力、输入输出、兼容关系、成本、安全级别和版本信息。Planner
+在候选生成时查询
+ProteinToolKG，根据任务所需能力组合工具链，并过滤不可用工具、预算超限工具或
+I/O 闭包不成立的候选。该实现使新增工具主要通过更新 ProteinToolKG
+和注册适配器完成，而不需要修改 Planner 的核心流程。
+
+\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+
+本章从工程角度说明了系统实现方式。系统后端以 Python、FastAPI 和 Pydantic
+为基础，前端以 React、TypeScript 和 Vite
+构建工作台；工作流控制采用自定义 Workflow/FSM，使
+HITL、快照恢复和事件审计保持显式可控。
+
+任务接入方面，系统通过 Task Intake
+和互斥任务创建入口将自然语言目标逐步收敛为结构化任务。运行时方面，WorkflowContext、PlanRunner
+和 StepRunner
+分别承担上下文管理、计划级状态推进和步骤级工具执行。恢复方面，PendingAction、Decision、EventLog
+和 TaskSnapshot 共同保证等待状态可审计、可恢复。算法落地方面，CEBRA-WP
+通过 RuntimeEvaluator、RuntimeState
+更新和恢复动作映射参与候选重排和运行时决策。工具接入方面，ToolAdapter 和
+ProteinToolKG 将异构蛋白质设计工具封装为统一能力。
+
+本章描述的实现模块构成第六章测试与验证的对象基础。第六章将围绕 API
+合约、FSM/HITL、快照恢复、前端与 CLI 可用性，以及
+retry、局部修补、后缀重规划和安全边界展开验证。
