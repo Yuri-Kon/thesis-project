@@ -1,6 +1,6 @@
 <mxfile>
   <diagram name="Technical Route" id="technical-route">
-    <mxGraphModel dx="860" dy="671" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1180" math="0" shadow="0">
+    <mxGraphModel dx="1290" dy="1007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1180" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -10,19 +10,19 @@
         <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="围绕高代价、可失败、可恢复的蛋白质设计工作流，组织研究问题、方法设计、系统实现、实验评估与论文产出。" vertex="1">
           <mxGeometry height="32" width="1760" x="70" y="62" as="geometry" />
         </mxCell>
-        <mxCell id="phase4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="1. 问题定义&lt;br&gt;&lt;br&gt;蛋白质设计任务&lt;br&gt;高代价长链路&lt;br&gt;失败与恢复需求" vertex="1">
+        <mxCell id="phase4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="1. 问题定义&lt;br&gt;&lt;br&gt;蛋白质设计任务&lt;br&gt;高代价长链路&lt;br&gt;失败与恢复需求" vertex="1">
           <mxGeometry height="155" width="290" x="80" y="165" as="geometry" />
         </mxCell>
-        <mxCell id="phase5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="2. 理论建模&lt;br&gt;&lt;br&gt;候选工具链集合 Π&lt;br&gt;约束 C / ToolKG K&lt;br&gt;history h_t / observation o_t" vertex="1">
+        <mxCell id="phase5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="2. 理论建模&lt;br&gt;&lt;br&gt;候选工具链集合 Π&lt;br&gt;约束 C / ToolKG K&lt;br&gt;history h_t / observation o_t" vertex="1">
           <mxGeometry height="155" width="290" x="430" y="165" as="geometry" />
         </mxCell>
-        <mxCell id="phase6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="3. 核心算法&lt;br&gt;&lt;br&gt;Top-K 候选生成&lt;br&gt;硬可行性过滤&lt;br&gt;静态效用 + runtime rerank" vertex="1">
+        <mxCell id="phase6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="3. 核心算法&lt;br&gt;&lt;br&gt;Top-K 候选生成&lt;br&gt;硬可行性过滤&lt;br&gt;静态效用 + runtime rerank" vertex="1">
           <mxGeometry height="155" width="290" x="780" y="165" as="geometry" />
         </mxCell>
-        <mxCell id="phase7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="4. 系统实现&lt;br&gt;&lt;br&gt;Workflow FSM&lt;br&gt;Planner / Executor / Safety / Summarizer&lt;br&gt;AdapterRegistry + Storage" vertex="1">
+        <mxCell id="phase7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="4. 系统实现&lt;br&gt;&lt;br&gt;Workflow FSM&lt;br&gt;Planner / Executor / Safety / Summarizer&lt;br&gt;AdapterRegistry + Storage" vertex="1">
           <mxGeometry height="155" width="290" x="1130" y="165" as="geometry" />
         </mxCell>
-        <mxCell id="phase8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="5. 实验验证&lt;br&gt;&lt;br&gt;纵向 A0-A6&lt;br&gt;横向 E0-E2&lt;br&gt;效果 / 成本 / 治理指标" vertex="1">
+        <mxCell id="phase8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="5. 实验验证&lt;br&gt;&lt;br&gt;纵向 A0-A6&lt;br&gt;横向 E0-E2&lt;br&gt;效果 / 成本 / 治理指标" vertex="1">
           <mxGeometry height="155" width="290" x="1480" y="165" as="geometry" />
         </mxCell>
         <mxCell id="e9" edge="1" parent="1" source="phase4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="phase5" value="">
@@ -57,13 +57,13 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="n13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" value="方法主线&lt;br&gt;GenerateCandidates → FeasibilityFilter → StaticUtility → BeliefUpdate → RuntimeUtility → ActionSelection" vertex="1">
+        <mxCell id="n13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="方法主线&lt;br&gt;GenerateCandidates → FeasibilityFilter → StaticUtility → BeliefUpdate → RuntimeUtility → ActionSelection" vertex="1">
           <mxGeometry height="90" width="620" x="250" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="n14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" value="工程主线&lt;br&gt;TaskAPI → Workflow/FSM → PlanRunner/PatchRunner → ToolAdapter → EventLog/TaskSnapshot" vertex="1">
+        <mxCell id="n14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="工程主线&lt;br&gt;TaskAPI → Workflow/FSM → PlanRunner/PatchRunner → ToolAdapter → EventLog/TaskSnapshot" vertex="1">
           <mxGeometry height="90" width="620" x="1030" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="e15" edge="1" parent="1" source="phase6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n13" value="algorithm contribution">
+        <mxCell id="e15" edge="1" parent="1" source="phase6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n13" value="algorithm contribution">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="925" y="360" />
@@ -71,7 +71,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e16" edge="1" parent="1" source="phase7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n14" value="system contribution">
+        <mxCell id="e16" edge="1" parent="1" source="phase7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n14" value="system contribution">
           <mxGeometry relative="1" x="-0.7714" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -80,7 +80,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e17" edge="1" parent="1" source="n13" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n14" value="runtime-aware control policy">
+        <mxCell id="e17" edge="1" parent="1" source="n13" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n14" value="runtime-aware control policy">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="930" y="475" />
@@ -88,16 +88,16 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="evidence18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="设计依据&lt;br&gt;architecture.md&lt;br&gt;agent-design.md&lt;br&gt;core-algorithm-spec.md" vertex="1">
+        <mxCell id="evidence18" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="设计依据&lt;br&gt;architecture.md&lt;br&gt;agent-design.md&lt;br&gt;core-algorithm-spec.md" vertex="1">
           <mxGeometry height="115" width="300" x="190" y="690" as="geometry" />
         </mxCell>
-        <mxCell id="evidence19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="实现依据&lt;br&gt;src/workflow&lt;br&gt;src/agents&lt;br&gt;src/models&lt;br&gt;src/adapters" vertex="1">
+        <mxCell id="evidence19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="实现依据&lt;br&gt;src/workflow&lt;br&gt;src/agents&lt;br&gt;src/models&lt;br&gt;src/adapters" vertex="1">
           <mxGeometry height="115" width="300" x="570" y="690" as="geometry" />
         </mxCell>
-        <mxCell id="evidence20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="实验依据&lt;br&gt;D-main / D-recovery / D-hitl&lt;br&gt;A0-A6 / E0-E2&lt;br&gt;EventLog / Snapshot" vertex="1">
+        <mxCell id="evidence20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="实验依据&lt;br&gt;D-main / D-recovery / D-hitl&lt;br&gt;A0-A6 / E0-E2&lt;br&gt;EventLog / Snapshot" vertex="1">
           <mxGeometry height="115" width="300" x="950" y="690" as="geometry" />
         </mxCell>
-        <mxCell id="evidence21" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="论文产出&lt;br&gt;系统架构&lt;br&gt;算法机制&lt;br&gt;实验结果&lt;br&gt;案例分析" vertex="1">
+        <mxCell id="evidence21" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="论文产出&lt;br&gt;系统架构&lt;br&gt;算法机制&lt;br&gt;实验结果&lt;br&gt;案例分析" vertex="1">
           <mxGeometry height="115" width="300" x="1330" y="690" as="geometry" />
         </mxCell>
         <mxCell id="e22" edge="1" parent="1" source="evidence18" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" target="evidence19" value="">

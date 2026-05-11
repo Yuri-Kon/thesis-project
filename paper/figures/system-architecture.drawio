@@ -1,6 +1,6 @@
-<mxfile host="Electron" agent="Codex">
+<mxfile>
   <diagram name="System Architecture" id="system-architecture">
-    <mxGraphModel dx="1290" dy="950" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+    <mxGraphModel dx="1407" dy="1098" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -13,42 +13,42 @@
         <mxCell id="layer4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="输入与交互层" vertex="1">
           <mxGeometry height="110" width="210" x="80" y="130" as="geometry" />
         </mxCell>
-        <mxCell id="layerbody5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="User / CLI / FastAPI / React Workbench&lt;br&gt;Task Builder, Dashboard, Pending Review, Timeline" vertex="1">
+        <mxCell id="layerbody5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="User / CLI / FastAPI / React Workbench&lt;br&gt;Task Builder, Dashboard, Pending Review, Timeline" vertex="1">
           <mxGeometry height="110" width="1390" x="330" y="130" as="geometry" />
         </mxCell>
         <mxCell id="layer6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="契约与状态控制层" vertex="1">
           <mxGeometry height="110" width="210" x="80" y="270" as="geometry" />
         </mxCell>
-        <mxCell id="layerbody7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="ProteinDesignTask / ConfirmedTaskSpec / TaskRecord&lt;br&gt;WorkflowContext + ExternalStatus/InternalStatus + DecisionApply" vertex="1">
+        <mxCell id="layerbody7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="ProteinDesignTask / ConfirmedTaskSpec / TaskRecord&lt;br&gt;WorkflowContext + ExternalStatus/InternalStatus + DecisionApply" vertex="1">
           <mxGeometry height="110" width="1390" x="330" y="270" as="geometry" />
         </mxCell>
         <mxCell id="layer8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="智能规划层" vertex="1">
           <mxGeometry height="110" width="210" x="80" y="430" as="geometry" />
         </mxCell>
-        <mxCell id="layerbody9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="PlannerAgent + CandidateGenerator + ProteinToolKG&lt;br&gt;Top-K Plan/Patch/Replan, feasibility filter, score breakdown, default recommendation" vertex="1">
+        <mxCell id="layerbody9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="PlannerAgent + CandidateGenerator + ProteinToolKG&lt;br&gt;Top-K Plan/Patch/Replan, feasibility filter, score breakdown, default recommendation" vertex="1">
           <mxGeometry height="110" width="1390" x="330" y="430" as="geometry" />
         </mxCell>
         <mxCell id="layer10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="执行与恢复层" vertex="1">
           <mxGeometry height="110" width="210" x="80" y="610" as="geometry" />
         </mxCell>
-        <mxCell id="layerbody11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="ExecutorAgent / PlanRunner / PatchRunner / StepRunner&lt;br&gt;PlanStep dispatch, dependency resolution, bounded retry, patch_local, suffix_replan" vertex="1">
+        <mxCell id="layerbody11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="ExecutorAgent / PlanRunner / PatchRunner / StepRunner&lt;br&gt;PlanStep dispatch, dependency resolution, bounded retry, patch_local, suffix_replan" vertex="1">
           <mxGeometry height="110" width="1390" x="330" y="610" as="geometry" />
         </mxCell>
         <mxCell id="layer12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="安全、汇总与资源层" vertex="1">
           <mxGeometry height="110" width="210" x="80" y="800" as="geometry" />
         </mxCell>
-        <mxCell id="layerbody13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="SafetyAgent + SummarizerAgent + AdapterRegistry&lt;br&gt;ToolAdapters, local/remote engines, EventLog, TaskSnapshot, output artifacts" vertex="1">
+        <mxCell id="layerbody13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="SafetyAgent + SummarizerAgent + AdapterRegistry&lt;br&gt;ToolAdapters, local/remote engines, EventLog, TaskSnapshot, output artifacts" vertex="1">
           <mxGeometry height="110" width="1390" x="330" y="800" as="geometry" />
         </mxCell>
-        <mxCell id="e14" edge="1" parent="1" source="layerbody5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="layerbody7" value="normalize task / submit Decision">
+        <mxCell id="e14" edge="1" parent="1" source="layerbody5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="layerbody7" value="normalize task / submit Decision">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e15" edge="1" parent="1" source="layerbody7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="layerbody9" value="planning / recovery request">
+        <mxCell id="e15" edge="1" parent="1" source="layerbody7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="layerbody9" value="planning / recovery request">
           <mxGeometry relative="1" as="geometry">
             <mxPoint x="678" y="380" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e16" edge="1" parent="1" source="layerbody9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="layerbody7" value="CandidateSet + PendingAction payload">
+        <mxCell id="e16" edge="1" parent="1" source="layerbody9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="layerbody7" value="CandidateSet + PendingAction payload">
           <mxGeometry relative="1" x="0.7013" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -58,21 +58,21 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e17" edge="1" parent="1" source="layerbody7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="layerbody11" value="confirmed Plan / resume from Snapshot">
+        <mxCell id="e17" edge="1" parent="1" source="layerbody7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="layerbody11" value="confirmed Plan / resume from Snapshot">
           <mxGeometry relative="1" x="-0.7391" as="geometry">
             <mxPoint y="-1" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e18" edge="1" parent="1" source="layerbody11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="layerbody13" value="StepResult, SafetyResult, DesignResult">
+        <mxCell id="e18" edge="1" parent="1" source="layerbody11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="layerbody13" value="StepResult, SafetyResult, DesignResult">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="n19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" value="控制面 SSOT&lt;br&gt;Workflow / FSM owns state mutation&lt;br&gt;WAITING_* pauses execution&lt;br&gt;retry → patch → replan" vertex="1">
+        <mxCell id="n19" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="控制面 SSOT&lt;br&gt;Workflow / FSM owns state mutation&lt;br&gt;WAITING_* pauses execution&lt;br&gt;retry → patch → replan" vertex="1">
           <mxGeometry height="150" width="340" x="1280" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="n20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=14;align=center;verticalAlign=middle;spacing=8;" value="可恢复审计链&lt;br&gt;PendingAction → Decision&lt;br&gt;EventLog → TaskSnapshot&lt;br&gt;artifacts/runtime_state" vertex="1">
+        <mxCell id="n20" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="可恢复审计链&lt;br&gt;PendingAction → Decision&lt;br&gt;EventLog → TaskSnapshot&lt;br&gt;artifacts/runtime_state" vertex="1">
           <mxGeometry height="150" width="340" x="1280" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="e21" edge="1" parent="1" source="n19" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n20" value="write before WAITING_*">
+        <mxCell id="e21" edge="1" parent="1" source="n19" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n20" value="write before WAITING_*">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1450" y="480" />
@@ -80,7 +80,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e22" edge="1" parent="1" source="n20" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;" target="n19" value="recover / replay">
+        <mxCell id="e22" edge="1" parent="1" source="n20" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n19" value="recover / replay">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1625" y="595" />
@@ -90,19 +90,19 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="tool23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacing=8;" value="Sequence generation&lt;br&gt;ProtGPT2 / ProteinMPNN" vertex="1">
+        <mxCell id="tool23" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="Sequence generation&lt;br&gt;ProtGPT2 / ProteinMPNN" vertex="1">
           <mxGeometry height="70" width="230" x="240" y="1010" as="geometry" />
         </mxCell>
-        <mxCell id="tool24" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacing=8;" value="Structure projection&lt;br&gt;ESMFold / NIM / OpenFold" vertex="1">
+        <mxCell id="tool24" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="Structure projection&lt;br&gt;ESMFold / NIM / OpenFold" vertex="1">
           <mxGeometry height="70" width="230" x="520" y="1010" as="geometry" />
         </mxCell>
-        <mxCell id="tool25" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacing=8;" value="Quality gate&lt;br&gt;BioPython QC / DSSP" vertex="1">
+        <mxCell id="tool25" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="Quality gate&lt;br&gt;BioPython QC / DSSP" vertex="1">
           <mxGeometry height="70" width="230" x="800" y="1010" as="geometry" />
         </mxCell>
-        <mxCell id="tool26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacing=8;" value="Objective scoring&lt;br&gt;objective_ranker / metrics" vertex="1">
+        <mxCell id="tool26" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="Objective scoring&lt;br&gt;objective_ranker / metrics" vertex="1">
           <mxGeometry height="70" width="230" x="1080" y="1010" as="geometry" />
         </mxCell>
-        <mxCell id="tool27" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;spacing=8;" value="Visualization/report&lt;br&gt;Mol* / NGL / HTML" vertex="1">
+        <mxCell id="tool27" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=Helvetica;fontSize=15;align=center;verticalAlign=middle;spacing=8;" value="Visualization/report&lt;br&gt;Mol* / NGL / HTML" vertex="1">
           <mxGeometry height="70" width="230" x="1360" y="1010" as="geometry" />
         </mxCell>
         <mxCell id="n28" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="Resource layer details: ProteinToolKG stores capability, I/O schema, cost, safety, compatibility; AdapterRegistry maps tool_id to executable backend." vertex="1">

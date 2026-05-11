@@ -1,6 +1,6 @@
 <mxfile>
   <diagram name="ProteinToolKG Local View" id="protein-toolkg-local-view">
-    <mxGraphModel dx="1191" dy="929" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1250" background="#FFFFFF" math="0" shadow="0">
+    <mxGraphModel dx="1032" dy="805" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1250" background="#FFFFFF" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -22,38 +22,38 @@
         <mxCell id="cap4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;fontStyle=1;" value="目标评分" vertex="1">
           <mxGeometry height="44" width="220" x="1570" y="130" as="geometry" />
         </mxCell>
-        <mxCell id="protgpt2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;" value="protgpt2&lt;br&gt;capability: sequence_generation&lt;br&gt;outputs: sequence&lt;br&gt;cost: medium&lt;br&gt;risk: moderate" vertex="1">
+        <mxCell id="protgpt2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;" value="protgpt2&lt;br&gt;capability: sequence_generation&lt;br&gt;outputs: sequence&lt;br&gt;cost: medium&lt;br&gt;risk: moderate" vertex="1">
           <mxGeometry height="140" width="290" x="90" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="mpnn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;" value="protein_mpnn&lt;br&gt;capability: sequence_design&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: sequence&lt;br&gt;cost: high" vertex="1">
+        <mxCell id="mpnn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;" value="protein_mpnn&lt;br&gt;capability: sequence_design&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: sequence&lt;br&gt;cost: high" vertex="1">
           <mxGeometry height="150" width="290" x="90" y="530" as="geometry" />
         </mxCell>
-        <mxCell id="esm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="esmfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high" vertex="1">
+        <mxCell id="esm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="esmfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high" vertex="1">
           <mxGeometry height="150" width="320" x="590" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="openfold" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="openfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high&lt;br&gt;execution: openfold3_rest" vertex="1">
+        <mxCell id="openfold" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="openfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high&lt;br&gt;execution: openfold3_rest" vertex="1">
           <mxGeometry height="170" width="320" x="590" y="520" as="geometry" />
         </mxCell>
-        <mxCell id="nim" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="nim_esmfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high&lt;br&gt;remote readiness may degrade" vertex="1">
+        <mxCell id="nim" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="nim_esmfold&lt;br&gt;capability: structure_prediction&lt;br&gt;inputs: sequence&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;cost: high&lt;br&gt;remote readiness may degrade" vertex="1">
           <mxGeometry height="170" width="320" x="590" y="810" as="geometry" />
         </mxCell>
-        <mxCell id="qc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="biopython_qc&lt;br&gt;capability: quality_qc&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: qc_pass, metrics&lt;br&gt;cost: low" vertex="1">
+        <mxCell id="qc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="biopython_qc&lt;br&gt;capability: quality_qc&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: qc_pass, metrics&lt;br&gt;cost: low" vertex="1">
           <mxGeometry height="150" width="320" x="1110" y="330" as="geometry" />
         </mxCell>
-        <mxCell id="dssp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="dssp&lt;br&gt;capability: quality_qc&lt;br&gt;secondary: secondary_structure&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: helix/sheet summary&lt;br&gt;cost: low" vertex="1">
+        <mxCell id="dssp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="dssp&lt;br&gt;capability: quality_qc&lt;br&gt;secondary: secondary_structure&lt;br&gt;inputs: structure_pdb&lt;br&gt;outputs: helix/sheet summary&lt;br&gt;cost: low" vertex="1">
           <mxGeometry height="170" width="320" x="1110" y="650" as="geometry" />
         </mxCell>
-        <mxCell id="ranker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="objective_ranker&lt;br&gt;capability: objective_scoring&lt;br&gt;inputs: metrics, plddt, constraints&lt;br&gt;outputs: ranked candidates&lt;br&gt;cost: low-medium" vertex="1">
+        <mxCell id="ranker" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="objective_ranker&lt;br&gt;capability: objective_scoring&lt;br&gt;inputs: metrics, plddt, constraints&lt;br&gt;outputs: ranked candidates&lt;br&gt;cost: low-medium" vertex="1">
           <mxGeometry height="170" width="300" x="1530" y="480" as="geometry" />
         </mxCell>
-        <mxCell id="e1" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="esm" value="sequence → inputs.sequence">
+        <mxCell id="e1" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="esm" value="sequence → inputs.sequence">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="470" y="320" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e2" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="openfold" value="sequence → inputs.sequence">
+        <mxCell id="e2" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="openfold" value="sequence → inputs.sequence">
           <mxGeometry relative="1" x="-0.8242" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -63,7 +63,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e3" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="nim" value="sequence → inputs.sequence">
+        <mxCell id="e3" edge="1" parent="1" source="protgpt2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="nim" value="sequence → inputs.sequence">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="440" y="355" />
@@ -71,12 +71,12 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e4" edge="1" parent="1" source="mpnn" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="openfold" value="designed sequence">
+        <mxCell id="e4" edge="1" parent="1" source="mpnn" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="openfold" value="designed sequence">
           <mxGeometry relative="1" x="0.5238" as="geometry">
             <mxPoint as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e5" edge="1" parent="1" source="esm" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="qc" value="structure_pdb + plddt">
+        <mxCell id="e5" edge="1" parent="1" source="esm" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="qc" value="structure_pdb + plddt">
           <mxGeometry relative="1" x="-0.5714" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -85,7 +85,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e6" edge="1" parent="1" source="openfold" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1.006;exitY=0.458;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="qc" value="structure_pdb + plddt">
+        <mxCell id="e6" edge="1" parent="1" source="openfold" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1.006;exitY=0.458;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="qc" value="structure_pdb + plddt">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1010" y="595" />
@@ -93,7 +93,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e7" edge="1" parent="1" source="openfold" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1.002;exitY=0.451;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="dssp" value="structure_pdb">
+        <mxCell id="e7" edge="1" parent="1" source="openfold" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1.002;exitY=0.451;exitDx=0;exitDy=0;exitPerimeter=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="dssp" value="structure_pdb">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1010" y="597" />
@@ -101,7 +101,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e8" edge="1" parent="1" source="nim" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" target="qc" value="fallback structure">
+        <mxCell id="e8" edge="1" parent="1" source="nim" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;entryX=0;entryY=0.75;entryDx=0;entryDy=0;" target="qc" value="fallback structure">
           <mxGeometry relative="1" x="-0.4011" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -110,7 +110,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e9" edge="1" parent="1" source="qc" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="ranker" value="qc metrics">
+        <mxCell id="e9" edge="1" parent="1" source="qc" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="ranker" value="qc metrics">
           <mxGeometry relative="1" x="-0.6923" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -119,7 +119,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e10" edge="1" parent="1" source="dssp" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="ranker" value="secondary-structure evidence">
+        <mxCell id="e10" edge="1" parent="1" source="dssp" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="ranker" value="secondary-structure evidence">
           <mxGeometry relative="1" x="-0.4444" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -128,7 +128,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#475569;align=left;" value="图例&lt;br&gt;实线：I/O 兼容链&lt;br&gt;虚线：fallback 或 degraded readiness&lt;br&gt;高代价工具：结构预测/精修&lt;br&gt;低成本工具：QC 与目标评分" vertex="1">
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#475569;align=left;" value="图例&lt;br&gt;实线：I/O 兼容链&lt;br&gt;虚线：fallback 或 degraded readiness&lt;br&gt;高代价工具：结构预测/精修&lt;br&gt;低成本工具：QC 与目标评分" vertex="1">
           <mxGeometry height="140" width="560" x="1160" y="940" as="geometry" />
         </mxCell>
       </root>

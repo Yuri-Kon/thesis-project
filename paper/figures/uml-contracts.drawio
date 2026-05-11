@@ -1,81 +1,81 @@
-<mxfile host="Electron" agent="Codex">
+<mxfile>
   <diagram name="UML Contracts" id="uml-contracts">
-    <mxGraphModel dx="1191" dy="929" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1260" math="0" shadow="0">
+    <mxGraphModel dx="1290" dy="1007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1260" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
         <mxCell id="title2" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="UML：核心数据契约、状态枚举与 Agent 责任边界" vertex="1">
           <mxGeometry height="34" width="1820" x="40" y="24" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="以 Pydantic/设计契约为中心展示 Plan、Candidate、PendingAction、Decision、Snapshot、RuntimeState 与四类 Agent 的关系。" vertex="1">
+        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=15;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="以 Pydantic/设计契约为中心展示 Plan、Candidate、PendingAction、Decision、Snapshot、RuntimeState 与四类 Agent 的关系。" vertex="1">
           <mxGeometry height="32" width="1760" x="70" y="62" as="geometry" />
         </mxCell>
-        <mxCell id="cls4" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#DBEAFE;" value="ProteinDesignTask&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;goal: str&lt;br&gt;constraints: dict&lt;br&gt;metadata: dict" vertex="1">
+        <mxCell id="cls4" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#DBEAFE;" value="ProteinDesignTask&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;goal: str&lt;br&gt;constraints: dict&lt;br&gt;metadata: dict" vertex="1">
           <mxGeometry height="110" width="150" x="380" y="450" as="geometry">
             <mxRectangle height="170" width="270" x="60" y="150" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls5" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FEF3C7;" value="Plan&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;steps: list[PlanStep]&lt;br&gt;constraints: dict&lt;br&gt;metadata: dict&lt;br&gt;explanation: str | None" vertex="1">
+        <mxCell id="cls5" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FEF3C7;" value="Plan&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;steps: list[PlanStep]&lt;br&gt;constraints: dict&lt;br&gt;metadata: dict&lt;br&gt;explanation: str | None" vertex="1">
           <mxGeometry height="130" width="170" x="140" y="440" as="geometry">
             <mxRectangle height="190" width="280" x="390" y="150" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls6" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FEF3C7;" value="PlanStep&lt;br&gt;&lt;br&gt;id: str&lt;br&gt;tool: str&lt;br&gt;inputs: JsonMap&lt;br&gt;metadata: JsonMap&lt;br&gt;supports Sx.key refs" vertex="1">
+        <mxCell id="cls6" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FEF3C7;" value="PlanStep&lt;br&gt;&lt;br&gt;id: str&lt;br&gt;tool: str&lt;br&gt;inputs: JsonMap&lt;br&gt;metadata: JsonMap&lt;br&gt;supports Sx.key refs" vertex="1">
           <mxGeometry height="130" width="160" x="145" y="640" as="geometry">
             <mxRectangle height="185" width="260" x="720" y="150" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls7" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#DCFCE7;" value="StepResult&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;step_id: str&lt;br&gt;tool/tool_id/adapter_id&lt;br&gt;status: success|failed|skipped&lt;br&gt;outputs / metrics / artifacts&lt;br&gt;risk_flags&lt;br&gt;failure_type / error_details" vertex="1">
+        <mxCell id="cls7" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#DCFCE7;" value="StepResult&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;step_id: str&lt;br&gt;tool/tool_id/adapter_id&lt;br&gt;status: success|failed|skipped&lt;br&gt;outputs / metrics / artifacts&lt;br&gt;risk_flags&lt;br&gt;failure_type / error_details" vertex="1">
           <mxGeometry height="160" width="210" x="590" y="430" as="geometry">
             <mxRectangle height="230" width="320" x="1030" y="140" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls9" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FFF7ED;" value="PendingActionCandidate&lt;br&gt;&lt;br&gt;candidate_id&lt;br&gt;summary&lt;br&gt;structured_payload: Plan|PlanPatch&lt;br&gt;score_breakdown&lt;br&gt;risk_level / cost_estimate&lt;br&gt;runtime metadata / source_refs" vertex="1">
+        <mxCell id="cls9" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FFF7ED;" value="PendingActionCandidate&lt;br&gt;&lt;br&gt;candidate_id&lt;br&gt;summary&lt;br&gt;structured_payload: Plan|PlanPatch&lt;br&gt;score_breakdown&lt;br&gt;risk_level / cost_estimate&lt;br&gt;runtime metadata / source_refs" vertex="1">
           <mxGeometry height="140" width="240" x="335" y="630" as="geometry">
             <mxRectangle height="230" width="320" x="70" y="460" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls10" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FFEDD5;" value="PlanPatch&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;operations: list[PlanPatchOp]&lt;br&gt;metadata: dict&lt;br&gt;minimal local change" vertex="1">
+        <mxCell id="cls10" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FFEDD5;" value="PlanPatch&lt;br&gt;&lt;br&gt;task_id: str&lt;br&gt;operations: list[PlanPatchOp]&lt;br&gt;metadata: dict&lt;br&gt;minimal local change" vertex="1">
           <mxGeometry height="110" width="210" x="350" y="845" as="geometry">
             <mxRectangle height="200" width="300" x="450" y="470" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls11" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FFE4E6;" value="PendingAction&lt;br&gt;&lt;br&gt;id / task_id&lt;br&gt;action_type: plan|patch|replan&lt;br&gt;status: pending|decided|cancelled&lt;br&gt;candidates: list&lt;br&gt;default_suggestion&lt;br&gt;explanation" vertex="1">
+        <mxCell id="cls11" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FFE4E6;" value="PendingAction&lt;br&gt;&lt;br&gt;id / task_id&lt;br&gt;action_type: plan|patch|replan&lt;br&gt;status: pending|decided|cancelled&lt;br&gt;candidates: list&lt;br&gt;default_suggestion&lt;br&gt;explanation" vertex="1">
           <mxGeometry height="140" width="230" x="620" y="815" as="geometry">
             <mxRectangle height="240" width="330" x="810" y="450" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls12" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#DBEAFE;" value="Decision&lt;br&gt;&lt;br&gt;pending_action_id&lt;br&gt;choice: accept|replan|continue|cancel&lt;br&gt;selected_candidate_id&lt;br&gt;decided_by&lt;br&gt;comment / decided_at" vertex="1">
+        <mxCell id="cls12" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#DBEAFE;" value="Decision&lt;br&gt;&lt;br&gt;pending_action_id&lt;br&gt;choice: accept|replan|continue|cancel&lt;br&gt;selected_candidate_id&lt;br&gt;decided_by&lt;br&gt;comment / decided_at" vertex="1">
           <mxGeometry height="130" width="250" x="950" y="820" as="geometry">
             <mxRectangle height="210" width="310" x="1210" y="465" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls13" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#E2E8F0;" value="TaskSnapshot&lt;br&gt;&lt;br&gt;task_id / state&lt;br&gt;plan_version&lt;br&gt;current_step_index&lt;br&gt;completed_step_ids&lt;br&gt;artifacts.runtime_state&lt;br&gt;pending_action_id" vertex="1">
+        <mxCell id="cls13" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#E2E8F0;" value="TaskSnapshot&lt;br&gt;&lt;br&gt;task_id / state&lt;br&gt;plan_version&lt;br&gt;current_step_index&lt;br&gt;completed_step_ids&lt;br&gt;artifacts.runtime_state&lt;br&gt;pending_action_id" vertex="1">
           <mxGeometry height="140" width="170" x="1340" y="445" as="geometry">
             <mxRectangle height="225" width="300" x="1580" y="455" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls14" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#EDE9FE;" value="WorkflowContext&lt;br&gt;&lt;br&gt;task&lt;br&gt;plan&lt;br&gt;step_results&lt;br&gt;safety_events&lt;br&gt;runtime_state&lt;br&gt;pending_action&lt;br&gt;status: InternalStatus" vertex="1">
+        <mxCell id="cls14" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#EDE9FE;" value="WorkflowContext&lt;br&gt;&lt;br&gt;task&lt;br&gt;plan&lt;br&gt;step_results&lt;br&gt;safety_events&lt;br&gt;runtime_state&lt;br&gt;pending_action&lt;br&gt;status: InternalStatus" vertex="1">
           <mxGeometry height="235" width="350" x="775" y="120" as="geometry">
             <mxRectangle height="160" width="170" x="210" y="810" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls15" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#E0F2FE;" value="RuntimeState&lt;br&gt;&lt;br&gt;p_success&lt;br&gt;p_structural_failure&lt;br&gt;recovery_margin&lt;br&gt;expected_remaining_cost&lt;br&gt;evidence_sufficiency&lt;br&gt;last_update_source" vertex="1">
+        <mxCell id="cls15" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#E0F2FE;" value="RuntimeState&lt;br&gt;&lt;br&gt;p_success&lt;br&gt;p_structural_failure&lt;br&gt;recovery_margin&lt;br&gt;expected_remaining_cost&lt;br&gt;evidence_sufficiency&lt;br&gt;last_update_source" vertex="1">
           <mxGeometry height="140" width="190" x="855" y="440" as="geometry">
             <mxRectangle height="220" width="330" x="650" y="815" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls16" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#F1F5F9;" value="Status Enums&lt;br&gt;&lt;br&gt;ExternalStatus: CREATED...DONE&lt;br&gt;InternalStatus adds WAITING_PATCH/PATCHING&lt;br&gt;to_external_status()&lt;br&gt;terminal states immutable" vertex="1">
+        <mxCell id="cls16" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#F1F5F9;" value="Status Enums&lt;br&gt;&lt;br&gt;ExternalStatus: CREATED...DONE&lt;br&gt;InternalStatus adds WAITING_PATCH/PATCHING&lt;br&gt;to_external_status()&lt;br&gt;terminal states immutable" vertex="1">
           <mxGeometry height="110" width="320" x="1570" y="470" as="geometry">
             <mxRectangle height="220" width="330" x="1080" y="815" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="cls17" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#DCFCE7;" value="DesignResult&lt;br&gt;&lt;br&gt;task_id&lt;br&gt;sequence | structure_pdb_path&lt;br&gt;scores&lt;br&gt;risk_flags&lt;br&gt;report_path&lt;br&gt;metadata" vertex="1">
+        <mxCell id="cls17" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#DCFCE7;" value="DesignResult&lt;br&gt;&lt;br&gt;task_id&lt;br&gt;sequence | structure_pdb_path&lt;br&gt;scores&lt;br&gt;risk_flags&lt;br&gt;report_path&lt;br&gt;metadata" vertex="1">
           <mxGeometry height="140" width="220" x="1080" y="645" as="geometry">
             <mxRectangle height="210" width="310" x="1490" y="820" as="alternateBounds" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e18" edge="1" parent="1" source="cls4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls14" value="1">
+        <mxCell id="e18" edge="1" parent="1" source="cls4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls14" value="1">
           <mxGeometry relative="1" x="0.797" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -83,27 +83,27 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e19" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls6" value="contains *">
+        <mxCell id="e19" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls6" value="contains *">
           <mxGeometry relative="1" as="geometry">
             <mxPoint as="offset" />
             <mxPoint x="270" y="590" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e20" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.549;exitY=0.005;exitDx=0;exitDy=0;exitPerimeter=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls14" value="current">
+        <mxCell id="e20" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=0.549;exitY=0.005;exitDx=0;exitDy=0;exitPerimeter=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls14" value="current">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="233" y="180" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e21" edge="1" parent="1" source="cls7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls14" value="step_results">
+        <mxCell id="e21" edge="1" parent="1" source="cls7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls14" value="step_results">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="695" y="296" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e22" edge="1" parent="1" source="cls8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="cls14" value="safety_events">
+        <mxCell id="e22" edge="1" parent="1" source="cls8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="cls14" value="safety_events">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1190" y="400" />
@@ -111,7 +111,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e23" edge="1" parent="1" source="cls9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls11" value="options">
+        <mxCell id="e23" edge="1" parent="1" source="cls9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls11" value="options">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="515" y="790" />
@@ -119,7 +119,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e24" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls9" value="payload">
+        <mxCell id="e24" edge="1" parent="1" source="cls5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls9" value="payload">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="270" y="590" />
@@ -127,13 +127,13 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e25" edge="1" parent="1" source="cls10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls9" value="payload">
+        <mxCell id="e25" edge="1" parent="1" source="cls10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls9" value="payload">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e26" edge="1" parent="1" source="cls12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls11" value="resolves">
+        <mxCell id="e26" edge="1" parent="1" source="cls12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls11" value="resolves">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e27" edge="1" parent="1" source="cls11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=right;verticalLabelPosition=bottom;align=left;verticalAlign=top;" target="cls13" value="persisted before wait">
+        <mxCell id="e27" edge="1" parent="1" source="cls11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=right;verticalLabelPosition=bottom;align=left;verticalAlign=top;" target="cls13" value="persisted before wait">
           <mxGeometry relative="1" x="0.8995" as="geometry">
             <mxPoint as="offset" />
             <Array as="points">
@@ -142,10 +142,10 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e28" edge="1" parent="1" source="cls15" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls14" value="single work copy">
+        <mxCell id="e28" edge="1" parent="1" source="cls15" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls14" value="single work copy">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e29" edge="1" parent="1" source="cls14" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls13" value="minimum recovery context">
+        <mxCell id="e29" edge="1" parent="1" source="cls14" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=bottom;align=right;verticalAlign=top;" target="cls13" value="minimum recovery context">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1425" y="300" />
@@ -153,7 +153,7 @@
             <mxPoint x="480" y="770" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e30" edge="1" parent="1" source="cls14" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls16" value="owns internal status">
+        <mxCell id="e30" edge="1" parent="1" source="cls14" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="cls16" value="owns internal status">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="1730" y="238" />
@@ -161,7 +161,7 @@
             <mxPoint x="400" y="860" as="sourcePoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="e31" edge="1" parent="1" source="cls8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls17" value="summarized into">
+        <mxCell id="e31" edge="1" parent="1" source="cls8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="cls17" value="summarized into">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="agent32" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;" value="PlannerAgent&lt;br&gt;Plan/Patch/Replan candidates only&lt;br&gt;no tool execution, no state mutation" vertex="1">
@@ -179,7 +179,7 @@
         <mxCell id="foot36" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" value="Sources: agent-design.md (contracts and responsibilities), system-implementation-design.md (PendingAction/Decision/TaskSnapshot/RuntimeState), src/models/*.py" vertex="1">
           <mxGeometry height="30" width="1820" x="40" y="1210" as="geometry" />
         </mxCell>
-        <mxCell id="cls8" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=top;spacing=8;fillColor=#FFE4E6;" value="SafetyResult&lt;br&gt;&lt;br&gt;phase: input|step|output&lt;br&gt;scope: task|step|result&lt;br&gt;risk_flags: list[RiskFlag]&lt;br&gt;action: allow|warn|block" vertex="1">
+        <mxCell id="cls8" collapsed="1" parent="1" style="swimlane;whiteSpace=wrap;html=1;rounded=1;startSize=34;horizontal=1;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=top;spacing=8;fillColor=#FFE4E6;" value="SafetyResult&lt;br&gt;&lt;br&gt;phase: input|step|output&lt;br&gt;scope: task|step|result&lt;br&gt;risk_flags: list[RiskFlag]&lt;br&gt;action: allow|warn|block" vertex="1">
           <mxGeometry height="110" width="180" x="1100" y="460" as="geometry">
             <mxRectangle height="190" width="300" x="1480" y="410" as="alternateBounds" />
           </mxGeometry>
