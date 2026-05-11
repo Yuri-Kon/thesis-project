@@ -139,7 +139,7 @@ U_\pi(\pi, x_t) = clip(S_{static}(\pi) + \Delta(\pi, x_t), 0, 1)
 
 | 章节 | 推荐引用 |
 |---|---|
-| 第一章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@yao2022react]`、`[@schick2023toolformer]` |
+| 第一章 绪论 | `[@leaverfay2011rosetta3]`、`[@jumper2021alphafold]`、`[@abramson2024alphafold3]`、`[@lin2023esmfold]`、`[@ahdritz2024openfold]`、`[@dauparas2022proteinmpnn]`、`[@ferruz2022protgpt2]`、`[@watson2023rfdiffusion]`、`[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@bellman1957mdp]`、`[@puterman1994mdp]`、`[@sondik1978pomdp]`、`[@monahan1982pomdp]`、`[@kaelbling1998pomdp]`、`[@yao2022react]`、`[@schick2023toolformer]` |
 | 第二章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@dauparas2022proteinmpnn]`、`[@lin2023esmfold]`、`[@ditommaso2017nextflow]` |
 | 第三章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
 | 第四章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |

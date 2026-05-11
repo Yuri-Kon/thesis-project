@@ -8,6 +8,10 @@
 
 | 原编号 | 引用键 | 参考文献 | 本地/补全来源 | 使用场景 |
 |---|---|---|---|---|
+| R00-1 | `[@bellman1957mdp]` | Bellman, R. (1957). *A Markovian Decision Process*. Indiana University Mathematics Journal, 6(4), 679-684. https://doi.org/10.1512/iumj.1957.6.56038 | 联网补齐 | MDP 基础概念与序贯决策问题背景。 |
+| R00-2 | `[@puterman1994mdp]` | Puterman, M. L. (1994). *Markov Decision Processes: Discrete Stochastic Dynamic Programming*. Wiley. https://doi.org/10.1002/9780470316887 | 联网补齐 | MDP 形式化、策略、价值函数和动态规划基础。 |
+| R00-3 | `[@sondik1978pomdp]` | Sondik, E. J. (1978). *The Optimal Control of Partially Observable Markov Processes over the Infinite Horizon: Discounted Costs*. Operations Research, 26(2), 282-304. https://doi.org/10.1287/opre.26.2.282 | 联网补齐 | POMDP 中 belief-state 和不完全观测控制的早期理论依据。 |
+| R00-4 | `[@monahan1982pomdp]` | Monahan, G. E. (1982). *State of the Art--A Survey of Partially Observable Markov Decision Processes: Theory, Models, and Algorithms*. Management Science, 28(1), 1-16. https://doi.org/10.1287/mnsc.28.1.1 | 联网补齐 | POMDP 模型、算法和应用综述。 |
 | R01 | `[@kaelbling1998pomdp]` | Kaelbling, L. P., Littman, M. L., & Cassandra, A. R. (1998). *Planning and Acting in Partially Observable Stochastic Domains*. Artificial Intelligence, 101(1-2), 99-134. https://doi.org/10.1016/S0004-3702(98)00023-X | RDF + PDF | Lite belief-state 与部分可观测规划理论依据。 |
 | R02 | `[@shani2024heuristics]` | Shani, G. (2024). *Heuristics for Partially Observable Stochastic Contingent Planning*. arXiv:2410.05870. https://arxiv.org/abs/2410.05870 | RDF + PDF + HTML | 部分可观测规划中启发式和随机效应处理依据。 |
 | R03 | `[@carrara2019budgetedrl]` | Carrara, N., Leurent, E., Laroche, R., Urvoy, T., Maillard, O.-A., & Pietquin, O. (2019). *Budgeted Reinforcement Learning in Continuous State Space*. NeurIPS / arXiv:1903.01004. https://arxiv.org/abs/1903.01004 | RDF + PDF + HTML | 预算约束、风险约束和资源感知决策依据。 |
@@ -59,7 +63,7 @@
 
 | 章节 | 建议引用 |
 |---|---|
-| 第一章 绪论 | `[@jumper2021alphafold]`、`[@watson2023rfdiffusion]`、`[@schick2023toolformer]`、`[@yao2022react]` |
+| 第一章 绪论 | `[@leaverfay2011rosetta3]`、`[@jumper2021alphafold]`、`[@abramson2024alphafold3]`、`[@lin2023esmfold]`、`[@ahdritz2024openfold]`、`[@dauparas2022proteinmpnn]`、`[@ferruz2022protgpt2]`、`[@watson2023rfdiffusion]`、`[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@bellman1957mdp]`、`[@puterman1994mdp]`、`[@sondik1978pomdp]`、`[@monahan1982pomdp]`、`[@kaelbling1998pomdp]`、`[@schick2023toolformer]`、`[@yao2022react]` |
 | 第二章 相关技术与理论基础 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@jumper2021alphafold]`、`[@lin2023esmfold]`、`[@dauparas2022proteinmpnn]`、`[@ditommaso2017nextflow]` |
 | 第三章 需求分析 | `[@deelman2005pegasus]`、`[@ditommaso2017nextflow]`、`[@xie2024osworld]` |
 | 第四章 系统设计 | `[@kaelbling1998pomdp]`、`[@shani2024heuristics]`、`[@carrara2019budgetedrl]`、`[@yao2023tot]`、`[@shinn2023reflexion]` |
