@@ -14,4 +14,7 @@ reference/
 *.log
 *.out
 *.xdv
+*.bbl
+*.blg
+*.toc
 # 需要跟踪的内容
