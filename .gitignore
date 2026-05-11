@@ -7,4 +7,11 @@ resources/Protein Design/files/
 *.drawio
 
 reference/
+
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.xdv
 # 需要跟踪的内容
