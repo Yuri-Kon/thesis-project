@@ -15,8 +15,8 @@
 
 | 编号 | 类型 | 标题 | 推荐位置 | 主要来源 | 作用 |
 |---|---|---|---|---|---|
-| 表 4-1 | 表格 | CEBRA-WP 符号与语义定义 | 4.6 CEBRA-WP 形式化定义 | `../thesis-project.design/docs/design/core-algorithm-spec.md` | 固定 `g`、`C`、`K`、`h_t`、`o_t`、`x_t`、`Pi_t`、`S_static`、`G_post`、`U_pi`、`a_t` 等核心符号，避免算法说明散落在正文中。 |
-| 表 4-2 | 表格 | Lite belief-state 状态变量 | 4.8 Lite belief-state 与观测更新 | `../thesis-project.design/docs/design/runtime-adaptation-formalization.md` | 说明 `p_success`、`p_structural_failure`、`recovery_margin`、`expected_remaining_cost`、`evidence_sufficiency` 的取值、来源和决策作用。 |
+| 表 4-1 | 表格 | CEBRA-WP 符号与语义定义 | 4.6 CEBRA-WP 形式化定义 | `../thesis-project.design/docs/design/core-algorithm-spec.md` | 固定 $g$、$C$、$K$、$h_t$、$o_t$、$x_t$、$\Pi_t$、$S_{\mathrm{static}}$、$G_{\mathrm{post}}$、$U_{\pi}$、$a_t$ 等核心符号，避免算法说明散落在正文中。 |
+| 表 4-2 | 表格 | Lite belief-state 状态变量 | 4.8 Lite belief-state 与观测更新 | `../thesis-project.design/docs/design/runtime-adaptation-formalization.md` | 说明 $p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$、$e_{\mathrm{suf}}$ 的取值、来源和决策作用。 |
 | 表 4-3 | 表格 | 恢复动作与 FSM/HITL 映射 | 4.10 恢复动作选择与 HITL 映射 | `core-algorithm-spec.md`、`runtime-adaptation-formalization.md`、FSM 设计 | 将 `continue`、`patch_local`、`suffix_replan`、`stop` 对应到系统状态、人工确认和审计产物。 |
 | 表 4-4 | 表格 | 四组消融策略与算法机制开关 | 4.11 策略组与实验可验证性 | `../thesis-project.dev/docs/experiment/thesis-final-v1-results.md`、`../thesis-project.design/docs/experiment/algorithm-group-paper-mapping.md` | 为第七章实验解释提供前置定义，说明四组策略分别开启哪些算法机制。 |
 | 算法 4-1 | 算法流程 | CEBRA-WP 主流程 | 4.10 恢复动作选择与 HITL 映射 | `core-algorithm-spec.md` | 以伪代码形式串联候选生成、可行性过滤、静态评分、信念更新、运行时重排序、Top-K 和动作选择。 |

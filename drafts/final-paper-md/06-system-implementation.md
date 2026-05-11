@@ -42,13 +42,22 @@
 
 ```python
 class TaskCreateRequest(BaseModel):
-    goal: Optional[str] = Field(None, description="蛋白质设计任务目标(自然语言)")
-    query: Optional[str] = Field(None, description="兼容自由文本入口；会收敛为 intake")
+    goal: Optional[str] = Field(
+        None,
+        description="蛋白质设计任务目标(自然语言)",
+    )
+    query: Optional[str] = Field(
+        None,
+        description="兼容自由文本入口；会收敛为 intake",
+    )
     confirmed_task_spec: Optional[ConfirmedTaskSpec] = Field(
         None,
         description="已经确认的结构化任务输入",
     )
-    constraints: Dict[str, Any] = Field(default_factory=dict, description="结构化约束")
+    constraints: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="结构化约束",
+    )
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -59,9 +68,13 @@ class TaskCreateRequest(BaseModel):
             self.confirmed_task_spec is not None,
         ]
         if not any(modes):
-            raise ValueError("one of goal, query, or confirmed_task_spec is required")
+            raise ValueError(
+                "one of goal, query, or confirmed_task_spec is required"
+            )
         if sum(modes) > 1:
-            raise ValueError("choose exactly one of goal, query, or confirmed_task_spec")
+            raise ValueError(
+                "choose exactly one of goal, query, or confirmed_task_spec"
+            )
         return self
 ```
 

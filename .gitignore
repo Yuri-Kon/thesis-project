@@ -9,6 +9,7 @@ resources/Protein Design/files/
 reference/
 
 *.bkp
+*.pyc
 *.aux
 *.fdb_latexmk
 *.fls
