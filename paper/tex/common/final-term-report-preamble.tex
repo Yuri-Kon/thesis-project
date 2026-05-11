@@ -15,7 +15,10 @@
 \usepackage{indentfirst}
 \usepackage{xcolor}
 \usepackage{framed}
+\usepackage{fvextra}
+\usepackage{listings}
 \usepackage[numbers,sort&compress]{natbib}
+\usepackage{xurl}
 \usepackage{hyperref}
 
 \geometry{
@@ -65,7 +68,7 @@
   citecolor=black
 }
 
-\setcitestyle{numbers,square,comma,sort&compress}
+\bibpunct{[}{]}{,}{s}{}{,}
 
 \renewcommand{\figurename}{图}
 \renewcommand{\tablename}{表}
@@ -80,6 +83,8 @@
 
 \DeclareCaptionFont{termcaption}{\termHei\fontsize{10.5pt}{14pt}\selectfont}
 \captionsetup{justification=centering,singlelinecheck=false,font=termcaption,labelsep=space}
+\captionsetup[figure]{position=bottom}
+\captionsetup[table]{position=top}
 
 \titleformat{\section}
   {\centering\termHei\bfseries\fontsize{16pt}{20pt}\selectfont}
@@ -110,6 +115,42 @@
 \definecolor{shadecolor}{RGB}{248,248,248}
 \newenvironment{Shaded}{\begin{snugshade}\small}{\end{snugshade}}
 \newenvironment{Highlighting}{}{}
+\DefineVerbatimEnvironment{CodeBlock}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  fontsize=\small,
+  commandchars=\\\{\}
+}
+\lstdefinestyle{paperpython}{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{teal},
+  numbers=left,
+  numberstyle=\scriptsize\color{gray},
+  stepnumber=1,
+  numbersep=0.8em,
+  frame=single,
+  framerule=0.3pt,
+  rulecolor=\color{gray},
+  backgroundcolor=\color{shadecolor},
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  tabsize=4,
+  xleftmargin=1.2em,
+  xrightmargin=0.4em
+}
+\newenvironment{symboldefs}{%
+  \par\noindent\begin{tabular}{@{}l@{\quad}>{\raggedright\arraybackslash}p{0.28\linewidth}@{\quad}p{0.60\linewidth}@{}}%
+}{%
+  \end{tabular}\par
+}
+\newcommand{\firstsymdef}[2]{式中，& $#1$ & ——#2；\\}
+\newcommand{\symdef}[2]{& $#1$ & ——#2；\\}
 \newcommand{\statevar}[1]{\text{\texttt{#1}}}
 \newcommand{\NormalTok}[1]{#1}
 \newcommand{\KeywordTok}[1]{\textbf{#1}}

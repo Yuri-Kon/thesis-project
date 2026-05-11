@@ -14,7 +14,7 @@ CEBRA-WP
 \item
   RQ-A2：相比静态单链和固定阈值门控，动态观测是否改变系统行为。
 \item
-  RQ-A3：Lite belief-state / 轻量信念状态相比 dynamic\_no\_belief\_state
+  RQ-A3：Lite belief-state / 轻量信念状态相比 \path|dynamic_no_belief_state|
   是否提供额外机制信息。
 \item
   RQ-A4：失败和恢复案例是否能由事件日志、快照和候选 metadata 还原。
@@ -22,11 +22,11 @@ CEBRA-WP
 
 \subsection{实验设计}\label{ux5b9eux9a8cux8bbeux8ba1}
 
-实验采用四组内部消融设计：\texttt{static\_top1}、\texttt{fixed\_threshold\_gate}、\texttt{dynamic\_no\_belief\_state}
-和 \texttt{lite\_belief\_state}。四组策略按照运行时介入深度递进：静态
+实验采用四组内部消融设计：\path|static_top1|、\path|fixed_threshold_gate|、\path|dynamic_no_belief_state|
+和 \path|lite_belief_state|。四组策略按照运行时介入深度递进：静态
 Top-1
 只选择静态最高分候选；固定阈值门控组保留阈值门控和局部修补触发；动态观测组保留恢复链路但不启用显式
-Lite belief-state / 轻量信念状态；\texttt{lite\_belief\_state}
+Lite belief-state / 轻量信念状态；\path|lite_belief_state|
 组启用运行时状态、runtime adjustment 和 action utility。该设计借鉴了 LLM
 Agent
 中``推理-行动''、候选搜索和失败反馈机制的思想\citep{yao2022react, yao2023tot, shinn2023reflexion}，但实验对象限定为本文系统中的工作流规划与恢复控制。
@@ -37,45 +37,59 @@ Lite belief-state /
 轻量信念状态的影响；评价指标覆盖成功率、首次成功、高代价调用、恢复事件和机制可观测性；证据产物由
 run config、event log、snapshot、report 和聚合 CSV 组成。
 
-图 7-1 实验设计框架
-插图文件：\texttt{paper/figures/experiment-design-framework.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/experiment-design-framework.drawio.pdf}
+  \caption{实验设计框架}
+  \label{fig:experiment-design-framework}
+\end{figure}
 
 图 7-1 的作用是限定本章统计结果的来源。后续表 7-1 至表 7-8 均来自
-\texttt{thesis-final-v1-001}
+\path|thesis-final-v1-001|
 实验矩阵及其配套日志、快照和聚合产物；对应内部证据入口为
-\texttt{../thesis-project.dev/docs/experiment/thesis-final-v1-results.md}
+\path|../thesis-project.dev/docs/experiment/thesis-final-v1-results.md|
 和
-\texttt{../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/}。
+\path|../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/|。
 
-\textbf{表 7-1 实验矩阵配置表}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\centering\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\caption{实验矩阵配置表}\label{tab:7-1}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 项目
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+配置
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+项目
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 配置
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
-run\_id & \texttt{thesis-final-v1-001} \\
-freeze\_id & \texttt{issue209-baseline-freeze-20260326} \\
-planner\_provider & \texttt{deepseek-v4-pro} \\
+run\_id & \path|thesis-final-v1-001| \\
+freeze\_id & \path|issue209-baseline-freeze-20260326| \\
+planner\_provider & \path|deepseek-v4-pro| \\
 任务覆盖 & 12 个 task\_keys，覆盖 T1 至 T8 共 8 类场景 \\
-策略组 & \texttt{static\_top1} / \texttt{fixed\_threshold\_gate} /
-\texttt{dynamic\_no\_belief\_state} / \texttt{lite\_belief\_state} \\
+策略组 & \path|static_top1| / \path|fixed_threshold_gate| /
+\path|dynamic_no_belief_state| / \path|lite_belief_state| \\
 repeats &
-\texttt{low\_cost\_first=2}，\texttt{standard=2}，\texttt{high\_cost\_sensitive=1} \\
+\path|low_cost_first=2|，\path|standard=2|，\path|high_cost_sensitive=1| \\
 总 runs & 84 runs，每组 21 runs \\
 终态结果 & 81 DONE，3 FAILED \\
 执行时间 & 约 6 小时 \\
 产物路径 &
-\texttt{../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/} \\
+\path|../thesis-project.dev/output/experiment/thesis-final-matrix/thesis-final-v1-001/| \\
 \end{longtable}
 }
 
@@ -83,9 +97,9 @@ repeats &
 设计、序列评估、多约束稳定性优化、高代价结构预测、可修复参数失败、远程服务降级、结构性重规划和安全探测。涉及的公开结构包括
 Trp-cage、Villin HP35、GB1、Ubiquitin、Top7 和 de novo
 oligomer。任务定义与分层依据来自
-\texttt{../thesis-project.dev/docs/experiment/final-thesis-experiment-design.md}
+\path|../thesis-project.dev/docs/experiment/final-thesis-experiment-design.md|
 和
-\texttt{../thesis-project.dev/docs/experiment/thesis-final-v1-results.md}。该任务集使实验同时包含低成本成功路径、中等压力路径和高代价结构预测路径。
+\path|../thesis-project.dev/docs/experiment/thesis-final-v1-results.md|。该任务集使实验同时包含低成本成功路径、中等压力路径和高代价结构预测路径。
 
 \subsection{指标定义}\label{ux6307ux6807ux5b9aux4e49}
 
@@ -110,49 +124,66 @@ utility 来自候选 metadata，表示算法对
 表 7-2 汇总四组策略的核心指标。每组 21 runs，static\_top1 全部
 DONE，其余三组各 1 个 FAILED。
 
-\textbf{表 7-2 四组消融主实验结果}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
+\small
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1579}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2105}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2400}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1600}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2200}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1800}}@{}}
+\caption{四组消融主实验结果}\label{tab:7-2}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 指标
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
-static\_top1
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
-fixed\_threshold\_gate
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
-dynamic\_no\_belief\_state
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
-lite\_belief\_state
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{static}\\\texttt{\_top1}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{fixed}\\\texttt{\_threshold}\\\texttt{\_gate}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{dynamic}\\\texttt{\_no\_belief}\\\texttt{\_state}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{lite}\\\texttt{\_belief}\\\texttt{\_state}\end{tabular}
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+指标
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{static}\\\texttt{\_top1}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{fixed}\\\texttt{\_threshold}\\\texttt{\_gate}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{dynamic}\\\texttt{\_no\_belief}\\\texttt{\_state}\end{tabular}
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+\begin{tabular}[c]{@{}c@{}}\texttt{lite}\\\texttt{\_belief}\\\texttt{\_state}\end{tabular}
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 runs & 21 & 21 & 21 & 21 \\
 DONE & 21 & 20 & 20 & 20 \\
 FAILED & 0 & 1 & 1 & 1 \\
-success\_rate & 1.0000 & 0.9524 & 0.9524 & 0.9524 \\
-first\_pass\_success\_rate & 1.0000 & 0.9048 & 0.9524 & 0.9524 \\
-schema\_valid\_rate & 1.0000 & 1.0000 & 0.9524 & 1.0000 \\
-executable\_plan\_rate & 1.0000 & 0.9524 & 1.0000 & 1.0000 \\
-waiting\_chain\_complete\_rate & 1.0000 & 1.0000 & 1.0000 & 1.0000 \\
-failure\_traceable\_rate & 1.0000 & 1.0000 & 1.0000 & 1.0000 \\
-runtime\_state\_observable\_rate & 0.0000 & 0.0000 & 0.0000 & 1.0000 \\
-patch\_events\_mean & 0.0000 & 0.2857 & 0.0000 & 0.0000 \\
-replan\_events\_mean & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
-suffix\_replan\_events\_mean & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
-high\_cost\_call\_mean & 1.0000 & 1.3333 & 0.9524 & 0.9524 \\
-high\_cost\_call\_total & 21 & 28 & 20 & 20 \\
-duration\_ms\_mean & 241,905 & 300,238 & 226,571 & 272,095 \\
-action\_continue\_mean & 1.0952 & 1.5238 & 0.9524 & 0.9524 \\
-action\_patch\_local\_mean & 0.0000 & 0.2857 & 0.0000 & 0.0000 \\
+\path|success_rate| & 1.0000 & 0.9524 & 0.9524 & 0.9524 \\
+\path|first_pass_success_rate| & 1.0000 & 0.9048 & 0.9524 & 0.9524 \\
+\path|schema_valid_rate| & 1.0000 & 1.0000 & 0.9524 & 1.0000 \\
+\path|executable_plan_rate| & 1.0000 & 0.9524 & 1.0000 & 1.0000 \\
+\path|waiting_chain_complete_rate| & 1.0000 & 1.0000 & 1.0000 & 1.0000 \\
+\path|failure_traceable_rate| & 1.0000 & 1.0000 & 1.0000 & 1.0000 \\
+\path|runtime_state_observable_rate| & 0.0000 & 0.0000 & 0.0000 & 1.0000 \\
+\path|patch_events_mean| & 0.0000 & 0.2857 & 0.0000 & 0.0000 \\
+\path|replan_events_mean| & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+\path|suffix_replan_events_mean| & 0.0000 & 0.0000 & 0.0000 & 0.0000 \\
+\path|high_cost_call_mean| & 1.0000 & 1.3333 & 0.9524 & 0.9524 \\
+\path|high_cost_call_total| & 21 & 28 & 20 & 20 \\
+\path|duration_ms_mean| & 241,905 & 300,238 & 226,571 & 272,095 \\
+\path|action_continue_mean| & 1.0952 & 1.5238 & 0.9524 & 0.9524 \\
+\path|action_patch_local_mean| & 0.0000 & 0.2857 & 0.0000 & 0.0000 \\
 \end{longtable}
 }
 
@@ -168,14 +199,20 @@ belief-state / 轻量信念状态链路在所有 run 中均产生可追踪输出
 表 7-3 按任务难度和预算层级汇总成功率。3 个 FAILED run 全部位于
 medium/standard 层。
 
-\textbf{表 7-3 按任务难度与预算分层的成功率}
-
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}{@{}lrrrr@{}}
+{%
+\begin{longtable}{@{}ccccc@{}}
+\caption{按任务难度与预算分层的成功率}\label{tab:7-3}\\
+\toprule
+分层 & runs & DONE & FAILED & success\_rate \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
 \toprule
 分层 & runs & DONE & FAILED & success\_rate \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 easy & 32 & 32 & 0 & 1.0000 \\
@@ -194,47 +231,64 @@ FAILED。hard 层样本量较小，该行仅作为本矩阵中的观察事实。
 表 7-4 给出相邻策略组的 paired delta。delta
 为后一个策略组减前一个策略组。
 
-\textbf{表 7-4 机制增量配对对比}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
+\small
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2353}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2353}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1765}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1500}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2200}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1200}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.4100}}@{}}
+\caption{机制增量配对对比}\label{tab:7-4}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 对比
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 指标
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 delta
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 样本数
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+结果含义
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+对比
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+指标
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+delta
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+样本数
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 结果含义
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
-static→fixed & success\_rate & -0.0476 & 21 & fixed 组多 1 个失败。 \\
-static→fixed & first\_pass\_success\_rate & -0.0952 & 21 & fixed
+\begin{tabular}[c]{@{}c@{}}static\\→fixed\end{tabular} & \path|success_rate| & -0.0476 & 21 & fixed 组多 1 个失败。 \\
+\begin{tabular}[c]{@{}c@{}}static\\→fixed\end{tabular} & \path|first_pass_success_rate| & -0.0952 & 21 & fixed
 组首次成功率下降。 \\
-static→fixed & patch\_event\_count & +0.2857 & 21 &
-\texttt{fixed\_threshold\_gate} 组触发真实局部修补。 \\
-static→fixed & high\_cost\_call\_count & +0.3333 & 21 & fixed
+\begin{tabular}[c]{@{}c@{}}static\\→fixed\end{tabular} & \path|patch_event_count| & +0.2857 & 21 &
+\path|fixed_threshold_gate| 组触发真实局部修补。 \\
+\begin{tabular}[c]{@{}c@{}}static\\→fixed\end{tabular} & \path|high_cost_call_count| & +0.3333 & 21 & fixed
 组高代价调用增加。 \\
-fixed→dynamic & high\_cost\_call\_count & -0.3810 & 21 & dynamic
+\begin{tabular}[c]{@{}c@{}}fixed\\→dynamic\end{tabular} & \path|high_cost_call_count| & -0.3810 & 21 & dynamic
 组高代价调用低于 fixed。 \\
-fixed→dynamic & duration\_ms & -73,667 & 21 & dynamic 组平均耗时低于
+\begin{tabular}[c]{@{}c@{}}fixed\\→dynamic\end{tabular} & \path|duration_ms| & -73,667 & 21 & dynamic 组平均耗时低于
 fixed。 \\
-dynamic→lite & schema\_valid\_rate & +0.0476 & 21 & lite 组 schema valid
+\begin{tabular}[c]{@{}c@{}}dynamic\\→lite\end{tabular} & \path|schema_valid_rate| & +0.0476 & 21 & lite 组 schema valid
 恢复到 1.0000。 \\
-dynamic→lite & high\_cost\_call\_count & 0.0000 & 21 &
+\begin{tabular}[c]{@{}c@{}}dynamic\\→lite\end{tabular} & \path|high_cost_call_count| & 0.0000 & 21 &
 两组高代价调用均值相同。 \\
-dynamic→lite & duration\_ms & +45,524 & 21 & lite 组平均耗时高于
+\begin{tabular}[c]{@{}c@{}}dynamic\\→lite\end{tabular} & \path|duration_ms| & +45,524 & 21 & lite 组平均耗时高于
 dynamic。 \\
 \end{longtable}
 }
@@ -251,32 +305,50 @@ valid、RuntimeState 和 action utility 等机制信息上。
 的高代价调用总数为 28，其中结构映射 27 次，结构精修 1
 次；dynamic\_no\_belief\_state 和 lite\_belief\_state 均为 20 次。
 
-\textbf{表 7-5 高代价调用与运行时间对比}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1304}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1304}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1739}}@{}}
+\caption{高代价调用与运行时间对比}\label{tab:7-5}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 组
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 high\_cost\_total
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 high\_cost\_mean
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 结构映射
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 结构精修
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+平均耗时
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+组
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+high\_cost\_total
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+high\_cost\_mean
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+结构映射
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+结构精修
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 平均耗时
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 static\_top1 & 21 & 1.0000 & 21 & 0 & 241,905 ms \\
@@ -305,23 +377,35 @@ focused tests 已覆盖后缀重规划和 \texttt{terminal\_stop}
 表 7-6 对比 Lite belief-state 与其余三组的机制可观测性。该表对应 RQ-A1
 和 RQ-A3。
 
-\textbf{表 7-6 Lite belief-state 机制可观测性对比}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\centering\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
+  >{\centering\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
+\caption{Lite belief-state 机制可观测性对比}\label{tab:7-6-lite-belief-state}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 特征
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 static\_top1 / fixed\_threshold\_gate / dynamic\_no\_belief\_state
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+lite\_belief\_state
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{3}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+特征
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+static\_top1 / fixed\_threshold\_gate / dynamic\_no\_belief\_state
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 lite\_belief\_state
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 runtime\_state\_summary & 无有效运行时状态摘要 & 21/21 runs 产生
@@ -355,40 +439,62 @@ high\_cost\_call\_mean 相同，其增量主要体现为完整的 RuntimeState
 则在候选评估阶段产生 RuntimeState、runtime adjustment 和 action
 utility，并据此影响候选排序。
 
-图 7-2 固定修补与 Lite belief-state 重排序的恢复路径对比
-插图文件：\texttt{paper/figures/recovery-path-comparison-timeline.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/recovery-path-comparison-timeline.drawio.pdf}
+  \caption{固定修补与 Lite belief-state 重排序的恢复路径对比}
+  \label{fig:recovery-path-comparison-timeline}
+\end{figure}
 
 图 7-2 用于解释表 7-7 中的失败案例。fixed\_threshold\_gate
 的失败体现为局部修补循环耗尽；lite\_belief\_state
 的失败体现为运行时状态可观测但仍未打破循环；dynamic\_no\_belief\_state
 的失败体现为候选 I/O 闭包校验失败。
 
-\textbf{表 7-7 失败案例归因表}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
-  >{\raggedleft\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.2105}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.2105}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}
+  >{\centering\arraybackslash}p{(\linewidth - 10\tabcolsep) * \real{0.1579}}@{}}
+\caption{失败案例归因表}\label{tab:7-7}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 策略组
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 任务
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 repeat
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 错误类型
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 根因摘要
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+证据意义
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{6}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+策略组
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+任务
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+repeat
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+错误类型
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+根因摘要
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 证据意义
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 fixed\_threshold\_gate & \texttt{t2\_ubiquitin\_sequence\_eval} & r02 &
@@ -417,26 +523,40 @@ snapshot，可作为可追溯的边界样本。fixed\_threshold\_gate 的 t2
 表 7-8 汇总本章使用的实验产物。所有核心结论均可回溯到矩阵报告、CSV
 聚合、run 级结果、事件日志或快照。
 
-\textbf{表 7-8 实验结果证据产物索引}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{实验结果证据产物索引}\label{tab:7-8}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 证据产物
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 路径/来源
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 支撑内容
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+使用位置
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{4}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+证据产物
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+路径/来源
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+支撑内容
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 使用位置
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 实验结果报告 &

@@ -30,29 +30,45 @@ Web 工作台和 CLI 的实际使用路径。
 可用性、失败恢复、安全边界和端到端执行。表 6-1
 汇总了各测试用例的覆盖范围、执行结果和核心证据。
 
-\textbf{表 6-1 系统测试用例覆盖矩阵}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\caption{系统测试用例覆盖矩阵}\label{tab:6-1}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 用例
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 测试类别
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 覆盖验证点
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 执行结果
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+核心证据
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+用例
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+测试类别
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+覆盖验证点
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+执行结果
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 核心证据
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 TC-S01 & 环境与能力就绪 & SV-01、SV-27 & 通过 &
@@ -93,29 +109,45 @@ A。正文后续小节只展开与系统正确性论证直接相关的关键路�
 至 FIG-SV-18 属于前端验证截图证据，本章不将其作为正式``图
 6-x''编号插图，以避免正文图号与证据截图编号混用。
 
-\textbf{表 6-2 系统验证证据类型索引}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\caption{系统验证证据类型索引}\label{tab:6-2}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 证据前缀
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 证据类型
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 当前数量/范围
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 主要支撑内容
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+典型章节位置
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+证据前缀
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+证据类型
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+当前数量/范围
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+主要支撑内容
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 典型章节位置
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 EVD-API & API 响应 JSON & 8 项 & 健康检查、能力
@@ -226,29 +258,45 @@ Decision，这一点对于保护 HITL 决策边界尤为关键。
 验证 Web 工作台，TC-S08 验证 CLI。表 6-3
 汇总了两类入口的覆盖范围、证据和限制。
 
-\textbf{表 6-3 前端与 CLI 可用性证据汇总}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\caption{前端与 CLI 可用性证据汇总}\label{tab:6-3--cli}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 入口
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 覆盖范围
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 证据编号
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 结论
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+限制
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+入口
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+覆盖范围
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+证据编号
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+结论
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 限制
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 Web Dashboard & 任务列表、状态摘要、能力提示 &
@@ -289,29 +337,45 @@ CLI 验证显示，\texttt{intake\ schema\ -\/-json}
 和 TC-S13 分别验证恢复流程和止损审计，TC-S10 验证安全边界。表 6-4
 汇总了恢复与安全相关的主要证据。
 
-\textbf{表 6-4 恢复与安全边界验证证据表}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+\caption{恢复与安全边界验证证据表}\label{tab:6-4}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 验证主题
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 覆盖用例
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 关键行为
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 主要证据
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+结论边界
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+验证主题
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+覆盖用例
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+关键行为
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+主要证据
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 结论边界
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 有界重试 & TC-S12 & 可重试失败进入有限重试，耗尽后交给恢复逻辑 &
@@ -375,7 +439,7 @@ API、状态机、HITL、快照、恢复和工具适配机制能够在完整任�
 84-run
 策略对比实验正是在这一工程验证基础上展开，因此实验结果中的差异可以优先归因于策略配置，而不是基本系统功能失效。
 
-\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+\subsection{本章小结}\label{testing-validation-summary}
 
 本章围绕系统功能正确性和工程可用性，整理了 13 个测试用例、30
 余个验证点和六类证据材料。结果表明，系统在 API

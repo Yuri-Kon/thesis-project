@@ -26,12 +26,12 @@ FSM 作为任务生命周期的控制核心，将
 
 在算法设计方面，本文提出 CEBRA-WP，将约束感知、证据感知、Lite
 belief-state /
-轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标、约束集合、ProteinToolKG、历史状态、观测和
+轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史状态 $h_t$、观测 $o_t$ 和
 Lite belief-state /
-轻量信念状态；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState
+轻量信念状态 $x_t$；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState
 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含
-\texttt{p\_success}、\texttt{p\_structural\_failure}、\texttt{recovery\_margin}、\texttt{expected\_remaining\_cost}
-和 \texttt{evidence\_sufficiency}
+$p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$
+和 $e_{\mathrm{suf}}$
 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
 
 在系统实现方面，本文基于 Python、FastAPI、Pydantic、React 和 TypeScript

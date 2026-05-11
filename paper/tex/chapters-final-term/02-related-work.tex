@@ -118,15 +118,19 @@ ProteinToolKG 约束工具链生成，如何用 Lite belief-state /
 
 图 2-1 给出了本文技术路线涉及的主要技术关系。
 
-图 2-1 技术路线概览
-插图文件：\texttt{paper/figures/technical-route.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/technical-route.drawio.pdf}
+  \caption{技术路线概览}
+  \label{fig:technical-route}
+\end{figure}
 
 图 2-1
 展示了本文系统与多个技术方向之间的关系：蛋白质设计工具提供计算能力，科学工作流提供执行与可复现基础，LLM
 Agent 提供候选生成和解释能力，部分可观测规划与预算感知决策为 CEBRA-WP
 的运行时控制提供理论依据。
 
-\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+\subsection{本章小结}\label{related-work-summary}
 
 本章界定了后续系统设计中需要使用的主要技术概念。已有蛋白质工具为序列生成、结构预测和质量评估提供能力来源；科学工作流系统为可复现执行提供基础思想；LLM
 Agent

@@ -31,26 +31,40 @@ PlanStep 内，把多步编排、状态迁移和人工确认保留在自定义�
 表 5-1
 给出了后端核心模块与论文架构层之间的对应关系。该表说明系统实现并非简单的文件目录堆叠，而是围绕任务接入、数据契约、工作流控制、工具适配和审计恢复形成分层实现。
 
-\textbf{表 5-1 后端核心模块与论文架构层对应关系}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{后端核心模块与论文架构层对应关系}\label{tab:5-1}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 实现目录
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 主要职责
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 对应设计层/模块
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+正文说明重点
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{4}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+实现目录
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+主要职责
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+对应设计层/模块
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 正文说明重点
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 \texttt{src/api/} & FastAPI 入口、任务接口、HITL 接口、前端静态入口 &
@@ -86,8 +100,8 @@ Task Intake
 链路，将任务录入拆分为草稿创建、字段补充、场景预检查和正式确认几个阶段。
 
 后端提供
-\texttt{/task-intakes/schema}、\texttt{/task-intakes}、\texttt{/task-intakes/\{id\}}
-和 \texttt{/task-intakes/\{id\}/confirm}
+\path|/task-intakes/schema|、\path|/task-intakes|、\path|/task-intakes/{id}|
+和 \path|/task-intakes/{id}/confirm|
 等接口。字段注册表由后端返回，前端 Task Builder
 根据字段类型、是否必填和分组信息动态渲染表单。用户补充字段后，系统进行场景门控和安全预检查，只有确认后的结构化任务规格才会进入正式任务创建路径。
 
@@ -97,56 +111,67 @@ Task Intake
 
 \textbf{代码清单 5-1 任务创建请求的互斥入口校验}
 
-来源：\texttt{../thesis-project.dev/src/api/main.py:166}
+来源：\path|../thesis-project.dev/src/api/main.py:166|
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\KeywordTok{class}\NormalTok{ TaskCreateRequest(BaseModel):}
-\NormalTok{    goal: Optional[}\BuiltInTok{str}\NormalTok{] }\OperatorTok{=}\NormalTok{ Field(}\VariableTok{None}\NormalTok{, description}\OperatorTok{=}\StringTok{"蛋白质设计任务目标(自然语言)"}\NormalTok{)}
-\NormalTok{    query: Optional[}\BuiltInTok{str}\NormalTok{] }\OperatorTok{=}\NormalTok{ Field(}\VariableTok{None}\NormalTok{, description}\OperatorTok{=}\StringTok{"兼容自由文本入口；会收敛为 intake"}\NormalTok{)}
-\NormalTok{    confirmed\_task\_spec: Optional[ConfirmedTaskSpec] }\OperatorTok{=}\NormalTok{ Field(}
-        \VariableTok{None}\NormalTok{,}
-\NormalTok{        description}\OperatorTok{=}\StringTok{"已经确认的结构化任务输入"}\NormalTok{,}
-\NormalTok{    )}
-\NormalTok{    constraints: Dict[}\BuiltInTok{str}\NormalTok{, Any] }\OperatorTok{=}\NormalTok{ Field(default\_factory}\OperatorTok{=}\BuiltInTok{dict}\NormalTok{, description}\OperatorTok{=}\StringTok{"结构化约束"}\NormalTok{)}
-\NormalTok{    metadata: Dict[}\BuiltInTok{str}\NormalTok{, Any] }\OperatorTok{=}\NormalTok{ Field(default\_factory}\OperatorTok{=}\BuiltInTok{dict}\NormalTok{)}
+\begin{lstlisting}[style=paperpython]
+class TaskCreateRequest(BaseModel):
+    goal: Optional[str] = Field(
+        None,
+        description="蛋白质设计任务目标(自然语言)",
+    )
+    query: Optional[str] = Field(
+        None,
+        description="兼容自由文本入口；会收敛为 intake",
+    )
+    confirmed_task_spec: Optional[ConfirmedTaskSpec] = Field(
+        None,
+        description="已经确认的结构化任务输入",
+    )
+    constraints: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="结构化约束",
+    )
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
-    \AttributeTok{@model\_validator}\NormalTok{(mode}\OperatorTok{=}\StringTok{"after"}\NormalTok{)}
-    \KeywordTok{def}\NormalTok{ \_validate\_creation\_mode(}\VariableTok{self}\NormalTok{) }\OperatorTok{{-}\textgreater{}} \StringTok{"TaskCreateRequest"}\NormalTok{:}
-\NormalTok{        modes }\OperatorTok{=}\NormalTok{ [}
-            \VariableTok{self}\NormalTok{.goal }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
-            \VariableTok{self}\NormalTok{.query }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
-            \VariableTok{self}\NormalTok{.confirmed\_task\_spec }\KeywordTok{is} \KeywordTok{not} \VariableTok{None}\NormalTok{,}
-\NormalTok{        ]}
-        \ControlFlowTok{if} \KeywordTok{not} \BuiltInTok{any}\NormalTok{(modes):}
-            \ControlFlowTok{raise} \PreprocessorTok{ValueError}\NormalTok{(}\StringTok{"one of goal, query, or confirmed\_task\_spec is required"}\NormalTok{)}
-        \ControlFlowTok{if} \BuiltInTok{sum}\NormalTok{(modes) }\OperatorTok{\textgreater{}} \DecValTok{1}\NormalTok{:}
-            \ControlFlowTok{raise} \PreprocessorTok{ValueError}\NormalTok{(}\StringTok{"choose exactly one of goal, query, or confirmed\_task\_spec"}\NormalTok{)}
-        \ControlFlowTok{return} \VariableTok{self}
-\end{Highlighting}
-\end{Shaded}
+    @model_validator(mode="after")
+    def _validate_creation_mode(self) -> "TaskCreateRequest":
+        modes = [
+            self.goal is not None,
+            self.query is not None,
+            self.confirmed_task_spec is not None,
+        ]
+        if not any(modes):
+            raise ValueError(
+                "one of goal, query, or confirmed_task_spec is required"
+            )
+        if sum(modes) > 1:
+            raise ValueError(
+                "choose exactly one of goal, query, or confirmed_task_spec"
+            )
+        return self
+\end{lstlisting}
 
 代码清单 5-1
 对应第四章中``任务输入需要结构化确认''的设计要求。该校验不直接提高蛋白质设计模型的能力，但可以避免任务入口语义不清导致后续计划生成和审计困难。
 
 \subsubsection{任务生命周期接口}\label{ux4efbux52a1ux751fux547dux5468ux671fux63a5ux53e3}
 
-正式任务创建后，系统通过任务生命周期接口暴露任务状态、事件和报告。\texttt{GET\ /tasks/\{task\_id\}}
+正式任务创建后，系统通过任务生命周期接口暴露任务状态、事件和报告。\path|GET /tasks/{task_id}|
 返回任务记录，包括外部状态、内部状态、任务目标、约束、计划、设计结果、待决策对象和安全事件。外部状态用于前端展示，例如
 \texttt{WAITING\_PATCH\_CONFIRM}；内部状态保留执行细节，例如
 \texttt{WAITING\_PATCH} 或 \texttt{PATCHING}。这种双状态设计使 UI
 可以保持简洁，同时不丢失恢复流程所需的精确状态。
 
-\texttt{GET\ /tasks/\{task\_id\}/events}
-返回事件时间线。该接口直接读取事件日志，而不是只依赖内存任务表。因此，只要日志文件存在，服务重启后仍可还原任务的状态迁移、步骤执行、等待进入、决策应用和等待退出等事件。\texttt{GET\ /tasks/\{task\_id\}/report}
+\path|GET /tasks/{task_id}/events|
+返回事件时间线。该接口直接读取事件日志，而不是只依赖内存任务表。因此，只要日志文件存在，服务重启后仍可还原任务的状态迁移、步骤执行、等待进入、决策应用和等待退出等事件。\path|GET /tasks/{task_id}/report|
 返回最终报告摘要，包含序列、结构文件路径、评分、风险标记和目标评分结果；未完成任务请求报告时返回错误响应，避免把中间状态误认为最终结果。
 
 \subsubsection{HITL 接口}\label{hitl-ux63a5ux53e3}
 
 HITL 机制通过 PendingAction 和 Decision
-建模。\texttt{GET\ /pending-actions}
-返回待审查任务摘要，\texttt{GET\ /pending-actions/\{id\}}
-返回候选详情，\texttt{POST\ /pending-actions/\{id\}/decision}
+建模。\path|GET /pending-actions|
+返回待审查任务摘要，\path|GET /pending-actions/{id}|
+返回候选详情，\path|POST /pending-actions/{id}/decision|
 接收用户决策。候选详情中包含候选数量、默认建议、评分分解、运行时状态摘要、风险等级、成本估计和解释字段。这些信息使前端能够展示``为什么推荐该候选''，而不是只给出一个不可解释的确认按钮。
 
 当用户提交 Decision 后，后端会验证 PendingAction
@@ -184,8 +209,12 @@ PlanStep。执行过程中，StepRunner 调用 ToolAdapter
 模块在输入、步骤和输出阶段提供风险判定，Storage
 模块负责事件日志、快照和产物写入。
 
-图 5-1 运行时执行序列
-插图文件：\texttt{paper/figures/runtime-sequence.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/runtime-sequence.drawio.pdf}
+  \caption{运行时执行序列}
+  \label{fig:runtime-sequence}
+\end{figure}
 
 图 5-1 的重点在于说明 Planner 和 Executor 的边界：Planner
 生成候选并查询工具知识，不直接执行工具；Executor 只执行已确认的
@@ -409,8 +438,12 @@ adjustment，并按 final score 重新排序。
 贯穿其中：候选生成后参与重排，失败或风险出现时参与恢复动作选择，并通过
 PendingAction 将解释信息呈现给人工决策者。
 
-图 5-2 工作流泳道式模块协作
-插图文件：\texttt{paper/figures/workflow-swimlane.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/workflow-swimlane.drawio.pdf}
+  \caption{工作流泳道式模块协作}
+  \label{fig:workflow-swimlane}
+\end{figure}
 
 图 5-2 说明了系统控制面和执行面的分离关系。CEBRA-WP
 影响候选排序和恢复动作，但实际状态迁移仍由 Workflow/FSM
@@ -479,7 +512,7 @@ ProteinToolKG，根据任务所需能力组合工具链，并过滤不可用工�
 I/O 闭包不成立的候选。该实现使新增工具主要通过更新 ProteinToolKG
 和注册适配器完成，而不需要修改 Planner 的核心流程。
 
-\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+\subsection{本章小结}\label{system-implementation-summary}
 
 本章从工程角度说明了系统实现方式。系统后端以 Python、FastAPI 和 Pydantic
 为基础，前端以 React、TypeScript 和 Vite

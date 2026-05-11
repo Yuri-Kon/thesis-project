@@ -14,8 +14,12 @@ CEBRA-WP，本章给出其在本文系统中的形式化对象、评分函数、
 
 基于上述特点，系统采用五层分层架构，如图 4-1 所示。
 
-图 4-1 系统五层分层架构
-插图文件：\texttt{paper/figures/system-architecture.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/system-architecture.drawio.pdf}
+  \caption{系统五层分层架构}
+  \label{fig:system-architecture}
+\end{figure}
 
 输入层面向 Web 工作台、CLI 和
 API，负责接收自然语言目标、结构化约束和人工决策。智能规划层以
@@ -59,8 +63,12 @@ ToolAdapter
 面向规划层，回答``哪些工具可用于何种能力、输入输出如何兼容、成本和风险如何估计''。二者共同支撑候选生成与执行验证。ProteinToolKG
 的局部结构如图 4-2 所示。
 
-图 4-2 ProteinToolKG 局部可视化
-插图文件：\texttt{paper/figures/protein-toolkg-local-view.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/protein-toolkg-local-view.drawio.pdf}
+  \caption{ProteinToolKG 局部可视化}
+  \label{fig:protein-toolkg-local-view}
+\end{figure}
 
 图 4-2 展示了 ProtGPT2、ProteinMPNN、ESMFold/OpenFold、Biopython
 QC、DSSP 和 objective\_ranker
@@ -75,8 +83,12 @@ QC、DSSP 和 objective\_ranker
 系统使用有限状态机（Finite State Machine，FSM）控制任务生命周期，如图
 4-3 所示。
 
-图 4-3 FSM 状态转移图
-插图文件：\texttt{paper/figures/fsm-state-transition.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/fsm-state-transition.drawio.pdf}
+  \caption{FSM 状态转移图}
+  \label{fig:fsm-state-transition}
+\end{figure}
 
 任务对外状态包括
 CREATED、PLANNING、WAITING\_PLAN\_CONFIRM、PLANNED、RUNNING、WAITING\_PATCH\_CONFIRM、WAITING\_REPLAN\_CONFIRM、SUMMARIZING、DONE、FAILED
@@ -87,8 +99,12 @@ Decision。DONE、FAILED 和 CANCELLED 为终态，进入后不再被自动修�
 人在环决策（Human-in-the-loop，HITL）不是任意插入的人机交互按钮，而是由成本、风险和不确定性共同触发的受控状态。不同等待状态的进入条件见图
 4-4。
 
-图 4-4 HITL 决策条件
-插图文件：\texttt{paper/figures/hitl-decision-conditions.drawio.png}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{../figures/hitl-decision-conditions.drawio.png}
+  \caption{HITL 决策条件}
+  \label{fig:hitl-decision-conditions}
+\end{figure}
 
 PLANNING 阶段，如果候选置信度不足、即将调用高代价工具或 SafetyAgent 给出
 warn，系统进入 WAITING\_PLAN\_CONFIRM。RUNNING 阶段，如果步骤失败但仍有
@@ -106,8 +122,12 @@ FSM 统一推进；算法建议不能绕过 WAITING\_* 状态，也不能把 sto
 
 蛋白质设计能力被组织为六个阶段，如图 4-5 所示。
 
-图 4-5 六阶段 de novo 蛋白质设计工作流
-插图文件：\texttt{paper/figures/workflow-flowchart.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/workflow-flowchart.drawio.pdf}
+  \caption{六阶段 de novo 蛋白质设计工作流}
+  \label{fig:workflow-flowchart}
+\end{figure}
 
 六个阶段分别为序列探索、结构映射、质量门禁、结构条件精修、目标评分和结果汇总。序列探索生成候选序列；结构映射将序列转换为结构并产生折叠置信度；质量门禁检查序列合法性、结构完整性和低复杂度等工程质量；结构条件精修根据结构反馈进行重设计；目标评分对候选进行多目标排序；结果汇总生成
 DesignResult 和报告。
@@ -149,8 +169,12 @@ Planning，本文译为``约束与证据感知、信念引导、恢复自适应�
 
 算法总体闭环如图 4-6 所示。
 
-图 4-6 CEBRA-WP 算法闭环
-插图文件：\texttt{paper/figures/algorithm-loop.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/algorithm-loop.drawio.pdf}
+  \caption{CEBRA-WP 算法闭环}
+  \label{fig:algorithm-loop}
+\end{figure}
 
 图 4-6 的上半部分是静态规划层：系统根据目标、约束、ProteinToolKG
 和历史记录生成候选工具链，随后执行硬可行性过滤与静态评分。图 4-6
@@ -162,67 +186,88 @@ belief-state / 轻量信念状态，再对候选进行运行时重排序，并�
 
 算法使用的主要符号如表 4-1 所示。
 
-\textbf{表 4-1 CEBRA-WP 符号与语义定义}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 6\tabcolsep) * \real{0.2500}}@{}}
+\caption{CEBRA-WP 符号与语义定义}\label{tab:4-1-cebra-wp}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 符号
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 含义
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 来源或载体
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+在算法中的作用
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{4}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+符号
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+含义
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+来源或载体
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 在算法中的作用
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
-\texttt{g} & 设计目标 & 用户输入、ConfirmedTaskSpec &
+$t$ & 当前决策时间步 & EventLog、RuntimeEvaluator &
+索引一次候选生成、状态更新和恢复动作选择 \\
+$g$ & 设计目标 & 用户输入、ConfirmedTaskSpec &
 定义任务目标与目标权重 \\
-\texttt{C} & 约束集合 & 任务约束、策略配置 &
+$C$ & 约束集合 & 任务约束、策略配置 &
 限定长度、安全、预算、工具白名单和输出要求 \\
-\texttt{K} & ProteinToolKG & ProteinToolKG & 提供工具能力、I/O
+$K$ & ProteinToolKG & ProteinToolKG & 提供工具能力、I/O
 schema、兼容关系、成本和风险 \\
-\texttt{h\_t} & 时间步 \texttt{t} 前的执行历史 & EventLog、TaskSnapshot
+$h_t$ & 时间步 $t$ 前的执行历史 & EventLog、TaskSnapshot
 & 提供已完成步骤、失败记录、恢复历史和人工决策 \\
-\texttt{o\_t} & 当前运行时观测 &
+$o_t$ & 当前运行时观测 &
 StepResult、SafetyResult、指标、错误细节 &
 更新运行时状态并计算后验证据 \\
-\texttt{x\_t} & Lite belief-state / 轻量信念状态 & RuntimeState &
+$x_t$ & Lite belief-state / 轻量信念状态 & RuntimeState &
 表示成功概率、结构性失败概率、恢复余量、剩余成本和证据充分度 \\
-\texttt{Pi\_raw,t} & 原始候选集合 & PlannerAgent &
+$x_{t+1}$ & 观测更新后的轻量信念状态 & RuntimeState 更新结果 &
+为候选重排和恢复动作选择提供更新后状态 \\
+$\Pi_{\mathrm{raw},t}$ & 原始候选集合 & PlannerAgent &
 包含初始计划、局部修补或重规划候选 \\
-\texttt{Pi\_t} & 过滤后的候选集合 & FeasibilityFilter &
+$\Pi_t$ & 过滤后的候选集合 & FeasibilityFilter &
 只保留可执行或受保护的 degraded feasible 候选 \\
-\texttt{S\_static} & 静态效用 & score\_breakdown &
+$\pi$ & 候选工作流 & PlanCandidate、PatchCandidate、ReplanCandidate &
+作为过滤、评分和重排序的基本对象 \\
+$\pi^\ast$ & 默认候选 & RuntimeEvaluator、Decision &
+作为自动执行或 HITL 审查的默认建议 \\
+$S_{\mathrm{static}}$ & 静态效用 & score\_breakdown &
 在运行时观测介入前评价候选先验质量 \\
 $G_{\mathrm{post}}$ & 后验目标匹配 & posterior\_objective &
 根据证据可靠性修正目标评分 \\
-\texttt{Delta} & 运行时修正项 & runtime\_adjustment &
+$\Delta$ & 运行时修正项 & runtime\_adjustment &
 根据状态变量修正候选排序 \\
-\texttt{U\_pi} & 候选运行时效用 & RuntimeEvaluator & 输出 Top-K
+$U_{\pi}$ & 候选运行时效用 & RuntimeEvaluator & 输出 Top-K
 和默认候选 \\
-\texttt{a\_t} & 恢复动作 & action\_utility & 在
+$a_t$ & 恢复动作 & action\_utility & 在
 \texttt{continue}、\texttt{patch\_local}、\texttt{suffix\_replan}、\texttt{stop}
 之间选择 \\
 \end{longtable}
 }
 
-在时间步 \texttt{t}，算法输入为
-\texttt{(g,\ C,\ K,\ h\_t,\ o\_t,\ x\_t)}，输出为结构化 Decision
-建议：候选集合 \texttt{Pi\_t}、默认候选
-\texttt{pi*}、候选解释、运行时状态摘要和恢复动作
-\texttt{a\_t}。核心计算过程可概括为：
+在时间步 $t$，算法输入为
+$(g,C,K,h_t,o_t,x_t)$，输出为结构化 Decision
+建议：候选集合 $\Pi_t$、默认候选
+$\pi^\ast$、候选解释、运行时状态摘要和恢复动作
+$a_t$。核心计算过程可概括为：
 
-\[
-\begin{aligned}
+\begin{align}
 \Pi_{\mathrm{raw},t} &= \operatorname{GenerateCandidates}(g,C,K,h_t),\\
 \Pi_t &= \operatorname{FeasibilityFilter}(\Pi_{\mathrm{raw},t},C,K,h_t),\\
 S_{\mathrm{static}} &= \operatorname{StaticUtility}(\pi,g,C,K),\\
@@ -230,8 +275,7 @@ x_{t+1} &= \operatorname{BeliefUpdate}(x_t,o_t,h_t),\\
 G_{\mathrm{post}} &= \operatorname{PosteriorObjective}(\pi,g,o_t),\\
 U_{\pi} &= \operatorname{RuntimeCandidateUtility}(S_{\mathrm{static}},G_{\mathrm{post}},x_{t+1}),\\
 a_t &= \operatorname{RecoveryAwareActionSelection}(x_{t+1},\Pi_t,h_t,C).
-\end{aligned}
-\]
+\end{align}
 
 该定义突出两点：一是候选生成与候选选择相互分离，Planner
 可以生成多个方案，但只有通过可行性和效用评估的候选才会进入执行或人工确认；二是运行时状态只修正排序和动作建议，不改变
@@ -248,25 +292,35 @@ CEBRA-WP 支持三类候选。PlanCandidate 表示初始完整计划；PatchCand
 候选进入评分前必须先通过硬可行性过滤。对候选 $\pi$
 定义硬可行性谓词：
 
-\[
+\begin{equation}
 \begin{aligned}
 F_h(\pi,C,K,h_t)
   &= F_{\mathrm{tool}}\land F_{\mathrm{schema}}\land F_{\mathrm{io}}\land F_{\mathrm{safety}}\\
   &\quad{}\land F_{\mathrm{budget\mbox{-}hard}}\land F_{\mathrm{availability}}.
 \end{aligned}
-\]
+\end{equation}
 
-其中，\texttt{F\_tool}
-检查候选中的工具是否存在于能力图或适配器注册表；\texttt{F\_schema}
-检查输入输出字段是否满足工具 schema；\texttt{F\_io}
-检查跨步骤引用是否闭合；\texttt{F\_safety} 检查是否违反安全等级或触发
-safety block；\texttt{F\_budget-hard}
-检查是否突破不可逾越预算上限；\texttt{F\_availability}
+\begin{symboldefs}
+\firstsymdef{F_h}{硬可行性谓词}
+\symdef{F_{\mathrm{tool}}}{工具存在性约束}
+\symdef{F_{\mathrm{schema}}}{输入输出 schema 约束}
+\symdef{F_{\mathrm{io}}}{跨步骤 I/O 闭合约束}
+\symdef{F_{\mathrm{safety}}}{安全约束}
+\symdef{F_{\mathrm{budget\mbox{-}hard}}}{硬预算约束}
+\symdef{F_{\mathrm{availability}}}{关键工具可用性或降级路径约束}
+\end{symboldefs}
+
+其中，$F_{\mathrm{tool}}$
+检查候选中的工具是否存在于能力图或适配器注册表；$F_{\mathrm{schema}}$
+检查输入输出字段是否满足工具 schema；$F_{\mathrm{io}}$
+检查跨步骤引用是否闭合；$F_{\mathrm{safety}}$ 检查是否违反安全等级或触发
+safety block；$F_{\mathrm{budget\mbox{-}hard}}$
+检查是否突破不可逾越预算上限；$F_{\mathrm{availability}}$
 检查关键工具是否可用或是否有明确降级路径。过滤后的集合为：
 
-\[
+\begin{equation}
 \Pi_t=\{\pi\in\Pi_{\mathrm{raw},t}\mid F_h(\pi,C,K,h_t)=1\}.
-\]
+\end{equation}
 
 硬可行性过滤承担系统边界约束，因此静态评分不能把硬不可行候选``打高分后救回''。工程实现可以保留
 degraded feasible 候选用于解释或 HITL
@@ -274,7 +328,7 @@ degraded feasible 候选用于解释或 HITL
 
 在候选通过硬过滤后，算法计算静态效用：
 
-\[
+\begin{equation}
 \begin{aligned}
 S_{\mathrm{static}}(\pi)
   &= w_f F_s(\pi)
@@ -284,13 +338,24 @@ S_{\mathrm{static}}(\pi)
    - w_{\mathrm{rec}}\operatorname{Rec}(\pi)
    + w_q Q(\pi).
 \end{aligned}
-\]
+\end{equation}
 
-\texttt{F\_s} 是软可行性分数，表示候选在 schema 完整、工具
-readiness、fallback depth 等方面的先验质量；\texttt{G}
-是目标匹配度；\texttt{C\_norm} 是归一化成本；\texttt{R\_norm}
-是归一化风险；\texttt{Rec} 是恢复复杂度；\texttt{Q} 是工程可靠性项。权重
-\texttt{w\_*}
+\begin{symboldefs}
+\firstsymdef{F_s(\pi)}{候选 $\pi$ 的软可行性分数}
+\symdef{G(\pi;g,o_t)}{目标匹配度}
+\symdef{C_{\mathrm{norm}}(\pi)}{归一化成本}
+\symdef{R_{\mathrm{norm}}(\pi)}{归一化风险}
+\symdef{\operatorname{Rec}(\pi)}{恢复复杂度}
+\symdef{Q(\pi)}{工程可靠性项}
+\symdef{w_f,w_g,w_c}{目标、可行性和成本相关权重}
+\symdef{w_r,w_{\mathrm{rec}},w_q}{风险、恢复复杂度和工程可靠性相关权重}
+\end{symboldefs}
+
+$F_s$ 是软可行性分数，表示候选在 schema 完整、工具
+readiness、fallback depth 等方面的先验质量；$G$
+是目标匹配度；$C_{\mathrm{norm}}$ 是归一化成本；$R_{\mathrm{norm}}$
+是归一化风险；$\operatorname{Rec}$ 是恢复复杂度；$Q$ 是工程可靠性项。权重
+$w_\ast$
 由策略配置给出，用于在不同任务设置下调节目标、成本、风险和恢复难度的相对重要性。
 
 静态效用用于形成执行前的候选先验排序。它可以偏好成本更低、风险更小、恢复更容易的工具链，但无法感知执行中已经发生的失败、证据不足或预算压力变化。因此，静态效用之后还需要
@@ -302,105 +367,136 @@ Lite belief-state / 轻量信念状态和后验证据修正。
 CEBRA-WP 使用 Lite belief-state /
 轻量信念状态近似表示执行过程中无法完全观测的工作流状态。它只保留三类变量：对恢复动作选择必要的变量、能够从现有日志稳定更新的变量，以及能够被实验和案例解释的变量。状态向量定义为：
 
-\[
+\begin{equation}
 x_t=\left[
 \begin{array}{c}
-p_{\mathrm{success}}\\
-p_{\mathrm{structural}}\\
-\statevar{recovery\_margin}\\
-\statevar{expected\_remaining\_cost}\\
-\statevar{evidence\_sufficiency}
+p_{\mathrm{succ}}\\
+p_{\mathrm{sf}}\\
+r_{\mathrm{rec}}\\
+c_{\mathrm{rem}}\\
+e_{\mathrm{suf}}
 \end{array}
 \right].
-\]
+\end{equation}
+
+\begin{symboldefs}
+\firstsymdef{p_{\mathrm{succ}}}{任务继续成功概率}
+\symdef{p_{\mathrm{sf}}}{结构性失败概率}
+\symdef{r_{\mathrm{rec}}}{恢复余量}
+\symdef{c_{\mathrm{rem}}}{预期剩余成本}
+\symdef{e_{\mathrm{suf}}}{证据充分度}
+\end{symboldefs}
 
 各状态量的语义如表 4-2 所示。
 
-\textbf{表 4-2 Lite belief-state / 轻量信念状态变量}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
+\small
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1800}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1200}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2500}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2400}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2100}}@{}}
+\caption{Lite belief-state / 轻量信念状态变量}\label{tab:4-2-lite-belief-state}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 状态量
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 取值范围
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 含义
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 主要更新来源
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+决策作用
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+状态量
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+取值范围
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+含义
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+主要更新来源
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 决策作用
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
-\texttt{p\_success} & \texttt{{[}0,1{]}} &
+\begin{tabular}[c]{@{}c@{}}$p_{\mathrm{succ}}$\\{\footnotesize 成功概率}\end{tabular} & $[0,1]$ &
 当前链路继续执行后完成任务的估计概率 &
 步骤成功、质量指标、候选静态分、失败记录 & 支持 \texttt{continue} 与
 \texttt{stop} 判断 \\
-\texttt{p\_structural\_failure} & \texttt{{[}0,1{]}} &
+\begin{tabular}[c]{@{}c@{}}$p_{\mathrm{sf}}$\\{\footnotesize 结构失败}\end{tabular} & $[0,1]$ &
 当前链路遭遇结构性失败或后续必须重规划的估计概率 &
 结构预测失败、质量门禁失败、安全阻断、重复失败 & 提高
 \texttt{patch\_local}、\texttt{suffix\_replan}、\texttt{stop} 权重 \\
-\texttt{recovery\_margin} & \texttt{{[}0,1{]}} &
+\begin{tabular}[c]{@{}c@{}}$r_{\mathrm{rec}}$\\{\footnotesize 恢复余量}\end{tabular} & $[0,1]$ &
 在保留有效前缀前提下继续恢复的余量 &
 已完成步骤比例、失败类型、patch/replan 次数 &
 区分局部修补与后缀重规划 \\
-\texttt{expected\_remaining\_cost} & 非负实数 &
+\begin{tabular}[c]{@{}c@{}}$c_{\mathrm{rem}}$\\{\footnotesize 剩余成本}\end{tabular} & 非负实数 &
 从当前状态到任务结束的剩余成本暴露 &
 剩余步骤、工具成本先验、预算配置、重试记录 &
 派生预算压力并约束高代价动作 \\
-\texttt{evidence\_sufficiency} & \texttt{{[}0,1{]}} &
+\begin{tabular}[c]{@{}c@{}}$e_{\mathrm{suf}}$\\{\footnotesize 证据充分}\end{tabular} & $[0,1]$ &
 当前证据是否足以支持进入更高代价步骤 &
 质量门禁、结构指标、目标评分、证据可靠性 &
 控制高代价步骤推进与人工确认 \\
 \end{longtable}
 }
 
-运行时观测 \texttt{o\_t} 来自
+运行时观测 $o_t$ 来自
 StepResult、SafetyResult、失败上下文、局部修补/重规划历史、已完成步骤、剩余后缀和
 HITL 决策记录。派生量如
-\texttt{budget\_pressure}、\texttt{intervention\_value}、\texttt{local\_patchability}
-和 \texttt{prefix\_preservability}
+$b_{\mathrm{press}}$、$v_{\mathrm{hitl}}$、$\ell_{\mathrm{patch}}$
+和 $p_{\mathrm{pres}}$
 不作为持久化主状态，而是根据当前状态和候选上下文按需计算。这样可以避免把与具体候选强相关的临时判断写入长期状态，从而降低状态漂移风险。
 
-以预算压力为例，\texttt{expected\_remaining\_cost}
-保留剩余成本原始估计，不直接等同于 \texttt{{[}0,1{]}}
+以预算压力为例，$c_{\mathrm{rem}}$
+保留剩余成本原始估计，不直接等同于 $[0,1]$
 区间内的预算压力。若任务给出预算上限 \texttt{budget\_cap}，则：
 
-\[
-\statevar{budget\_pressure}
+\begin{equation}
+b_{\mathrm{press}}
 =\operatorname{clip}\left(
-\frac{\statevar{expected\_remaining\_cost}}{\max(\statevar{budget\_cap},0.1)},
+\frac{c_{\mathrm{rem}}}{\max(c_{\mathrm{cap}},0.1)},
 0,1.5
 \right).
-\]
+\end{equation}
+
+\begin{symboldefs}
+\firstsymdef{b_{\mathrm{press}}}{预算压力}
+\symdef{c_{\mathrm{cap}}}{任务预算上限}
+\symdef{\operatorname{clip}(\cdot)}{裁剪函数}
+\end{symboldefs}
 
 若任务未给出预算上限，则使用：
 
-\[
-\statevar{budget\_pressure}
-=\operatorname{clip}(\statevar{expected\_remaining\_cost},0,1.5).
-\]
+\begin{equation}
+b_{\mathrm{press}}
+=\operatorname{clip}(c_{\mathrm{rem}},0,1.5).
+\end{equation}
 
 因此，预算压力是由任务上下文派生的动作决策量，而不是 RuntimeState
 的持久化字段。该区分使系统既能记录可解释的剩余成本，也能在不同预算设置下统一比较恢复动作。
 
-状态初始化可由首选候选的静态分数、风险分数、恢复复杂度、剩余成本先验和廉价证据覆盖率给出。例如，\texttt{p\_success}
-可由静态候选分数裁剪得到，\texttt{p\_structural\_failure}
-可由风险项裁剪得到，\texttt{recovery\_margin}
-可由恢复复杂度的反向量估计，\texttt{expected\_remaining\_cost}
-来自剩余工具成本先验，\texttt{evidence\_sufficiency}
+状态初始化可由首选候选的静态分数、风险分数、恢复复杂度、剩余成本先验和廉价证据覆盖率给出。例如，$p_{\mathrm{succ}}$
+可由静态候选分数裁剪得到，$p_{\mathrm{sf}}$
+可由风险项裁剪得到，$r_{\mathrm{rec}}$
+可由恢复复杂度的反向量估计，$c_{\mathrm{rem}}$
+来自剩余工具成本先验，$e_{\mathrm{suf}}$
 来自低成本质量证据覆盖率。随着执行推进，成功步骤会提升
-\texttt{p\_success} 和证据充分度，结构性失败会提高
-\texttt{p\_structural\_failure}
+$p_{\mathrm{succ}}$ 和证据充分度，结构性失败会提高
+$p_{\mathrm{sf}}$
 并降低恢复余量，重复失败和预算消耗则会提高剩余成本压力。
 
 该状态设计吸收了部分可观测规划中 belief-state
@@ -413,12 +509,19 @@ POMDP，也不在线训练策略网络，而是使用可解释变量为候选重
 和安全性等。不同目标的证据来源不同，证据可靠性也不同。为避免把弱证据与直接证据等价处理，CEBRA-WP
 使用证据加权后验目标匹配：
 
-\[
+\begin{equation}
 G_{\mathrm{post}}(\pi;g,o_t)
 =\sum_m \lambda_m(g)\rho_m(o_t)q_m(\pi,o_t).
-\]
+\end{equation}
 
-其中，\texttt{m} 表示目标维度，$\lambda_m(g)$
+\begin{symboldefs}
+\firstsymdef{m}{目标维度}
+\symdef{\lambda_m(g)}{由任务目标 $g$ 决定的维度权重}
+\symdef{\rho_m(o_t)}{观测 $o_t$ 对目标维度 $m$ 的证据可靠性权重}
+\symdef{q_m(\pi,o_t)}{候选 $\pi$ 在目标维度 $m$ 上的归一化分数}
+\end{symboldefs}
+
+其中，$m$ 表示目标维度，$\lambda_m(g)$
 是由任务目标决定的目标权重，$q_m(\pi,o_t)$
 是候选在该维度上的归一化分数，$\rho_m(o_t)$
 是证据可靠性权重。证据状态分为 direct、proxy、degraded 和
@@ -427,47 +530,65 @@ missing：direct evidence 指已产生的结构质量指标，proxy evidence
 表示工具降级或证据覆盖不完整，missing
 表示当前没有可用证据。整体证据充分度可写为：
 
-\[
+\begin{equation}
 e_t=\operatorname{clip}\left(\sum_m \lambda_m(g)\rho_m(o_t),0,1\right).
-\]
+\end{equation}
+
+\begin{symboldefs}
+\firstsymdef{e_t}{时间步 $t$ 的整体证据充分度}
+\end{symboldefs}
 
 该值进入
-\texttt{evidence\_sufficiency}，影响是否继续进入高代价步骤。若证据不足而候选下一步成本较高，运行时重排序会降低该候选；若已有充分低成本证据支持，则候选可以更合理地进入结构预测或目标评分。
+$e_{\mathrm{suf}}$，影响是否继续进入高代价步骤。若证据不足而候选下一步成本较高，运行时重排序会降低该候选；若已有充分低成本证据支持，则候选可以更合理地进入结构预测或目标评分。
 
 将 $G_{\mathrm{post}}$
 替换静态效用中的目标匹配项后，得到包含后验证据的基础分
 $S_{\mathrm{post}}$。运行时重排序定义为：
 
-\[
+\begin{equation}
 U_{\pi}(\pi,x_t)
 =\operatorname{clip}\left(S_{\mathrm{post}}(\pi)+\Delta(\pi,x_t),0,1\right).
-\]
+\end{equation}
+
+\begin{symboldefs}
+\firstsymdef{S_{\mathrm{post}}(\pi)}{替换后验目标项后的基础分}
+\end{symboldefs}
 
 其中 $\Delta(\pi,x_t)$ 是有界运行时修正项，取值范围控制在
-\texttt{{[}-0.35,\ 0.35{]}}。其一般形式为：
+$[-0.35,0.35]$。其一般形式为：
 
-\[
+\begin{equation}
 \begin{aligned}
 \Delta(\pi,x_t)
-  &= k_s\,(p_{\mathrm{success}}-0.5)\operatorname{Conf}(\pi)\\
-  &\quad{}+k_e\,(2\,\statevar{evidence\_sufficiency}-1)
+  &= k_s\,(p_{\mathrm{succ}}-0.5)\operatorname{Conf}(\pi)\\
+  &\quad{}+k_e\,(2e_{\mathrm{suf}}-1)
        \max(\operatorname{Conf}(\pi),F_s(\pi))\\
-  &\quad{}-k_f\,p_{\mathrm{structural}}\,(1-\operatorname{RiskScore}(\pi))\\
-  &\quad{}+k_r\,\statevar{recovery\_margin}\operatorname{RecoveryScore}(\pi)\\
-  &\quad{}-k_c\,\statevar{budget\_pressure}\,(1-\operatorname{CostScore}(\pi))\\
+  &\quad{}-k_f\,p_{\mathrm{sf}}\,(1-\operatorname{RiskScore}(\pi))\\
+  &\quad{}+k_r\,r_{\mathrm{rec}}\operatorname{RecoveryScore}(\pi)\\
+  &\quad{}-k_c\,b_{\mathrm{press}}\,(1-\operatorname{CostScore}(\pi))\\
   &\quad{}+k_a\,\operatorname{ActionBias}(\pi,x_t).
 \end{aligned}
-\]
+\end{equation}
+
+\begin{symboldefs}
+\firstsymdef{k_s,k_e,k_f}{成功、证据和失败相关修正权重}
+\symdef{k_r,k_c,k_a}{恢复、成本和动作偏好相关修正权重}
+\symdef{\operatorname{Conf}(\pi)}{候选置信度}
+\symdef{\operatorname{RiskScore}(\pi)}{候选风险质量分数}
+\symdef{\operatorname{RecoveryScore}(\pi)}{候选恢复友好度}
+\symdef{\operatorname{CostScore}(\pi)}{候选成本质量分数}
+\symdef{\operatorname{ActionBias}(\pi,x_t)}{候选与当前恢复动作偏好的匹配程度}
+\end{symboldefs}
 
 其中，$\operatorname{Conf}(\pi)$ 表示候选置信度，$\operatorname{RiskScore}(\pi)$ 和
 $\operatorname{CostScore}(\pi)$
 为候选的风险与成本质量分数，$\operatorname{RecoveryScore}(\pi)$
 表示候选恢复友好度，$\operatorname{ActionBias}(\pi,x_t)$
 表示候选与当前恢复动作偏好的匹配程度。其直观含义是：当
-\texttt{p\_structural\_failure}
+$p_{\mathrm{sf}}$
 和预算压力升高时，算法降低高成本、低可恢复候选的排序；当
-\texttt{p\_success}、\texttt{recovery\_margin} 和
-\texttt{evidence\_sufficiency}
+$p_{\mathrm{succ}}$、$r_{\mathrm{rec}}$ 和
+$e_{\mathrm{suf}}$
 较高时，算法提高继续执行或低风险候选的排序。
 
 运行时重排序有两个边界：一是只作用于已经通过可行性校验的候选，不能覆盖工具不存在、schema
@@ -481,70 +602,101 @@ CEBRA-WP
 将恢复动作限定为四类：\texttt{continue}、\texttt{patch\_local}、\texttt{suffix\_replan}
 和 \texttt{stop}。四类动作与 FSM/HITL 的映射如表 4-3 所示。
 
-\textbf{表 4-3 恢复动作与 FSM/HITL 映射}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
+\small
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2000}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1600}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2300}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1900}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.2400}}
+  >{\centering\arraybackslash}p{(\linewidth - 8\tabcolsep) * \real{0.1800}}@{}}
+\caption{恢复动作与 FSM/HITL 映射}\label{tab:4-3--fsm-hitl}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 动作
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 触发背景
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 系统效果
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 FSM/HITL 映射
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+审计结果
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{5}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+动作
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+触发背景
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+系统效果
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+FSM/HITL 映射
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 审计结果
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
 \texttt{continue} & 成功概率较高、证据充分、风险和预算压力可接受 &
-继续执行当前计划后续步骤 & RUNNING 内自动推进或维持 PLANNED/RUNNING &
+继续执行当前计划后续步骤 & \begin{minipage}[c]{\linewidth}\centering RUNNING 内自动推进\\或维持 PLANNED\\ / RUNNING\end{minipage} &
 记录动作效用与继续原因 \\
-\texttt{patch\_local} & 局部失败、重试耗尽、前缀仍有效、局部可修复性较高
-& 生成局部 PlanPatch，替换参数或局部工具 & WAITING\_PATCH\_CONFIRM
+\begin{minipage}[c]{\linewidth}\centering\texttt{patch}\\\texttt{\_local}\end{minipage} & 局部失败、重试耗尽、前缀仍有效、局部可修复性较高
+& 生成局部 PlanPatch，替换参数或局部工具 & \begin{minipage}[c]{\linewidth}\centering\texttt{WAITING\_PATCH}\\\texttt{\_CONFIRM}\end{minipage}
 或策略允许的受控自动 patch & 记录 patch 候选、失败上下文和应用结果 \\
-\texttt{suffix\_replan} & 结构性失败概率升高、后缀可靠性不足、前缀可保留
-& 保留已验证前缀，替换未执行后缀 & WAITING\_REPLAN\_CONFIRM & 记录
+\begin{minipage}[c]{\linewidth}\centering\texttt{suffix}\\\texttt{\_replan}\end{minipage} & 结构性失败概率升高、后缀可靠性不足、前缀可保留
+& 保留已验证前缀，替换未执行后缀 & \begin{minipage}[c]{\linewidth}\centering\texttt{WAITING\_REPLAN}\\\texttt{\_CONFIRM}\end{minipage} & 记录
 replan 候选、前缀保留位置和新后缀 \\
 \texttt{stop} & 成功概率低、预算压力高、恢复余量低、人工介入价值有限 &
-生成终止型 ReplanCandidate & WAITING\_REPLAN\_CONFIRM；接受后进入 FAILED
-& 记录 terminal\_reason 与已保留证据 \\
+\begin{minipage}[c]{\linewidth}\centering 生成终止型\\Replan\\Candidate\end{minipage} & \begin{minipage}[c]{\linewidth}\centering\texttt{WAITING\_REPLAN}\\\texttt{\_CONFIRM}\\接受后进入 FAILED\end{minipage}
+& \begin{minipage}[c]{\linewidth}\centering 记录 \texttt{terminal}\\\texttt{\_reason} 与已保留证据\end{minipage} \\
 \end{longtable}
 }
 
 动作效用由状态量和派生量共同计算。为便于表示，记
-\texttt{s=p\_success}，\texttt{f=p\_structural\_failure}，\texttt{r=recovery\_margin}，\texttt{e=evidence\_sufficiency}，\texttt{b=budget\_pressure}。局部可修复性、证据可复用性、前缀可保留性、预算缓解度、目标重对齐收益和人工介入价值，分别记为
-\texttt{local\_patchability}、\texttt{evidence\_reusability}、\texttt{prefix\_preservability}、\texttt{budget\_relief}、\texttt{goal\_realignment}
-和 \texttt{intervention\_value}。动作效用可写为：
+$s=p_{\mathrm{succ}}$，$f=p_{\mathrm{sf}}$，$r=r_{\mathrm{rec}}$，$e=e_{\mathrm{suf}}$，$b=b_{\mathrm{press}}$。局部可修复性、证据可复用性、前缀可保留性、预算缓解度、目标重对齐收益和人工介入价值，分别记为
+$\ell_{\mathrm{patch}}$、$e_{\mathrm{reuse}}$、$p_{\mathrm{pres}}$、$b_{\mathrm{relief}}$、$g_{\mathrm{align}}$
+和 $v_{\mathrm{hitl}}$。动作效用可写为：
 
-\[
-\begin{aligned}
+\begin{align}
 U_{\mathrm{continue}}
   &=0.38s+0.14e+0.12r-0.22f-0.14b,\\
 U_{\statevar{patch\_local}}
-  &=0.20s+0.24r+0.18\,\statevar{local\_patchability}
-    +0.12\,\statevar{evidence\_reusability}\\
+  &=0.20s+0.24r+0.18\,\ell_{\mathrm{patch}}
+    +0.12\,e_{\mathrm{reuse}}\notag\\
   &\quad{}-0.14f-0.12b,\\
 U_{\statevar{suffix\_replan}}
   &=0.18(1-s)+0.20f+0.16(1-r)
-    +0.18\,\statevar{prefix\_preservability}\\
-  &\quad{}+0.14\,\statevar{budget\_relief}
-    +0.14\,\statevar{goal\_realignment},\\
+    +0.18\,p_{\mathrm{pres}}\notag\\
+  &\quad{}+0.14\,b_{\mathrm{relief}}
+    +0.14\,g_{\mathrm{align}},\\
 U_{\mathrm{stop}}
   &=0.32(1-s)+0.24b+0.18(1-r)
-    +0.16\,\statevar{safety\_terminality}\\
-  &\quad{}+0.10(1-\statevar{intervention\_value}).
-\end{aligned}
-\]
+    +0.16\,s_{\mathrm{safe}}\notag\\
+  &\quad{}+0.10(1-v_{\mathrm{hitl}}).
+\end{align}
+
+\begin{symboldefs}
+\firstsymdef{U_{\mathrm{continue}}}{继续执行动作效用}
+\symdef{U_{\statevar{patch\_local}}}{局部修补动作效用}
+\symdef{U_{\statevar{suffix\_replan}}}{后缀重规划动作效用}
+\symdef{U_{\mathrm{stop}}}{终止型重规划动作效用}
+\symdef{s,f,r}{成功概率、结构性失败概率和恢复余量简写量}
+\symdef{e,b}{证据充分度和预算压力简写量}
+\symdef{\ell_{\mathrm{patch}}}{局部可修复性}
+\symdef{e_{\mathrm{reuse}}}{证据可复用性}
+\symdef{p_{\mathrm{pres}}}{前缀可保留性}
+\symdef{b_{\mathrm{relief}}}{预算缓解度}
+\symdef{g_{\mathrm{align}}}{目标重对齐收益}
+\symdef{s_{\mathrm{safe}}}{安全终止性}
+\symdef{v_{\mathrm{hitl}}}{人工介入价值}
+\end{symboldefs}
 
 这组效用函数体现了四类动作的不同偏好：\texttt{continue}
 对较高成功概率、证据充分度和恢复余量更敏感；\texttt{patch\_local}
@@ -564,35 +716,35 @@ FAILED；已完成前缀、产物和解释字段仍被保留为审计资产。
 \textbf{算法 4-1 CEBRA-WP 主流程}
 
 \begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{Input:}
-\NormalTok{  g: 设计目标}
-\NormalTok{  C: 约束集合}
-\NormalTok{  K: ProteinToolKG}
-\NormalTok{  h\_t: 执行历史}
-\NormalTok{  o\_t: 当前观测}
-\NormalTok{  x\_t: Lite belief{-}state}
+\small
+\noindent\textbf{Input:} $g$：设计目标；$C$：约束集合；$K$：ProteinToolKG；$h_t$：执行历史；$o_t$：当前观测；$x_t$：Lite belief-state。
 
-\NormalTok{Output:}
-\NormalTok{  Decision\_t: 候选集合、默认候选、恢复动作、解释和证据引用}
+\noindent\textbf{Output:} $\operatorname{Decision}_t$：候选集合、默认候选、恢复动作、解释和证据引用。
 
-\NormalTok{1.  Pi\_raw,t \textless{}{-} GenerateCandidates(g, C, K, h\_t)}
-\NormalTok{2.  Pi\_t \textless{}{-} FeasibilityFilter(Pi\_raw,t, C, K, h\_t)}
-\NormalTok{3.  if Pi\_t is empty and degraded\_feasible candidates exist:}
-\NormalTok{4.      Pi\_t \textless{}{-} degraded\_feasible candidates}
-\NormalTok{5.      mark candidates as requiring HITL confirmation}
-\NormalTok{6.  for each pi in Pi\_t:}
-\NormalTok{7.      S\_static(pi) \textless{}{-} StaticUtility(pi, g, C, K)}
-\NormalTok{8.      S\_post(pi) \textless{}{-} ReplaceObjectiveTerm(S\_static(pi), PosteriorObjective(pi, g, o\_t))}
-\NormalTok{9.  x\_t+1 \textless{}{-} BeliefUpdate(x\_t, o\_t, h\_t)}
-\NormalTok{10. for each pi in Pi\_t:}
-\NormalTok{11.     Delta(pi, x\_t+1) \textless{}{-} RuntimeAdjustment(pi, x\_t+1)}
-\NormalTok{12.     U\_pi(pi, x\_t+1) \textless{}{-} clip(S\_post(pi) + Delta(pi, x\_t+1), 0, 1)}
-\NormalTok{13. TopK\_t \textless{}{-} SelectDiverseTopK(Pi\_t, U\_pi, capability\_coverage)}
-\NormalTok{14. U\_a \textless{}{-} ComputeActionUtility(continue, patch\_local, suffix\_replan, stop)}
-\NormalTok{15. a\_t \textless{}{-} ApplyHardPrioritiesAndSelectAction(U\_a, x\_t+1, h\_t, C)}
-\NormalTok{16. return Decision\_t(TopK\_t, a\_t, explanations, evidence\_refs)}
-\end{Highlighting}
+\begin{enumerate}[label=\arabic*.,leftmargin=2.6em,itemsep=0.18em]
+\item $\Pi_{\mathrm{raw},t} \leftarrow \operatorname{GenerateCandidates}(g,C,K,h_t)$
+\item $\Pi_t \leftarrow \operatorname{FeasibilityFilter}(\Pi_{\mathrm{raw},t},C,K,h_t)$
+\item if $\Pi_t$ is empty and \texttt{degraded\_feasible} candidates exist:
+\item \quad $\Pi_t \leftarrow$ \texttt{degraded\_feasible} candidates
+\item \quad mark candidates as requiring HITL confirmation
+\item for each $\pi \in \Pi_t$:
+\item \quad $S_{\mathrm{static}}(\pi) \leftarrow \operatorname{StaticUtility}(\pi,g,C,K)$
+\item \quad $\begin{aligned}[t]
+S_{\mathrm{post}}(\pi) &\leftarrow \operatorname{ReplaceObjectiveTerm}(S_{\mathrm{static}}(\pi),\\
+&\quad G_{\mathrm{post}}(\pi;g,o_t))
+\end{aligned}$
+\item $x_{t+1} \leftarrow \operatorname{BeliefUpdate}(x_t,o_t,h_t)$
+\item for each $\pi \in \Pi_t$:
+\item \quad $\Delta(\pi,x_{t+1}) \leftarrow \operatorname{RuntimeAdjustment}(\pi,x_{t+1})$
+\item \quad $\begin{aligned}[t]
+U_{\pi}(\pi,x_{t+1}) &\leftarrow \operatorname{clip}(S_{\mathrm{post}}(\pi)\\
+&\quad{}+\Delta(\pi,x_{t+1}),0,1)
+\end{aligned}$
+\item $\operatorname{TopK}_t \leftarrow \operatorname{SelectDiverseTopK}(\Pi_t,U_{\pi},\statevar{capability\_coverage})$
+\item $U_a \leftarrow \operatorname{ComputeActionUtility}(\statevar{continue},\statevar{patch\_local},\statevar{suffix\_replan},\statevar{stop})$
+\item $a_t \leftarrow \operatorname{ApplyHardPrioritiesAndSelectAction}(U_a,x_{t+1},h_t,C)$
+\item return $\operatorname{Decision}_t(\operatorname{TopK}_t,a_t,\statevar{explanations},\statevar{evidence\_refs})$
+\end{enumerate}
 \end{Shaded}
 
 算法第 1 至 8 行生成并评价候选，第 9 至 12
@@ -607,47 +759,70 @@ availability
 各组成机制的作用，系统将算法能力拆分为四组策略开关。四组策略并非四套不同系统，而是在同一工程实现上逐步打开静态评分、固定阈值门控、动态恢复和
 Lite belief-state 的内部消融配置，如表 4-4 所示。
 
-\textbf{表 4-4 四组消融策略与算法机制开关}
-
-{\def\LTcaptype{none} % do not increment counter
+{%
+\small
 \begin{longtable}{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1250}}@{}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1600}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.0850}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.0950}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.0850}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.1050}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.0950}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.0950}}
+  >{\centering\arraybackslash}p{(\linewidth - 14\tabcolsep) * \real{0.2800}}@{}}
+\caption{四组消融策略与算法机制开关}\label{tab:4-4}\\
 \toprule
-\begin{minipage}[b]{\linewidth}\raggedright
+\begin{minipage}[b]{\linewidth}\centering
 策略组
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 静态评分
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 固定阈值门控
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 动态观测
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 Lite belief-state
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 Runtime rerank
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 恢复动作效用
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+主要实验问题
+\end{minipage} \\
+\midrule
+\endfirsthead
+\multicolumn{8}{r}{表\thetable（续表）} \\
+\toprule
+\begin{minipage}[b]{\linewidth}\centering
+策略组
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+静态评分
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+固定阈值门控
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+动态观测
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+Lite belief-state
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+Runtime rerank
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
+恢复动作效用
+\end{minipage} & \begin{minipage}[b]{\linewidth}\centering
 主要实验问题
 \end{minipage} \\
 \midrule
 \endhead
+\midrule
+\endfoot
 \bottomrule
 \endlastfoot
-\texttt{static\_top1} & 启用 & 未启用 & 未启用 & 未启用 & 未启用 &
+\begin{minipage}[c]{\linewidth}\centering\texttt{static}\\\texttt{\_top1}\end{minipage} & 启用 & 未启用 & 未启用 & 未启用 & 未启用 &
 未启用 & 单一静态最优候选是否足以完成任务 \\
-\texttt{fixed\_threshold\_gate} & 启用 & 启用 & 有限使用 & 未启用 &
+\begin{minipage}[c]{\linewidth}\centering\texttt{fixed}\\\texttt{\_threshold}\\\texttt{\_gate}\end{minipage} & 启用 & 启用 & 有限使用 & 未启用 &
 未启用 & 未启用 & 固定阈值是否能控制风险与成本 \\
-\texttt{dynamic\_no\_belief\_state} & 启用 & 启用 & 启用 & 未启用 &
+\begin{minipage}[c]{\linewidth}\centering\texttt{dynamic}\\\texttt{\_no\_belief}\\\texttt{\_state}\end{minipage} & 启用 & 启用 & 启用 & 未启用 &
 部分启用 & 部分启用 & 直接运行时观测是否已能支撑恢复 \\
-\texttt{lite\_belief\_state} & 启用 & 启用 & 启用 & 启用 & 启用 & 启用 &
+\begin{minipage}[c]{\linewidth}\centering\texttt{lite}\\\texttt{\_belief}\\\texttt{\_state}\end{minipage} & 启用 & 启用 & 启用 & 启用 & 启用 & 启用 &
 显式状态是否带来更好的解释、预算感知和恢复决策 \\
 \end{longtable}
 }
@@ -662,8 +837,12 @@ belief-state 的增量价值体现在哪里。根据已有实验设置，本文�
 系统以统一数据契约支撑算法与工程实现之间的衔接。核心契约关系如图 4-7
 所示。
 
-图 4-7 核心数据契约 UML
-插图文件：\texttt{paper/figures/uml-contracts.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/uml-contracts.drawio.pdf}
+  \caption{核心数据契约 UML}
+  \label{fig:uml-contracts}
+\end{figure}
 
 ProteinDesignTask 是任务入口契约，包含 task\_id、goal 和约束字段。Plan
 由多个 PlanStep 组成，步骤之间通过 \texttt{S\{id\}.\{field\}}
@@ -677,8 +856,12 @@ Decision 构成 HITL
 
 图 4-8 给出了典型任务 t1 的贯穿示例。
 
-图 4-8 t1 任务实例走查
-插图文件：\texttt{paper/figures/t1-trpcage-instance-walkthrough.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/t1-trpcage-instance-walkthrough.drawio.pdf}
+  \caption{t1 任务实例走查}
+  \label{fig:t1-trpcage-instance-walkthrough}
+\end{figure}
 
 该示例从任务创建开始，经 Planner 生成候选计划、用户确认、Executor
 调用工具、StepResult 写入、RuntimeState 更新和必要的恢复候选触发，最后由
@@ -687,7 +870,7 @@ Summarizer 汇总为 DesignResult。CEBRA-WP
 PendingAction、PlanPatch、ReplanCandidate 和 RuntimeState
 等契约进入系统，系统状态则仍由 FSM 和 Workflow 控制。
 
-\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+\subsection{本章小结}\label{system-design-summary}
 
 本章完成了系统总体设计和 CEBRA-WP
 算法定义。系统采用五层架构组织输入、规划、执行、安全汇总和资源管理，并通过

@@ -13,8 +13,12 @@ Agent 评测也说明，Agent
 
 固定流水线与本文系统方案的差异如图 3-1 所示。
 
-图 3-1 固定流水线与本文系统的问题-方案对照
-插图文件：\texttt{paper/figures/problem-solution-comparison.drawio.svg}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.95\linewidth,height=0.70\textheight,keepaspectratio]{generated-figures/problem-solution-comparison.drawio.pdf}
+  \caption{固定流水线与本文系统的问题-方案对照}
+  \label{fig:problem-solution-comparison}
+\end{figure}
 
 图 3-1
 左侧表示固定流水线模式：任务开始前由人工或脚本选定工具链，执行过程中一旦步骤失败，通常只能重跑或结束任务。右侧表示本文系统方案：用户目标和约束进入系统后，由
@@ -205,7 +209,7 @@ utility、高代价调用次数、恢复成功情况、最终任务状态和运�
 本文的边界也需要明确：系统不重新实现 AlphaFold、ESMFold、ProteinMPNN
 等底层模型，不声称自动验证候选蛋白真实生物功能，也不把机制验证扩大为生产级可靠性证明。本文关注的是工作流层的规划、执行、恢复和审计。
 
-\subsection{本章小结}\label{ux672cux7ae0ux5c0fux7ed3}
+\subsection{本章小结}\label{requirements-analysis-summary}
 
 本章围绕蛋白质设计工作流在工具组合、运行时调整、人工确认和失败恢复四个方面的功能缺口，归纳出六类功能需求：任务接入与约束确认、候选计划生成与工具链选择、工作流执行与工具适配、HITL
 与决策审查、运行时自适应与恢复决策、结果汇总与审计。在非功能层面，系统还需要满足可追溯性、可扩展性、可靠性与可恢复性、安全与边界控制、实验可复现性等要求。
