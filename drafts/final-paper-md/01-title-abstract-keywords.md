@@ -10,7 +10,7 @@
 
 系统采用分层架构组织输入交互、智能规划、工作流执行、安全汇总和资源管理等模块。PlannerAgent 负责生成候选工具链和解释，ExecutorAgent 负责执行已确认的步骤，SafetyAgent 提供风险信号，SummarizerAgent 生成结果报告。系统通过 ProteinToolKG 描述工具能力、输入输出、成本和风险信息，通过有限状态机（Finite State Machine，FSM）约束任务生命周期，并通过人在环决策（Human-in-the-loop，HITL）机制处理高风险、高成本或不确定性较强的候选选择。为支持运行时恢复，本文进一步提出约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP）算法。该算法在工作流层综合任务约束、工具知识、执行历史、运行时观测和 Lite belief-state / 轻量信念状态，对候选工作流进行硬可行性过滤、静态评分、后验目标适配、运行时重排序和恢复动作选择。
 
-在工程实现方面，系统后端基于 Python、FastAPI 和 Pydantic 构建，前端基于 React、TypeScript 和 Vite 实现轻量 Web 工作台，工具侧通过 ToolAdapter 封装结构预测、序列生成、质量控制和目标评分等能力。系统测试覆盖 API 合约、任务录入、计划候选生成、FSM 迁移、HITL 决策、快照恢复、前端与命令行入口、失败恢复、安全边界和端到端执行等方面。13 个测试用例中 12 个通过，1 个命令行相关用例部分通过。实验部分基于 `thesis-final-v1-001` 的 84-run 四组内部消融矩阵展开，比较 `static_top1`、`fixed_threshold_gate`、`dynamic_no_belief_state` 和 `lite_belief_state` 四类策略。结果显示，84 次运行中 81 次进入 DONE，3 次进入 FAILED；`lite_belief_state` 组 21/21 runs 产生有效 RuntimeState，runtime_state_observable_rate 为 1.0000；`fixed_threshold_gate` 组触发 6 次真实局部修补，高代价调用总数为 28；`dynamic_no_belief_state` 与 `lite_belief_state` 的高代价调用总数均为 20。实验结果表明，在本文测试范围和实验设置下，CEBRA-WP 的机制链路已经实现且可观测，固定阈值门控恢复会带来额外执行成本，Lite belief-state / 轻量信念状态能够为运行时恢复决策提供可追踪的解释信息。
+在工程实现方面，系统后端基于 Python、FastAPI 和 Pydantic 构建，前端基于 React、TypeScript 和 Vite 实现轻量 Web 工作台，工具侧通过 ToolAdapter 封装结构预测、序列生成、质量控制和目标评分等能力。
 
 本文的主要贡献在于：构建了一个面向蛋白质设计工作流的可恢复、可审计原型系统；提出并实现了 CEBRA-WP 工作流规划算法；建立了从系统验证到策略消融的证据链；并对高代价科研工作流中的运行时恢复、成本控制和审计解释进行了有边界的实验分析。
 
