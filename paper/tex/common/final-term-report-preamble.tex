@@ -39,17 +39,32 @@
   \newfontfamily\tnrfont{Liberation Serif}
 }
 
-\IfFontExistsTF{Noto Serif CJK SC}{
-  \setCJKmainfont{Noto Serif CJK SC}
-  \newCJKfontfamily\termSong{Noto Serif CJK SC}
+\IfFontExistsTF{SimSun}{
+  \setCJKmainfont{SimSun}[AutoFakeBold=2,AutoFakeSlant=0.2]
+  \newCJKfontfamily\termSong{SimSun}[AutoFakeBold=2,AutoFakeSlant=0.2]
 }{
-  \newcommand{\termSong}{\songti}
+  \IfFontExistsTF{Noto Serif CJK SC}{
+    \setCJKmainfont{Noto Serif CJK SC}
+    \newCJKfontfamily\termSong{Noto Serif CJK SC}
+  }{
+    \newcommand{\termSong}{\songti}
+  }
 }
-\IfFontExistsTF{Noto Sans CJK SC}{
-  \setCJKsansfont{Noto Sans CJK SC}[AutoFakeBold=2]
-  \newCJKfontfamily\termHei{Noto Sans CJK SC}[AutoFakeBold=2]
+\IfFontExistsTF{SimHei}{
+  \setCJKsansfont{SimHei}[AutoFakeBold=2,AutoFakeSlant=0.2]
+  \newCJKfontfamily\termHei{SimHei}[AutoFakeBold=2,AutoFakeSlant=0.2]
 }{
-  \newcommand{\termHei}{\heiti}
+  \IfFontExistsTF{Sarasa Gothic SC}{
+    \setCJKsansfont{Sarasa Gothic SC}[AutoFakeBold=2]
+    \newCJKfontfamily\termHei{Sarasa Gothic SC}[AutoFakeBold=2]
+  }{
+    \IfFontExistsTF{Noto Sans CJK SC}{
+      \setCJKsansfont{Noto Sans CJK SC}[AutoFakeBold=2]
+      \newCJKfontfamily\termHei{Noto Sans CJK SC}[AutoFakeBold=2]
+    }{
+      \newcommand{\termHei}{\heiti}
+    }
+  }
 }
 
 \setlength{\parindent}{2em}
