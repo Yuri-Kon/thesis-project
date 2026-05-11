@@ -92,30 +92,36 @@ CEBRA-WP 的完整名称为 Constraint- and Evidence-aware Belief-guided Recover
 
 | 符号 | 含义 | 来源或载体 | 在算法中的作用 |
 |---|---|---|---|
-| `g` | 设计目标 | 用户输入、ConfirmedTaskSpec | 定义任务目标与目标权重 |
-| `C` | 约束集合 | 任务约束、策略配置 | 限定长度、安全、预算、工具白名单和输出要求 |
-| `K` | ProteinToolKG | ProteinToolKG | 提供工具能力、I/O schema、兼容关系、成本和风险 |
-| `h_t` | 时间步 `t` 前的执行历史 | EventLog、TaskSnapshot | 提供已完成步骤、失败记录、恢复历史和人工决策 |
-| `o_t` | 当前运行时观测 | StepResult、SafetyResult、指标、错误细节 | 更新运行时状态并计算后验证据 |
-| `x_t` | Lite belief-state / 轻量信念状态 | RuntimeState | 表示成功概率、结构性失败概率、恢复余量、剩余成本和证据充分度 |
-| `Pi_raw,t` | 原始候选集合 | PlannerAgent | 包含初始计划、局部修补或重规划候选 |
-| `Pi_t` | 过滤后的候选集合 | FeasibilityFilter | 只保留可执行或受保护的 degraded feasible 候选 |
-| `S_static` | 静态效用 | score_breakdown | 在运行时观测介入前评价候选先验质量 |
-| `G_post` | 后验目标匹配 | posterior_objective | 根据证据可靠性修正目标评分 |
-| `Delta` | 运行时修正项 | runtime_adjustment | 根据状态变量修正候选排序 |
-| `U_pi` | 候选运行时效用 | RuntimeEvaluator | 输出 Top-K 和默认候选 |
-| `a_t` | 恢复动作 | action_utility | 在 `continue`、`patch_local`、`suffix_replan`、`stop` 之间选择 |
+| $t$ | 当前决策时间步 | EventLog、RuntimeEvaluator | 索引一次候选生成、状态更新和恢复动作选择 |
+| $g$ | 设计目标 | 用户输入、ConfirmedTaskSpec | 定义任务目标与目标权重 |
+| $C$ | 约束集合 | 任务约束、策略配置 | 限定长度、安全、预算、工具白名单和输出要求 |
+| $K$ | ProteinToolKG | ProteinToolKG | 提供工具能力、I/O schema、兼容关系、成本和风险 |
+| $h_t$ | 时间步 $t$ 前的执行历史 | EventLog、TaskSnapshot | 提供已完成步骤、失败记录、恢复历史和人工决策 |
+| $o_t$ | 当前运行时观测 | StepResult、SafetyResult、指标、错误细节 | 更新运行时状态并计算后验证据 |
+| $x_t$ | Lite belief-state / 轻量信念状态 | RuntimeState | 表示成功概率、结构性失败概率、恢复余量、剩余成本和证据充分度 |
+| $x_{t+1}$ | 观测更新后的轻量信念状态 | RuntimeState 更新结果 | 为候选重排和恢复动作选择提供更新后状态 |
+| $\Pi_{\mathrm{raw},t}$ | 原始候选集合 | PlannerAgent | 包含初始计划、局部修补或重规划候选 |
+| $\Pi_t$ | 过滤后的候选集合 | FeasibilityFilter | 只保留可执行或受保护的 degraded feasible 候选 |
+| $\pi$ | 候选工作流 | PlanCandidate、PatchCandidate、ReplanCandidate | 作为过滤、评分和重排序的基本对象 |
+| $\pi^\ast$ | 默认候选 | RuntimeEvaluator、Decision | 作为自动执行或 HITL 审查的默认建议 |
+| $S_{\mathrm{static}}$ | 静态效用 | score_breakdown | 在运行时观测介入前评价候选先验质量 |
+| $G_{\mathrm{post}}$ | 后验目标匹配 | posterior_objective | 根据证据可靠性修正目标评分 |
+| $\Delta$ | 运行时修正项 | runtime_adjustment | 根据状态变量修正候选排序 |
+| $U_{\pi}$ | 候选运行时效用 | RuntimeEvaluator | 输出 Top-K 和默认候选 |
+| $a_t$ | 恢复动作 | action_utility | 在 `continue`、`patch_local`、`suffix_replan`、`stop` 之间选择 |
 
-在时间步 `t`，算法输入为 `(g, C, K, h_t, o_t, x_t)`，输出为结构化 Decision 建议：候选集合 `Pi_t`、默认候选 `pi*`、候选解释、运行时状态摘要和恢复动作 `a_t`。核心计算过程可概括为：
+在时间步 $t$，算法输入为 $(g,C,K,h_t,o_t,x_t)$，输出为结构化 Decision 建议：候选集合 $\Pi_t$、默认候选 $\pi^\ast$、候选解释、运行时状态摘要和恢复动作 $a_t$。核心计算过程可概括为：
 
-```text
-Pi_raw,t = GenerateCandidates(g, C, K, h_t)
-Pi_t     = FeasibilityFilter(Pi_raw,t, C, K, h_t)
-S_static = StaticUtility(pi, g, C, K)
-x_t+1    = BeliefUpdate(x_t, o_t, h_t)
-G_post   = PosteriorObjective(pi, g, o_t)
-U_pi     = RuntimeCandidateUtility(S_static, G_post, x_t+1)
-a_t      = RecoveryAwareActionSelection(x_t+1, Pi_t, h_t, C)
+```tex
+\begin{aligned}
+\Pi_{\mathrm{raw},t} &= \operatorname{GenerateCandidates}(g,C,K,h_t),\\
+\Pi_t &= \operatorname{FeasibilityFilter}(\Pi_{\mathrm{raw},t},C,K,h_t),\\
+S_{\mathrm{static}} &= \operatorname{StaticUtility}(\pi,g,C,K),\\
+x_{t+1} &= \operatorname{BeliefUpdate}(x_t,o_t,h_t),\\
+G_{\mathrm{post}} &= \operatorname{PosteriorObjective}(\pi,g,o_t),\\
+U_{\pi} &= \operatorname{RuntimeCandidateUtility}(S_{\mathrm{static}},G_{\mathrm{post}},x_{t+1}),\\
+a_t &= \operatorname{RecoveryAwareActionSelection}(x_{t+1},\Pi_t,h_t,C).
+\end{aligned}
 ```
 
 该定义突出两点：一是候选生成与候选选择相互分离，Planner 可以生成多个方案，但只有通过可行性和效用评估的候选才会进入执行或人工确认；二是运行时状态只修正排序和动作建议，不改变 FSM、Agent 职责和硬约束。
@@ -124,34 +130,39 @@ a_t      = RecoveryAwareActionSelection(x_t+1, Pi_t, h_t, C)
 
 CEBRA-WP 支持三类候选。PlanCandidate 表示初始完整计划；PatchCandidate 表示对当前计划中局部步骤的参数级、工具级或结构级修补；ReplanCandidate 表示对未执行后缀或整体策略的替换，其中 `suffix_replan` 优先保留已验证前缀，`terminal_stop` 表示继续投入不划算时的终止型重规划候选。
 
-候选进入评分前必须先通过硬可行性过滤。对候选 `pi` 定义硬可行性谓词：
+候选进入评分前必须先通过硬可行性过滤。对候选 $\pi$ 定义硬可行性谓词：
 
-```text
-F_h(pi, C, K, h_t)
-  = F_tool ∧ F_schema ∧ F_io ∧ F_safety ∧ F_budget-hard ∧ F_availability
+```tex
+\begin{aligned}
+F_h(\pi,C,K,h_t)
+  &= F_{\mathrm{tool}}\land F_{\mathrm{schema}}\land F_{\mathrm{io}}\land F_{\mathrm{safety}}\\
+  &\quad{}\land F_{\mathrm{budget\mbox{-}hard}}\land F_{\mathrm{availability}}.
+\end{aligned}
 ```
 
-其中，`F_tool` 检查候选中的工具是否存在于能力图或适配器注册表；`F_schema` 检查输入输出字段是否满足工具 schema；`F_io` 检查跨步骤引用是否闭合；`F_safety` 检查是否违反安全等级或触发 safety block；`F_budget-hard` 检查是否突破不可逾越预算上限；`F_availability` 检查关键工具是否可用或是否有明确降级路径。过滤后的集合为：
+其中，$F_h$ 表示硬可行性谓词，$F_{\mathrm{tool}}$ 检查候选中的工具是否存在于能力图或适配器注册表；$F_{\mathrm{schema}}$ 检查输入输出字段是否满足工具 schema；$F_{\mathrm{io}}$ 检查跨步骤引用是否闭合；$F_{\mathrm{safety}}$ 检查是否违反安全等级或触发 safety block；$F_{\mathrm{budget\mbox{-}hard}}$ 检查是否突破不可逾越预算上限；$F_{\mathrm{availability}}$ 检查关键工具是否可用或是否有明确降级路径。过滤后的集合为：
 
-```text
-Pi_t = { pi in Pi_raw,t | F_h(pi, C, K, h_t) = 1 }
+```tex
+\Pi_t=\{\pi\in\Pi_{\mathrm{raw},t}\mid F_h(\pi,C,K,h_t)=1\}.
 ```
 
 硬可行性过滤承担系统边界约束，因此静态评分不能把硬不可行候选“打高分后救回”。工程实现可以保留 degraded feasible 候选用于解释或 HITL 审查，但这类候选必须携带降级原因和人工确认要求。
 
 在候选通过硬过滤后，算法计算静态效用：
 
-```text
-S_static(pi)
-  = w_f F_s(pi)
-  + w_g G(pi; g, o_t)
-  - w_c C_norm(pi)
-  - w_r R_norm(pi)
-  - w_rec Rec(pi)
-  + w_q Q(pi)
+```tex
+\begin{aligned}
+S_{\mathrm{static}}(\pi)
+  &= w_f F_s(\pi)
+   + w_g G(\pi;g,o_t)
+   - w_c C_{\mathrm{norm}}(\pi)\\
+  &\quad{}- w_r R_{\mathrm{norm}}(\pi)
+   - w_{\mathrm{rec}}\operatorname{Rec}(\pi)
+   + w_q Q(\pi).
+\end{aligned}
 ```
 
-`F_s` 是软可行性分数，表示候选在 schema 完整、工具 readiness、fallback depth 等方面的先验质量；`G` 是目标匹配度；`C_norm` 是归一化成本；`R_norm` 是归一化风险；`Rec` 是恢复复杂度；`Q` 是工程可靠性项。权重 `w_*` 由策略配置给出，用于在不同任务设置下调节目标、成本、风险和恢复难度的相对重要性。
+$F_s$ 是软可行性分数，表示候选在 schema 完整、工具 readiness、fallback depth 等方面的先验质量；$G$ 是目标匹配度；$C_{\mathrm{norm}}$ 是归一化成本；$R_{\mathrm{norm}}$ 是归一化风险；$\operatorname{Rec}$ 是恢复复杂度；$Q$ 是工程可靠性项。权重 $w_\ast$ 由策略配置给出，用于在不同任务设置下调节目标、成本、风险和恢复难度的相对重要性。
 
 静态效用用于形成执行前的候选先验排序。它可以偏好成本更低、风险更小、恢复更容易的工具链，但无法感知执行中已经发生的失败、证据不足或预算压力变化。因此，静态效用之后还需要 Lite belief-state / 轻量信念状态和后验证据修正。
 
@@ -159,46 +170,51 @@ S_static(pi)
 
 CEBRA-WP 使用 Lite belief-state / 轻量信念状态近似表示执行过程中无法完全观测的工作流状态。它只保留三类变量：对恢复动作选择必要的变量、能够从现有日志稳定更新的变量，以及能够被实验和案例解释的变量。状态向量定义为：
 
-```text
-x_t = [
-  p_success,
-  p_structural_failure,
-  recovery_margin,
-  expected_remaining_cost,
-  evidence_sufficiency
-]
+```tex
+x_t=\left[
+\begin{array}{c}
+p_{\mathrm{succ}}\\
+p_{\mathrm{sf}}\\
+r_{\mathrm{rec}}\\
+c_{\mathrm{rem}}\\
+e_{\mathrm{suf}}
+\end{array}
+\right].
 ```
 
-各状态量的语义如表 4-2 所示。
+其中，$p_{\mathrm{succ}}$ 表示任务继续成功概率，$p_{\mathrm{sf}}$ 表示结构性失败概率，$r_{\mathrm{rec}}$ 表示恢复余量，$c_{\mathrm{rem}}$ 表示预期剩余成本，$e_{\mathrm{suf}}$ 表示证据充分度。各状态量的语义如表 4-2 所示。
 
 **表 4-2 Lite belief-state / 轻量信念状态变量**
 
 | 状态量 | 取值范围 | 含义 | 主要更新来源 | 决策作用 |
 |---|---|---|---|---|
-| `p_success` | `[0,1]` | 当前链路继续执行后完成任务的估计概率 | 步骤成功、质量指标、候选静态分、失败记录 | 支持 `continue` 与 `stop` 判断 |
-| `p_structural_failure` | `[0,1]` | 当前链路遭遇结构性失败或后续必须重规划的估计概率 | 结构预测失败、质量门禁失败、安全阻断、重复失败 | 提高 `patch_local`、`suffix_replan`、`stop` 权重 |
-| `recovery_margin` | `[0,1]` | 在保留有效前缀前提下继续恢复的余量 | 已完成步骤比例、失败类型、patch/replan 次数 | 区分局部修补与后缀重规划 |
-| `expected_remaining_cost` | 非负实数 | 从当前状态到任务结束的剩余成本暴露 | 剩余步骤、工具成本先验、预算配置、重试记录 | 派生预算压力并约束高代价动作 |
-| `evidence_sufficiency` | `[0,1]` | 当前证据是否足以支持进入更高代价步骤 | 质量门禁、结构指标、目标评分、证据可靠性 | 控制高代价步骤推进与人工确认 |
+| $p_{\mathrm{succ}}$（成功概率） | $[0,1]$ | 当前链路继续执行后完成任务的估计概率 | 步骤成功、质量指标、候选静态分、失败记录 | 支持 `continue` 与 `stop` 判断 |
+| $p_{\mathrm{sf}}$（结构失败） | $[0,1]$ | 当前链路遭遇结构性失败或后续必须重规划的估计概率 | 结构预测失败、质量门禁失败、安全阻断、重复失败 | 提高 `patch_local`、`suffix_replan`、`stop` 权重 |
+| $r_{\mathrm{rec}}$（恢复余量） | $[0,1]$ | 在保留有效前缀前提下继续恢复的余量 | 已完成步骤比例、失败类型、patch/replan 次数 | 区分局部修补与后缀重规划 |
+| $c_{\mathrm{rem}}$（剩余成本） | 非负实数 | 从当前状态到任务结束的剩余成本暴露 | 剩余步骤、工具成本先验、预算配置、重试记录 | 派生预算压力并约束高代价动作 |
+| $e_{\mathrm{suf}}$（证据充分） | $[0,1]$ | 当前证据是否足以支持进入更高代价步骤 | 质量门禁、结构指标、目标评分、证据可靠性 | 控制高代价步骤推进与人工确认 |
 
-运行时观测 `o_t` 来自 StepResult、SafetyResult、失败上下文、局部修补/重规划历史、已完成步骤、剩余后缀和 HITL 决策记录。派生量如 `budget_pressure`、`intervention_value`、`local_patchability` 和 `prefix_preservability` 不作为持久化主状态，而是根据当前状态和候选上下文按需计算。这样可以避免把与具体候选强相关的临时判断写入长期状态，从而降低状态漂移风险。
+运行时观测 $o_t$ 来自 StepResult、SafetyResult、失败上下文、局部修补/重规划历史、已完成步骤、剩余后缀和 HITL 决策记录。派生量如 $b_{\mathrm{press}}$、$v_{\mathrm{hitl}}$、$\ell_{\mathrm{patch}}$ 和 $p_{\mathrm{pres}}$ 不作为持久化主状态，而是根据当前状态和候选上下文按需计算。这样可以避免把与具体候选强相关的临时判断写入长期状态，从而降低状态漂移风险。
 
-以预算压力为例，`expected_remaining_cost` 保留剩余成本原始估计，不直接等同于 `[0,1]` 区间内的预算压力。若任务给出预算上限 `budget_cap`，则：
+以预算压力为例，$c_{\mathrm{rem}}$ 保留剩余成本原始估计，不直接等同于 $[0,1]$ 区间内的预算压力。若任务给出预算上限 $c_{\mathrm{cap}}$，则：
 
-```text
-budget_pressure
-  = clip(expected_remaining_cost / max(budget_cap, 0.1), 0, 1.5)
+```tex
+b_{\mathrm{press}}
+=\operatorname{clip}\left(
+\frac{c_{\mathrm{rem}}}{\max(c_{\mathrm{cap}},0.1)},
+0,1.5
+\right).
 ```
 
 若任务未给出预算上限，则使用：
 
-```text
-budget_pressure = clip(expected_remaining_cost, 0, 1.5)
+```tex
+b_{\mathrm{press}}=\operatorname{clip}(c_{\mathrm{rem}},0,1.5).
 ```
 
 因此，预算压力是由任务上下文派生的动作决策量，而不是 RuntimeState 的持久化字段。该区分使系统既能记录可解释的剩余成本，也能在不同预算设置下统一比较恢复动作。
 
-状态初始化可由首选候选的静态分数、风险分数、恢复复杂度、剩余成本先验和廉价证据覆盖率给出。例如，`p_success` 可由静态候选分数裁剪得到，`p_structural_failure` 可由风险项裁剪得到，`recovery_margin` 可由恢复复杂度的反向量估计，`expected_remaining_cost` 来自剩余工具成本先验，`evidence_sufficiency` 来自低成本质量证据覆盖率。随着执行推进，成功步骤会提升 `p_success` 和证据充分度，结构性失败会提高 `p_structural_failure` 并降低恢复余量，重复失败和预算消耗则会提高剩余成本压力。
+状态初始化可由首选候选的静态分数、风险分数、恢复复杂度、剩余成本先验和廉价证据覆盖率给出。例如，$p_{\mathrm{succ}}$ 可由静态候选分数裁剪得到，$p_{\mathrm{sf}}$ 可由风险项裁剪得到，$r_{\mathrm{rec}}$ 可由恢复复杂度的反向量估计，$c_{\mathrm{rem}}$ 来自剩余工具成本先验，$e_{\mathrm{suf}}$ 来自低成本质量证据覆盖率。随着执行推进，成功步骤会提升 $p_{\mathrm{succ}}$ 和证据充分度，结构性失败会提高 $p_{\mathrm{sf}}$ 并降低恢复余量，重复失败和预算消耗则会提高剩余成本压力。
 
 该状态设计吸收了部分可观测规划中 belief-state 的思想[@kaelbling1998pomdp]，但在工程上保持轻量：系统不求解完整 POMDP，也不在线训练策略网络，而是使用可解释变量为候选重排和恢复动作提供一致依据。
 
@@ -206,37 +222,42 @@ budget_pressure = clip(expected_remaining_cost, 0, 1.5)
 
 蛋白质设计目标通常是多目标的，包括结构质量、稳定性、功能、novelty 和安全性等。不同目标的证据来源不同，证据可靠性也不同。为避免把弱证据与直接证据等价处理，CEBRA-WP 使用证据加权后验目标匹配：
 
-```text
-G_post(pi; g, o_t) = Σ_m λ_m(g) · ρ_m(o_t) · q_m(pi, o_t)
+```tex
+G_{\mathrm{post}}(\pi;g,o_t)
+=\sum_m \lambda_m(g)\rho_m(o_t)q_m(\pi,o_t).
 ```
 
-其中，`m` 表示目标维度，`λ_m(g)` 是由任务目标决定的目标权重，`q_m(pi, o_t)` 是候选在该维度上的归一化分数，`ρ_m(o_t)` 是证据可靠性权重。证据状态分为 direct、proxy、degraded 和 missing：direct evidence 指已产生的结构质量指标，proxy evidence 指由轻量质量门禁推断出的间接信号，degraded evidence 表示工具降级或证据覆盖不完整，missing 表示当前没有可用证据。整体证据充分度可写为：
+其中，$m$ 表示目标维度，$\lambda_m(g)$ 是由任务目标 $g$ 决定的目标权重，$q_m(\pi,o_t)$ 是候选 $\pi$ 在该维度上的归一化分数，$\rho_m(o_t)$ 是观测 $o_t$ 对目标维度 $m$ 的证据可靠性权重。证据状态分为 direct、proxy、degraded 和 missing：direct evidence 指已产生的结构质量指标，proxy evidence 指由轻量质量门禁推断出的间接信号，degraded evidence 表示工具降级或证据覆盖不完整，missing 表示当前没有可用证据。整体证据充分度可写为：
 
-```text
-e_t = clip(Σ_m λ_m(g) · ρ_m(o_t), 0, 1)
+```tex
+e_t=\operatorname{clip}\left(\sum_m \lambda_m(g)\rho_m(o_t),0,1\right).
 ```
 
-该值进入 `evidence_sufficiency`，影响是否继续进入高代价步骤。若证据不足而候选下一步成本较高，运行时重排序会降低该候选；若已有充分低成本证据支持，则候选可以更合理地进入结构预测或目标评分。
+该值进入 $e_{\mathrm{suf}}$，影响是否继续进入高代价步骤。若证据不足而候选下一步成本较高，运行时重排序会降低该候选；若已有充分低成本证据支持，则候选可以更合理地进入结构预测或目标评分。
 
-将 `G_post` 替换静态效用中的目标匹配项后，得到包含后验证据的基础分 `S_post`。运行时重排序定义为：
+将 $G_{\mathrm{post}}$ 替换静态效用中的目标匹配项后，得到包含后验证据的基础分 $S_{\mathrm{post}}$。运行时重排序定义为：
 
-```text
-U_pi(pi, x_t) = clip(S_post(pi) + Delta(pi, x_t), 0, 1)
+```tex
+U_{\pi}(\pi,x_t)
+=\operatorname{clip}\left(S_{\mathrm{post}}(\pi)+\Delta(\pi,x_t),0,1\right).
 ```
 
-其中 `Delta(pi, x_t)` 是有界运行时修正项，取值范围控制在 `[-0.35, 0.35]`。其一般形式为：
+其中 $\Delta(\pi,x_t)$ 是有界运行时修正项，取值范围控制在 $[-0.35,0.35]$。其一般形式为：
 
-```text
-Delta(pi, x_t)
-  = k_s · (p_success - 0.5) · Conf(pi)
-  + k_e · (2 · evidence_sufficiency - 1) · max(Conf(pi), F_s(pi))
-  - k_f · p_structural_failure · (1 - RiskScore(pi))
-  + k_r · recovery_margin · RecoveryScore(pi)
-  - k_c · budget_pressure · (1 - CostScore(pi))
-  + k_a · ActionBias(pi, x_t)
+```tex
+\begin{aligned}
+\Delta(\pi,x_t)
+  &= k_s\,(p_{\mathrm{succ}}-0.5)\operatorname{Conf}(\pi)\\
+  &\quad{}+k_e\,(2e_{\mathrm{suf}}-1)
+       \max(\operatorname{Conf}(\pi),F_s(\pi))\\
+  &\quad{}-k_f\,p_{\mathrm{sf}}\,(1-\operatorname{RiskScore}(\pi))\\
+  &\quad{}+k_r\,r_{\mathrm{rec}}\operatorname{RecoveryScore}(\pi)\\
+  &\quad{}-k_c\,b_{\mathrm{press}}\,(1-\operatorname{CostScore}(\pi))\\
+  &\quad{}+k_a\,\operatorname{ActionBias}(\pi,x_t).
+\end{aligned}
 ```
 
-其中，`Conf(pi)` 表示候选置信度，`RiskScore(pi)` 和 `CostScore(pi)` 为候选的风险与成本质量分数，`RecoveryScore(pi)` 表示候选恢复友好度，`ActionBias(pi, x_t)` 表示候选与当前恢复动作偏好的匹配程度。其直观含义是：当 `p_structural_failure` 和预算压力升高时，算法降低高成本、低可恢复候选的排序；当 `p_success`、`recovery_margin` 和 `evidence_sufficiency` 较高时，算法提高继续执行或低风险候选的排序。
+其中，$\operatorname{Conf}(\pi)$ 表示候选置信度，$\operatorname{RiskScore}(\pi)$ 和 $\operatorname{CostScore}(\pi)$ 为候选的风险与成本质量分数，$\operatorname{RecoveryScore}(\pi)$ 表示候选恢复友好度，$\operatorname{ActionBias}(\pi,x_t)$ 表示候选与当前恢复动作偏好的匹配程度。其直观含义是：当 $p_{\mathrm{sf}}$ 和预算压力升高时，算法降低高成本、低可恢复候选的排序；当 $p_{\mathrm{succ}}$、$r_{\mathrm{rec}}$ 和 $e_{\mathrm{suf}}$ 较高时，算法提高继续执行或低风险候选的排序。
 
 运行时重排序有两个边界：一是只作用于已经通过可行性校验的候选，不能覆盖工具不存在、schema 错误、I/O 不闭合和安全阻断；二是修正幅度存在上界，避免一次异常观测完全覆盖静态目标匹配和工程可靠性判断。借助这两个边界，算法在适应运行时变化的同时仍能保持可复现和可审计。
 
@@ -253,27 +274,29 @@ CEBRA-WP 将恢复动作限定为四类：`continue`、`patch_local`、`suffix_r
 | `suffix_replan` | 结构性失败概率升高、后缀可靠性不足、前缀可保留 | 保留已验证前缀，替换未执行后缀 | WAITING_REPLAN_CONFIRM | 记录 replan 候选、前缀保留位置和新后缀 |
 | `stop` | 成功概率低、预算压力高、恢复余量低、人工介入价值有限 | 生成终止型 ReplanCandidate | WAITING_REPLAN_CONFIRM；接受后进入 FAILED | 记录 terminal_reason 与已保留证据 |
 
-动作效用由状态量和派生量共同计算。为便于表示，记 `s=p_success`，`f=p_structural_failure`，`r=recovery_margin`，`e=evidence_sufficiency`，`b=budget_pressure`。局部可修复性、证据可复用性、前缀可保留性、预算缓解度、目标重对齐收益和人工介入价值，分别记为 `local_patchability`、`evidence_reusability`、`prefix_preservability`、`budget_relief`、`goal_realignment` 和 `intervention_value`。动作效用可写为：
+动作效用由状态量和派生量共同计算。为便于表示，记 $s=p_{\mathrm{succ}}$，$f=p_{\mathrm{sf}}$，$r=r_{\mathrm{rec}}$，$e=e_{\mathrm{suf}}$，$b=b_{\mathrm{press}}$。局部可修复性、证据可复用性、前缀可保留性、预算缓解度、目标重对齐收益和人工介入价值，分别记为 $\ell_{\mathrm{patch}}$、$e_{\mathrm{reuse}}$、$p_{\mathrm{pres}}$、$b_{\mathrm{relief}}$、$g_{\mathrm{align}}$ 和 $v_{\mathrm{hitl}}$。动作效用可写为：
 
-```text
-U_continue
-  = 0.38s + 0.14e + 0.12r - 0.22f - 0.14b
-
-U_patch_local
-  = 0.20s + 0.24r + 0.18 · local_patchability
-    + 0.12 · evidence_reusability - 0.14f - 0.12b
-
-U_suffix_replan
-  = 0.18(1-s) + 0.20f + 0.16(1-r)
-    + 0.18 · prefix_preservability + 0.14 · budget_relief
-    + 0.14 · goal_realignment
-
-U_stop
-  = 0.32(1-s) + 0.24b + 0.18(1-r)
-    + 0.16 · safety_terminality + 0.10(1-intervention_value)
+```tex
+\begin{aligned}
+U_{\mathrm{continue}}
+  &=0.38s+0.14e+0.12r-0.22f-0.14b,\\
+U_{\mathrm{patch\_local}}
+  &=0.20s+0.24r+0.18\ell_{\mathrm{patch}}
+    +0.12e_{\mathrm{reuse}}\\
+  &\quad{}-0.14f-0.12b,\\
+U_{\mathrm{suffix\_replan}}
+  &=0.18(1-s)+0.20f+0.16(1-r)
+    +0.18p_{\mathrm{pres}}\\
+  &\quad{}+0.14b_{\mathrm{relief}}
+    +0.14g_{\mathrm{align}},\\
+U_{\mathrm{stop}}
+  &=0.32(1-s)+0.24b+0.18(1-r)
+    +0.16s_{\mathrm{safe}}\\
+  &\quad{}+0.10(1-v_{\mathrm{hitl}}).
+\end{aligned}
 ```
 
-这组效用函数体现了四类动作的不同偏好：`continue` 对较高成功概率、证据充分度和恢复余量更敏感；`patch_local` 更依赖局部可修复性、证据可复用性和较低结构性失败概率；`suffix_replan` 偏向于结构性失败概率较高、当前成功概率较低但前缀仍可保留的场景；`stop` 只有在继续价值低、预算压力高、恢复余量低且人工介入价值不足时才会成为强候选。
+其中，$s_{\mathrm{safe}}$ 表示安全终止性。这组效用函数体现了四类动作的不同偏好：`continue` 对较高成功概率、证据充分度和恢复余量更敏感；`patch_local` 更依赖局部可修复性、证据可复用性和较低结构性失败概率；`suffix_replan` 偏向于结构性失败概率较高、当前成功概率较低但前缀仍可保留的场景；`stop` 只有在继续价值低、预算压力高、恢复余量低且人工介入价值不足时才会成为强候选。
 
 `stop` 不是用户主动取消，也不是执行异常崩溃，而是算法提出的终止型重规划候选。其载体为 `ReplanCandidate(replan_mode="terminal_stop")`，通过 `replan_confirm` 通道进入 WAITING_REPLAN_CONFIRM。只有在人工接受或策略显式允许时，系统才将任务推进到 FAILED；已完成前缀、产物和解释字段仍被保留为审计资产。
 

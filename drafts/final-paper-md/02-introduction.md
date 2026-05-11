@@ -74,7 +74,7 @@ POMDP 对本文的启发在于：在不确定环境中，系统不应只根据�
 
 （2）设计多 Agent 协作的蛋白质设计系统架构。系统采用输入交互、智能规划、工作流执行、安全汇总和资源管理等层次组织功能，并将 PlannerAgent、ExecutorAgent、SafetyAgent 和 SummarizerAgent 的职责分离。系统通过有限状态机（Finite State Machine，FSM）约束任务生命周期，通过 PendingAction/Decision 表示人在环决策（Human-in-the-loop，HITL），通过事件日志和任务快照记录执行过程。
 
-（3）提出约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP）算法。该算法以目标 `g`、约束集合 `C`、ProteinToolKG `K`、历史 `h_t`、观测 `o_t` 和 Lite belief-state / 轻量信念状态 `x_t` 为输入，经过候选生成、硬可行性过滤、静态评分、后验目标评分、运行时重排序和恢复动作选择，输出候选集合、默认建议和恢复动作。算法支持 `continue`、`patch_local`、`suffix_replan` 和 `stop` 四类动作，并将 `stop` 映射为受 FSM 和 HITL 约束的终止型重规划候选。
+（3）提出约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP）算法。该算法以目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史 $h_t$、观测 $o_t$ 和 Lite belief-state / 轻量信念状态 $x_t$ 为输入，经过候选生成、硬可行性过滤、静态评分、后验目标评分、运行时重排序和恢复动作选择，输出候选集合、默认建议和恢复动作。算法支持 `continue`、`patch_local`、`suffix_replan` 和 `stop` 四类动作，并将 `stop` 映射为受 FSM 和 HITL 约束的终止型重规划候选。
 
 （4）实现系统原型并开展测试与实验验证。后端采用 Python、FastAPI 和 Pydantic 实现任务接入、计划生成、工作流执行、HITL 接口、事件查询和报告读取；前端采用 React、TypeScript 和 Vite 构建轻量 Web 工作台；工具层通过统一适配器封装 ProtGPT2、ProteinMPNN、ESMFold/OpenFold、Biopython QC、DSSP 和目标评分等能力。本文通过 API 合约、数据契约、FSM 迁移、HITL 决策边界、快照恢复、前端与 CLI 可用性、安全阻断和恢复路径等测试验证系统可用性，并通过 `static_top1`、`fixed_threshold_gate`、`dynamic_no_belief_state` 和 `lite_belief_state` 四组策略对照实验分析 CEBRA-WP 的机制作用。
 

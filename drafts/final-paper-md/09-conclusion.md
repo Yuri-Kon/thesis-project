@@ -8,7 +8,7 @@
 
 在系统设计方面，本文将蛋白质设计任务抽象为受约束的工作流规划问题。任务目标、用户约束、工具能力、输入输出契约、预算信息和运行时观测共同决定候选工作流的生成、筛选和重排序。系统采用 FSM 作为任务生命周期的控制核心，将 `CREATED`、`PLANNING`、`RUNNING`、`WAITING_*`、`SUMMARIZING`、`DONE`、`FAILED` 等状态组织为受控迁移路径；采用 PendingAction/Decision 表示 HITL 决策；采用 EventLog 和 TaskSnapshot 保存状态迁移、恢复动作、运行时状态和审计信息。
 
-在算法设计方面，本文提出 CEBRA-WP，将约束感知、证据感知、Lite belief-state / 轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标、约束集合、ProteinToolKG、历史状态、观测和 Lite belief-state / 轻量信念状态；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含 `p_success`、`p_structural_failure`、`recovery_margin`、`expected_remaining_cost` 和 `evidence_sufficiency` 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
+在算法设计方面，本文提出 CEBRA-WP，将约束感知、证据感知、Lite belief-state / 轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史状态 $h_t$、观测 $o_t$ 和 Lite belief-state / 轻量信念状态 $x_t$；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含 $p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$ 和 $e_{\mathrm{suf}}$ 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
 
 在系统实现方面，本文基于 Python、FastAPI、Pydantic、React 和 TypeScript 完成原型系统。后端提供任务录入、任务生命周期、事件查询、报告查询和人工决策接口；前端工作台包含 Dashboard、Task Builder、Task Detail 和 Event Timeline 等页面；工作流运行时通过 WorkflowContext、PlanRunner、StepRunner、RuntimeEvaluator、PendingAction 和 Snapshot 等模块实现任务推进、工具调用、重试、恢复、等待态和审计记录。工具侧通过 ToolAdapter 抽象封装结构预测、序列生成、质量控制等外部能力，使异构蛋白质设计工具能够在统一契约下接入系统。
 

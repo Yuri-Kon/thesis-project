@@ -134,7 +134,7 @@
 |---|---|---|
 | runtime_state_summary | 无有效运行时状态摘要 | 21/21 runs 产生 RuntimeState |
 | runtime_state_observable_rate | 0.0000 | 1.0000 |
-| belief-state 核心字段 | 未观测 | `p_success`、`p_structural_failure`、`recovery_margin`、`expected_remaining_cost`、`evidence_sufficiency` |
+| belief-state 核心字段 | 未观测 | $p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$、$e_{\mathrm{suf}}$ |
 | budget_pressure source | `default` | `observed` |
 | action_utility_source | `missing` | `computed` |
 | action_utilities | 空对象或不可用 | `continue`、`patch_local`、`suffix_replan`、`stop` 均有 utility |
@@ -181,6 +181,6 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 
 本章实验得到四点结论。在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，lite_belief_state 组 21/21 runs 产生 RuntimeState，runtime_state_observable_rate 为 1.0000。fixed_threshold_gate 触发 6 次真实局部修补，高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，同时也会带来额外执行成本。dynamic_no_belief_state 与 lite_belief_state 的 high_cost_call_mean 均为 0.9524，低于 fixed_threshold_gate 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
 
-在当前 `thesis-final-v1-001` 设置下，实验支持“CEBRA-WP 机制已实现且可观测”“固定阈值门控恢复存在额外成本”“Lite belief-state / 轻量信念状态提供运行时决策解释信息”等结论。成功率方面，static_top1 为 1.0000，其余三组为 0.9524，最终成功率提升并非本章的主要实验结论。
+在当前 `thesis-final-v1-001` 设置下，实验支持“CEBRA-WP 机制已实现且可观测”、“固定阈值门控恢复存在额外成本”、“Lite belief-state / 轻量信念状态提供运行时决策解释信息”等结论。成功率方面，static_top1 为 1.0000，其余三组为 0.9524，最终成功率提升并非本章的主要实验结论。
 
 第八章将结合上述实验结论与边界，总结本文贡献并讨论后续改进方向。

@@ -71,7 +71,7 @@
 
 快照验证对应 TC-S06。系统要求进入任意 `WAITING_*` 状态前完成 PendingAction 写入、事件日志记录和 TaskSnapshot 保存。该顺序保证了系统即使在等待人工确认期间中断，也可以在恢复后还原 pending action、候选集合、已完成步骤、计划版本和运行时状态。恢复到等待态后，系统不会自动推进执行，而是继续等待人工 Decision，这一点对于保护 HITL 决策边界尤为关键。
 
-快照验证还确认了运行时状态与计划语义字段的隔离。Lite belief-state / 轻量信念状态中的 `p_success`、`budget_pressure`、`recovery_margin` 等字段保存在 snapshot artifacts 的 RuntimeState 中，而 Plan 本身仍保持步骤、输入输出和约束定义。这种隔离避免了运行时估计污染计划语义，也使不同策略配置可以在同一执行框架下比较。
+快照验证还确认了运行时状态与计划语义字段的隔离。Lite belief-state / 轻量信念状态中的 $p_{\mathrm{succ}}$、$b_{\mathrm{press}}$、$r_{\mathrm{rec}}$ 等状态量保存在 snapshot artifacts 的 RuntimeState 中，而 Plan 本身仍保持步骤、输入输出和约束定义。这种隔离避免了运行时估计污染计划语义，也使不同策略配置可以在同一执行框架下比较。
 
 ## 6.5 前端与 CLI 可用性验证
 

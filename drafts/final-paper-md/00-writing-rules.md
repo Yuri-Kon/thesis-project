@@ -74,11 +74,11 @@
 
 CEBRA-WP 必须作为第四章系统设计中的独立算法定义出现，不能只散落在工作流描述里。算法定义应至少包括：
 
-- 问题输入：目标 `g`、约束集合 `C`、ProteinToolKG `K`、历史 `h_t`、观测 `o_t` 和 Lite belief-state / 轻量信念状态 `x_t`。
+- 问题输入：目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史 $h_t$、观测 $o_t$ 和 Lite belief-state / 轻量信念状态 $x_t$。
 - 候选生成：`GenerateCandidates(g, C, K, h_t)`。
 - 硬可行性筛选：工具、schema、输入输出、安全、硬预算和可用性约束均满足后才可进入自动执行。
 - 静态候选效用：综合可行性、目标匹配、成本、风险、恢复开销和解释质量。
-- 轻量信念状态：至少包含 `p_success`、`p_structural_failure`、`recovery_margin`、`expected_remaining_cost`、`evidence_sufficiency`。
+- 轻量信念状态：至少包含 $p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$、$e_{\mathrm{suf}}$。
 - 后验目标适配：基于 direct/proxy/degraded/missing 等证据状态调整目标匹配。
 - 运行时重排序：运行时调整只改变已可行候选的排序，不绕过硬约束。
 - 恢复动作：`continue`、`patch_local`、`suffix_replan`、`stop`，其中 `stop` 仍应映射为受 FSM 和 HITL 约束的终止候选。
