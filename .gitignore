@@ -3,7 +3,7 @@ resources/Protein Design/files/
 .DS_Store
 
 *.~lock.*
-
+~$*.doc
 *.drawio
 
 reference/
