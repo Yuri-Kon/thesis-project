@@ -1,8 +1,8 @@
 # 第五章 系统实现
 
-本章在第四章系统设计的基础上，说明本文系统的工程实现方式。系统实现的目标不是重新实现蛋白质结构预测或序列设计模型，而是在已有蛋白质设计工具和远程模型服务之上，构建能够完成任务接入、候选计划生成、HITL 确认、工具执行、运行时恢复和结果审计的工作流控制系统。
+本章在第四章系统设计的基础上说明工程实现方式。本文不提出新的底层蛋白质生成模型，而是把已有工具组织为可执行、可恢复、可审计的智能工作流。因此，本章主要讨论任务接入、候选计划生成、HITL 确认、工具执行、运行时恢复和结果审计等机制如何落实到代码模块和接口中。
 
-蛋白质设计相关能力主要通过 AlphaFold/OpenFold、ESMFold、ProteinMPNN、ProtGPT2、Biopython 等工具或工具适配器接入，这些工具本身已有成熟研究基础[@jumper2021alphafold; @lin2023esmfold; @dauparas2022proteinmpnn; @ferruz2022protgpt2; @ahdritz2024openfold; @cock2009biopython]。因此，本文系统的实现重点，是把这些异构能力组织为可追踪、可恢复、可解释的工作流。
+蛋白质设计相关能力主要通过 AlphaFold/OpenFold、ESMFold、ProteinMPNN、ProtGPT2、Biopython 等工具或工具适配器接入，这些工具本身已有成熟研究基础[@jumper2021alphafold; @lin2023esmfold; @dauparas2022proteinmpnn; @ferruz2022protgpt2; @ahdritz2024openfold; @cock2009biopython]。因此，实现工作的重点在于把这些异构能力组织为可追踪、可恢复、可解释的工作流。
 
 ## 5.1 技术选型与工程结构
 
@@ -87,7 +87,7 @@ HITL 机制通过 PendingAction 和 Decision 建模。`GET /pending-actions` 返
 
 在 Task Detail 页面中，PendingReviewWorkspace 是 HITL 的主要交互区域。当任务进入 `WAITING_*` 状态时，前端展示候选方案对比、评分分解、运行时上下文和决策表单。用户提交决策后，前端仅向后端发送结构化 Decision，具体的计划应用、状态迁移、快照写入和事件记录均由后端工作流模块完成。
 
-需要说明的是，当前前端的结构展示区域主要提供结构文件路径、报告浏览和可视化入口。论文中应将其表述为“结构产物入口与展示区域”，而不扩大为完整的三维结构分析平台。
+当前前端的结构展示区域主要提供结构文件路径、报告浏览和可视化入口。论文中应将其表述为“结构产物入口与展示区域”，而不扩大为完整的三维结构分析平台。
 
 ## 5.4 工作流运行时与执行引擎
 
@@ -313,8 +313,8 @@ ProteinToolKG 以 JSON 形式保存工具能力、输入输出、兼容关系、
 
 ## 5.7 本章小结
 
-本章从工程角度说明了系统实现方式。系统后端以 Python、FastAPI 和 Pydantic 为基础，前端以 React、TypeScript 和 Vite 构建工作台；工作流控制采用自定义 Workflow/FSM，以保证 HITL、快照恢复和事件审计显式可控。
+本章从工程角度说明了系统实现方式。系统后端以 Python、FastAPI 和 Pydantic 为基础，前端以 React、TypeScript 和 Vite 构建工作台；工作流控制采用自定义 Workflow/FSM，使 HITL、快照恢复和事件审计保持显式可控。
 
 任务接入方面，系统通过 Task Intake 和互斥任务创建入口将自然语言目标逐步收敛为结构化任务。运行时方面，WorkflowContext、PlanRunner 和 StepRunner 分别承担上下文管理、计划级状态推进和步骤级工具执行。恢复方面，PendingAction、Decision、EventLog 和 TaskSnapshot 共同保证等待状态可审计、可恢复。算法落地方面，CEBRA-WP 通过 RuntimeEvaluator、RuntimeState 更新和恢复动作映射参与候选重排和运行时决策。工具接入方面，ToolAdapter 和 ProteinToolKG 将异构蛋白质设计工具封装为统一能力。
 
-本章的实现描述为后续第六章系统测试与验证提供了对象基础：第六章将进一步验证 API 合约、FSM/HITL、快照恢复、前端与 CLI 可用性，以及 retry、局部修补、后缀重规划和安全边界是否按本章所述实现正确运行。
+本章描述的实现模块构成第六章测试与验证的对象基础。第六章将围绕 API 合约、FSM/HITL、快照恢复、前端与 CLI 可用性，以及 retry、局部修补、后缀重规划和安全边界展开验证。

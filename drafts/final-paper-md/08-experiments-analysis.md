@@ -1,6 +1,6 @@
 # 第七章 实验与结果分析
 
-第六章已验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程基础。本章在此基础上分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定为工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
+第六章已验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程基础。本章进一步分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定为工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
 
 本章围绕四个研究问题展开：
 
@@ -179,8 +179,8 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 | run 级结果 | `run_level_results.jsonl` | 失败案例、RuntimeState、tool usage、artifact linkage | 7.6、7.7 |
 | 事件日志与快照 | `data/logs/thesis-final-v1-001_*.jsonl`、`data/snapshots/thesis-final-v1-001_*.jsonl` | 决策链、恢复链、运行时状态和失败追踪 | 7.7 |
 
-本章得到以下结论。首先，在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，lite_belief_state 组 21/21 runs 产生 RuntimeState，runtime_state_observable_rate 为 1.0000。其次，fixed_threshold_gate 触发 6 次真实局部修补，高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，也会带来额外执行成本。再次，dynamic_no_belief_state 与 lite_belief_state 的 high_cost_call_mean 均为 0.9524，低于 fixed_threshold_gate 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。最后，3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
+本章实验得到四点结论。在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，lite_belief_state 组 21/21 runs 产生 RuntimeState，runtime_state_observable_rate 为 1.0000。fixed_threshold_gate 触发 6 次真实局部修补，高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，同时也会带来额外执行成本。dynamic_no_belief_state 与 lite_belief_state 的 high_cost_call_mean 均为 0.9524，低于 fixed_threshold_gate 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
 
 在当前 `thesis-final-v1-001` 设置下，实验支持“CEBRA-WP 机制已实现且可观测”“固定阈值门控恢复存在额外成本”“Lite belief-state / 轻量信念状态提供运行时决策解释信息”等结论。成功率方面，static_top1 为 1.0000，其余三组为 0.9524，最终成功率提升并非本章的主要实验结论。
 
-基于上述实验结论与边界，第八章将进一步总结本文贡献，并讨论后续改进方向。
+第八章将结合上述实验结论与边界，总结本文贡献并讨论后续改进方向。
