@@ -26,14 +26,14 @@
 | `09-conclusion.md` | 总结与展望。 |
 | `figures.md` | 终稿图表清单、图号、图题、路径与插入位置。 |
 | `tables.md` | 终稿表格、代码清单和证据索引，供后续正文写作选择使用。 |
-| `references.md` | 终稿参考文献清单与 Markdown 引用键。 |
+| `references.md` | 与当前 Word 终稿同步的文末参考文献列表；BibTeX 引用键回查 `paper/bib/references.bib`。 |
 | `appendix/` | 验证截图说明、补充表格和不适合放入正文的附录材料。 |
 
 ## 写作流程
 
 1. 先查看 `00-writing-rules.md`，确认术语、章节口吻、图表引用和参考文献引用方式。
 2. 写某一章前，先查看 `drafts/final-term/sections/` 中对应草稿，再回查设计与实现依据。
-3. 正文中需要引用文献时，使用 `references.md` 中定义的引用键，例如 `[@kaelbling1998pomdp]`。
+3. 正文中需要引用文献时，优先保持当前 Word 终稿中的编号引用；若继续使用 BibTeX 引用键，可回查 `paper/bib/references.bib`。
 4. 正文中需要插图时，使用 `figures.md` 中固定的图号和图题，不临时新增图号。
 5. 正文中需要表格或代码清单时，先查看 `tables.md`，确认表号、标题、来源和结论边界。
 6. 每章写完后检查三件事：是否有无依据断言，是否所有“如图/如表所示”都有对应图表，是否所有 `[@...]` 都能在 `references.md` 找到。
