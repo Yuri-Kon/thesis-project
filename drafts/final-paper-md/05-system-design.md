@@ -238,8 +238,7 @@ e_t=\operatorname{clip}\left(\sum_m \lambda_m(g)\rho_m(o_t),0,1\right).
 将 $G_{\mathrm{post}}$ 替换静态效用中的目标匹配项后，得到包含后验证据的基础分 $S_{\mathrm{post}}$。运行时重排序定义为：
 
 ```tex
-U_{\pi}(\pi,x_t)
-=\operatorname{clip}\left(S_{\mathrm{post}}(\pi)+\Delta(\pi,x_t),0,1\right).
+U_{\pi}(\pi,x_t)=\operatorname{clip}\left(S_{\mathrm{post}}(\pi)+\Delta(\pi,x_t),0,1\right).
 ```
 
 其中 $\Delta(\pi,x_t)$ 是有界运行时修正项，取值范围控制在 $[-0.35,0.35]$。其一般形式为：

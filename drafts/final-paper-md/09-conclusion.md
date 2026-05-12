@@ -4,8 +4,6 @@
 
 全文先说明课题背景、蛋白质设计技术发展、MDP/POMDP 与 Agent 协作理论基础，再依次展开需求分析、系统设计、系统实现、系统验证和策略实验。需求分析明确了任务录入、候选计划生成、工具执行、HITL、运行时恢复和结果审计等核心需求；系统设计给出了分层架构、ProteinToolKG、FSM、HITL、核心数据契约和 CEBRA-WP 算法定义；系统实现完成了后端 API、前端工作台、工作流运行时、ToolAdapter、RuntimeEvaluator、快照和事件日志等模块；系统测试通过 13 个测试用例覆盖功能正确性和工程可用性；实验分析基于 `thesis-final-v1-001` 的 84-run 四组消融矩阵，考察了静态规划、固定阈值门控、动态观测和 Lite belief-state / 轻量信念状态四类策略的行为差异。
 
-## 8.1 论文工作总结
-
 在系统设计方面，本文将蛋白质设计任务抽象为受约束的工作流规划问题。任务目标、用户约束、工具能力、输入输出契约、预算信息和运行时观测共同决定候选工作流的生成、筛选和重排序。系统采用 FSM 作为任务生命周期的控制核心，将 `CREATED`、`PLANNING`、`RUNNING`、`WAITING_*`、`SUMMARIZING`、`DONE`、`FAILED` 等状态组织为受控迁移路径；采用 PendingAction/Decision 表示 HITL 决策；采用 EventLog 和 TaskSnapshot 保存状态迁移、恢复动作、运行时状态和审计信息。
 
 在算法设计方面，本文提出 CEBRA-WP，将约束感知、证据感知、Lite belief-state / 轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史状态 $h_t$、观测 $o_t$ 和 Lite belief-state / 轻量信念状态 $x_t$；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含 $p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$ 和 $e_{\mathrm{suf}}$ 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
@@ -16,8 +14,6 @@
 
 在实验分析方面，本文使用 12 个 task_keys、4 组策略、84 次运行构成消融矩阵。实验结果显示，84 runs 中 81 个进入 DONE，3 个进入 FAILED；`lite_belief_state` 组 21/21 runs 产生有效 RuntimeState，runtime_state_observable_rate 为 1.0000；`fixed_threshold_gate` 组触发 6 次真实局部修补，高代价调用总数为 28；`dynamic_no_belief_state` 与 `lite_belief_state` 的高代价调用总数均为 20，低于 `fixed_threshold_gate` 组。上述结果支持三项判断：CEBRA-WP 机制已实现且可观测，固定阈值门控恢复存在额外成本，Lite belief-state / 轻量信念状态能够提供运行时决策解释信息。
 
-## 8.2 主要贡献
-
 本文的第一项贡献是构建了一个面向蛋白质设计工作流的可恢复、可审计原型系统。系统围绕任务接入、工具知识约束、候选计划、执行状态、人机决策、恢复路径和审计记录建立了原型层面的工程闭环。第六章的系统验证和第七章的 84-run 实验表明，该系统能够在本文实验设置下支撑多任务、多策略的批量运行和结果追踪。
 
 第二项贡献是提出并实现了 CEBRA-WP 工作流规划算法。该算法定位于工作流层的候选筛选、运行时重排序和恢复动作选择。CEBRA-WP 将 ProteinToolKG 中的工具能力、schema、输入输出、成本、风险和证据状态纳入候选评估，并通过 Lite belief-state / 轻量信念状态将运行时观测转化为可解释的决策依据。
@@ -26,8 +22,6 @@
 
 第四项贡献是对 CEBRA-WP 的机制价值给出了有边界的实验分析。实验结果展示了 Lite belief-state / 轻量信念状态的 RuntimeState、budget pressure 和 action utility 的持续可观测性；同时，fixed_threshold_gate 的局部修补循环和额外高代价调用说明固定阈值门控恢复会带来可测成本。基于这些结果，本文将算法贡献限定在高代价工作流中的恢复控制、成本意识和审计解释，而不是单纯以成功率作为评价依据。
 
-## 8.3 局限性
-
 本文仍存在若干局限。实验规模方面，`thesis-final-v1-001` 包含 84 runs，每组 21 runs，可以支撑机制分析和方向性比较，但统计效力仍有限。尤其是 `dynamic_no_belief_state` 与 `lite_belief_state` 在 success_rate 和 high_cost_call_mean 上完全相同，说明当前任务集对二者性能差异的放大能力有限。
 
 恢复机制在矩阵实验中的覆盖也不完整。84-run 矩阵中真实局部修补仅出现在 `fixed_threshold_gate` 组，且四组均未触发真实重规划或后缀重规划。第六章 focused tests 已验证 `suffix_replan` 和 `terminal_stop` 路径可达，但第七章批量实验主要提供局部修补和高代价调用方面的证据。后续仍需要通过更强的失败诱导任务补足重规划、`stop` 和 escalation 的矩阵级证据。
@@ -35,8 +29,6 @@
 第三，系统仍处于原型阶段。当前任务记录以运行时任务表和日志/快照文件为主，数据库持久化需要进一步补充；ProteinToolKG 以静态配置为主，动态工具注册和在线能力更新能力有限；前端结构区域主要提供产物入口和报告展示；远程服务的自动健康管理和故障切换仍可进一步增强。这些限制主要影响系统在长期科研环境中的部署能力。
 
 第四，本文实验以内部消融为主，外部基线对比仍有扩展空间。当前四组策略能够分离静态选择、固定阈值门控、动态观测和 Lite belief-state / 轻量信念状态的机制差异；后续可与 ReAct-style、Tree-of-Thought-style 或 Reflexion-style 等通用 Agent 方法在同一任务集上进行系统对照。外部对照可以进一步说明 CEBRA-WP 在结构化约束、HITL、恢复审计和高代价控制方面的相对价值。
-
-## 8.4 未来工作展望
 
 后续工作应进一步扩大实验规模并增强压力任务设计。未来实验可增加任务种类、repeat 数和失败诱导条件，例如构造更强的工具不可用、预算冲突、schema 错误、I/O 闭包错误和安全约束冲突场景，使 `patch_local`、`suffix_replan`、`terminal_stop` 和 safety block 在批量矩阵中均能被触发。这样可以将当前以 focused tests 为主的恢复路径验证扩展为统计层面的恢复能力分析。
 
