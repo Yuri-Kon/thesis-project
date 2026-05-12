@@ -15,8 +15,6 @@ API、前端工作台、工作流运行时、ToolAdapter、RuntimeEvaluator、�
 四组消融矩阵，考察了静态规划、固定阈值门控、动态观测和 Lite belief-state
 / 轻量信念状态四类策略的行为差异。
 
-\subsection{论文工作总结}\label{ux8bbaux6587ux5de5ux4f5cux603bux7ed3}
-
 在系统设计方面，本文将蛋白质设计任务抽象为受约束的工作流规划问题。任务目标、用户约束、工具能力、输入输出契约、预算信息和运行时观测共同决定候选工作流的生成、筛选和重排序。系统采用
 FSM 作为任务生命周期的控制核心，将
 \texttt{CREATED}、\texttt{PLANNING}、\texttt{RUNNING}、\texttt{WAITING\_*}、\texttt{SUMMARIZING}、\texttt{DONE}、\texttt{FAILED}
@@ -26,12 +24,13 @@ FSM 作为任务生命周期的控制核心，将
 
 在算法设计方面，本文提出 CEBRA-WP，将约束感知、证据感知、Lite
 belief-state /
-轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史状态 $h_t$、观测 $o_t$ 和
-Lite belief-state /
-轻量信念状态 $x_t$；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState
+轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标
+\(g\)、约束集合 \(C\)、ProteinToolKG \(K\)、历史状态 \(h_t\)、观测
+\(o_t\) 和 Lite belief-state / 轻量信念状态
+\(x_t\)；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、RuntimeState
 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含
-$p_{\mathrm{succ}}$、$p_{\mathrm{sf}}$、$r_{\mathrm{rec}}$、$c_{\mathrm{rem}}$
-和 $e_{\mathrm{suf}}$
+\(p_{\mathrm{succ}}\)、\(p_{\mathrm{sf}}\)、\(r_{\mathrm{rec}}\)、\(c_{\mathrm{rem}}\)
+和 \(e_{\mathrm{suf}}\)
 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
 
 在系统实现方面，本文基于 Python、FastAPI、Pydantic、React 和 TypeScript
@@ -60,8 +59,6 @@ RuntimeState，runtime\_state\_observable\_rate 为
 机制已实现且可观测，固定阈值门控恢复存在额外成本，Lite belief-state /
 轻量信念状态能够提供运行时决策解释信息。
 
-\subsection{主要贡献}\label{ux4e3bux8981ux8d21ux732e}
-
 本文的第一项贡献是构建了一个面向蛋白质设计工作流的可恢复、可审计原型系统。系统围绕任务接入、工具知识约束、候选计划、执行状态、人机决策、恢复路径和审计记录建立了原型层面的工程闭环。第六章的系统验证和第七章的
 84-run
 实验表明，该系统能够在本文实验设置下支撑多任务、多策略的批量运行和结果追踪。
@@ -82,8 +79,6 @@ API、状态机、HITL、快照、恢复和安全边界；实验分析部分使�
 Lite belief-state / 轻量信念状态的 RuntimeState、budget pressure 和
 action utility 的持续可观测性；同时，fixed\_threshold\_gate
 的局部修补循环和额外高代价调用说明固定阈值门控恢复会带来可测成本。基于这些结果，本文将算法贡献限定在高代价工作流中的恢复控制、成本意识和审计解释，而不是单纯以成功率作为评价依据。
-
-\subsection{局限性}\label{ux5c40ux9650ux6027}
 
 本文仍存在若干局限。实验规模方面，\texttt{thesis-final-v1-001} 包含 84
 runs，每组 21
@@ -107,8 +102,6 @@ Lite belief-state / 轻量信念状态的机制差异；后续可与
 ReAct-style、Tree-of-Thought-style 或 Reflexion-style 等通用 Agent
 方法在同一任务集上进行系统对照。外部对照可以进一步说明 CEBRA-WP
 在结构化约束、HITL、恢复审计和高代价控制方面的相对价值。
-
-\subsection{未来工作展望}\label{ux672aux6765ux5de5ux4f5cux5c55ux671b}
 
 后续工作应进一步扩大实验规模并增强压力任务设计。未来实验可增加任务种类、repeat
 数和失败诱导条件，例如构造更强的工具不可用、预算冲突、schema 错误、I/O
