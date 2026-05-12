@@ -6,7 +6,8 @@ resources/Protein Design/files/
 ~$*.doc
 *.drawio
 
-reference/
+reference/*
+reference/report/*
 
 *.bkp
 *.pyc
@@ -20,3 +21,6 @@ reference/
 *.blg
 *.toc
 # 需要跟踪的内容
+!reference/report/
+!reference/report/reduce_aigc.md
+
