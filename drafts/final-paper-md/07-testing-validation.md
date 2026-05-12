@@ -6,11 +6,11 @@
 
 ## 6.1 测试策略与验证目标
 
-测试采用多层次、多入口策略。单元测试检查职责边界、数据契约、状态迁移和恢复动作；集成测试检查 Planner、Executor、Safety、RuntimeEvaluator、Storage 协作；API、Web 和 CLI 验证实际访问路径。
+测试采用多层次、多入口的测试策略。单元测试检查职责边界、相关数据契约、状态迁移和恢复动作；集成测试检查 Planner、Executor、Safety、RuntimeEvaluator、Storage 协作；API、Web 和 CLI 验证实际使用路径。
 
 系统覆盖 API、Web 工作台和 CLI 三种入口。API 是状态事实来源，Web 用于任务录入、候选审查、时间线和报告浏览，CLI 用于自动化场景；三者读取同一任务记录、事件日志和报告产物。
 
-测试用例 TC-S01 至 TC-S13 覆盖环境就绪、任务录入、候选生成、HITL、FSM、快照、前端与 CLI、失败恢复、安全边界和端到端执行。表 6-1 汇总覆盖范围、执行结果和证据。
+测试用例 TC-S01 至 TC-S13 覆盖环境与能力就绪、任务录入、候选生成、HITL、FSM、快照、前端与 CLI、失败恢复、安全边界和端到端执行。表 6-1 汇总了覆盖范围、执行结果和证据。
 
 | 用例 | 测试类别 | 覆盖验证点 | 执行结果 | 核心证据 |
 |:--:|:--:|:--:|:--:|:--:|
@@ -83,33 +83,33 @@
 | 证据前缀 | 证据类型 | 当前数量/范围 | 主要支撑内容 |
 |:--:|:--:|:--:|:--:|
 | EVD-LOG | EventLog/ Snapshot/Report 样本 | 8组 | 状态迁移、恢复闭环、`terminal_stop`、等待态快照与报告产物 |
-| EVD-EXP | 实验矩阵与端到端运行聚合 | 4 项 | smoke/clean run、工具链执行和端到端流程证据 |
+| EVD-EXP | 实验矩阵与端到端运行聚合 | 4 项 | smoke/clean run 记录、工具链执行结果和端到端流程证据 |
 
-表 6-2 用于区分不同证据的论证功能。API 响应主要支撑接口契约，pytest 日志支撑自动化验证结果，CLI 输出和前端截图支撑交互入口可用性，EventLog 与 Snapshot 支撑运行时状态可追溯性，实验聚合结果则说明系统可以承载批量端到端任务。
+表 6-2 主要用于区分不同证据的论证功能。API 响应主要用于支撑接口契约，pytest 日志支撑自动化验证结果，CLI 输出和前端截图支撑交互入口可用性，EventLog 与 Snapshot 支撑运行时状态可追溯性，实验聚合结果则说明系统可以承载批量端到端任务。
 
 ## 6.2 API 服务与任务录入验证
 
-系统基础可用性由健康检查和能力 readiness 接口验证。/health 返回服务状态、任务数、能力数量和数据目录；/capabilities/readiness 返回 15 条能力记录，并区分 ready、degraded 和 unavailable，同时给出错误类别和恢复建议。由此，系统向 Planner 和用户暴露真实能力边界，而不是假设所有工具始终可用。
+系统重要基础可用性通过健康检查和能力 readiness 接口验证。/health 返回服务状态、任务数、能力数量和数据目录；/capabilities/readiness 返回 15 条能力记录，并区分 ready、degraded 和 unavailable，同时给出错误类别和恢复建议。这样，系统向 Planner 和用户暴露真实的能力边界，而不是假设所有工具始终可用。
 
-TC-S02 验证 Task Intake 和任务创建边界。/task-intakes/schema 返回字段注册表，自由文本可创建草稿，缺失必要字段的 confirm 会被拒绝，goal、query、confirmed_task_spec 三种创建模式互斥。该结果对应第五章的入口校验。
+TC-S02 验证 Task Intake 和任务创建边界。/task-intakes/schema 会返回字段注册表，自由文本可创建草稿，缺失必要字段的 confirm 会被系统拒绝，goal、query、confirmed_task_spec 三种创建模式互斥。该结果对应第五章的入口校验。
 
 生命周期接口验证包括 /tasks/{task_id}、/events 和 /report。完成任务可读取结果摘要，未完成任务请求报告返回错误；真实实验任务的 events 查询可直接读取磁盘日志，说明事件追踪不依赖当前进程内存。
 
 ## 6.3 计划候选与 HITL 验证
 
-计划候选生成由 TC-S03 覆盖。测试确认 PlannerAgent 生成的 PlanCandidate 包含 candidate_id、score_breakdown、risk_level、cost_estimate、explanation 和 source_refs 等必需字段。候选计划不只是可执行步骤列表，还包含可比较、可解释和可审计的评分与风险信息。测试还确认 Planner 只生成候选，不直接执行工具，也不越权改变任务状态；这一边界与第四章的多 Agent 职责划分相一致。
+计划候选生成通过 TC-S03 覆盖。测试确认 PlannerAgent 生成的 PlanCandidate 包含 candidate_id、score_breakdown、risk_level、cost_estimate、explanation 和 source_refs 等必需字段。候选计划不是简单的可执行步骤列表，还包含可比较、可解释和可审计的评分与风险信息。测试还确认 Planner 只生成候选，不直接执行工具，也不越权改变任务状态；这一边界与第四章的多 Agent 职责划分相一致。
 
 当候选计划置信度不足，或恢复动作需要人工确认时，系统通过 PendingAction 和 Decision 进入 HITL 流程。TC-S04 验证了 PendingAction 的创建、决策提交和异常边界。进入 WAITING_PLAN_CONFIRM、WAITING_PATCH_CONFIRM 或 WAITING_REPLAN_CONFIRM 状态前，系统必须创建对应的 PendingAction；提交 accept 决策时必须包含合法的 selected_candidate_id；对已处理的 PendingAction 重复提交决策会返回冲突；将 Decision 提交到不属于该任务的 PendingAction 会被拒绝。
 
-从这些验证结果看，HITL 在系统中不是前端界面上的自由按钮，而是受状态机约束的运行时契约。等待态下 Executor 不继续调用工具；决策生效后，系统写入 DECISION_APPLIED 和 WAITING_EXIT 等事件，再按有限状态机规则迁移到后续状态。EVD-LOG-08 记录的 PENDING_ACTION_CREATED -\> WAITING_ENTER -\> DECISION_SUBMITTED -\> DECISION_APPLIED -\> WAITING_EXIT 事件链，展示了人工决策从创建到应用的完整审计路径。
+从这些验证结果来看，HITL 在系统中不是前端界面上的自由触发的按钮，而是受状态机约束的运行时契约。等待态下 Executor 不继续调用工具；决策生效后，系统写入 DECISION_APPLIED 和 WAITING_EXIT 等事件，再按有限状态机规则迁移到后续状态。EVD-LOG-08 记录的 PENDING_ACTION_CREATED -\> WAITING_ENTER -\> DECISION_SUBMITTED -\> DECISION_APPLIED -\> WAITING_EXIT 事件链，展示了人工决策从创建到应用的完整审计路径。
 
 ## 6.4 状态机、快照与恢复基础验证
 
-有限状态机验证对应 TC-S05。系统允许的状态迁移路径包括从 CREATED 到 PLANNING，再到 PLANNED 或等待人工确认状态；计划执行后进入 RUNNING，并根据执行结果进入等待局部修补、等待后缀重规划、总结或终态。测试覆盖合法迁移和关键非法迁移，确认不在规则集合中的状态转换会被拒绝。DONE、FAILED 和 CANCELLED 作为终态，一旦进入便不可再被普通状态更新覆盖。
+有限状态机验证主要对应 TC-S05。系统允许的状态迁移路径包括从 CREATED 到 PLANNING，再到 PLANNED 或等待人工确认状态；计划执行后进入 RUNNING，并根据执行结果进入等待局部修补、等待后缀重规划、总结或终态。测试覆盖合法迁移和关键非法迁移，确认不在规则集合中的状态转换会被系统拒绝。DONE、FAILED 和 CANCELLED 作为终态，一旦进入便不可再被普通状态更新覆盖。
 
-快照验证对应 TC-S06。系统要求在进入任意 WAITING_\* 状态前完成 PendingAction 写入、事件日志记录和 TaskSnapshot 保存。这一顺序保证系统即使在等待人工确认期间中断，恢复后仍能还原 pending action、候选集合、已完成步骤、计划版本和运行时状态。恢复到等待态后，系统不会自动推进执行，而是继续等待人工 Decision；这正是 HITL 决策边界需要保护的地方。
+快照验证对应， TC-S06。系统要求在进入任意 WAITING_\* 状态前完成 PendingAction 写入、事件日志记录和 TaskSnapshot 保存。这一顺序保证系统即使在等待人工确认期间中断，恢复后仍能还原 pending action、候选集合、已完成步骤、计划版本和运行时状态。恢复到等待态后，系统不会自动推进执行，而是继续等待人工 Decision；这正是 HITL 决策边界需要保护的地方。
 
-快照验证还检查了运行时状态与计划语义字段之间的隔离。Lite belief-state / 轻量信念状态中的若干状态量保存在 snapshot artifacts 的 `RuntimeState` 中，而 Plan 本身继续保留步骤、输入输出和约束定义。这样可以避免运行时估计污染计划语义，也便于不同策略配置在同一执行框架下比较。$p_{\text{succ}}b_{\text{press}}r_{\text{rec}}$
+快照验证还关注运行时状态与计划语义字段之间是否保持隔离。Lite belief-state / 轻量信念状态中的相关状态量写入 snapshot artifacts 的 `RuntimeState`，而 Plan 继续保存步骤、输入输出和约束定义。这样处理可以避免运行时估计污染计划语义，也便于在同一执行框架下比较不同策略配置。
 
 ## 6.5 前端与 CLI 可用性验证
 
@@ -127,7 +127,7 @@ TC-S02 验证 Task Intake 和任务创建边界。/task-intakes/schema 返回字
 
 Web 工作台验证覆盖 Dashboard、Task Builder、Task Detail 和 Event Timeline。前端 smoke 测试和截图证据表明，用户可以查看任务状态、补充任务字段、审查候选、读取报告并追踪事件。
 
-CLI 验证显示，intake schema --json 能输出完整字段注册表，task show 能展示任务 ID、状态、15 条能力 readiness 和恢复建议。CLI 自动化测试覆盖 16 个用例并全部通过。不过，timeline show 和 report show 目前尚未提供完整展示能力，因此 TC-S08 标记为部分通过。该限制不影响 Web 和 API 对事件与报告的访问，但终稿需要如实保留。
+CLI 验证显示，intake schema --json 能输出完整字段注册表，task show 能展示任务 ID、状态、15 条能力 readiness 和恢复建议。CLI 自动化测试覆盖 16 个用例并全部通过。但在本文场景中，timeline show 和 report show 目前尚未提供完整展示能力，因此 TC-S08 标记为部分通过。该限制不影响 Web 和 API 对事件与报告的访问，但终稿需要如实保留。
 
 ## 6.6 失败恢复与安全边界验证
 
@@ -150,9 +150,9 @@ CLI 验证显示，intake schema --json 能输出完整字段注册表，task sh
 
 恢复验证确认：StepRunner 对可重试失败进行有界重试；重试耗尽后返回结构化失败，由上层决定 `patch_local` 或 `suffix_replan`。确定性样本触发 `patch_local` 并进入人工确认，日志可提取 patch_event_count=1、first_pass_success=False、replan_event_count=0 等指标。
 
-当局部修补不足以恢复任务时，系统进入后缀重规划或止损路径。后缀重规划优先保留已完成前缀，仅替换失败后的后续步骤；`terminal_stop` 则作为终止型候选进入 HITL 确认。测试确认，接受 `terminal_stop` 后任务进入 FAILED 终态，并在事件日志中记录等待进入、决策应用和等待退出链路。该结果表明，止损路径属于能够审计的工作流决策，而不是绕过状态机的异常退出。
+当局部修补仍不足以让任务恢复时，系统会转入后缀重规划或止损路径。后缀重规划尽量保留已完成前缀，只替换失败之后的步骤；`terminal_stop` 则作为终止型候选进入 HITL 确认。测试结果显示，接受 `terminal_stop` 后任务进入 FAILED 终态，并在事件日志中保留等待进入、决策应用和等待退出链路，说明止损也属于可审计的工作流决策。
 
-安全边界验证覆盖输入、步骤和输出阶段的风险处理。focused tests 确认 forbidden motif 在 pre-step 阶段可以触发 block 并阻止工具调用；无 forbidden motif 时不会误阻断；warn 场景下系统允许继续执行，同时记录风险标记和安全事件。批量实验中的安全探测任务未充分触发 safety block，因此安全机制的可达性主要由确定性测试支撑，不能扩大为对所有生物安全风险的自动判定能力。
+安全边界验证覆盖输入、步骤和输出阶段的风险处理。focused tests 确认 forbidden motif 在 pre-step 阶段可以触发 block 并阻止工具调用；无 forbidden motif 时不会误阻断；warn 场景下系统允许继续执行，同时记录风险标记和安全事件。批量实验中的安全探测任务未充分触发 safety block，因此安全机制的可以达到性主要由确定性测试支撑，不能扩大为对所有生物安全风险的自动判定能力。
 
 ## 6.7 端到端流程与工具链验证
 
@@ -160,12 +160,12 @@ CLI 验证显示，intake schema --json 能输出完整字段注册表，task sh
 
 端到端验证要求 DONE 任务至少包含一个 StepResult，报告接口返回 scores、risk flags、report path 或 structure artifact；未完成任务请求 report 返回 404。实验中的 openfold、protgpt2、biopython_qc 等调用均为 success，候选 schema 不匹配和上游 I/O 引用错误也能在执行前被结构化拒绝。
 
-端到端验证说明，API、状态机、HITL、快照、恢复和工具适配等机制可以在完整任务中协同工作。第七章的 84-run 策略对比实验建立在这一工程验证基础上，因此实验结果中的差异可以优先从策略配置解释，而不是归因于基本系统功能失效。
+端到端验证说明，API、状态机、HITL、快照、恢复和工具适配等机制可以在完整任务中协同工作。第七章的 84-run 策略对比实验建立在这一工程验证重要基础上，因此实验结果中的差异可以优先从策略配置解释，而不是归因于基本系统功能失效。
 
 ## 6.8 本章小结
 
 本章围绕系统功能正确性和工程可用性，整理了 13 个测试用例、30 余个验证点和六类证据材料。结果表明，系统在 API 服务、任务录入、候选生成、HITL 决策、有限状态机、快照恢复、前端入口、CLI 核心命令、失败恢复、安全边界和端到端执行方面均具备可追溯证据。
 
-从执行结果看，TC-S01 至 TC-S07、TC-S09 至 TC-S13 均通过，TC-S08 部分通过。主要限制包括：CLI 的 timeline/report 子命令尚未完整实现；前端截图证明了关键页面可用，但不能等同于全面浏览器兼容性测试；安全 block 路径主要由确定性 focused tests 支撑，批量实验中的安全任务未充分触发阻断。这些限制不影响系统作为实验平台的基本可用性，但论文结论需要保留相应边界。
+综合执行记录来看，TC-S01 至 TC-S07、TC-S09 至 TC-S13 均通过，TC-S08 为部分通过。主要限制包括：CLI 的 timeline/report 子命令尚未完整实现；前端截图证明了关键页面可用，但不能等同于全面浏览器兼容性测试；安全 block 路径主要由确定性 focused tests 支撑，批量实验中的安全任务未充分触发阻断。这些限制不影响系统作为实验平台的基本可用性，但论文结论需要保留相应边界。
 
-在本文测试范围内，系统可以承载任务创建、运行时控制、人工决策、工具执行、恢复处理和审计追踪。这个结果为第七章的 CEBRA-WP 策略对比实验提供了工程基础：只有执行链路和证据链路可用，后续关于成功率、首次成功率、高代价调用次数、恢复事件和运行时间的比较才具备解释意义。
+在本文测试范围内，系统可以承载任务创建、运行时控制、人工决策、工具执行、恢复处理和审计追踪。这个结果为第七章的 CEBRA-WP 策略对比实验提供了工程重要基础：只有执行链路和证据链路可用，后续关于成功率、首次成功率、高代价调用次数、恢复事件和运行时间的比较才具备解释意义。

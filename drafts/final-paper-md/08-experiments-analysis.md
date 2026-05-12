@@ -1,6 +1,6 @@
 # 第七章 实验与结果分析
 
-第六章已经验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程基础。本章在此基础上，继续分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定在工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
+第六章已经验证系统在任务创建、状态控制、HITL、快照恢复、工具执行和审计追踪等方面具备可运行的工程重要基础。本章在此重要基础上，继续分析 CEBRA-WP 相关策略在批量蛋白质设计工作流中的行为差异。实验目标限定在工作流层的规划、运行时观测、恢复控制和成本控制，不涉及候选蛋白的湿实验功能验证。
 
 本章围绕四个研究问题展开：
 
@@ -16,7 +16,7 @@
 
 实验采用 `static_top1`、`fixed_threshold_gate`、`dynamic_no_belief_state` 和 `lite_belief_state` 四组内部消融。四组按运行时介入深度递进：静态 Top-1、固定阈值门控、无显式 belief-state 的动态观测，以及启用 `RuntimeState`、runtime adjustment 和 action utility 的 `lite_belief_state`。实验对象限定为工作流规划与恢复控制，不评价湿实验效果。
 
-图 7-1 概括实验矩阵：任务集提供难度、预算和失败压力；策略组隔离静态选择、阈值门控、动态恢复和 Lite belief-state；指标关注成功率、首次成功、高代价调用、恢复事件和机制可观测性；证据产物包括 run config、event log、snapshot、report 和聚合 CSV。
+图 7-1 概括了实验矩阵：任务集提供难度、预算和失败压力；策略组隔离静态选择、阈值门控、动态恢复和 Lite belief-state；指标关注成功率、首次成功、高代价调用、恢复事件和机制可观测性；证据产物包括 run config、event log、snapshot、report 和聚合 CSV。
 
 【图 7-1 实验设计框架】
 
@@ -77,7 +77,7 @@
 
 表 7-2 四组消融主实验结果
 
-表 7-2 可以看出三个现象。第一，`static_top1` 在该矩阵中成功率最高，说明任务集中的多数初始候选已经具有较强可执行性。第二，`fixed_threshold_gate` 是唯一触发真实局部修补的组，平均局部修补次数为 0.2857，高代价调用总数也升至 28。第三，`lite_belief_state` 是唯一 runtime_state_observable_rate 达到 1.0000 的组，说明其 Lite belief-state / 轻量信念状态链路在所有 run 中都产生了可追踪输出。
+表 7-2 的结果可以概括为三点。第一，`static_top1` 在该矩阵中成功率最高，说明多数初始候选已经具有较强可执行性。第二，`fixed_threshold_gate` 是唯一触发真实局部修补的组，平均局部修补次数为 0.2857，高代价调用总数也升至 28。第三，只有 `lite_belief_state` 组的 runtime_state_observable_rate 达到 1.0000，说明 Lite belief-state / 轻量信念状态链路在所有 run 中都产生了可追踪输出。
 
 ## 7.4 分层结果与机制增量
 
@@ -134,7 +134,7 @@
 
 由表 7-5 可计算得出，与 `fixed_threshold_gate` 相比，`dynamic_no_belief_state` 和 `lite_belief_state` 的高代价调用总数从 28 降至 20，降幅为 28.6%。与 `static_top1` 相比，两组高代价调用总数从 21 降至 20，差异来自各自 1 个失败 run 在高代价结构预测前终止。运行时间上，`dynamic_no_belief_state` 最短，`fixed_threshold_gate` 最长，`lite_belief_state` 介于二者之间。
 
-恢复事件方面，四组均未产生真实重规划；真实局部修补只出现在 `fixed_threshold_gate` 组，共 6 次 tool-level patch。说明矩阵对局部修补形成压力，但重规划触发不足；因此本章批量结论主要围绕局部修补和高代价调用展开。
+恢复事件方面，四组均未产生真实重规划；真实局部修补只出现在， `fixed_threshold_gate` 组，共 6 次 tool-level patch。说明矩阵对局部修补形成压力，但重规划触发不足；因此本章批量结论主要围绕局部修补和高代价调用展开。
 
 ## 7.6 Lite belief-state 机制可观测性
 
@@ -202,15 +202,15 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 
 【图 7-2 固定修补与 Lite belief-state 重排序的恢复路径对比】
 
-图 7-2 用于说明下文三个失败案例：`fixed_threshold_gate` 的问题是局部修补循环耗尽；`lite_belief_state` 的问题是运行时状态可观测但仍未打破循环；`dynamic_no_belief_state` 的问题则是候选 I/O 闭包校验失败。
+图 7-2 主要用于辅助理解三个失败案例：`fixed_threshold_gate` 暴露的是局部修补循环耗尽问题；`lite_belief_state` 展示了运行时状态可观测但仍未打破循环的情况；`dynamic_no_belief_state` 则对应候选 I/O 闭包校验失败。
 
 实验中共有 3 个 FAILED runs，分别来自 `fixed_threshold_gate`、`lite_belief_state` 和 `dynamic_no_belief_state` 三个策略组。三个失败案例均保留了完整 event log 与 snapshot，因此可以作为可追溯的边界样本，用于分析机制行为和失败来源。
 
-`fixed_threshold_gate` 组中，t2_ubiquitin_sequence_eval 的 r02 出现 auto decision loop exhausted。固定阈值门控持续触发 `WAITING_PATCH`，系统多次执行 `patch_local` 后仍满足相同门控条件，最终耗尽自动决策循环预算。该案例说明，固定阈值门控能暴露恢复路径，也会带来循环和额外高代价调用。
+`fixed_threshold_gate` ，组中，t2_ubiquitin_sequence_eval 的 r02 出现 auto decision loop exhausted。固定阈值门控持续触发 `WAITING_PATCH`，系统多次执行 `patch_local` 后仍满足相同门控条件，最终耗尽自动决策循环预算。该案例说明，固定阈值门控能暴露恢复路径，也会带来循环和额外高代价调用。
 
 `lite_belief_state` 组中，t2_ubiquitin_sequence_eval 的 r01 同样出现 auto decision loop exhausted。该样本持续生成 `RuntimeState`，并记录 budget_pressure 升至 1.5 和 runtime adjustment 触发过程，但仍未打破 `WAITING_PATCH` 循环。它证明 belief-state 链路可观测，也说明恢复效果仍受候选质量和循环控制限制。
 
-`dynamic_no_belief_state` 策略组中，任务 t3_gb1_stability_optimization 的 r01 出现 CANDIDATE_IO_CLOSURE_BROKEN 错误。系统在候选验证阶段发现部分 step 的输出字段不能被后续 step 正确引用，因此在执行前就把该 plan 判定为不可执行。该案例说明候选可执行性校验可以提前阻断结构无效的 plan，避免后续工具调用进入错误状态；它也对应表 7-2 中 schema_valid_rate=0.9524 的来源。
+`dynamic_no_belief_state` ，策略组中，任务 t3_gb1_stability_optimization 的 r01 出现 CANDIDATE_IO_CLOSURE_BROKEN 错误。系统在候选验证阶段发现部分 step 的输出字段不能被后续 step 正确引用，因此在执行前就把该 plan 判定为不可执行。该案例说明候选可执行性校验可以提前阻断结构无效的 plan，避免后续工具调用进入错误状态；它也对应表 7-2 中 schema_valid_rate=0.9524 的来源。
 
 ## 7.8 证据产物与本章结论
 

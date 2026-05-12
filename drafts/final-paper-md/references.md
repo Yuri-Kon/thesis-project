@@ -46,16 +46,14 @@
 
 [22] XIE T, ZHANG D, CHEN J, 等. OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments[A/OL]. arXiv, 2024[2026-05-11]. http://arxiv.org/abs/2404.07972. DOI:10.48550/arXiv.2404.07972.
 
-[23] SHANI G. Heuristics for Partially Observable Stochastic Contingent Planning[A/OL]. arXiv, 2024[2026-05-11]. http://arxiv.org/abs/2410.05870. DOI:10.48550/arXiv.2410.05870.
+[23] GE F, ZHU J, ZHANG L, 等. AutoBinder Agent: An MCP-Based Agent for End-to-End Protein Binder Design[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2602.00019. DOI:10.48550/arXiv.2602.00019.
 
-[24] CARRARA N, LEURENT E, LAROCHE R, 等. Budgeted Reinforcement Learning in Continuous State Space[A/OL]. arXiv, 2019[2026-05-11]. http://arxiv.org/abs/1903.01004. DOI:10.48550/arXiv.1903.01004.
+[24] HOU X, LIU J, SHI C, 等. Property-driven Protein Inverse Folding With Multi-Objective Preference Alignment[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2603.06748. DOI:10.48550/arXiv.2603.06748.
 
-[25] GE F, ZHU J, ZHANG L, 等. AutoBinder Agent: An MCP-Based Agent for End-to-End Protein Binder Design[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2602.00019. DOI:10.48550/arXiv.2602.00019.
+[25] CARRARA N, LEURENT E, LAROCHE R, 等. Budgeted Reinforcement Learning in Continuous State Space[A/OL]. arXiv, 2019[2026-05-11]. http://arxiv.org/abs/1903.01004. DOI:10.48550/arXiv.1903.01004.
 
-[26] HOU X, LIU J, SHI C, 等. Property-driven Protein Inverse Folding With Multi-Objective Preference Alignment[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2603.06748. DOI:10.48550/arXiv.2603.06748.
+[26] SHANI G. Heuristics for Partially Observable Stochastic Contingent Planning[A/OL]. arXiv, 2024[2026-05-11]. http://arxiv.org/abs/2410.05870. DOI:10.48550/arXiv.2410.05870.
 
-[27] WANG Z, FAN J, GUO R, 等. ProteinZero: Self-Improving Protein Generation via Online Reinforcement Learning[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2506.07459. DOI:10.48550/arXiv.2506.07459.
+[27] XIONG J, GAUR I, LUKARSKA M, 等. ProteinGuide: On-the-fly property guidance for protein sequence generative models[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2505.04823. DOI:10.48550/arXiv.2505.04823.
 
-[28] XIONG J, GAUR I, LUKARSKA M, 等. ProteinGuide: On-the-fly property guidance for protein sequence generative models[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2505.04823. DOI:10.48550/arXiv.2505.04823.
-
-[29] WANG C, ZHONG B, ZHANG Z, 等. PDB-Struct: A Comprehensive Benchmark for Structure-based Protein Design[A/OL]. arXiv, 2023[2026-05-11]. http://arxiv.org/abs/2312.00080. DOI:10.48550/arXiv.2312.00080.
+[28] WANG Z, FAN J, GUO R, 等. ProteinZero: Self-Improving Protein Generation via Online Reinforcement Learning[A/OL]. arXiv, 2026[2026-05-11]. http://arxiv.org/abs/2506.07459. DOI:10.48550/arXiv.2506.07459.

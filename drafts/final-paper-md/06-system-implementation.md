@@ -6,9 +6,9 @@
 
 ## 5.1 技术选型与工程结构
 
-后端采用 Python 3.12、FastAPI 和 Pydantic。Python 便于封装生物信息脚本和模型服务，FastAPI 提供路由与响应模型，Pydantic 用于定义任务、计划、步骤结果、决策和报告等数据契约。
+后端选用 Python 3.12、FastAPI 和 Pydantic。Python 便于封装生物信息脚本和模型服务，FastAPI 提供路由与响应模型，Pydantic 用来定义任务、计划、步骤结果、决策和报告等相关数据契约。
 
-前端采用 React、TypeScript 和 Vite 构建轻量 Web 工作台。它不单独保存业务状态，而是通过后端 API 读取任务记录、待决策对象、事件时间线和报告结果。这样处理可以减少前端界面与后端工作流状态分叉，使 Web 页面主要承担运行时状态展示和交互入口的作用。
+前端选用 React、TypeScript 和 Vite 搭建轻量 Web 工作台。它不再单独保存业务状态，而是通过后端 API 读取任务记录、待决策对象、事件时间线和报告结果。这种处理方式可以减少前端界面与后端工作流状态分叉，使 Web 页面主要承担起运行时状态展示和交互入口的作用。
 
 工作流控制采用自定义 Workflow/FSM，而非外部流程引擎。Nextflow 等工具适合可复现计算[11]，但本文需显式处理 WAITING_\*、PendingAction、Decision、`RuntimeState` 和 TaskSnapshot，因此将全局状态迁移和人工确认保留在自定义运行时中。
 
@@ -30,11 +30,11 @@
 
 ### 5.2.1 渐进式任务录入
 
-Task Intake 将自然语言目标拆分为草稿创建、字段补充、场景预检查和确认创建，避免自由文本直接进入高代价执行。该链路补齐长度、任务类型、模板、预算、安全限制和评分方式等关键字段。
+Task Intake ，将自然语言目标拆分为草稿创建、字段补充、场景预检查和确认创建，避免自由文本直接进入高代价执行。该链路补齐长度、任务类型、模板、预算、安全限制和评分方式等关键字段。
 
-后端提供 /task-intakes/schema、/task-intakes、/task-intakes/{id} 和 /task-intakes/{id}/confirm 等接口。字段注册表由后端返回，前端 Task Builder 再依据字段类型、必填状态和分组信息渲染表单。用户补充字段后，系统执行场景门控和安全预检查；只有经过确认的结构化任务规格，才会进入正式任务创建路径。
+后端提供， /task-intakes/schema、/task-intakes、/task-intakes/{id} 和 /task-intakes/{id}/confirm 等接口。字段注册表由后端返回，前端 Task Builder 再依据字段类型、必填状态和分组信息渲染表单。用户补充字段后，系统执行场景门控和安全预检查；只有经过确认的结构化任务规格，才会进入正式任务创建路径。
 
-正式任务创建接口支持 goal、query 和 confirmed_task_spec 三种入口，但三者必须互斥。代码清单 5-1 展示了任务创建请求模型中的互斥校验。该校验用于保证任务来源清晰，避免自由文本、兼容入口和已确认结构化规格混杂进入同一个任务。
+正式任务创建接口支持， goal、query 和 confirmed_task_spec 三种入口，但三者必须互斥。代码清单 5-1 展示了任务创建请求模型中的互斥校验。该校验用于保证任务来源清晰，避免自由文本、兼容入口和已确认结构化规格混杂进入同一个任务。
 
 <table>
 <caption><p>代码清单 5-1任务创建请求的互斥入口校验</p></caption>
@@ -93,15 +93,15 @@ GET /tasks/{task_id}/events 直接读取事件日志，而非只依赖内存任�
 
 ### 5.2.3 HITL 接口
 
-HITL 机制通过 PendingAction 和 Decision 建模。GET /pending-actions 返回待审查任务摘要，GET /pending-actions/{id} 返回候选详情，POST /pending-actions/{id}/decision 接收用户决策。候选详情中包含候选数量、默认建议、评分分解、运行时状态摘要、风险等级、成本估计和解释字段。前端因此可以展示“为什么推荐该候选”，而不是只提供一个缺少解释的确认按钮。
+HITL ，机制通过 PendingAction 和 Decision 建模。GET /pending-actions 返回待审查任务摘要，GET /pending-actions/{id} 返回候选详情，POST /pending-actions/{id}/decision 接收用户决策。候选详情中包含候选数量、默认建议、评分分解、运行时状态摘要、风险等级、成本估计和解释字段。前端因此可以展示“为什么推荐该候选”，而不是只提供一个缺少解释的确认按钮。
 
 当用户提交 Decision 后，后端会验证 PendingAction 是否属于当前任务、是否仍处于待决策状态、所选候选是否存在。验证通过后，后端根据 action type 将决策应用到 plan、局部修补或重规划，并写入决策事件和等待退出事件。这一过程保证人工决策属于工作流状态，而不是前端临时 UI 状态。
 
 ## 5.3 前端工作台实现
 
-前端工作台包含 Dashboard、Task Builder、Task Detail 和 Event Timeline 四类页面。Dashboard 展示任务列表、状态摘要和工具能力 readiness；Task Builder 负责任务录入、字段补充和确认；Task Detail 聚合任务状态、候选审查、报告与结构产物入口；Event Timeline 用于查看任务生命周期事件。
+前端工作台包含 Dashboard、Task Builder、Task Detail 和 Event Timeline 四类主要页面。Dashboard 展示任务列表以及、状态摘要和工具能力 readiness；Task Builder 负责进行任务录入、字段补充和确认；Task Detail 聚合任务状态、候选审查、报告与结构产物入口；Event Timeline 用于查看任务生命周期事件。
 
-前端启动时从后端注入的 bootstrap payload 获取当前视图和任务 ID，再通过 API 拉取任务、待决策对象、事件和报告。这一实现方式使前端无需自行推导 FSM 状态，也也不会在页面刷新或任务切换时产生独立状态源。
+前端启动时从后端注入的 bootstrap payload 获取当前视图和任务 ID，再通过 API 拉取任务、待决策对象、事件和报告。这种实现方式使前端不需要自行推导 FSM 状态，也不会在页面刷新或任务切换时产生独立状态源。
 
 在 Task Detail 页面中，PendingReviewWorkspace 是 HITL 的主要交互区域。当任务进入 WAITING_\* 状态时，前端展示候选方案对比、评分分解、运行时上下文和决策表单。用户提交决策后，前端仅向后端发送结构化 Decision，具体的计划应用、状态迁移、快照写入和事件记录均由后端工作流模块完成。
 
@@ -109,11 +109,11 @@ HITL 机制通过 PendingAction 和 Decision 建模。GET /pending-actions 返�
 
 ## 5.4 工作流运行时与执行引擎
 
-图 5-1 展示运行时执行序列：API 创建任务，Workflow 建立上下文，Planner 生成候选，Executor 在确认后执行 PlanStep，StepRunner 通过 ToolAdapter 解析输入、调用工具、校验输出并写回结果。
+图 5-1 展示了运行时执行序列：API 创建任务，Workflow 建立上下文，Planner 生成候选，Executor 在确认后执行 PlanStep，StepRunner 通过 ToolAdapter 解析输入、调用工具、校验输出并写回结果。
 
 【图 5-1 运行时执行序列】
 
-图 5-1 重点说明 Planner 与 Executor 的边界：Planner 生成候选并查询工具知识，不直接执行工具；Executor 只执行已确认的 PlanStep，并通过 StepRunner 和 ToolAdapter 与外部工具交互。这样，候选生成、人工确认、工具执行和审计记录可以分别追踪。
+图 5-1 重点说明了 Planner 与 Executor 的边界：Planner 生成候选并查询工具知识，不直接执行工具；Executor 只执行已确认的 PlanStep，并通过 StepRunner 和 ToolAdapter 与外部工具交互。这样，候选生成、人工确认、工具执行和审计记录可以被分别追踪。
 
 ### 5.4.1 WorkflowContext
 
@@ -189,11 +189,11 @@ StepRunner 是单步执行的最小单元。它负责有界重试、安全检查
 </tbody>
 </table>
 
-该实现使工具异常不会直接扩散到上层模块。无论底层问题来自本地脚本失败、远程服务超时，还是输出字段缺失，PlanRunner 和 CEBRA-WP 接收到的都是统一的 failure_type、attempt history 和错误详情。
+该实现使工具异常不会直接向上层模块扩散。无论底层问题来自本地脚本失败、远程服务超时，还是输出字段缺失，PlanRunner 和 CEBRA-WP 接收到的都是统一的 failure_type、attempt history 和错误详情。
 
 ### 5.4.3 等待状态、审计与快照
 
-恢复闭环的关键，是在进入等待状态前先固化待决策对象和审计信息。代码清单 5-4 展示了 enter_waiting_state 的核心逻辑：状态迁移前，系统会先校验等待状态与 PendingAction 是否匹配，再写入 context、TaskRecord 和事件日志。这样即使系统在等待人工确认期间中断，恢复后也能还原当前待决策对象、候选集合和默认建议。
+恢复闭环的关键在于在进入等待状态前先保存待决策对象和审计信息。代码清单 5-4 展示了 enter_waiting_state 的核心逻辑：状态迁移前，系统会先校验等待状态与 PendingAction 是否匹配，再写入 context、TaskRecord 和事件日志。这样即使系统在等待人工确认期间中断，恢复后也能还原当前待决策对象、候选集合和默认建议。
 
 <table>
 <caption><p>代码清单 5-4进入 WAITING 状态前写入 PendingAction 与审计信息</p></caption>
@@ -236,7 +236,7 @@ StepRunner 是单步执行的最小单元。它负责有界重试、安全检查
 </tbody>
 </table>
 
-该代码清单说明，HITL 在系统中被实现为受控运行时状态，而不是前端组件上的临时按钮。PendingAction、Decision、EventLog 和 TaskSnapshot 共同构成了能够恢复、可复核的 HITL 机制。
+该代码清单说明，HITL 在系统中被实现为受控运行时状态，而不是前端组件上的临时按钮。PendingAction、Decision、EventLog 和 TaskSnapshot 一起构成了可恢复、可复核的 HITL 机制。
 
 ## 5.5 CEBRA-WP 的工程落点
 
@@ -286,13 +286,13 @@ CEBRA-WP 在工程实现中不是一个单独的 Agent，而是分布在候选�
 </tbody>
 </table>
 
-该实现对应第四章中 CEBRA-WP 的运行时重排序环节。需要强调的是，RuntimeEvaluator 只在已满足硬可行性约束的候选之间调整排序，不绕过工具存在性、schema、I/O、安全和预算硬约束。
+该实现对应第四章中 CEBRA-WP 的运行时的重排序环节。需要强调的是，RuntimeEvaluator 只会在已满足硬可行性约束的候选之间调整排序，不会绕过工具存在性、schema、I/O、安全和预算硬约束。
 
-图 5-2 从泳道视角展示各模块协作关系。科研人员通过 Web UI 创建任务并提交决策，Task API 负责请求与响应边界，Planner 生成候选，Executor 调度 StepRunner 和 ToolAdapter，Safety 提供风险信号，Storage 固化事件和快照。CEBRA-WP 贯穿其中：候选生成后参与重排，失败或风险出现时参与恢复动作选择，并通过 PendingAction 把解释信息呈现给人工决策者。
+图 5-2 从泳道视角说明各模块协作关系。科研人员通过 Web UI 创建任务并提交决策，Task API 负责请求与响应边界，Planner 生成候选，Executor 调度 StepRunner 和 ToolAdapter，Safety 提供风险信号，Storage 固化事件和快照。CEBRA-WP 贯穿在这一过程中：候选生成后参与候选重排，失败或风险出现时参与恢复动作选择，并通过 PendingAction 把解释信息呈现给人工决策者。
 
 【图 5-2 工作流泳道式模块协作】
 
-图 5-2 说明了控制面和执行面的分离。CEBRA-WP 影响候选排序和恢复动作，但实际状态迁移由 Workflow/FSM 执行；工具调用仍由 Executor 和 ToolAdapter 完成；人工确认仍通过 PendingAction/Decision 进入系统。
+从图 5-2 可以看出，系统在控制面和执行面之间保持了分工。CEBRA-WP 主要影响候选排序和恢复动作建议，真正的状态迁移仍由 Workflow/FSM 完成；工具调用由 Executor 和 ToolAdapter 执行，人工确认则继续通过 PendingAction/Decision 进入系统。
 
 ## 5.6 工具适配器与能力管理
 
@@ -337,9 +337,9 @@ CEBRA-WP 在工程实现中不是一个单独的 Agent，而是分布在候选�
 
 该接口将输入解析、执行模式和输出指标统一到同一抽象层。对于 Executor 而言，不同工具都表现为“接收结构化输入，返回 outputs 和 metrics”的适配器。具体工具内部是调用 Biopython、远程 OpenFold 服务还是序列生成模型，对上层工作流保持透明。
 
-AdapterRegistry 维护 tool_id 到适配器实例的映射。StepRunner 执行某个 PlanStep 时，先通过 tool_id 找到适配器，再调用 resolve_inputs 解析常量输入和上游步骤引用。若工具未注册、上游引用缺失或输出类型不匹配，系统返回结构化失败，不会静默跳过或继续执行。
+AdapterRegistry 维护 tool_id 到适配器实例的映射。StepRunner 执行某个 PlanStep 时，先通过 tool_id 找到适配器，再调用 resolve_inputs 解析常量输入和上游步骤引用。若工具未注册、上游引用缺失或输出类型不匹配，系统返回结构化失败，不会静默跳过错误或继续执行。
 
-ProteinToolKG 以 JSON 形式保存工具能力、输入输出、兼容关系、成本、安全级别和版本信息。Planner 在候选生成时查询 ProteinToolKG，根据任务所需能力组合工具链，过滤不可用工具、预算超限工具或 I/O 闭包不成立的候选。这一实现使新增工具主要通过更新 ProteinToolKG 和注册适配器完成，而不需要修改 Planner 的核心流程。
+ProteinToolKG 以 JSON 形式保存工具能力、输入输出、兼容关系、成本、安全级别和版本信息。Planner 在候选生成时查询 ProteinToolKG，根据任务所需能力组合工具链，过滤不可用工具、预算超限工具或 I/O 闭包不成立的候选。这一实现使新增工具主要依靠更新 ProteinToolKG 和注册适配器完成，而不需要修改 Planner 的核心流程。
 
 ## 5.7 本章小结
 

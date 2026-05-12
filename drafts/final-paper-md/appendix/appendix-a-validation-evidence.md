@@ -1,6 +1,6 @@
 # 附录 A 系统验证证据与测试用例设计明细
 
-本附录主要用于补充第六章“系统测试与验证”中的测试用例设计细节。正文第六章只保留测试策略、覆盖矩阵和关键验证结论；本附录列出每条测试用例的设计目的、触发方式、预期结果、证据编号和结论边界，便于后续答辩、复核或继续整理终稿时追溯。
+本附录主要用于补充第六章，“系统测试与验证”中的测试用例设计细节。正文第六章只保留测试策略、覆盖矩阵和关键验证结论；本附录列出每条测试用例的设计目的、触发方式、预期结果、证据编号和结论边界，便于后续答辩、复核或继续整理终稿时追溯。
 
 本附录中的证据编号与开发目录 ../thesis-project.dev/docs/system-validation/evidence-index.md、test-case-table.md 保持一致。证据编号只说明材料类型和可追溯位置，不将前端截图编号直接写成论文正文图号。
 
@@ -64,13 +64,13 @@ EventLog / Snapshot / Report</td>
 
 ## A.2 测试用例设计明细
 
-表 A-3 和表 A-4 按 TC-S01 至 TC-S13 展示系统测试用例。为避免正文过度像测试文档，附录将“设计目的与触发方式”“预期结果”“实际结果与证据”“结论边界”放在同一组表格中呈现。
+表 A-3 和表 A-4 将 TC-S01 至 TC-S13 的测试用例集中列出。为了避免正文过度呈现测试文档细节，附录把“设计目的与触发方式”“预期结果”“实际结果与证据”和“结论边界”放在同一组表格中说明。
 
 | **用例** | **设计目的与触发** | **预期结果** | **实际结果与证据** | **结论边界** |
 |----|----|----|----|----|
-| TC-S01 环境与能力就绪 | 验证 API 服务是否启动正常，并确认系统能够动态暴露工具能力状态。触发方式为调用 /health 与 /capabilities/readiness。 | /health 返回 status=ok；readiness 返回每个工具能力的状态、错误类别和恢复建议。 | 通过。/health 返回任务数、工具数量和路径信息；readiness 返回 15 条能力记录，其中 ready、degraded、unavailable 均有明确说明。证据：EVD-API-01、EVD-API-02。 | 证明当前环境下能力可观测，不代表所有外部工具均已安装或可用。 |
-| TC-S02 API 合约与任务录入 | 验证 Task Intake、任务创建、任务详情、事件和报告接口的契约边界。触发 schema、草稿、confirm、互斥创建模式和典型查询接口。 | schema 可返回；缺字段或互斥模式被拒绝；DONE 任务可读取报告；DONE 任务没有 pending actions；事件 API 可读取磁盘日志。 | 通过。API 自动化测试 71 passed；schema 返回完整字段注册表；错误请求返回明确异常；真实实验任务 events 可从日志读取。证据：EVD-TEST-01、EVD-API-03 至 EVD-API-08。 | 证明 API 合约和主要异常边界可用，不等同于所有未来字段组合都已穷尽测试。 |
-| TC-S03 计划候选生成 | 验证 PlannerAgent 生成的候选计划是否包含必要契约字段，并保持职责边界。 | 候选包含 candidate_id、评分分解、风险、成本、解释和来源引用；Planner 不执行工具、不直接改变任务状态。 | 通过。focused suite 107 passed；候选字段完整，低置信度场景可生成 PendingAction(plan_confirm)。证据：EVD-TEST-02、EVD-LOG-04。 | 证明候选契约完整，不证明候选在所有科学任务上均为最优。 |
+| TC-S01 环境与能力就绪 | 检查 API 服务启动状态，并观察系统是否能实时暴露工具能力。触发方式为访问 /health 与 /capabilities/readiness。 | /health 应返回 status=ok；readiness 应列出各工具能力的状态、错误类别和恢复建议。 | 结果通过：/health 给出任务数、工具数量和路径信息；readiness 返回 15 条能力记录，并分别说明 ready、degraded、unavailable 状态。证据：EVD-API-01、EVD-API-02。 | 该项说明当前环境具备能力可观测性，但不表示所有外部工具都已安装或可用。 |
+| TC-S02 API 合约与任务录入 | 验证 Task Intake、任务创建、任务详情、事件和报告接口的契约边界。触发 schema、草稿、confirm、互斥创建模式和典型查询接口。 | schema 可返回；缺字段或互斥模式被拒绝；DONE 任务可读取报告；DONE 任务没有 pending actions；事件 API 可读取磁盘日志。 | 结果通过：API 自动化测试为 71 passed；schema 能返回完整字段注册表；错误请求会给出明确异常；真实实验任务的 events 可从日志读取。证据：EVD-TEST-01、EVD-API-03 至 EVD-API-08。 | 该项支持 API 合约和主要异常边界可用，但不等同于已经穷尽未来所有字段组合。 |
+| TC-S03 计划候选生成 | 检查 PlannerAgent 生成的候选计划是否带有必要契约字段，同时确认其职责边界。 | 候选需要包含 candidate_id、评分分解、风险、成本、解释和来源引用；Planner 不执行工具，也不直接改变任务状态。 | 通过。focused suite 107 passed；候选字段完整，低置信度场景可生成 PendingAction(plan_confirm)。证据：EVD-TEST-02、EVD-LOG-04。 | 证明候选契约完整，不证明候选在所有科学任务上均为最优。 |
 | TC-S04 HITL 决策一致性 | 验证 PendingAction 与 Decision 的绑定、一次性决策和等待态执行停止。 | 合法决策被应用；缺字段返回 400；重复决策返回冲突；错误绑定被拒绝；等待态不继续调用工具。 | 通过。PendingAction 创建、决策应用和等待退出均有事件记录；前端候选/决策区域可展示。证据：EVD-TEST-02、FIG-SV-15、EVD-LOG-08。 | 证明 HITL 运行时契约正确，不评价人工决策本身是否科学最优。 |
 | TC-S05 FSM 状态迁移 | 验证有限状态机的合法迁移、非法迁移拒绝和终态不可变性。 | 合法迁移成功；非法迁移被拒绝；终态不可变；`terminal_stop` 接受后进入 FAILED 并保留审计链。 | 通过。状态迁移测试覆盖关键路径；`terminal_stop` 事件链可追溯。证据：EVD-TEST-02、EVD-LOG-03。 | 证明状态控制规则有效，不代表运行中永远不会出现外部进程中断。 |
 | TC-S06 快照持久化与恢复 | 验证进入等待态前是否保存 PendingAction、事件和 TaskSnapshot，并确认恢复后不自动推进。 | 进入等待态前写入 pending action、事件和快照；恢复后仍处于等待态；runtime state 保存在 artifacts 中。 | 通过。快照包含 pending_action_id、completed_step_ids、plan_version 和 artifacts.runtime_state。证据：EVD-TEST-02、EVD-LOG-01 至 EVD-LOG-03。 | 证明本地快照恢复语义正确，不等同于分布式容灾或多节点一致性。 |
@@ -83,9 +83,9 @@ EventLog / Snapshot / Report</td>
 | TC-S08 CLI 可用性 | 验证命令行入口是否能支持 schema 查看、任务查看和报告/时间线访问。 | schema 和 task show 输出有效内容；timeline/report 应能展示对应信息或暴露当前限制。 | 部分通过。intake schema --json 输出完整字段注册表；task show 输出任务状态和能力 readiness；CLI 自动化测试 16 passed；timeline show 和 report show 当前仅输出 usage。证据：EVD-CLI-01 至 EVD-CLI-04、EVD-TEST-04。 | CLI 主路径可用，但 timeline/report 子命令尚未完整实现；正文中必须保留“部分通过”。 |
 | TC-S09 端到端任务流程 | 验证从任务输入到 DONE 终态和 DesignResult 的完整路径。运行 t8 smoke run 和 t9 clean run 并检查报告接口和聚合指标。 | 任务完成并进入 DONE；每个 DONE 任务有 StepResult；report 返回有效结果；未完成任务请求 report 返回 404。 | 通过。t8 四组 smoke 和 t9 四组 clean run 共 20 次运行全部 DONE，success rate、schema valid rate 和 executable plan rate 均为 1.0。证据：EVD-EXP-01、EVD-LOG-05、EVD-API-06。 | 证明系统可承载端到端任务，不代表最终蛋白质具有湿实验验证的生物学功能。 |
 | TC-S10 异常输入与安全边界 | 验证异常输入、forbidden motif、安全 warn/block 和工具调用阻断。 | block 阻止工具调用；allow 不误阻断；warn 放行但记录风险标记和安全事件。 | 通过。4 个确定性 focused tests 覆盖安全判定到执行阻断链路。证据：EVD-TEST-03。 | 证明安全机制路径可达，不宣称自动覆盖所有生物安全风险；矩阵实验中安全任务未充分触发 block。 |
-| TC-S11 工具链执行与 I/O | 验证工具适配器调用、输入输出边界和候选可执行性检查。 | 工具调用成功；无 dummy 输入；无 provider payload validation error；无效候选在执行前被结构化拒绝。 | 通过。t8/t9 共 20 次运行中相关工具调用均为 success；I/O 边界测试可拒绝错误候选。证据：EVD-TEST-03、EVD-EXP-01。 | 证明当前工具适配路径有效，不代表所有第三方工具版本和部署环境都已覆盖。 |
+| TC-S11 工具链执行与 I/O | 验证工具适配器调用、输入输出边界和候选可执行性检查。 | 工具调用成功；无 dummy 输入；无 provider payload validation error；无效候选在执行前被结构化拒绝。 | 结果通过：t8/t9 共 20 次运行中，相关工具调用均为 success；I/O 边界测试能够拒绝错误候选。证据：EVD-TEST-03、EVD-EXP-01。 | 该项说明当前工具适配路径有效，但不能外推到所有第三方工具版本和部署环境。 |
 | TC-S12 失败恢复流程 | 验证 retry、局部修补、后缀重规划的分层恢复路径。 | 可重试失败先进入有界重试；耗尽后转入恢复逻辑；`patch_local` / `suffix_replan` 候选进入 HITL；恢复事件可统计。 | 通过。确定性 retry patch 样本产生 patch_event_count=1、first_pass_success=False、replan_event_count=0；分层局部修补和后缀重规划样本可追溯。证据：EVD-TEST-03、EVD-LOG-01 至 EVD-LOG-03。 | 证明恢复路径存在并可审计，不代表所有失败类型都能恢复为 DONE。 |
-| TC-S13 恢复止损与审计链路 | 验证 `terminal_stop` 作为恢复动作时是否通过 FSM/HITL 进入 FAILED，并保留审计链。 | 决策应用后任务进入 FAILED 终态；事件日志记录 WAITING_ENTER、DECISION_APPLIED、WAITING_EXIT 等关键事件。 | 通过。`terminal_stop` 审计链完整记录，可通过事件接口还原。证据：EVD-TEST-02/03、EVD-LOG-03/04。 | 证明止损路径受控，不代表 FAILED 一定是系统错误；也可能是策略性终止。 |
+| TC-S13 恢复止损与审计链路 | 验证 `terminal_stop` 作为恢复动作时是否通过 FSM/HITL 进入 FAILED，并保留审计链。 | 决策应用后任务进入 FAILED 终态；事件日志记录 WAITING_ENTER、DECISION_APPLIED、WAITING_EXIT 等关键事件。 | 结果通过：`terminal_stop` 的审计链记录完整，可通过事件接口还原。证据：EVD-TEST-02/03、EVD-LOG-03/04。 | 该项说明止损路径处于受控状态；FAILED 不一定意味着系统错误，也可能来自策略性终止。 |
 
 表 A-4 系统测试用例设计明细（TC-S08 至 TC-S13）
 
@@ -104,4 +104,4 @@ EventLog / Snapshot / Report</td>
 
 ## A.4 附录与正文衔接
 
-第六章正文以表 6-1 至表 6-4 作为主要论证材料，集中说明系统测试策略、验证覆盖、证据类型和关键结论。本附录补充测试用例级别的设计细节和证据追溯，用来说明每个测试用例不仅有结果记录，也有明确的设计目的、触发方式、预期结果和结论边界。
+第六章正文主要依靠表 6-1 至表 6-4 说明测试策略、覆盖范围、证据类型和关键结论。本附录进一步补充测试用例层面的设计细节和证据追溯，用来说明每个用例不仅记录了结果，也明确给出了设计目的、触发方式、预期结果和结论边界。
