@@ -1,41 +1,41 @@
 # 第八章 结论
 
-本文围绕“基于大模型驱动的agent协作新一代蛋白质设计系统开发”这一题目，面向蛋白质设计工作流中的工具异构、高代价调用、运行时失败和人工审查需求，设计并实现了一个以多 Agent 协作、工具知识约束和恢复自适应规划为核心的科研工作流系统。系统将已有蛋白质设计工具和远程模型服务组织为可执行、可恢复、可审计的工作流，并提出约束与证据感知、信念引导、恢复自适应工作流规划（Constraint- and Evidence-aware Belief-guided Recovery-adaptive Workflow Planning，CEBRA-WP）算法，在约束、证据、运行时状态和恢复动作之间建立统一的决策机制。
+本文面向蛋白质设计工作流中的工具异构、高代价调用、运行时失败和人工审查需求，设计并实现了一个以多 Agent 协作、工具知识约束和恢复自适应规划为核心的科研工作流系统。系统将既有工具和远程模型服务组织为可执行、可恢复、可审计的工作流，并提出 CEBRA-WP，在约束、证据、运行时状态和恢复动作之间建立决策机制。
 
-全文先说明课题背景、蛋白质设计技术发展、MDP/POMDP 与 Agent 协作理论基础，再依次展开需求分析、系统设计、系统实现、系统验证和策略实验。需求分析明确了任务录入、候选计划生成、工具执行、HITL、运行时恢复和结果审计等核心需求；系统设计给出了分层架构、ProteinToolKG、FSM、HITL、核心数据契约和 CEBRA-WP 算法定义；系统实现完成了后端 API、前端工作台、工作流运行时、ToolAdapter、RuntimeEvaluator、快照和事件日志等模块；系统测试通过 13 个测试用例覆盖功能正确性和工程可用性；实验分析基于 thesis-final-v1-001 的 84-run 四组消融矩阵，考察了静态规划、固定阈值门控、动态观测和 Lite belief-state / 轻量信念状态四类策略的行为差异。
+全文依次讨论课题背景、相关理论、需求、设计、实现、验证和实验。需求分析明确任务录入、候选计划、工具执行、HITL、恢复和审计需求；系统设计给出分层架构、ProteinToolKG、FSM、HITL、数据契约和 CEBRA-WP；系统实现完成后端 API、前端工作台、运行时、工具适配、快照和事件日志；测试覆盖 13 个用例，实验基于 thesis-final-v1-001 的 84-run 消融矩阵。
 
-在系统设计方面，本文将蛋白质设计任务抽象为受约束的工作流规划问题。任务目标、用户约束、工具能力、输入输出契约、预算信息和运行时观测共同决定候选工作流的生成、筛选和重排序。系统采用 FSM 作为任务生命周期的控制核心，将 CREATED、PLANNING、RUNNING、`WAITING_*`、SUMMARIZING、DONE、FAILED 等状态组织为受控迁移路径；采用 PendingAction/Decision 表示 HITL 决策；采用 EventLog 和 TaskSnapshot 保存状态迁移、恢复动作、运行时状态和审计信息。
+系统设计方面，本文将蛋白质设计抽象为受约束的工作流规划问题。任务目标、用户约束、工具能力、输入输出契约、预算和运行时观测共同影响候选生成、筛选和重排序；FSM 控制 CREATED、PLANNING、RUNNING、WAITING_\*、SUMMARIZING、DONE、FAILED 等状态，PendingAction/Decision、EventLog 和 TaskSnapshot 则支撑人工确认与审计。
 
 在算法设计方面，本文给出 CEBRA-WP，将约束感知、证据感知、Lite belief-state / 轻量信念状态和恢复自适应动作统一到工作流层。算法输入包括任务目标 $g$、约束集合 $C$、ProteinToolKG $K$、历史状态 $h_{t}$、观测 $o_{t}$ 和 Lite belief-state / 轻量信念状态 $x_{t}$；算法过程包括候选生成、硬可行性筛选、静态评分、后验目标适配、`RuntimeState` 更新、候选重排序和恢复动作选择。Lite belief-state / 轻量信念状态包含 $p_{\text{succ}}$、$p_{\text{sf}}$、$r_{\text{rec}}$、$c_{\text{rem}}$ 和 $e_{\text{suf}}$ 等状态量，用于刻画任务在运行时的成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。
 
-系统实现方面，本文基于 Python、FastAPI、Pydantic、React 和 TypeScript 完成原型。后端提供任务录入、任务生命周期、事件查询、报告查询和人工决策接口；前端工作台包含 Dashboard、Task Builder、Task Detail 和 Event Timeline 等页面；工作流运行时通过 WorkflowContext、PlanRunner、StepRunner、RuntimeEvaluator、PendingAction 和 Snapshot 等模块推进任务、调用工具、处理重试和恢复，并记录等待态与审计信息。工具侧则用 ToolAdapter 封装结构预测、序列生成、质量控制等外部能力，使异构蛋白质设计工具可以接入统一契约。
+系统实现方面，本文基于 Python、FastAPI、Pydantic、React 和 TypeScript 完成原型。后端提供任务录入、任务生命周期、事件、报告和人工决策接口；前端提供 Dashboard、Task Builder、Task Detail 和 Event Timeline；运行时模块负责任务推进、工具调用、重试、恢复、等待态和审计记录，ToolAdapter 则封装外部工具能力。
 
-系统验证方面，本文构建了覆盖 API、Web、CLI、FSM、HITL、快照、安全边界、失败恢复和端到端执行的验证体系。13 个测试用例中，12 个通过，1 个 CLI 相关用例部分通过。在本文测试范围内，系统可以完成任务创建、候选生成、人工确认、工具执行、事件追踪和报告输出；等待态执行停止、终态不可变、快照恢复后不自动推进等关键不变性，也有测试或日志证据支撑。
+系统验证覆盖 API、Web、CLI、FSM、HITL、快照、安全边界、失败恢复和端到端执行。13 个测试用例中 12 个通过，1 个 CLI 相关用例部分通过；等待态执行停止、终态不可变、快照恢复后不自动推进等关键不变性均有测试或日志证据。
 
-在实验分析方面，本文使用 12 个 task_keys、4 组策略、84 次运行构成消融矩阵。实验结果显示，84 runs 中 81 个进入 DONE，3 个进入 FAILED；`lite_belief_state` 组 21/21 runs 产生有效 `RuntimeState`，runtime_state_observable_rate 为 1.0000；`fixed_threshold_gate` 组触发 6 次真实局部修补，高代价调用总数为 28；`dynamic_no_belief_state` 与 `lite_belief_state` 的高代价调用总数均为 20，低于 `fixed_threshold_gate` 组。上述结果支持三项判断：CEBRA-WP 机制已实现且可观测，固定阈值门控恢复存在额外成本，Lite belief-state / 轻量信念状态能够提供运行时决策解释信息。
+实验使用 12 个 task_keys、4 组策略和 84 次运行。结果显示，81 个 DONE、3 个 FAILED；`lite_belief_state` 组 21/21 runs 产生 `RuntimeState`；`fixed_threshold_gate` 触发 6 次真实局部修补，高代价调用总数为 28；`dynamic_no_belief_state` 与 `lite_belief_state` 高代价调用总数均为 20。结果支持“CEBRA-WP 机制可观测”“固定阈值门控恢复存在额外成本”“Lite belief-state 提供决策解释信息”等判断。
 
-本文的第一项贡献是构建了一个面向蛋白质设计工作流的可恢复、可审计原型系统。系统围绕任务接入、工具知识约束、候选计划、执行状态、人机决策、恢复路径和审计记录建立了原型层面的工程闭环。第六章的系统验证和第七章的 84-run 实验表明，该系统能够在本文实验设置下支撑多任务、多策略的批量运行和结果追踪。
+第一项贡献是构建可恢复、可审计的蛋白质设计工作流原型。系统围绕任务接入、工具知识约束、候选计划、执行状态、人机决策、恢复路径和审计记录形成工程闭环。
 
-第二项贡献在于提出并实现 CEBRA-WP 工作流规划算法。该算法定位于工作流层的候选筛选、运行时重排序和恢复动作选择。CEBRA-WP 将 ProteinToolKG 中的工具能力、schema、输入输出、成本、风险和证据状态纳入候选评估，并通过 Lite belief-state / 轻量信念状态把运行时观测转化为可解释的决策依据。
+第二项贡献是提出并实现 CEBRA-WP。该算法定位于工作流层候选筛选、运行时重排序和恢复动作选择，将工具能力、schema、成本、风险和证据状态纳入候选评估，并用 Lite belief-state 解释运行时决策。
 
-第三项贡献在于建立从系统验证到策略消融的证据链。系统验证部分使用 TC-S01 至 TC-S13 覆盖 API、状态机、HITL、快照、恢复和安全边界；实验分析部分使用表 7-1 至表 7-8 固定实验配置、主结果、分层结果、机制增量、成本分析、机制可观测性、失败归因和证据产物。论文中的主要结论均能回溯到测试日志、API 响应、EventLog、Snapshot、run-level result 或聚合 CSV。
+第三项贡献是建立系统验证到策略消融的证据链。TC-S01 至 TC-S13 覆盖 API、状态机、HITL、快照、恢复和安全边界；表 7-1 至表 7-8 固定实验配置、主结果、机制增量、成本分析、失败归因和证据产物。
 
-第四项贡献是对 CEBRA-WP 的机制价值给出有边界的实验分析。实验结果展示了 Lite belief-state / 轻量信念状态中 `RuntimeState`、budget pressure 和 action utility 的持续可观测性；`fixed_threshold_gate` 的局部修补循环和额外高代价调用，则说明固定阈值门控恢复会带来可测成本。基于这些结果，本文把算法贡献限定在高代价工作流中的恢复控制、成本意识和审计解释，而不是仅以成功率作为评价依据。
+第四项贡献是对 CEBRA-WP 的机制价值作边界化分析。实验展示 `RuntimeState`、budget pressure 和 action utility 的可观测性，也显示 `fixed_threshold_gate` 的局部修补循环会带来额外成本。因此，本文将算法贡献限定在恢复控制、成本意识和审计解释，而非单纯成功率提升。
 
-本文仍存在若干局限。实验规模方面，thesis-final-v1-001 包含 84 runs，每组 21 runs，可以支撑机制分析和方向性比较，但统计效力仍有限。尤其是 `dynamic_no_belief_state` 与 `lite_belief_state` 在 success_rate 和 high_cost_call_mean 上完全相同，说明当前任务集对二者性能差异的放大能力有限。
+本文仍有局限。thesis-final-v1-001 包含 84 runs，每组 21 runs，可支撑机制分析和方向性比较，但统计效力有限；`dynamic_no_belief_state` 与 `lite_belief_state` 在 success_rate 和 high_cost_call_mean 上相同，说明任务集对二者差异的放大能力不足。
 
-恢复机制在矩阵实验中的覆盖仍不完整。84-run 矩阵中，真实局部修补只出现在 `fixed_threshold_gate` 组，四组均未触发真实重规划或后缀重规划。第六章 focused tests 已验证 `suffix_replan` 和 `terminal_stop` 路径可达，但第七章批量实验主要提供局部修补和高代价调用方面的证据。后续需要通过更强的失败诱导任务补足重规划、stop 和 escalation 的矩阵级证据。
+恢复机制覆盖也不完整。84-run 矩阵中真实局部修补只出现在 `fixed_threshold_gate` 组，四组均未触发真实重规划或后缀重规划。第六章 focused tests 已验证 `suffix_replan` 和 `terminal_stop` 可达，但矩阵级证据仍需通过更强失败诱导任务补足。
 
-第三，系统仍处于原型阶段。当前任务记录主要依赖运行时任务表和日志/快照文件，数据库持久化还需要补充；ProteinToolKG 以静态配置为主，动态工具注册和在线能力更新有限；前端结构区域主要提供产物入口和报告展示；远程服务的自动健康管理和故障切换也还有改进空间。这些限制主要影响系统在长期科研环境中的部署能力。
+系统仍处于原型阶段。任务记录主要依赖运行时任务表和日志/快照文件，数据库持久化、ProteinToolKG 动态更新、前端结构展示、远程服务探活与故障切换仍有改进空间。
 
-第四，本文实验以内部消融为主，外部基线对比仍可扩展。当前四组策略可以分离静态选择、固定阈值门控、动态观测和 Lite belief-state / 轻量信念状态的机制差异；后续可在同一任务集上加入 ReAct-style、Tree-of-Thought-style 或 Reflexion-style 等通用 Agent 方法作对照。这样的外部对照有助于进一步说明 CEBRA-WP 在结构化约束、HITL、恢复审计和高代价控制方面的相对价值。
+本文实验以内部消融为主，外部基线仍可扩展。后续可在同一任务集上加入 ReAct-style、Tree-of-Thought-style 或 Reflexion-style 等通用 Agent 方法，以比较 CEBRA-WP 在结构化约束、HITL、恢复审计和高代价控制方面的相对价值。
 
-后续工作应扩大实验规模，并增加压力任务设计。未来实验可提高任务种类、repeat 数和失败诱导条件，例如构造更强的工具不可用、预算冲突、schema 错误、I/O 闭包错误和安全约束冲突场景，使 `patch_local`、`suffix_replan`、`terminal_stop` 和 safety block 都能在批量矩阵中被触发。这样，当前以 focused tests 为主的恢复路径验证，才有机会扩展为统计层面的恢复能力分析。
+后续应扩大实验规模并增加压力任务，例如工具不可用、预算冲突、schema 错误、I/O 闭包错误和安全约束冲突，使 `patch_local`、`suffix_replan`、`terminal_stop` 和 safety block 都能在批量矩阵中被触发。
 
-外部 Agent 基线和蛋白质设计前沿方法对比也值得补充。ReAct、Tree of Thoughts 和 Reflexion 等通用 Agent 方法适合构成工作流决策层基线；ProteinGuide、ProteinZero 等近期预印本则提示了蛋白质生成中属性引导、在线反馈和自改进方向[27,28]。未来可以将 CEBRA-WP 与这些方向结合，比较结构化工作流控制、属性引导生成和在线反馈优化之间的关系。
+外部 Agent 基线和蛋白质设计前沿方法也值得补充。ReAct、Tree of Thoughts、Reflexion 可作为工作流决策层基线；ProteinGuide、ProteinZero 等预印本提示了属性引导、在线反馈和自改进方向[27,28]。
 
-恢复策略还需要更清晰的 escalation 机制。当前局部修补循环耗尽后进入 FAILED，说明系统可以识别恢复失败；但从局部修补升级到后缀重规划，再到终止止损的自动升级策略仍不充分。未来可在 RuntimeEvaluator 中引入恢复次数、重复失败类型、预算压力和候选多样性等因素，当同类局部修补多次失败时，自动提升到 `suffix_replan` 或 `stop` 候选，以减少循环恢复带来的时间和高代价调用开销。
+恢复策略还需要更清晰的 escalation 机制。未来可在 RuntimeEvaluator 中引入恢复次数、重复失败类型、预算压力和候选多样性等因素，使同类局部修补多次失败时自动提升到 `suffix_replan` 或 stop，减少循环恢复开销。
 
-原型系统还需要继续工程化。任务状态可以迁移到关系数据库或文档数据库；ProteinToolKG 可以迁移到图数据库或可热更新服务；事件日志、快照和实验产物可以统一纳入实验追踪平台；前端可以补充更完整的结构可视化和候选对比视图；远程模型服务也可以加入自动探活、降级切换和调用配额管理。这些改进将提升系统在真实科研工作流中的可维护性和长期运行能力。
+原型系统还需继续工程化，包括任务状态数据库化、ProteinToolKG 热更新、事件日志与实验产物统一追踪、前端结构可视化和远程模型服务配额管理。
 
-从更长期的方向看，CEBRA-WP 的工作流层思想可以扩展到蛋白质设计之外的科学计算场景。结构化候选生成、硬约束筛选、运行时状态估计、恢复动作选择和审计追踪，也适用于分子动力学模拟、材料筛选、基因组分析等高代价科学工作流。面向更广泛任务建立标准化 benchmark 和可复现实验套件，例如参考结构设计基准中对任务、指标和证据的组织方式[29]，将是进一步验证这类恢复自适应工作流规划方法的重要方向。
+长期看，CEBRA-WP 的工作流层思想可扩展到分子动力学、材料筛选、基因组分析等高代价科学计算场景。后续可结合标准化 benchmark 和可复现实验套件，进一步验证恢复自适应工作流规划方法。

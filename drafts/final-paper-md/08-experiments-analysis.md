@@ -14,9 +14,9 @@
 
 ## 7.1 实验设计
 
-实验采用四组内部消融设计：`static_top1`、`fixed_threshold_gate`、`dynamic_no_belief_state` 和 `lite_belief_state`。四组策略按照运行时介入深度递进：静态 Top-1 只选择静态最高分候选；固定阈值门控组保留阈值门控和局部修补触发；动态观测组保留恢复链路但不启用显式 Lite belief-state / 轻量信念状态；`lite_belief_state` 组启用运行时状态、runtime adjustment 和 action utility。该设计借鉴了 LLM Agent 中“推理-行动”、候选搜索和失败反馈机制的思想[8,20,21]，但实验对象限定为本系统中的工作流规划与恢复控制。
+实验采用 `static_top1`、`fixed_threshold_gate`、`dynamic_no_belief_state` 和 `lite_belief_state` 四组内部消融。四组按运行时介入深度递进：静态 Top-1、固定阈值门控、无显式 belief-state 的动态观测，以及启用 `RuntimeState`、runtime adjustment 和 action utility 的 `lite_belief_state`。实验对象限定为工作流规划与恢复控制，不评价湿实验效果。
 
-如图 7-1 所示，实验矩阵由任务集、策略组、评价指标和证据产物四部分组成。任务集提供不同难度、预算和失败压力；策略组用于隔离静态选择、固定阈值门控、动态恢复和 Lite belief-state / 轻量信念状态的影响；评价指标关注成功率、首次成功、高代价调用、恢复事件和机制可观测性；证据产物包括 run config、event log、snapshot、report 和聚合 CSV。
+图 7-1 概括实验矩阵：任务集提供难度、预算和失败压力；策略组隔离静态选择、阈值门控、动态恢复和 Lite belief-state；指标关注成功率、首次成功、高代价调用、恢复事件和机制可观测性；证据产物包括 run config、event log、snapshot、report 和聚合 CSV。
 
 【图 7-1 实验设计框架】
 
@@ -134,7 +134,7 @@
 
 由表 7-5 可计算得出，与 `fixed_threshold_gate` 相比，`dynamic_no_belief_state` 和 `lite_belief_state` 的高代价调用总数从 28 降至 20，降幅为 28.6%。与 `static_top1` 相比，两组高代价调用总数从 21 降至 20，差异来自各自 1 个失败 run 在高代价结构预测前终止。运行时间上，`dynamic_no_belief_state` 最短，`fixed_threshold_gate` 最长，`lite_belief_state` 介于二者之间。
 
-恢复事件方面，四组均未产生真实重规划或后缀重规划；真实局部修补只出现在 `fixed_threshold_gate` 组，总数为 6 次，且均为 tool-level patch。这个结果说明，本次矩阵确实给局部修补机制带来了压力，但对重规划机制的矩阵级触发仍然不足。第六章中的 focused tests 已覆盖后缀重规划和 `terminal_stop` 的可达性，因此本章批量实验结论主要围绕局部修补和高代价调用展开。
+恢复事件方面，四组均未产生真实重规划；真实局部修补只出现在 `fixed_threshold_gate` 组，共 6 次 tool-level patch。说明矩阵对局部修补形成压力，但重规划触发不足；因此本章批量结论主要围绕局部修补和高代价调用展开。
 
 ## 7.6 Lite belief-state 机制可观测性
 
@@ -206,9 +206,9 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 
 实验中共有 3 个 FAILED runs，分别来自 `fixed_threshold_gate`、`lite_belief_state` 和 `dynamic_no_belief_state` 三个策略组。三个失败案例均保留了完整 event log 与 snapshot，因此可以作为可追溯的边界样本，用于分析机制行为和失败来源。
 
-`fixed_threshold_gate` 策略组中，任务 t2_ubiquitin_sequence_eval 的 r02 重复实验出现 auto decision loop exhausted 错误。该案例里，固定阈值门控在多轮执行过程中持续触发 `WAITING_PATCH` 循环。系统虽然生成并执行了局部修补（`patch_local`）候选，但修补后的候选仍再次满足相同门控条件，于是流程反复进入恢复链路，最后耗尽自动决策循环预算并失败。该案例说明，固定阈值门控可以真实触发恢复路径，但也可能带来额外循环和高代价调用；表 7-5 中 `fixed_threshold_gate` 组高代价调用次数增加，主要就来自这一类行为。
+`fixed_threshold_gate` 组中，t2_ubiquitin_sequence_eval 的 r02 出现 auto decision loop exhausted。固定阈值门控持续触发 `WAITING_PATCH`，系统多次执行 `patch_local` 后仍满足相同门控条件，最终耗尽自动决策循环预算。该案例说明，固定阈值门控能暴露恢复路径，也会带来循环和额外高代价调用。
 
-`lite_belief_state` 策略组中，任务 t2_ubiquitin_sequence_eval 的 r01 同样出现 auto decision loop exhausted 错误。与固定阈值策略不同，该案例能够持续生成 `RuntimeState`，并记录 belief-state 的变化。event log 显示，多次 `WAITING_PATCH` 循环中 budget_pressure 逐渐上升至 1.5，runtime adjustment 已被触发，但仍未打破循环结构，最终耗尽自动决策预算。这个样本说明，belief-state 链路确实具备可观测性和动态状态表达能力；同时也提醒，恢复效果仍受候选质量和循环控制机制限制。`RuntimeState` 的动态演化，在该失败样本中得到了完整记录。
+`lite_belief_state` 组中，t2_ubiquitin_sequence_eval 的 r01 同样出现 auto decision loop exhausted。该样本持续生成 `RuntimeState`，并记录 budget_pressure 升至 1.5 和 runtime adjustment 触发过程，但仍未打破 `WAITING_PATCH` 循环。它证明 belief-state 链路可观测，也说明恢复效果仍受候选质量和循环控制限制。
 
 `dynamic_no_belief_state` 策略组中，任务 t3_gb1_stability_optimization 的 r01 出现 CANDIDATE_IO_CLOSURE_BROKEN 错误。系统在候选验证阶段发现部分 step 的输出字段不能被后续 step 正确引用，因此在执行前就把该 plan 判定为不可执行。该案例说明候选可执行性校验可以提前阻断结构无效的 plan，避免后续工具调用进入错误状态；它也对应表 7-2 中 schema_valid_rate=0.9524 的来源。
 
@@ -216,7 +216,7 @@ Lite belief-state / 轻量信念状态的核心证据是 21/21 runs 均产生有
 
 本章所有核心结论均可回溯到矩阵报告、CSV 聚合、run 级结果、事件日志或快照。
 
-本章实验得到四点结论。在当前实验矩阵中，CEBRA-WP 的机制链路可执行、可追踪，`lite_belief_state` 组 21/21 runs 产生 `RuntimeState`，runtime_state_observable_rate 为 1.0000。`fixed_threshold_gate` 触发 6 次真实局部修补，高代价调用总数达到 28，说明固定阈值门控能够暴露恢复需求，同时也会带来额外执行成本。`dynamic_no_belief_state` 与 `lite_belief_state` 的 high_cost_call_mean 均为 0.9524，低于 `fixed_threshold_gate` 的 1.3333；lite 的主要增量体现在 Lite belief-state / 轻量信念状态、预算压力和动作效用的可观测性。3 个 FAILED run 均有可追溯事件链，失败集中在 medium/standard 层，主要反映候选验证、局部修补循环和运行时控制的边界条件。
+本章实验得到四点结论：CEBRA-WP 机制链路可执行、可追踪；`lite_belief_state` 组 21/21 runs 产生 `RuntimeState`，runtime_state_observable_rate 为 1.0000；`fixed_threshold_gate` 触发 6 次真实局部修补，高代价调用总数达到 28；3 个 FAILED run 均有可追溯事件链，主要暴露候选验证、局部修补循环和运行时控制边界。
 
 在当前 thesis-final-v1-001 设置下，实验支持“CEBRA-WP 机制已实现且可观测”、“固定阈值门控恢复存在额外成本”、“Lite belief-state / 轻量信念状态提供运行时决策解释信息”等结论。成功率方面，`static_top1` 为 1.0000，其余三组为 0.9524，最终成功率提升并非本章的主要实验结论。
 

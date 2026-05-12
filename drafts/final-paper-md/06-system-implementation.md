@@ -6,11 +6,11 @@
 
 ## 5.1 技术选型与工程结构
 
-系统后端采用 Python 3.12、FastAPI 和 Pydantic 实现。Python 与生物信息学脚本、结构处理库和模型服务生态兼容，适合封装本地脚本和远程 REST 服务；FastAPI 提供请求路由、响应模型和自动接口文档；Pydantic 用于定义任务、计划、步骤结果、待决策对象和运行时状态等数据契约。对于蛋白质设计工作流而言，输入字段缺失、工具输出格式不一致、步骤间引用错误都可能导致后续高代价计算失败，因此系统将结构化校验前移到 API 和模型边界。
+后端采用 Python 3.12、FastAPI 和 Pydantic。Python 便于封装生物信息脚本和模型服务，FastAPI 提供路由与响应模型，Pydantic 用于定义任务、计划、步骤结果、决策和报告等数据契约。
 
 前端采用 React、TypeScript 和 Vite 构建轻量 Web 工作台。它不单独保存业务状态，而是通过后端 API 读取任务记录、待决策对象、事件时间线和报告结果。这样处理可以减少前端界面与后端工作流状态分叉，使 Web 页面主要承担运行时状态展示和交互入口的作用。
 
-工作流控制采用自定义 Workflow/FSM，而不是将全局控制流交给外部流程引擎。Nextflow 等科学工作流工具在可复现计算流程中具有代表性[11]，但本文系统需要在任务执行中显式处理 `WAITING_*` 状态、PendingAction、Decision、`RuntimeState` 和 TaskSnapshot。如果全局状态变化由外部流程引擎隐式管理，HITL 暂停、快照恢复和恢复候选审计就难以统一。因此，系统将外部工具和流程后端限定在单个 PlanStep 内，把多步编排、状态迁移和人工确认保留在自定义运行时中。
+工作流控制采用自定义 Workflow/FSM，而非外部流程引擎。Nextflow 等工具适合可复现计算[11]，但本文需显式处理 WAITING_\*、PendingAction、Decision、`RuntimeState` 和 TaskSnapshot，因此将全局状态迁移和人工确认保留在自定义运行时中。
 
 表 5-1 给出了后端核心模块与论文架构层之间的对应关系。该表说明系统实现并非简单的文件目录堆叠，而是围绕任务接入、数据契约、工作流控制、工具适配和审计恢复形成分层实现。
 
@@ -30,7 +30,7 @@
 
 ### 5.2.1 渐进式任务录入
 
-蛋白质设计任务通常不能仅靠一句自然语言目标完整描述。用户可能输入“设计一个 30 残基的稳定短肽”，但长度范围、任务类型、结构模板、预算约束、安全限制和目标评分方式仍需要补充。为降低自由文本直接进入高代价执行的风险，系统实现了 Task Intake 链路，将任务录入拆分为草稿创建、字段补充、场景预检查和正式确认几个阶段。
+Task Intake 将自然语言目标拆分为草稿创建、字段补充、场景预检查和确认创建，避免自由文本直接进入高代价执行。该链路补齐长度、任务类型、模板、预算、安全限制和评分方式等关键字段。
 
 后端提供 /task-intakes/schema、/task-intakes、/task-intakes/{id} 和 /task-intakes/{id}/confirm 等接口。字段注册表由后端返回，前端 Task Builder 再依据字段类型、必填状态和分组信息渲染表单。用户补充字段后，系统执行场景门控和安全预检查；只有经过确认的结构化任务规格，才会进入正式任务创建路径。
 
@@ -87,9 +87,9 @@
 
 ### 5.2.2 任务生命周期接口
 
-正式任务创建后，系统通过任务生命周期接口暴露任务状态、事件和报告。GET /tasks/{task_id} 返回任务记录，包括外部状态、内部状态、任务目标、约束、计划、设计结果、待决策对象和安全事件。外部状态用于前端展示，例如 WAITING_PATCH_CONFIRM；内部状态保留执行细节，例如 `WAITING_PATCH` 或 PATCHING。双状态设计使 UI 保持简洁，同时保留恢复流程所需的精确状态。
+任务生命周期接口暴露任务状态、事件和报告。GET /tasks/{task_id} 返回外部状态、内部状态、目标、约束、计划、结果和安全事件，便于前端展示与后端恢复逻辑分离。
 
-GET /tasks/{task_id}/events 返回事件时间线。该接口直接读取事件日志，而不是只依赖内存任务表。因此，只要日志文件存在，服务重启后仍可还原任务的状态迁移、步骤执行、等待进入、决策应用和等待退出等事件。GET /tasks/{task_id}/report 返回最终报告摘要，包含序列、结构文件路径、评分、风险标记和目标评分结果；未完成任务请求报告时返回错误响应，避免把中间状态误认为最终结果。
+GET /tasks/{task_id}/events 直接读取事件日志，而非只依赖内存任务表。只要日志存在，服务重启后仍可还原状态迁移、步骤执行、等待进入和决策应用等过程。
 
 ### 5.2.3 HITL 接口
 
@@ -103,13 +103,13 @@ HITL 机制通过 PendingAction 和 Decision 建模。GET /pending-actions 返�
 
 前端启动时从后端注入的 bootstrap payload 获取当前视图和任务 ID，再通过 API 拉取任务、待决策对象、事件和报告。这一实现方式使前端无需自行推导 FSM 状态，也也不会在页面刷新或任务切换时产生独立状态源。
 
-在 Task Detail 页面中，PendingReviewWorkspace 是 HITL 的主要交互区域。当任务进入 `WAITING_*` 状态时，前端展示候选方案对比、评分分解、运行时上下文和决策表单。用户提交决策后，前端仅向后端发送结构化 Decision，具体的计划应用、状态迁移、快照写入和事件记录均由后端工作流模块完成。
+在 Task Detail 页面中，PendingReviewWorkspace 是 HITL 的主要交互区域。当任务进入 WAITING_\* 状态时，前端展示候选方案对比、评分分解、运行时上下文和决策表单。用户提交决策后，前端仅向后端发送结构化 Decision，具体的计划应用、状态迁移、快照写入和事件记录均由后端工作流模块完成。
 
 当前前端的结构展示区域主要提供结构文件路径、报告浏览和可视化入口。并不具备提供完整的三维结构分析。
 
 ## 5.4 工作流运行时与执行引擎
 
-系统运行时的核心执行序列见图 5-1。用户通过 API 创建任务后，Workflow 创建运行时上下文，Planner 根据任务目标和 ProteinToolKG 生成候选计划，Executor 在人工确认或自动选择后执行 PlanStep。执行过程中，StepRunner 通过 ToolAdapter 解析输入、执行工具、校验输出，并把 StepResult 写回上下文。Safety 模块在输入、步骤和输出阶段提供风险判定，Storage 模块负责事件日志、快照和产物写入。
+图 5-1 展示运行时执行序列：API 创建任务，Workflow 建立上下文，Planner 生成候选，Executor 在确认后执行 PlanStep，StepRunner 通过 ToolAdapter 解析输入、调用工具、校验输出并写回结果。
 
 【图 5-1 运行时执行序列】
 
@@ -149,7 +149,7 @@ WorkflowContext 是单个任务运行期间的上下文对象，保存任务、�
 
 ### 5.4.2 PlanRunner 与 StepRunner
 
-PlanRunner 负责计划级执行和 FSM 状态推进。它在计划开始执行前检查任务和计划的一致性，进入运行状态后按顺序执行 PlanStep。若执行过程中出现可修复失败，PlanRunner 会请求局部修补候选并进入 WAITING_PATCH_CONFIRM；若出现结构性失败或安全阻断，则请求后缀重规划候选并进入 WAITING_REPLAN_CONFIRM。PlanRunner 可以推进合法状态迁移，但不会绕过 PendingAction 自动应用需要人工确认的候选。
+PlanRunner 负责计划级执行和 FSM 推进。它在执行前检查任务与计划一致性，按顺序执行 PlanStep；可修复失败进入 WAITING_PATCH_CONFIRM，结构性失败或安全阻断进入 WAITING_REPLAN_CONFIRM。
 
 StepRunner 是单步执行的最小单元。它负责有界重试、安全检查、工具适配、输入解析、工具调用、输出校验和错误归一化。代码清单 5-3 展示了 StepRunner 的有界重试微循环。该循环只对可重试失败进行重试；当失败不可重试或重试耗尽时，StepRunner 返回结构化 StepResult，由上层恢复逻辑决定是否进入 `patch_local`、`suffix_replan` 或 stop。
 
@@ -345,6 +345,6 @@ ProteinToolKG 以 JSON 形式保存工具能力、输入输出、兼容关系、
 
 本章从工程角度说明了系统实现方式。系统后端以 Python、FastAPI 和 Pydantic 为基础，前端以 React、TypeScript 和 Vite 构建工作台；工作流控制采用自定义 Workflow/FSM，使 HITL、快照恢复和事件审计保持显式可控。
 
-任务接入方面，系统通过 Task Intake 和互斥任务创建入口将自然语言目标逐步收敛为结构化任务。运行时方面，WorkflowContext、PlanRunner 和 StepRunner 分别承担上下文管理、计划级状态推进和步骤级工具执行。恢复方面，PendingAction、Decision、EventLog 和 TaskSnapshot 共同保证等待状态能够审计、能够恢复。算法落地方面，CEBRA-WP 通过 RuntimeEvaluator、`RuntimeState` 更新和恢复动作映射参与候选重排和运行时决策。工具接入方面，ToolAdapter 和 ProteinToolKG 将异构蛋白质设计工具封装为统一能力。
+本章说明了系统工程实现。后端以 Task Intake、WorkflowContext、PlanRunner、StepRunner、PendingAction、Snapshot 和 ToolAdapter 等模块支撑任务接入、执行、恢复和审计；前端与 CLI 提供不同入口，但共享同一任务和事件事实来源。
 
 本章上述实现模块，是第六章测试与验证的对象基础。第六章将围绕 API 合约、FSM/HITL、快照恢复、前端与 CLI 可用性，以及 retry、局部修补、后缀重规划和安全边界展开验证。

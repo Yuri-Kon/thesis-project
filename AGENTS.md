@@ -96,7 +96,21 @@ Codex 是论文写作与材料整理助手，不是研究结论的发明者。
 - 不把补充机制验证扩大为最终生物效果结论。
 - 不在正文中过度展开代码细节，除非该细节本身构成论文贡献。
 
-## 7. 构建验证
+## 7. Word/Zotero 文档编辑约束
+
+`docs/final-term/结题报告.docx` 中包含 Zotero 生成的 Word 引用域和参考文献域。正文引用通常表现为 `ADDIN ZOTERO_ITEM CSL_CITATION ...`，文末参考文献表现为 `ADDIN ZOTERO_BIBL ... CSL_BIBLIOGRAPHY`。这些域代码、超链接、书签和运行格式共同支撑 Zotero 刷新引用与跳转，编辑时必须保护。
+
+必须遵守：
+
+- 修改 DOCX 前，先判断目标段落是否包含 Word 域、Zotero 引用、超链接或书签。
+- 不要对含 Zotero 引用的段落使用整段 `paragraph.text = ...` 替换；这会把域代码和链接压平成普通文本。
+- 不要将 Zotero citation、bibliography 或交叉引用域“固化”为普通文本，除非用户明确要求并接受 Zotero 刷新能力失效。
+- 不手工改写文末参考文献列表来替代 Zotero 刷新；需要改文献时应优先保持 Zotero 域结构。
+- 如需改含引用的句子，只改引用前后的普通文本 run，保留 `fldChar`、`instrText`、`ADDIN ZOTERO_*`、`w:hyperlink`、bookmark 与相邻格式。
+- 批量压缩或润色 DOCX 时，应跳过或使用 OOXML 级 field-aware 方法处理含 Zotero 域的段落；不能用会重建整段 run 的简单文本替换策略。
+- 编辑后应抽查 `word/document.xml` 中 Zotero 域仍存在，并渲染检查引用显示、文末参考文献和跳转没有异常。
+
+## 8. 构建验证
 
 LaTeX 构建入口见 `paper/README.md`。终稿常用命令：
 
@@ -107,7 +121,7 @@ latexmk -xelatex -interaction=nonstopmode -output-directory=../output/final stag
 
 修改 LaTeX 正文、结构、引用或图表后，优先编译终稿。若只修改说明性 Markdown 或资料索引，可不强制编译。
 
-## 8. Git 习惯
+## 9. Git 习惯
 
 - 默认不主动提交 commit，除非用户明确要求。
 - 不清理或回滚用户已有未提交修改。
