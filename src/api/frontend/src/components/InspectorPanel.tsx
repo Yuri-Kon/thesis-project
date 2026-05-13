@@ -104,7 +104,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
       persistOrder(pageKey, safe);
       const card = cardsByKey.get(moved);
       if (card) {
-        announce(`${card.title} moved to position ${toIndex + 1} of ${order.length}`);
+        announce(`${card.title} 已移动到第 ${toIndex + 1} 位，共 ${order.length} 位`);
       }
     },
     [order, pageKey, cards, cardsByKey, announce],
@@ -200,7 +200,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
         const safe = resolveOrder(next, cards.map((c) => c.key));
         setOrder(safe);
         persistOrder(pageKey, safe);
-        announce(`${card.title} moved to position ${dropIndex + 1} of ${order.length}`);
+        announce(`${card.title} 已移动到第 ${dropIndex + 1} 位，共 ${order.length} 位`);
       }
     },
     [order, pageKey, cards, announce],
@@ -236,7 +236,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
       const session = dragRef.current;
       if (!session || e.pointerId !== session.pointerId) return;
       cleanupDrag();
-      announce("Reorder cancelled");
+      announce("已取消排序");
     },
     [cleanupDrag, announce],
   );
@@ -247,7 +247,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape" && dragRef.current) {
         cleanupDrag();
-        announce("Reorder cancelled");
+        announce("已取消排序");
       }
     };
     window.addEventListener("keydown", handler);
@@ -268,15 +268,15 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
 
   if (cards.length === 0) {
     return (
-      <aside className={`workbench-inspector${collapsed ? " collapsed" : ""}`} aria-label="Inspector">
+      <aside className={`workbench-inspector${collapsed ? " collapsed" : ""}`} aria-label="检查器">
         <button
           type="button"
           className="inspector-toggle"
           aria-expanded={!collapsed}
-          title={collapsed ? "Show inspector" : "Hide inspector"}
+          title={collapsed ? "显示检查器" : "隐藏检查器"}
           onClick={() => setCollapsed((c) => !c)}
         >
-          {collapsed ? "Inspect" : "Collapse"}
+          {collapsed ? "检查" : "收起"}
         </button>
       </aside>
     );
@@ -291,16 +291,16 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
             ? "workbench-inspector collapsed"
             : `workbench-inspector${dragState ? " is-reordering" : ""}`
         }
-        aria-label="Inspector"
+        aria-label="检查器"
       >
       <button
         type="button"
         className="inspector-toggle"
         aria-expanded={!collapsed}
-        title={collapsed ? "Show inspector" : "Hide inspector"}
+        title={collapsed ? "显示检查器" : "隐藏检查器"}
         onClick={() => setCollapsed((c) => !c)}
       >
-        {collapsed ? "Inspect" : "Collapse"}
+        {collapsed ? "检查" : "收起"}
       </button>
       <div
         className={`inspector-content${dragState ? " has-drag" : ""}`}
@@ -339,7 +339,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
                         <button
                           type="button"
                           className="inspector-card__move"
-                          aria-label={`Move ${card.title} up`}
+                          aria-label={`上移 ${card.title}`}
                           disabled={index === 0}
                           onClick={() => moveCard(index, index - 1)}
                         >
@@ -348,7 +348,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
                         <button
                           type="button"
                           className="inspector-card__move"
-                          aria-label={`Move ${card.title} down`}
+                          aria-label={`下移 ${card.title}`}
                           disabled={index === order.length - 1}
                           onClick={() => moveCard(index, index + 1)}
                         >
@@ -357,7 +357,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
                         <button
                           type="button"
                           className="drag-handle"
-                          aria-label={`Reorder ${card.title}`}
+                          aria-label={`调整 ${card.title} 顺序`}
                           aria-describedby="inspector-reorder-help"
                           onPointerDown={handlePointerDown}
                           onPointerMove={handlePointerMove}
@@ -377,7 +377,7 @@ export function InspectorPanel({ cards, pageKey }: InspectorPanelProps) {
         })}
       </div>
       <p id="inspector-reorder-help" className="sr-only">
-        Drag cards by the reorder handle, or use the move up and move down buttons.
+        通过排序手柄拖动卡片，或使用上移和下移按钮。
       </p>
       <p className="sr-only" aria-live="polite" ref={liveRef} />
     </aside>

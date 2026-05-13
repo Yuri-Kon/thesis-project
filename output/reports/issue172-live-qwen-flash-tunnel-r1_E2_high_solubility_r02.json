@@ -1,0 +1,178 @@
+{
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E2_high_solubility_r02",
+  "sequence": "FAVRHIGHSLILITYSEQENCECANDIDATESNDERMILDCNSTRAINTSANGNGYTNGGNGYANSYLPCRQQPHNAAKPGRQHGSAVAGRNAHGRGHTRSPARRGARAPSPNRSASRTRRAAMPASPVAVPTPTAATAPRASTSTPRPAVSRNSTPRLRASSSPVWRSAAGHPIAWSAPASGRATPPRPSTTRRSTRPSASVPTPPAKTRPATTTPAAAKPPSVPARRSTAGTSPAPASRTRRSRSRTWASTCSRTSTSSRCGTTRRWAPTCWPPTSTSIPTARTAARPRARSRCPGSCTRRTVSSTSAWRAASTTPTGASRRWRPTRAPRPAAATPSPTSASRARRAASRAPRSSTKPPAPATRTARRPPTTTPAS",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+  "scores": {
+    "sequence_length": 378,
+    "plddt_mean": 42.0,
+    "confidence": "low"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_high_solubility_r02_denovo.md",
+  "metadata": {
+    "created_at": "2026-04-22T03:58:53+00:00",
+    "step_ids": [
+      "S1",
+      "S2",
+      "S3"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_high_solubility_r02.json",
+    "report_source": "de_novo_markdown",
+    "plan_metadata": {
+      "explanation": "Constructs a minimal 3-step de novo design pipeline respecting max_plan_steps=3 and local execution preference. S1 generates solubility-favored candidates via protgpt2 within the target length range. S2 predicts 3D structures using the mandated openfold tool. S3 ranks the candidate pool with objective_ranker to surface high-solubility leads. Symbolic references link outputs to inputs without hardcoding values, aligning with dynamic runtime observation policy.",
+      "provider": "openai_compatible",
+      "model": "qwen3.6-flash",
+      "elapsed_seconds": 28.77830481529236,
+      "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "protgpt2",
+            "capabilities": [
+              {
+                "capability_id": "sequence_generation",
+                "name": "Sequence Generation",
+                "domain": "protein/design"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "goal_to_sequence_candidates",
+              "input_types": [
+                "goal"
+              ],
+              "output_types": [
+                "sequence",
+                "sequence_candidates"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "goal_provided"
+              ],
+              "resource_assumptions": [
+                "network_available",
+                "plm_rest_service_available"
+              ],
+              "model_assumptions": [
+                "protgpt2_ready"
+              ],
+              "limits": {
+                "max_new_tokens": 512,
+                "num_candidates_max": 64
+              }
+            }
+          },
+          {
+            "step_id": "S2",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          },
+          {
+            "step_id": "S3",
+            "tool_id": "objective_ranker",
+            "capabilities": [
+              {
+                "capability_id": "objective_scoring",
+                "name": "Objective Scoring",
+                "domain": "protein/score"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "candidates_to_objective_scores_topk",
+              "input_types": [
+                "candidates"
+              ],
+              "output_types": [
+                "score_table",
+                "top_k"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "candidate_bundle_provided"
+              ],
+              "resource_assumptions": [
+                "python_environment_ready"
+              ],
+              "model_assumptions": [
+                "single_candidate_or_batch"
+              ],
+              "limits": {}
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "qwen3.6-flash"
+      },
+      "candidate_strategy": "top_k_plan"
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "protgpt2",
+        "exec_type": "remote",
+        "provider": "plm_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S2",
+        "tool": "openfold",
+        "exec_type": "remote",
+        "provider": "openfold3_rest",
+        "model_id": null,
+        "backend": null
+      },
+      {
+        "step_id": "S3",
+        "tool": "objective_ranker",
+        "exec_type": "python",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "de_novo_json_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_high_solubility_r02_denovo.json",
+    "de_novo_markdown_path": "output/reports/issue172-live-qwen-flash-tunnel-r1_E2_high_solubility_r02_denovo.md"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-04-26T13:30:34+00:00",
+  "issue_id": 222,
+  "source_issue_id": 221,
+  "run_count": 28,
+  "group_order": [
+    "static_top1",
+    "fixed_threshold_gate",
+    "dynamic_no_belief_state",
+    "lite_belief_state"
+  ],
+  "difficulty_values": [
+    "easy",
+    "medium",
+    "hard"
+  ],
+  "source_run_manifest_path": "output/experiment/w16-expr-1/issue221-real-full-20260418b/runs_manifest.json",
+  "source_evaluation_dir": "output/experiment/w16-expr-1/issue222-analysis-20260426/source_issue221_evaluation",
+  "metric_dimensions": [
+    "success",
+    "cost",
+    "recovery"
+  ],
+  "delta_metrics": [
+    "duration_ms",
+    "first_pass_success",
+    "high_cost_call_count",
+    "patch_event_count",
+    "replan_event_count",
+    "success",
+    "suffix_replan_event_count"
+  ]
+}

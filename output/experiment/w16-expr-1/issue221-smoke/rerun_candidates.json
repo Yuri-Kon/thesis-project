@@ -1,0 +1,15 @@
+[
+  {
+    "run_id": "issue221-smoke_static_top1_enzyme_like_fold_r01",
+    "group_id": "static_top1",
+    "task_key": "enzyme_like_fold",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "missing_artifact:snapshot_path"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/w16-expr-1/issue221-smoke/run_configs/issue221-smoke_static_top1_enzyme_like_fold_r01.json"
+  }
+]

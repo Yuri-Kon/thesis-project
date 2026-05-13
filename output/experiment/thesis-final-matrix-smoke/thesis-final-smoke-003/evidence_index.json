@@ -1,0 +1,16 @@
+[
+  {
+    "run_id": "thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01",
+    "group_id": "static_top1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-003/run_configs/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.json",
+    "event_log_path": "data/logs/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+    "snapshot_path": "data/snapshots/thesis-final-smoke-003_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl",
+    "report_path": "",
+    "summary_row_id": "08d25f714633",
+    "artifact_complete": true
+  }
+]

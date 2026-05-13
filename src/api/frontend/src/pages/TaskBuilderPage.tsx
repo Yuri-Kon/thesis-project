@@ -9,6 +9,7 @@ import { FieldSourceBadge } from "../components/FieldSourceBadge";
 import { SafetyPrecheckPanel } from "../components/SafetyPrecheckPanel";
 import { TaskDraftForm } from "../components/TaskDraftForm";
 import { TaskBuilderSkeleton } from "../components/SkeletonCard";
+import { booleanLabel, identifierLabel, supportLabel as supportLabelText } from "../utils/displayText";
 
 const DRAFT_IDS_KEY = "recent-intake-ids";
 const MAX_DRAFT_IDS = 5;
@@ -52,22 +53,13 @@ function formatValue(value: unknown): string {
     return "-";
   }
   if (typeof value === "string") {
-    return value;
+    return identifierLabel(value);
   }
   return JSON.stringify(value);
 }
 
 function supportLabel(supportLevel?: string): string {
-  if (supportLevel === "P0") {
-    return "P0 supported";
-  }
-  if (supportLevel === "P1") {
-    return "P1 experimental";
-  }
-  if (supportLevel === "P2") {
-    return "P2 unsupported";
-  }
-  return supportLevel ?? "unknown";
+  return supportLabelText(supportLevel);
 }
 
 function selectedTaskKind(intake: TaskIntakeSession | null): string | null {
@@ -88,7 +80,7 @@ function ProfileNotice({ taskKind, profile }: { taskKind: string | null; profile
     <section className={`notice compact support-notice ${tone}`}>
       <strong>{supportLabel(profile.support_level)}</strong>
       <span>
-        {taskKind.replace(/_/g, " ")} is visible for planning and review, but the first React Task Builder pass does not promise automatic execution for this profile.
+        {identifierLabel(taskKind)} 可用于规划和复核，但当前任务构建器不承诺此类型一定能自动执行。
       </span>
     </section>
   );
@@ -204,7 +196,7 @@ export function TaskBuilderPage({
       if (nextError instanceof ApiError && nextError.status === 404) {
         removeDraftId(targetId);
         setRecentIds(readDraftIds());
-        setError("Draft no longer available and has been removed from history.");
+        setError("草稿已不可用，并已从历史记录中移除。");
       } else {
         setError(apiErrorMessage(nextError));
       }
@@ -306,7 +298,7 @@ export function TaskBuilderPage({
     try {
       const confirmation = await apiClient.confirmTaskIntake(intake.intake_id, acknowledgedWarnings);
       if (!confirmation.task_id) {
-        setError(confirmation.scenario_gate?.user_message ?? "Scenario gate kept this intake as draft only.");
+        setError(confirmation.scenario_gate?.user_message ?? "场景门控将本次录入保留为草稿。");
         setIntake(await apiClient.getTaskIntake(intake.intake_id));
         return;
       }
@@ -335,39 +327,39 @@ export function TaskBuilderPage({
     onInspectorChange([
       {
         key: "inspector-overview",
-        title: "Inspector",
-        statusBadge: <span className="pill">{intake?.status ?? "idle"}</span>,
+        title: "检查器",
+        statusBadge: <span className="pill">{identifierLabel(intake?.status ?? "idle")}</span>,
         children: (
           <dl className="kv compact-kv">
-            <dt>Intake</dt>
-            <dd>{intake?.intake_id ?? "new"}</dd>
-            <dt>Missing</dt>
+            <dt>录入</dt>
+            <dd>{intake?.intake_id ?? "新建"}</dd>
+            <dt>缺失</dt>
             <dd>{intake?.missing_required_fields.length ?? 0}</dd>
-            <dt>Ambiguous</dt>
+            <dt>歧义</dt>
             <dd>{intake?.ambiguous_fields.length ?? 0}</dd>
-            <dt>Unmapped</dt>
+            <dt>未映射</dt>
             <dd>{intake?.unmapped_text.length ?? 0}</dd>
-            <dt>Profile</dt>
+            <dt>类型</dt>
             <dd>
               {taskProfile ? (
                 <div className="inspector-profile-head">
-                  {taskKind ? <span className="source-chip">{taskKind.replace(/_/g, " ")}</span> : null}
+                  {taskKind ? <span className="source-chip">{identifierLabel(taskKind)}</span> : null}
                   <span className={`source-chip support-chip support-${taskProfile.support_level.toLowerCase()}`}>
                     {supportLabel(taskProfile.support_level)}
                   </span>
                 </div>
               ) : (
-                "not selected"
+                "未选择"
               )}
             </dd>
-            <dt>Confirmable</dt>
-            <dd>{canConfirm ? "yes" : "no"}</dd>
+            <dt>可确认</dt>
+            <dd>{booleanLabel(canConfirm)}</dd>
           </dl>
         ),
       },
       {
         key: "safety-precheck",
-        title: "Safety Precheck",
+        title: "安全预检查",
         children: (
           <SafetyPrecheckPanel
             action={safety?.action}
@@ -379,13 +371,13 @@ export function TaskBuilderPage({
       },
       {
         key: "action-required",
-        title: "Action required",
+        title: "需要处理",
         tone: "warning",
         children: (
           <>
-            <p>{canConfirm ? "The intake is ready to become a formal task." : "Resolve missing fields, field validation warnings, ambiguous fields, or safety warnings before confirming."}</p>
+            <p>{canConfirm ? "本次录入已可创建正式任务。" : "确认前请补齐缺失字段，处理字段校验警告、歧义字段或安全警告。"}</p>
             <button type="button" className="primary-action" onClick={() => void confirmDraft()} disabled={busy || !canConfirm}>
-              Create Task
+              创建任务
             </button>
           </>
         ),
@@ -407,14 +399,14 @@ export function TaskBuilderPage({
     <div className="task-builder-layout">
       <section className="builder-hero">
         <div>
-          <p className="eyebrow">Task Intake</p>
-          <h2>Task Builder</h2>
+          <p className="eyebrow">任务录入</p>
+          <h2>任务构建器</h2>
         </div>
         <div className="builder-hero-actions">
-          <span className="pill">{intake?.intake_id ?? "new intake"}</span>
+          <span className="pill">{intake?.intake_id ?? "新建录入"}</span>
           {showDraftSwitcher ? (
             <div className="draft-switcher-group">
-              <span className="draft-switcher-label">Drafts</span>
+              <span className="draft-switcher-label">草稿</span>
               <select
                 className="recovery-select"
                 value={intake?.intake_id ?? ""}
@@ -426,7 +418,7 @@ export function TaskBuilderPage({
               >
                 {recentIds.map((id) => (
                   <option key={id} value={id} disabled={id === intake?.intake_id}>
-                    {id}{id === intake?.intake_id ? " (current)" : ""}
+                    {id}{id === intake?.intake_id ? "（当前）" : ""}
                   </option>
                 ))}
               </select>
@@ -434,11 +426,11 @@ export function TaskBuilderPage({
           ) : null}
           {intake ? (
             <button type="button" className="save-draft-button" onClick={() => void handleSaveDraft()} disabled={busy}>
-              {draftSaved ? "Saved" : "Save Draft"}
+              {draftSaved ? "已保存" : "保存草稿"}
             </button>
           ) : null}
           <button type="button" onClick={() => void loadSchema()} disabled={busy}>
-            Reload Schema
+            重新加载 Schema
           </button>
         </div>
       </section>
@@ -460,13 +452,13 @@ export function TaskBuilderPage({
 
       <section className="review-band">
         <div className="clarification-grid">
-          <ClarificationCard title="Missing Required" items={intake?.missing_required_fields ?? []} tone="danger" />
-          <ClarificationCard title="Ambiguous Fields" items={intake?.ambiguous_fields ?? []} tone="warning" />
-          <ClarificationCard title="Unmapped Text" items={intake?.unmapped_text ?? []} />
+          <ClarificationCard title="缺失必填项" items={intake?.missing_required_fields.map(identifierLabel) ?? []} tone="danger" />
+          <ClarificationCard title="歧义字段" items={intake?.ambiguous_fields.map(identifierLabel) ?? []} tone="warning" />
+          <ClarificationCard title="未映射文本" items={intake?.unmapped_text ?? []} />
         </div>
         <section className="panel draft-review-panel">
           <div className="panel-header">
-            <h2>Confirmed Draft Review</h2>
+            <h2>草稿复核</h2>
             <span className="counter">{fields.length}</span>
           </div>
           {intake?.human_summary ? <p className="summary-line">{intake.human_summary}</p> : null}
@@ -481,13 +473,13 @@ export function TaskBuilderPage({
                   <details className={isAmbiguous ? "draft-field-card warning" : "draft-field-card"} key={name}>
                     <summary>
                       <span>
-                        <strong>{name.replace(/_/g, " ")}</strong>
+                        <strong>{identifierLabel(name)}</strong>
                         <p>{formatValue(field.value)}</p>
                       </span>
                       <FieldSourceBadge source={field.source} confidence={field.confidence} warning={isAmbiguous} />
                     </summary>
                     <div className="source-row">
-                      {field.confirmed ? <span className="source-chip ok">confirmed</span> : <span className="source-chip warning">review</span>}
+                      {field.confirmed ? <span className="source-chip ok">已确认</span> : <span className="source-chip warning">待复核</span>}
                       {field.source_span ? <span className="source-chip">{field.source_span}</span> : null}
                       {field.warnings.map((warning) => (
                         <span className="source-chip warning" key={warning}>{warning}</span>
@@ -498,7 +490,7 @@ export function TaskBuilderPage({
               })}
             </div>
           ) : (
-            <p className="muted">No draft fields yet.</p>
+            <p className="muted">暂无草稿字段。</p>
           )}
         </section>
       </section>

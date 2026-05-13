@@ -1,0 +1,83 @@
+{
+  "task_id": "task_813b5073",
+  "sequence": "MKTAYIAKQRQISFVKSHFSRQLEERLGLIEVQLR",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/task_813b5073_S1.pdb",
+  "scores": {
+    "plddt_mean": 0.85,
+    "confidence": "high"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/task_813b5073.json",
+  "metadata": {
+    "created_at": "2026-05-04T05:21:56+00:00",
+    "step_ids": [
+      "S1"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/task_813b5073.json",
+    "report_source": "summary_json",
+    "plan_metadata": {
+      "provider": "baseline",
+      "model": "external_baseline",
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "external_baseline"
+      }
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "esmfold",
+        "exec_type": "nextflow",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "objective_scoring": {},
+    "structure_similarity": {}
+  }
+}

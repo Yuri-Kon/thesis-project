@@ -1,0 +1,345 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-04-16T16:38:46+00:00",
+  "run_id": "issue221-real-smoke-20260417",
+  "config_path": "configs/experiments/w16_issue221_experiment_matrix.json",
+  "config_hash": "09dc57771e07",
+  "description": "Unified four-group experiment matrix for Static Top-1, Fixed Threshold Gate, Dynamic Recovery (No Belief-State), and Lite Belief-State under the frozen issue209 task set and high-cost rules.",
+  "freeze_id": "issue209-baseline-freeze-20260326",
+  "task_set_version": "issue209-taskset-v1",
+  "difficulty_scheme_version": "issue209-difficulty-v1",
+  "baseline_freeze": {
+    "config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "config_hash": "04ceb6102ddc",
+    "manifest_path": null,
+    "manifest_exists": false
+  },
+  "metrics_contract": {
+    "effect": [
+      "success_rate",
+      "first_pass_success_rate",
+      "executable_plan_rate"
+    ],
+    "cost": [
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "high_cost_failure_mean"
+    ],
+    "recovery": [
+      "patch_events_mean",
+      "replan_events_mean",
+      "suffix_replan_events_mean",
+      "patch_minimality_hit_rate",
+      "suffix_replan_prefix_preservation_rate"
+    ],
+    "governance": [
+      "waiting_chain_complete_rate",
+      "failure_traceable_rate"
+    ],
+    "task_stratification_key": "difficulty"
+  },
+  "high_cost_rules": [
+    {
+      "rule_id": "structure_mapping",
+      "label": "结构映射",
+      "stage_ids": [
+        "S2"
+      ],
+      "tool_ids": [
+        "esmfold",
+        "nim_esmfold",
+        "openfold3"
+      ],
+      "capability_ids": [
+        "structure_prediction"
+      ],
+      "cost_tier": "high",
+      "rationale": "Structure prediction calls consume the main high-cost model budget."
+    },
+    {
+      "rule_id": "structure_refinement",
+      "label": "结构条件下的序列精修",
+      "stage_ids": [
+        "S4"
+      ],
+      "tool_ids": [
+        "protein_mpnn"
+      ],
+      "capability_ids": [
+        "sequence_design"
+      ],
+      "cost_tier": "high",
+      "rationale": "Iterative backbone-conditioned sequence refinement is expensive and recovery-heavy."
+    },
+    {
+      "rule_id": "heavy_objective_evaluation",
+      "label": "重型目标评估",
+      "stage_ids": [
+        "S5"
+      ],
+      "tool_ids": [],
+      "capability_ids": [
+        "objective_scoring"
+      ],
+      "cost_tier": "medium_high",
+      "rationale": "Heavy multi-objective scoring or remote property evaluation adds significant evaluation cost."
+    }
+  ],
+  "dry_run": false,
+  "groups": [
+    {
+      "id": "static_top1",
+      "label": "静态 Top-1",
+      "comparison_order": 0,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_single_candidate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 1,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.0,
+        "high_cost_min_overall": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+    },
+    {
+      "id": "fixed_threshold_gate",
+      "label": "固定阈值 gate",
+      "comparison_order": 1,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_threshold_gate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "first_pass_success_rate",
+        "high_cost_call_mean",
+        "patch_minimality_hit_rate",
+        "suffix_replan_prefix_preservation_rate"
+      ],
+      "notes": "Uses current fixed score/risk/cost thresholds without explicit runtime state."
+    },
+    {
+      "id": "dynamic_no_belief_state",
+      "label": "动态无 belief-state",
+      "comparison_order": 2,
+      "implementation_status": "implemented",
+      "runtime_policy": "dynamic_observation_only",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean",
+        "waiting_chain_complete_rate"
+      ],
+      "notes": "Observation-driven dynamic baseline with runtime_policy=dynamic_observation_only."
+    },
+    {
+      "id": "lite_belief_state",
+      "label": "Lite belief-state",
+      "comparison_order": 3,
+      "implementation_status": "implemented",
+      "runtime_policy": "lite_belief_state",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "high_cost_failure_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Lite belief-state baseline with runtime rerank and adaptive action selection enabled."
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "enzyme_like_fold",
+      "goal": "de_novo_design",
+      "display_name": "Enzyme-Like Fold",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "Requires stable fold formation and balanced structural evidence, but objective pressure is moderate.",
+      "constraints": {
+        "prompt": "Design a compact enzyme-like fold with stable core.",
+        "length_range": [
+          40,
+          80
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "binding_scaffold",
+      "goal": "de_novo_design",
+      "display_name": "Binding Scaffold",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "rationale": "Pocket exposure and function-oriented constraints increase dependence on structure mapping and heavy evaluation.",
+      "constraints": {
+        "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+        "length_range": [
+          45,
+          95
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "high_solubility",
+      "goal": "de_novo_design",
+      "display_name": "High Solubility",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "Primary objective is comparatively soft and can often be filtered earlier with cheaper evidence.",
+      "constraints": {
+        "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+        "length_range": [
+          35,
+          75
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "task_key": "secondary_balance",
+      "goal": "de_novo_design",
+      "display_name": "Secondary Balance",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "Requires both sequence exploration and structure verification, but without the strongest downstream function pressure.",
+      "constraints": {
+        "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+        "length_range": [
+          50,
+          90
+        ]
+      },
+      "metadata": {}
+    }
+  ],
+  "offline_thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "requirement2_capability_map": {
+    "sequence_core": [
+      "sequence_generation",
+      "sequence_design"
+    ],
+    "quality_qc": [
+      "quality_qc"
+    ],
+    "objective_scoring": [
+      "objective_scoring"
+    ],
+    "structure_prediction": [
+      "structure_prediction"
+    ],
+    "similarity_search": [
+      "sequence_similarity_search"
+    ],
+    "secondary_structure": [
+      "secondary_structure_annotation"
+    ]
+  },
+  "artifact_policy": {
+    "all_runs_required": [
+      "run_config_path",
+      "event_log_path"
+    ],
+    "success_runs_required": [
+      "snapshot_path",
+      "report_path"
+    ],
+    "waiting_runs_required": [
+      "snapshot_path"
+    ],
+    "failed_runs_required": []
+  },
+  "rerun_policy": {
+    "max_attempts": 2
+  },
+  "repeat_policy": {
+    "by_budget_tier": {
+      "high_cost_sensitive": 1,
+      "standard": 2,
+      "low_cost_first": 2
+    }
+  },
+  "selection_filter_applied": false,
+  "runs": [
+    {
+      "run_id": "issue221-real-smoke-20260417_static_top1_enzyme_like_fold_r01",
+      "task_id": "issue221-real-smoke-20260417_static_top1_enzyme_like_fold_r01",
+      "task_key": "enzyme_like_fold",
+      "group_id": "static_top1",
+      "group_label": "静态 Top-1",
+      "comparison_order": 0,
+      "replicate": 1,
+      "attempt_number": 1,
+      "issue_id": 221,
+      "freeze_id": "issue209-baseline-freeze-20260326",
+      "task_set_version": "issue209-taskset-v1",
+      "difficulty_scheme_version": "issue209-difficulty-v1",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "runtime_policy": "static_single_candidate",
+      "goal": "de_novo_design",
+      "constraints_hash": "80d986fae2a5",
+      "metadata_hash": "8dd69a6190cf",
+      "run_spec_hash": "fc3777b5a18c",
+      "run_config_path": "output/experiment/w16-expr-1/issue221-real-smoke-20260417/run_configs/issue221-real-smoke-20260417_static_top1_enzyme_like_fold_r01.json",
+      "status_external": "FAILED",
+      "status_internal": "FAILED",
+      "pending_action_type": null,
+      "started_at": "2026-04-16T16:38:24+00:00",
+      "finished_at": "2026-04-16T16:38:46+00:00",
+      "event_log_path": "data/logs/issue221-real-smoke-20260417_static_top1_enzyme_like_fold_r01.jsonl",
+      "snapshot_path": "data/snapshots/issue221-real-smoke-20260417_static_top1_enzyme_like_fold_r01.jsonl",
+      "report_path": "",
+      "execution_error": "PlanRunError: Step S2 failed (failure_type=tool_error, error=Unexpected error during Nextflow execution: [Errno 2] No such file or directory: 'nextflow')",
+      "high_cost_rules_hash": "ed687865eca1",
+      "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+      "baseline_freeze_config_hash": "04ceb6102ddc"
+    }
+  ]
+}

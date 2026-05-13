@@ -1,0 +1,2 @@
+run_id,task_id,group_id,replicate,reason,final_status,event_log_path
+thesis-final-smoke-002_static_top1_t1_trpcage_denovo_short_peptide_r01,thesis-final-smoke-002_static_top1_t1_trpcage_denovo_short_peptide_r01,static_top1,1,terminal_or_waiting_status:FAILED,FAILED,data/logs/thesis-final-smoke-002_static_top1_t1_trpcage_denovo_short_peptide_r01.jsonl

@@ -19,7 +19,7 @@ export class ApiError extends Error {
   readonly detail: unknown;
 
   constructor(status: number, detail: unknown) {
-    super(typeof detail === "string" ? detail : `API request failed with ${status}`);
+    super(typeof detail === "string" ? detail : `API 请求失败，状态码 ${status}`);
     this.status = status;
     this.detail = detail;
   }
@@ -76,6 +76,20 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestText(path: string, init?: RequestInit): Promise<string> {
+  const response = await fetch(path, init);
+  if (!response.ok) {
+    let detail: unknown = response.statusText;
+    try {
+      detail = await response.json();
+    } catch {
+      detail = await response.text();
+    }
+    throw new ApiError(response.status, detail);
+  }
+  return response.text();
+}
+
 export const apiClient = {
   getTask(taskId: string): Promise<TaskRecord> {
     return requestJson<TaskRecord>(`/tasks/${encodeURIComponent(taskId)}`);
@@ -85,6 +99,9 @@ export const apiClient = {
   },
   getTaskReport(taskId: string): Promise<TaskReportDetail> {
     return requestJson<TaskReportDetail>(`/tasks/${encodeURIComponent(taskId)}/report`);
+  },
+  getTaskStructure(taskId: string): Promise<string> {
+    return requestText(`/tasks/${encodeURIComponent(taskId)}/structure`);
   },
   listPendingActions(): Promise<PendingActionSummary[]> {
     return requestJson<PendingActionSummary[]>("/pending-actions");

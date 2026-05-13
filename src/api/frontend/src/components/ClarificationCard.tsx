@@ -18,7 +18,7 @@ export function ClarificationCard({ title, items, tone = "neutral" }: Clarificat
           ))}
         </ul>
       ) : (
-        <p className="muted">Clear</p>
+        <p className="muted">已清空</p>
       )}
     </article>
   );

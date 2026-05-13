@@ -1,0 +1,5 @@
+group_id,high_cost_calls_total,high_cost_failures_total,high_cost_rule_hits
+static_top1,4.0,0.0,{'structure_mapping': 4}
+fixed_threshold_gate,4.0,0.0,{'structure_mapping': 4}
+dynamic_no_belief_state,4.0,0.0,{'structure_mapping': 4}
+lite_belief_state,4.0,0.0,{'structure_mapping': 4}

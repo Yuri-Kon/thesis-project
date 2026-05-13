@@ -1,0 +1,42 @@
+{
+  "task_id": "viz_task_001",
+  "sequence": null,
+  "structure_pdb_path": null,
+  "scores": {},
+  "risk_flags": [],
+  "report_path": "/tmp/pytest-of-yurikon/pytest-12/test_visualization_step_runs_e0/artifacts/report.html",
+  "metadata": {
+    "created_at": "2026-05-04T05:29:23+00:00",
+    "step_ids": [
+      "S1"
+    ],
+    "artifacts": {
+      "metrics_json_path": "/tmp/pytest-of-yurikon/pytest-12/test_visualization_step_runs_e0/artifacts/metrics.json",
+      "plotly_html_path": "/tmp/pytest-of-yurikon/pytest-12/test_visualization_step_runs_e0/artifacts/plotly.html",
+      "report_html_path": "/tmp/pytest-of-yurikon/pytest-12/test_visualization_step_runs_e0/artifacts/report.html",
+      "assets_dir": "/tmp/pytest-of-yurikon/pytest-12/test_visualization_step_runs_e0/artifacts/pdb",
+      "summary_stats": {
+        "residue_count": 1,
+        "chain_ids": [
+          "A"
+        ]
+      }
+    },
+    "summary_report_path": "output/reports/viz_task_001.json",
+    "report_source": "visualization_tool",
+    "plan_metadata": {},
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "visualize_structure",
+        "exec_type": "visualization_pipeline",
+        "provider": null,
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "objective_scoring": {},
+    "structure_similarity": {}
+  }
+}

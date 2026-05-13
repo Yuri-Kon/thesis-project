@@ -1,4 +1,5 @@
 import type { TaskIntakeSafetyRisk } from "../api/types";
+import { identifierLabel } from "../utils/displayText";
 
 interface SafetyPrecheckPanelProps {
   action?: "ok" | "warn" | "block";
@@ -18,8 +19,8 @@ export function SafetyPrecheckPanel({
   return (
     <section className={`panel safety-card ${tone}`}>
       <div className="panel-header">
-        <h2>Safety Precheck</h2>
-        <span className="pill">{action}</span>
+        <h2>安全预检查</h2>
+        <span className="pill">{identifierLabel(action)}</span>
       </div>
       {risks.length ? (
         <div className="risk-list">
@@ -32,13 +33,13 @@ export function SafetyPrecheckPanel({
                 onChange={() => onToggleWarning(risk.code)}
               />
               <span>
-                <strong>{risk.level}</strong> {risk.code}: {risk.message}
+                <strong>{identifierLabel(risk.level)}</strong> {risk.code}: {risk.message}
               </span>
             </label>
           ))}
         </div>
       ) : (
-        <p className="muted">No safety risks returned.</p>
+        <p className="muted">未返回安全风险。</p>
       )}
     </section>
   );

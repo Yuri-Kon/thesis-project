@@ -1,0 +1,1282 @@
+[
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.5714285714285714
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 252285.7142857143
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.2857142857142857
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.42857142857142855
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 39142.857142857145
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 21857.14285714286
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 3428.5714285714284
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "overall",
+    "slice_value": "all",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.5
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 278500.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.5
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 32500.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 27500.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 1000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "easy",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.75
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 215250.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.5
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.25
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 44000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 16500.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 5250.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "medium",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 348000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": 1.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "static_top1",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 33000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "fixed_threshold_gate",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 32000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "dynamic_no_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "success",
+    "metric": "first_pass_success_rate",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "duration_ms_mean",
+    "value": 1000.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_call_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "cost",
+    "metric": "high_cost_failure_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_events_mean",
+    "value": 0.0
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "patch_minimality_hit_rate",
+    "value": null
+  },
+  {
+    "slice_type": "difficulty",
+    "slice_value": "hard",
+    "group_id": "lite_belief_state",
+    "metric_dimension": "recovery",
+    "metric": "suffix_replan_prefix_preservation_rate",
+    "value": null
+  }
+]

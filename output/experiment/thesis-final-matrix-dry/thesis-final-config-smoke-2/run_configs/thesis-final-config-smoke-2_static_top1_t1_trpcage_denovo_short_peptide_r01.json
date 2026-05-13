@@ -1,0 +1,125 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-08T09:19:36+00:00",
+  "run_id": "thesis-final-config-smoke-2_static_top1_t1_trpcage_denovo_short_peptide_r01",
+  "task_id": "thesis-final-config-smoke-2_static_top1_t1_trpcage_denovo_short_peptide_r01",
+  "group": {
+    "id": "static_top1",
+    "label": "静态 Top-1",
+    "comparison_order": 0,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_single_candidate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 1,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.0,
+      "high_cost_min_overall": 0.0,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "patch_events_mean",
+      "replan_events_mean"
+    ],
+    "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+  },
+  "task": {
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "goal": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+    "display_name": "Trp-cage-like short peptide design",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first",
+    "rationale": "",
+    "task_class": "T1",
+    "real_case": {
+      "source_ids": [
+        "1L2Y"
+      ],
+      "rationale": "Use Trp-cage TC5b as a realistic 20-residue de novo miniprotein reference."
+    },
+    "expected_focus": [
+      "normal_flow",
+      "report",
+      "structure_prediction"
+    ],
+    "oracle_action": "continue_when_qc_passes",
+    "constraints": {
+      "prompt": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+      "length_range": [
+        18,
+        24
+      ],
+      "objective_type": "foldability",
+      "secondary_structure_bias": {
+        "helix_fraction_min": 0.25
+      },
+      "forbid_disulfide_dependency": true,
+      "avoid_motifs": [
+        "FORBIDDEN_MOTIF_TEST"
+      ]
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 1,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0,
+    "require_plan_confirm": false,
+    "require_patch_confirm": false,
+    "prompt": "Design an 18-24 residue monomeric Trp-cage-like peptide with a compact hydrophobic core and no ligand or disulfide dependency.",
+    "length_range": [
+      18,
+      24
+    ],
+    "objective_type": "foldability",
+    "secondary_structure_bias": {
+      "helix_fraction_min": 0.25
+    },
+    "forbid_disulfide_dependency": true,
+    "avoid_motifs": [
+      "FORBIDDEN_MOTIF_TEST"
+    ],
+    "runtime_policy": "static_single_candidate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "w16_issue221_matrix",
+    "group_id": "static_top1",
+    "group_label": "静态 Top-1",
+    "task_key": "t1_trpcage_denovo_short_peptide",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "easy",
+    "budget_tier": "low_cost_first"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "baseline_freeze_config_hash": "04ceb6102ddc",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}

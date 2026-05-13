@@ -1,0 +1,46 @@
+[
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t6-clean-001_static_top1_t2_trpcage_sequence_eval_r01",
+    "group_id": "static_top1",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED",
+      "abnormal:waiting_chain_incomplete",
+      "abnormal:step_failed"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t6-clean-001/run_configs/thesis-final-smoke-fourgroup-t6-clean-001_static_top1_t2_trpcage_sequence_eval_r01.json"
+  },
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t6-clean-001_dynamic_no_belief_state_t2_trpcage_sequence_eval_r01",
+    "group_id": "dynamic_no_belief_state",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t6-clean-001/run_configs/thesis-final-smoke-fourgroup-t6-clean-001_dynamic_no_belief_state_t2_trpcage_sequence_eval_r01.json"
+  },
+  {
+    "run_id": "thesis-final-smoke-fourgroup-t6-clean-001_lite_belief_state_t2_trpcage_sequence_eval_r01",
+    "group_id": "lite_belief_state",
+    "task_key": "t2_trpcage_sequence_eval",
+    "replicate": 1,
+    "attempt_number": 1,
+    "next_attempt_number": 2,
+    "reasons": [
+      "status:FAILED",
+      "abnormal:terminal_or_waiting_status:FAILED"
+    ],
+    "rerun_strategy": "retry_same_config",
+    "run_config_path": "output/experiment/thesis-final-matrix-smoke/thesis-final-smoke-fourgroup-t6-clean-001/run_configs/thesis-final-smoke-fourgroup-t6-clean-001_lite_belief_state_t2_trpcage_sequence_eval_r01.json"
+  }
+]

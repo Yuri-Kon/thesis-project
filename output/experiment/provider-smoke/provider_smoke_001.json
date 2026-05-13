@@ -1,0 +1,23 @@
+{
+  "providers": [
+    {
+      "provider": "glm-5",
+      "success": true,
+      "model": "glm-5",
+      "provider_name": "zai_chat",
+      "elapsed_seconds": 30.493,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_glm_5"
+    },
+    {
+      "provider": "deepseek-v4-pro",
+      "success": false,
+      "error": "timeout_after:90s",
+      "elapsed_seconds": 90.082
+    }
+  ]
+}

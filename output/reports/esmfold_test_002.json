@@ -1,0 +1,20 @@
+{
+  "task_id": "esmfold_test_002",
+  "sequence": "MKFLKFSLLTAVLLSVVFAFSSCGDDDDTGYLPPSQAIQDLLKRMKV",
+  "structure_pdb_path": null,
+  "scores": {},
+  "risk_flags": [],
+  "report_path": "output/reports/esmfold_test_002.json",
+  "metadata": {
+    "created_at": "2026-05-04T05:25:46+00:00",
+    "step_ids": [],
+    "artifacts": {},
+    "summary_report_path": "output/reports/esmfold_test_002.json",
+    "report_source": "summary_json",
+    "plan_metadata": {},
+    "plan_version": null,
+    "execution_steps": [],
+    "objective_scoring": {},
+    "structure_similarity": {}
+  }
+}

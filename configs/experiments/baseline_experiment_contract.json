@@ -1,0 +1,206 @@
+{
+  "issue_id": 209,
+  "freeze_id": "issue209-baseline-freeze-20260326",
+  "output_root": "output/experiment/w13-expr-0",
+  "task_set_version": "issue209-taskset-v1",
+  "difficulty_scheme_version": "issue209-difficulty-v1",
+  "source_task_config_path": "configs/experiments/vertical_ablation_experiment.json",
+  "source_dataset_freeze": {
+    "freeze_id": "issue170-remote-batch3-20260316",
+    "manifest_path": "output/experiment/w12-expr-1/issue170-remote-batch3-20260316/dataset_manifest.json",
+    "note": "Reference freeze id kept for experiment lineage even if the manifest is not present in the local workspace."
+  },
+  "high_cost_rules": [
+    {
+      "rule_id": "structure_mapping",
+      "label": "结构映射",
+      "stage_ids": ["S2"],
+      "tool_ids": ["esmfold", "nim_esmfold", "openfold3"],
+      "capability_ids": ["structure_prediction"],
+      "cost_tier": "high",
+      "rationale": "Structure prediction calls consume the main high-cost model budget."
+    },
+    {
+      "rule_id": "structure_refinement",
+      "label": "结构条件下的序列精修",
+      "stage_ids": ["S4"],
+      "tool_ids": ["protein_mpnn"],
+      "capability_ids": ["sequence_design"],
+      "cost_tier": "high",
+      "rationale": "Iterative backbone-conditioned sequence refinement is expensive and recovery-heavy."
+    },
+    {
+      "rule_id": "heavy_objective_evaluation",
+      "label": "重型目标评估",
+      "stage_ids": ["S5"],
+      "tool_ids": [],
+      "capability_ids": ["objective_scoring"],
+      "cost_tier": "medium_high",
+      "rationale": "Heavy multi-objective scoring or remote property evaluation adds significant evaluation cost."
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "enzyme_like_fold",
+      "display_name": "Enzyme-Like Fold",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "Requires stable fold formation and balanced structural evidence, but objective pressure is moderate.",
+      "prompt": "Design a compact enzyme-like fold with stable core.",
+      "length_range": [40, 80]
+    },
+    {
+      "task_key": "binding_scaffold",
+      "display_name": "Binding Scaffold",
+      "difficulty": "hard",
+      "budget_tier": "high_cost_sensitive",
+      "rationale": "Pocket exposure and function-oriented constraints increase dependence on structure mapping and heavy evaluation.",
+      "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+      "length_range": [45, 95]
+    },
+    {
+      "task_key": "high_solubility",
+      "display_name": "High Solubility",
+      "difficulty": "easy",
+      "budget_tier": "low_cost_first",
+      "rationale": "Primary objective is comparatively soft and can often be filtered earlier with cheaper evidence.",
+      "prompt": "Favor high-solubility sequence candidates under mild constraints.",
+      "length_range": [35, 75]
+    },
+    {
+      "task_key": "secondary_balance",
+      "display_name": "Secondary Balance",
+      "difficulty": "medium",
+      "budget_tier": "standard",
+      "rationale": "Requires both sequence exploration and structure verification, but without the strongest downstream function pressure.",
+      "prompt": "Balance alpha/beta secondary elements for robust foldability.",
+      "length_range": [50, 90]
+    }
+  ],
+  "baselines": [
+    {
+      "id": "static_top1",
+      "label": "静态 Top-1",
+      "comparison_order": 0,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_single_candidate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 1,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.0,
+        "high_cost_min_overall": 0.0,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "duration_ms_mean",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+    },
+    {
+      "id": "fixed_threshold_gate",
+      "label": "固定阈值 gate",
+      "comparison_order": 1,
+      "implementation_status": "implemented",
+      "runtime_policy": "static_threshold_gate",
+      "supports_current_repo": true,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 1,
+        "replan_top_k": 1,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85,
+        "require_plan_confirm": false,
+        "require_patch_confirm": false
+      },
+      "output_fields": [
+        "success_rate",
+        "first_pass_success_rate",
+        "high_cost_call_mean",
+        "patch_minimality_hit_rate",
+        "suffix_replan_prefix_preservation_rate"
+      ],
+      "notes": "Uses current fixed score/risk/cost thresholds without explicit runtime state."
+    },
+    {
+      "id": "dynamic_no_belief_state",
+      "label": "动态无 belief-state",
+      "comparison_order": 2,
+      "implementation_status": "planned",
+      "runtime_policy": "dynamic_observation_only",
+      "supports_current_repo": false,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "patch_events_mean",
+        "replan_events_mean",
+        "waiting_chain_complete_rate"
+      ],
+      "notes": "Reserved baseline for direct-observation dynamic action selection without persistent runtime_state."
+    },
+    {
+      "id": "lite_belief_state",
+      "label": "Lite belief-state",
+      "comparison_order": 3,
+      "implementation_status": "planned",
+      "runtime_policy": "lite_belief_state",
+      "supports_current_repo": false,
+      "constraint_overrides": {
+        "plan_top_k": 3,
+        "patch_top_k": 3,
+        "replan_top_k": 3,
+        "enforce_candidate_validation": true,
+        "min_candidate_confidence": 0.75,
+        "high_cost_min_overall": 0.85
+      },
+      "output_fields": [
+        "success_rate",
+        "high_cost_call_mean",
+        "high_cost_failure_mean",
+        "patch_events_mean",
+        "replan_events_mean"
+      ],
+      "notes": "Reserved baseline for the future runtime_state/belief_state contract with lightweight state estimation."
+    }
+  ],
+  "metrics_contract": {
+    "effect": [
+      "success_rate",
+      "first_pass_success_rate",
+      "executable_plan_rate"
+    ],
+    "cost": [
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "high_cost_failure_mean"
+    ],
+    "recovery": [
+      "patch_events_mean",
+      "replan_events_mean",
+      "suffix_replan_events_mean",
+      "patch_minimality_hit_rate",
+      "suffix_replan_prefix_preservation_rate"
+    ],
+    "governance": [
+      "waiting_chain_complete_rate",
+      "failure_traceable_rate"
+    ],
+    "task_stratification_key": "difficulty"
+  }
+}

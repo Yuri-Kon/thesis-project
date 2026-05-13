@@ -5,6 +5,7 @@ import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskSearch } from "../components/TaskSearch";
 import { TimelineSkeleton } from "../components/SkeletonCard";
+import { statusLabel } from "../utils/displayText";
 
 interface EventTimelinePageProps {
   state: WorkspaceState;
@@ -28,26 +29,26 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
     onInspectorChange([
       {
         key: "inspector-overview",
-        title: "Inspector",
+        title: "检查器",
         statusBadge: <StatusBadge value={state.task?.status} />,
         children: (
           <dl className="kv compact-kv">
-            <dt>Task</dt>
-            <dd>{state.task?.id ?? (taskId || "none")}</dd>
-            <dt>Events</dt>
+            <dt>任务</dt>
+            <dd>{state.task?.id ?? (taskId || "无")}</dd>
+            <dt>事件</dt>
             <dd>{state.events.length}</dd>
-            <dt>Highlighted</dt>
+            <dt>高亮</dt>
             <dd>{highlighted}</dd>
-            <dt>Latest</dt>
-            <dd>{latestEvent?.event_type ?? "none"}</dd>
+            <dt>最新事件</dt>
+            <dd>{latestEvent?.event_type ?? "无"}</dd>
           </dl>
         ),
       },
       {
         key: "timeline-boundary",
-        title: "Timeline boundary",
+        title: "时间线边界",
         children: (
-          <p>Recent events stay in a bounded scroll area; older entries remain available through the timeline list.</p>
+          <p>近期事件保留在受限滚动区域，较早记录仍可通过时间线列表查看。</p>
         ),
       },
     ]);
@@ -65,39 +66,39 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
     <div className="timeline-layout">
       <section className="workspace-hero">
         <div>
-          <h2>Event Timeline</h2>
-          <p>Events are rendered only from the task event API response.</p>
+          <h2>事件时间线</h2>
+          <p>事件仅根据任务事件 API 响应渲染。</p>
         </div>
         <TaskSearch taskId={taskId} onTaskIdChange={onTaskIdChange} onSubmit={onLoadTask} onRefresh={onRefresh} />
       </section>
-      <section className="metric-strip" aria-label="Timeline overview">
-        <MetricCard label="Events" value={state.events.length} detail={`${highlighted} highlighted`} tone={highlighted ? "amber" : "blue"} />
-        <MetricCard label="Task status" value={state.task?.status ?? "not loaded"} />
-        <MetricCard label="Task" value={state.task?.id ?? (taskId || "none")} detail={state.task?.goal ?? "load a task to inspect event history"} />
+      <section className="metric-strip" aria-label="时间线概览">
+        <MetricCard label="事件" value={state.events.length} detail={`${highlighted} 个高亮`} tone={highlighted ? "amber" : "blue"} />
+        <MetricCard label="任务状态" value={statusLabel(state.task?.status)} />
+        <MetricCard label="任务" value={state.task?.id ?? (taskId || "无")} detail={state.task?.goal ?? "加载任务后查看事件历史"} />
       </section>
       <section className="panel timeline-panel">
         <div className="panel-header">
           <div>
-            <h2>Timeline</h2>
-            <p className="muted">{state.task?.goal ?? "No task loaded."}</p>
+            <h2>时间线</h2>
+            <p className="muted">{state.task?.goal ?? "未加载任务。"}</p>
           </div>
           <StatusBadge value={state.task?.status} />
         </div>
         <ol className="timeline">
-          {state.events.length === 0 ? <li className="muted">No events returned by the API.</li> : null}
+          {state.events.length === 0 ? <li className="muted">API 未返回事件。</li> : null}
           {visibleEvents.map((event) => (
             <li key={`${event.seq}-${event.event_type}`} className={event.highlight ? "highlight" : ""}>
               <div>
                 <strong>{event.event_type}</strong>
                 <p>{event.summary}</p>
               </div>
-              <span>{event.ts ?? "no timestamp"}</span>
+              <span>{event.ts ?? "无时间戳"}</span>
             </li>
           ))}
         </ol>
         {state.events.length > visibleEvents.length || showAllEvents ? (
           <button type="button" className="secondary-action" onClick={() => setShowAllEvents((current) => !current)}>
-            {showAllEvents ? "Collapse timeline" : `Show ${state.events.length - visibleEvents.length} more`}
+            {showAllEvents ? "收起时间线" : `再显示 ${state.events.length - visibleEvents.length} 条`}
           </button>
         ) : null}
       </section>

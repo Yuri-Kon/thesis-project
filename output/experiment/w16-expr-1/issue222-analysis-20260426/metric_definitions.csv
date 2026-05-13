@@ -1,0 +1,8 @@
+metric,dimension,definition,source,table
+success_rate,success,DONE runs divided by all runs in the slice.,extract_run_metrics.final_status from event log or manifest status_external,"overall_metrics.csv, difficulty_stratified_metrics.csv"
+first_pass_success_rate,success,"DONE runs without patch, replan, or waiting entry.",extract_run_metrics patch/replan/waiting counters,"overall_metrics.csv, difficulty_stratified_metrics.csv"
+duration_ms_mean,cost,Mean end-to-end run duration in milliseconds.,manifest duration_ms or started_at/finished_at/event timestamps,"overall_metrics.csv, difficulty_stratified_metrics.csv"
+high_cost_call_mean,cost,Mean matched high-cost tool calls per run.,STEP_FINISHED/STEP_FAILED rows matched against high_cost_rules,"overall_metrics.csv, recovery_complexity_high_cost.csv"
+patch_events_mean,recovery,Mean parameter/tool/structure patch events per run.,"PARAM_TWEAK, REPLACE_TOOL, STRUCTURE_PATCH event rows","overall_metrics.csv, recovery_complexity_high_cost.csv"
+replan_events_mean,recovery,Mean replanning transitions per run.,TASK_STATUS_CHANGED rows whose to_status is REPLANNING,"overall_metrics.csv, recovery_complexity_high_cost.csv"
+suffix_replan_prefix_preservation_rate,recovery,Share of suffix replan samples that preserve the successful prefix.,data.recovery.prefix_preserved samples,"overall_metrics.csv, recovery_complexity_high_cost.csv"

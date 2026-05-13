@@ -1,0 +1,33 @@
+{
+  "tool": "protein_mpnn",
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E0_enzyme_like_fold_r01",
+  "step_id": "S3",
+  "pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+  "candidates": [
+    {
+      "sequence": "KWDTIRHYKMLPAVGLMRSCQHRYLKDKAHKQHDMTMKCDAKVMNNGHQE",
+      "score": 0.528285,
+      "candidate_id": "S3_cand_1"
+    },
+    {
+      "sequence": "ICWGENRQGNYNGPNMQHKKHREFRVLMTVPWRFRTGQLTRWCREYYASIGMTAQNSVMAIN",
+      "score": 0.446133,
+      "candidate_id": "S3_cand_2"
+    },
+    {
+      "sequence": "QSSIADMAGWHTVMEVYWIKQNYLMMQEGWDQEHWKHVGEYCYTEKHWHYIESMWMFCKVYTNVYCHQYK",
+      "score": 0.54431,
+      "candidate_id": "S3_cand_3"
+    },
+    {
+      "sequence": "TFCFLALTTEGQPCDFEFWPHTNTKDEFWEIQTESCEGNYAIHWTMRSTCDFKCWYQCYHAPPPAWPYFH",
+      "score": 0.143867,
+      "candidate_id": "S3_cand_4"
+    },
+    {
+      "sequence": "YMMQITEDFWHFRWCCGYNEKDKSQYWSIFQYGEIRSGEVGMRFAPGDVMGMMEGSQKWSVYGQHMYRANK",
+      "score": 0.07802,
+      "candidate_id": "S3_cand_5"
+    }
+  ]
+}

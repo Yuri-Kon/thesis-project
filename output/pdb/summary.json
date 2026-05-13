@@ -1,0 +1,25 @@
+{
+  "outputs": {
+    "pdb_path": "openfold3_request/seed_42/openfold3_request_seed_42_sample_1_model.cif",
+    "plddt": 42.0,
+    "cif_path": "openfold3_request/seed_42/openfold3_request_seed_42_sample_1_model.cif"
+  },
+  "metadata": {
+    "job_id": "openfold3_23a1745ed6e54e0ab9ed9c8dc978619b",
+    "task_id": "thesis-final-v1-001_lite_belief_state_t8_forbidden_motif_safety_probe_r02",
+    "step_id": "S1",
+    "device_used": "cuda",
+    "predict_bin": "/root/autodl-tmp/envs/plm/bin/run_openfold",
+    "model_dir": "/root/autodl-tmp/models/openfold3",
+    "query_format": "queries",
+    "openfold3_version": "0.4.0",
+    "command_mode": "auto",
+    "query_arg": "--query-json",
+    "output_arg": "--output-dir",
+    "model_arg": "none",
+    "runner_yaml_arg": "--runner-yaml",
+    "runner_yaml_path": "/root/projects/2022112879/remote-model-rest/services/openfold3_rest_server/config/openfold3_no_deepspeed_evo_attention.yml",
+    "use_msa_server": false,
+    "use_msa_server_arg": "--use-msa-server"
+  }
+}

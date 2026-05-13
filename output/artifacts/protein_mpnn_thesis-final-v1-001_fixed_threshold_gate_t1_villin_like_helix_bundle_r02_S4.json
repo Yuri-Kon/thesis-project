@@ -1,0 +1,33 @@
+{
+  "tool": "protein_mpnn",
+  "task_id": "thesis-final-v1-001_fixed_threshold_gate_t1_villin_like_helix_bundle_r02",
+  "step_id": "S4",
+  "pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_42/openfold3_request_seed_42_sample_1_model.cif",
+  "candidates": [
+    {
+      "sequence": "QGVNYSCKQRAQMMDYHCVTDQGHVWVLPCGCYWN",
+      "score": 0.490481,
+      "candidate_id": "S4_cand_1"
+    },
+    {
+      "sequence": "VNRKPYPYRATLVPPFPSTTIMTMFVFWILEPEKCTC",
+      "score": 0.837489,
+      "candidate_id": "S4_cand_2"
+    },
+    {
+      "sequence": "SCTLMTCVCPWRQHYGQGRFADDYGFKGVIEATSNRNQE",
+      "score": 0.835631,
+      "candidate_id": "S4_cand_3"
+    },
+    {
+      "sequence": "GANRCVVFYVGQETFTYITSYGGNQCEHETVTWPERN",
+      "score": 0.157093,
+      "candidate_id": "S4_cand_4"
+    },
+    {
+      "sequence": "AKCEHKSPQLQHKFDDFWTKWGHYFSDTKALHPLK",
+      "score": 0.329822,
+      "candidate_id": "S4_cand_5"
+    }
+  ]
+}

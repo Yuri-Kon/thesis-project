@@ -8,7 +8,7 @@
 *.bcf
 *.blg
 *.brf
-*.idx 
+*.idx
 *.ilg
 *.ind
 *.ist
@@ -30,7 +30,6 @@
 # 2. 输出目录
 
 docs/**/output/
-output/
 ppt/
 
 # 3. 临时文件 & 备份文件
@@ -55,20 +54,10 @@ Thumbs.db
 *.doc
 *.docx
 
-# 6. 参考与大文件
-shared/
-resources/papers/
-resources/data/
-resources/raw/
-iresources/tmp/
-
 # 7. Latex目录
 
 docs/proposal/
 
-# 8. ppt
-
-ppt
 
 # 9. Python编译产物
 
@@ -86,12 +75,7 @@ venv/
 *.egg-info/
 node_modules/
 
-# 11. 日志与中间数据 
-
-data/logs/
-data/outputs/
-output/
-data/inputs/tmp/
+# 11. 日志与中间数据
 *.log
 
 #  12. Nextflow / workflow 相关中间文件
@@ -113,3 +97,6 @@ tmp/
 *.env
 .superpowers/
 .worktrees/
+*.bkp
+output/reports/
+output/pdb/

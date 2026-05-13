@@ -1,0 +1,2 @@
+group_id,action_continue_total,action_patch_local_total,action_suffix_replan_total,action_stop_total,shadow_action_observation_total,shadow_action_agreement_total,shadow_action_agreement_rate
+static_top1,0.0,2.0,1.0,0.0,0,0,

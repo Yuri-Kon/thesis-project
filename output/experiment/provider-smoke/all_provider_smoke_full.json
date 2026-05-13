@@ -1,0 +1,80 @@
+{
+  "providers": [
+    {
+      "provider": "qwen-flash",
+      "success": true,
+      "model": "qwen3.6-flash",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 22.233,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_qwen_flash"
+    },
+    {
+      "provider": "qwen-plus",
+      "success": false,
+      "error": "timeout_after:45s",
+      "elapsed_seconds": 45.049
+    },
+    {
+      "provider": "deepseek-v4-pro",
+      "success": true,
+      "model": "deepseek-v4-pro",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 23.431,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_deepseek_v4_pro"
+    },
+    {
+      "provider": "deepseek-v4-flash",
+      "success": true,
+      "model": "deepseek-v4-flash",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 9.041,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_deepseek_v4_flash"
+    },
+    {
+      "provider": "glm-5",
+      "success": false,
+      "error": "timeout_after:45s",
+      "elapsed_seconds": 45.049
+    },
+    {
+      "provider": "glm-4.7",
+      "success": false,
+      "error": "timeout_after:45s",
+      "elapsed_seconds": 45.016
+    },
+    {
+      "provider": "minimax-m2.7",
+      "success": false,
+      "error": "timeout_after:45s",
+      "elapsed_seconds": 45.029
+    },
+    {
+      "provider": "nemotron",
+      "success": true,
+      "model": "nvidia/nemotron-3-nano-30b-a3b",
+      "provider_name": "openai_compatible",
+      "elapsed_seconds": 5.223,
+      "steps": [
+        "protgpt2",
+        "nim_esmfold",
+        "biopython_qc"
+      ],
+      "task_id": "smoke_nemotron"
+    }
+  ]
+}

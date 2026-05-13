@@ -1,0 +1,3951 @@
+{
+    "version": "task-intake.v1",
+    "groups": [
+        "objective",
+        "inputs",
+        "design_constraints",
+        "quality_constraints",
+        "structure_constraints",
+        "function_constraints",
+        "safety_constraints",
+        "execution_preferences",
+        "planner_policy"
+    ],
+    "fields": {
+        "task_kind": {
+            "group": "objective",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": [
+                "\u4efb\u52a1\u7c7b\u578b",
+                "design mode",
+                "task kind"
+            ],
+            "validators": {},
+            "options": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "stability_optimization",
+                "motif_scaffold_design",
+                "binding_design",
+                "enzyme_like_design"
+            ],
+            "default": "de_novo_design",
+            "maps_to": "constraints.task_kind",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "objective_type": {
+            "group": "objective",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": [
+                "\u76ee\u6807",
+                "objective",
+                "optimization target"
+            ],
+            "validators": {},
+            "options": [
+                "stability",
+                "structure",
+                "binding",
+                "activity"
+            ],
+            "default": null,
+            "maps_to": "objective.objective_type",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "objective_weights": {
+            "group": "objective",
+            "type": "object",
+            "ui_control": "json",
+            "nl_aliases": [
+                "\u76ee\u6807\u6743\u91cd",
+                "objective weights",
+                "scoring weights"
+            ],
+            "validators": {
+                "allowed_keys": [
+                    "generic_objective",
+                    "stability",
+                    "function",
+                    "novelty",
+                    "structure_quality"
+                ]
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "objective.objective_weights",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "goal_summary": {
+            "group": "objective",
+            "type": "string",
+            "ui_control": "textarea",
+            "nl_aliases": [
+                "\u76ee\u6807\u6458\u8981",
+                "goal summary",
+                "confirmed goal"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 2000
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "objective.description",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "objective_description": {
+            "group": "objective",
+            "type": "string",
+            "ui_control": "textarea",
+            "nl_aliases": [
+                "\u76ee\u6807\u63cf\u8ff0",
+                "goal",
+                "description"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 2000
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "objective.description",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "sequence": {
+            "group": "inputs",
+            "type": "protein_sequence",
+            "ui_control": "textarea",
+            "nl_aliases": [
+                "\u5e8f\u5217",
+                "sequence"
+            ],
+            "validators": {
+                "alphabet": "ACDEFGHIKLMNPQRSTVWY"
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "inputs.sequence",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "template_pdb": {
+            "group": "inputs",
+            "type": "string",
+            "ui_control": "file_or_text",
+            "nl_aliases": [
+                "\u6a21\u677f\u7ed3\u6784",
+                "template pdb",
+                "template structure"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 4096
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "inputs.template_pdb",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "initial_artifacts": {
+            "group": "inputs",
+            "type": "artifact_ref_list",
+            "ui_control": "artifact_picker",
+            "nl_aliases": [
+                "\u521d\u59cb\u4ea7\u7269",
+                "artifacts",
+                "artifact refs"
+            ],
+            "validators": {
+                "ref_schemes": [
+                    "artifact",
+                    "task",
+                    "relative_path"
+                ]
+            },
+            "options": [],
+            "default": [],
+            "maps_to": "initial_artifacts",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "target_ligand": {
+            "group": "inputs",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": [
+                "\u914d\u4f53",
+                "ligand",
+                "small molecule"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 512
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "inputs.target_ligand",
+            "support_level": "P2",
+            "audit_visibility": "public"
+        },
+        "length_range": {
+            "group": "design_constraints",
+            "type": "integer_range",
+            "ui_control": "range",
+            "nl_aliases": [
+                "\u957f\u5ea6",
+                "aa",
+                "amino acids"
+            ],
+            "validators": {
+                "min": 1,
+                "max": 5000
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.length_range",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "design_count": {
+            "group": "design_constraints",
+            "type": "integer",
+            "ui_control": "number",
+            "nl_aliases": [
+                "\u5019\u9009\u6570",
+                "design count"
+            ],
+            "validators": {
+                "min": 1,
+                "max": 100
+            },
+            "options": [],
+            "default": 4,
+            "maps_to": "constraints.design_count",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "quality_metric": {
+            "group": "quality_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": [
+                "\u8d28\u91cf\u6307\u6807",
+                "quality metric"
+            ],
+            "validators": {},
+            "options": [
+                "plddt",
+                "ptm",
+                "sequence_similarity",
+                "custom_score"
+            ],
+            "default": "plddt",
+            "maps_to": "constraints.quality_metric",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "min_quality_score": {
+            "group": "quality_constraints",
+            "type": "number",
+            "ui_control": "number",
+            "nl_aliases": [
+                "\u6700\u4f4e\u8d28\u91cf",
+                "min quality",
+                "score threshold"
+            ],
+            "validators": {
+                "min": 0.0,
+                "max": 1.0
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.min_quality_score",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "target_fold": {
+            "group": "structure_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": [
+                "\u76ee\u6807\u6298\u53e0",
+                "fold",
+                "topology"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 512
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.target_fold",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "secondary_structure_bias": {
+            "group": "structure_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": [
+                "\u4e8c\u7ea7\u7ed3\u6784\u504f\u597d",
+                "secondary structure"
+            ],
+            "validators": {},
+            "options": [
+                "alpha",
+                "beta",
+                "mixed",
+                "none"
+            ],
+            "default": "none",
+            "maps_to": "constraints.secondary_structure_bias",
+            "support_level": "P1",
+            "audit_visibility": "public"
+        },
+        "motif_pattern": {
+            "group": "function_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": [
+                "motif",
+                "\u57fa\u5e8f",
+                "functional motif"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 512
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.motif_pattern",
+            "support_level": "P1",
+            "audit_visibility": "public"
+        },
+        "binding_partner": {
+            "group": "function_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": [
+                "\u7ed3\u5408\u5bf9\u8c61",
+                "binding partner",
+                "target protein"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 512
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.binding_partner",
+            "support_level": "P2",
+            "audit_visibility": "public"
+        },
+        "active_site_residues": {
+            "group": "function_constraints",
+            "type": "residue_list",
+            "ui_control": "tag_input",
+            "nl_aliases": [
+                "\u6d3b\u6027\u4f4d\u70b9",
+                "active site residues"
+            ],
+            "validators": {
+                "pattern": "^[A-Z][0-9]+$"
+            },
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.active_site_residues",
+            "support_level": "P2",
+            "audit_visibility": "public"
+        },
+        "safety_level": {
+            "group": "safety_constraints",
+            "type": "enum",
+            "ui_control": "select",
+            "nl_aliases": [
+                "\u5b89\u5168\u7b49\u7ea7",
+                "safety"
+            ],
+            "validators": {},
+            "options": [
+                "S0",
+                "S1",
+                "S2"
+            ],
+            "default": "S1",
+            "maps_to": "constraints.safety_level",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "forbidden_motifs": {
+            "group": "safety_constraints",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "nl_aliases": [
+                "\u7981\u7528\u7247\u6bb5",
+                "forbidden motifs"
+            ],
+            "validators": {
+                "min_item_length": 1,
+                "max_item_length": 128
+            },
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.forbidden_motifs",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "forbidden_functions": {
+            "group": "safety_constraints",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "nl_aliases": [
+                "\u7981\u7528\u529f\u80fd",
+                "forbidden functions"
+            ],
+            "validators": {
+                "min_item_length": 1,
+                "max_item_length": 256
+            },
+            "options": [],
+            "default": [],
+            "maps_to": "constraints.forbidden_functions",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "organism": {
+            "group": "safety_constraints",
+            "type": "string",
+            "ui_control": "text",
+            "nl_aliases": [
+                "\u7269\u79cd",
+                "organism",
+                "host organism"
+            ],
+            "validators": {
+                "min_length": 1,
+                "max_length": 512
+            },
+            "options": [],
+            "default": null,
+            "maps_to": "constraints.organism",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "run_profile": {
+            "group": "execution_preferences",
+            "type": "enum",
+            "ui_control": "segmented",
+            "nl_aliases": [
+                "\u8fd0\u884c\u6a21\u5f0f",
+                "profile",
+                "speed"
+            ],
+            "validators": {},
+            "options": [
+                "fast_smoke",
+                "balanced",
+                "high_accuracy"
+            ],
+            "default": "balanced",
+            "maps_to": "constraints.run_profile",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "max_runtime_min": {
+            "group": "execution_preferences",
+            "type": "integer",
+            "ui_control": "number",
+            "nl_aliases": [
+                "\u6700\u957f\u8fd0\u884c\u65f6\u95f4",
+                "max runtime",
+                "time budget"
+            ],
+            "validators": {
+                "min": 1,
+                "max": 10080
+            },
+            "options": [],
+            "default": 60,
+            "maps_to": "constraints.max_runtime_min",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "tools_allowed": {
+            "group": "execution_preferences",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "nl_aliases": [
+                "\u5141\u8bb8\u5de5\u5177",
+                "allowed tools"
+            ],
+            "validators": {
+                "source": "ToolKG"
+            },
+            "options": [
+                "esmfold",
+                "nim_esmfold",
+                "alphafold",
+                "openfold",
+                "protein_mpnn",
+                "protgpt2",
+                "biopython_qc",
+                "mmseqs2",
+                "blastp",
+                "dssp",
+                "objective_ranker",
+                "foldseek",
+                "interproscan",
+                "mda_analysis",
+                "autodock_vina"
+            ],
+            "default": [],
+            "maps_to": "constraints.tools_allowed",
+            "support_level": "P0",
+            "audit_visibility": "public",
+            "tool_options": [
+                {
+                    "tool_id": "esmfold",
+                    "label": "esmfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": "nextflow"
+                },
+                {
+                    "tool_id": "nim_esmfold",
+                    "label": "nim_esmfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "alphafold",
+                    "label": "alphafold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "openfold",
+                    "label": "openfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "protein_mpnn",
+                    "label": "protein_mpnn",
+                    "capabilities": [
+                        "sequence_design"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "protgpt2",
+                    "label": "protgpt2",
+                    "capabilities": [
+                        "sequence_generation"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "plm_rest"
+                    }
+                },
+                {
+                    "tool_id": "biopython_qc",
+                    "label": "biopython_qc",
+                    "capabilities": [
+                        "quality_qc"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "mmseqs2",
+                    "label": "mmseqs2",
+                    "capabilities": [
+                        "sequence_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "blastp",
+                    "label": "blastp",
+                    "capabilities": [
+                        "sequence_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "dssp",
+                    "label": "dssp",
+                    "capabilities": [
+                        "secondary_structure_annotation",
+                        "quality_qc"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "objective_ranker",
+                    "label": "objective_ranker",
+                    "capabilities": [
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "foldseek",
+                    "label": "foldseek",
+                    "capabilities": [
+                        "structure_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": {
+                        "backend": "foldseek_web_api",
+                        "provider": "foldseek_web"
+                    }
+                },
+                {
+                    "tool_id": "interproscan",
+                    "label": "interproscan",
+                    "capabilities": [
+                        "function_annotation",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "mda_analysis",
+                    "label": "mda_analysis",
+                    "capabilities": [
+                        "stability_simulation",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "autodock_vina",
+                    "label": "autodock_vina",
+                    "capabilities": [
+                        "docking_scoring",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                }
+            ]
+        },
+        "tools_excluded": {
+            "group": "execution_preferences",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "nl_aliases": [
+                "\u6392\u9664\u5de5\u5177",
+                "excluded tools"
+            ],
+            "validators": {
+                "source": "ToolKG"
+            },
+            "options": [
+                "esmfold",
+                "nim_esmfold",
+                "alphafold",
+                "openfold",
+                "protein_mpnn",
+                "protgpt2",
+                "biopython_qc",
+                "mmseqs2",
+                "blastp",
+                "dssp",
+                "objective_ranker",
+                "foldseek",
+                "interproscan",
+                "mda_analysis",
+                "autodock_vina"
+            ],
+            "default": [],
+            "maps_to": "constraints.tools_excluded",
+            "support_level": "P0",
+            "audit_visibility": "public",
+            "tool_options": [
+                {
+                    "tool_id": "esmfold",
+                    "label": "esmfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": "nextflow"
+                },
+                {
+                    "tool_id": "nim_esmfold",
+                    "label": "nim_esmfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "alphafold",
+                    "label": "alphafold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "openfold",
+                    "label": "openfold",
+                    "capabilities": [
+                        "structure_prediction"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "protein_mpnn",
+                    "label": "protein_mpnn",
+                    "capabilities": [
+                        "sequence_design"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "nvidia_nim"
+                    }
+                },
+                {
+                    "tool_id": "protgpt2",
+                    "label": "protgpt2",
+                    "capabilities": [
+                        "sequence_generation"
+                    ],
+                    "support_level": "P0",
+                    "execution": {
+                        "backend": "remote_model_service",
+                        "provider": "plm_rest"
+                    }
+                },
+                {
+                    "tool_id": "biopython_qc",
+                    "label": "biopython_qc",
+                    "capabilities": [
+                        "quality_qc"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "mmseqs2",
+                    "label": "mmseqs2",
+                    "capabilities": [
+                        "sequence_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "blastp",
+                    "label": "blastp",
+                    "capabilities": [
+                        "sequence_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "dssp",
+                    "label": "dssp",
+                    "capabilities": [
+                        "secondary_structure_annotation",
+                        "quality_qc"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "objective_ranker",
+                    "label": "objective_ranker",
+                    "capabilities": [
+                        "objective_scoring"
+                    ],
+                    "support_level": "P0",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "foldseek",
+                    "label": "foldseek",
+                    "capabilities": [
+                        "structure_similarity_search",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": {
+                        "backend": "foldseek_web_api",
+                        "provider": "foldseek_web"
+                    }
+                },
+                {
+                    "tool_id": "interproscan",
+                    "label": "interproscan",
+                    "capabilities": [
+                        "function_annotation",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "mda_analysis",
+                    "label": "mda_analysis",
+                    "capabilities": [
+                        "stability_simulation",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                },
+                {
+                    "tool_id": "autodock_vina",
+                    "label": "autodock_vina",
+                    "capabilities": [
+                        "docking_scoring",
+                        "objective_scoring"
+                    ],
+                    "support_level": "P1",
+                    "execution": "python"
+                }
+            ]
+        },
+        "require_plan_confirm": {
+            "group": "planner_policy",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "nl_aliases": [
+                "\u786e\u8ba4\u8ba1\u5212",
+                "plan confirmation"
+            ],
+            "validators": {},
+            "options": [],
+            "default": true,
+            "maps_to": "constraints.require_plan_confirm",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        },
+        "allow_replan": {
+            "group": "planner_policy",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "nl_aliases": [
+                "\u5141\u8bb8\u91cd\u89c4\u5212",
+                "allow replan"
+            ],
+            "validators": {},
+            "options": [],
+            "default": true,
+            "maps_to": "constraints.allow_replan",
+            "support_level": "P0",
+            "audit_visibility": "public"
+        }
+    },
+    "task_profiles": {
+        "de_novo_design": {
+            "support_level": "P0",
+            "required": [
+                "task_kind",
+                "objective_type",
+                "length_range"
+            ],
+            "optional": [
+                "objective_description",
+                "objective_weights",
+                "goal_summary",
+                "design_count",
+                "quality_metric",
+                "min_quality_score",
+                "target_fold",
+                "initial_artifacts",
+                "forbidden_motifs",
+                "forbidden_functions",
+                "organism",
+                "safety_level",
+                "run_profile",
+                "max_runtime_min",
+                "require_plan_confirm",
+                "allow_replan",
+                "tools_allowed",
+                "tools_excluded"
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "sequence_generation",
+                "structure_prediction"
+            ]
+        },
+        "sequence_evaluation": {
+            "support_level": "P0",
+            "required": [
+                "task_kind",
+                "sequence",
+                "objective_type"
+            ],
+            "optional": [
+                "objective_weights",
+                "quality_metric",
+                "min_quality_score",
+                "initial_artifacts",
+                "safety_level",
+                "run_profile",
+                "tools_allowed",
+                "tools_excluded"
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "sequence_evaluation",
+                "objective_scoring",
+                "quality_qc"
+            ]
+        },
+        "template_constrained_design": {
+            "support_level": "P0",
+            "required": [
+                "task_kind",
+                "objective_type",
+                "length_range",
+                "template_pdb"
+            ],
+            "optional": [
+                "design_count",
+                "objective_weights",
+                "quality_metric",
+                "min_quality_score",
+                "target_fold",
+                "initial_artifacts",
+                "safety_level",
+                "run_profile",
+                "tools_allowed",
+                "tools_excluded"
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "sequence_design",
+                "structure_prediction"
+            ]
+        },
+        "stability_optimization": {
+            "support_level": "P1",
+            "required": [
+                "task_kind",
+                "sequence"
+            ],
+            "optional": [
+                "objective_type",
+                "objective_weights",
+                "quality_metric",
+                "min_quality_score",
+                "secondary_structure_bias",
+                "run_profile"
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "objective_scoring",
+                "stability_simulation"
+            ],
+            "capability_hint_details": [
+                {
+                    "name": "objective_scoring",
+                    "io_type": "candidates_to_objective_scores_topk",
+                    "required": true,
+                    "degraded_message": "Objective scoring is required for ranking stability optimization candidates."
+                },
+                {
+                    "name": "stability_simulation",
+                    "io_type": "trajectory_to_stability_metrics",
+                    "required": false,
+                    "degraded_message": "Stability simulation is experimental and may be shown as degraded."
+                }
+            ]
+        },
+        "motif_scaffold_design": {
+            "support_level": "P1",
+            "required": [
+                "task_kind",
+                "motif_pattern"
+            ],
+            "optional": [
+                "objective_type",
+                "objective_weights",
+                "length_range",
+                "template_pdb",
+                "secondary_structure_bias"
+            ],
+            "conditional_required": [],
+            "capability_hints": [
+                "motif_scaffolding",
+                "backbone_generation"
+            ],
+            "capability_hint_details": [
+                {
+                    "name": "motif_scaffolding",
+                    "required": true,
+                    "degraded_message": "Motif scaffold design requires a registered motif scaffolding capability."
+                },
+                {
+                    "name": "backbone_generation",
+                    "required": true,
+                    "degraded_message": "Backbone generation is required before motif scaffold execution."
+                }
+            ]
+        },
+        "binding_design": {
+            "support_level": "P2",
+            "required": [
+                "task_kind",
+                "objective_type"
+            ],
+            "optional": [
+                "objective_weights",
+                "length_range",
+                "target_ligand",
+                "run_profile"
+            ],
+            "conditional_required": [
+                {
+                    "if": {
+                        "field": "objective_type",
+                        "equals": "binding"
+                    },
+                    "required": [
+                        "binding_partner"
+                    ],
+                    "reason": "binding objective needs an explicit target partner"
+                }
+            ],
+            "capability_hints": [
+                "binding_design",
+                "docking_scoring"
+            ],
+            "capability_hint_details": [
+                {
+                    "name": "binding_design",
+                    "required": true,
+                    "degraded_message": "Binding design is unsupported until a binding-design adapter-backed tool is registered."
+                },
+                {
+                    "name": "docking_scoring",
+                    "io_type": "structure_ligand_to_binding_score",
+                    "required": true,
+                    "degraded_message": "Docking scoring is required for binding design evaluation."
+                }
+            ]
+        },
+        "enzyme_like_design": {
+            "support_level": "P2",
+            "required": [
+                "task_kind",
+                "objective_type"
+            ],
+            "optional": [
+                "objective_weights",
+                "length_range",
+                "motif_pattern",
+                "active_site_residues"
+            ],
+            "conditional_required": [
+                {
+                    "if": {
+                        "field": "objective_type",
+                        "equals": "activity"
+                    },
+                    "required": [
+                        "active_site_residues"
+                    ],
+                    "reason": "enzyme-like activity needs active-site anchors"
+                }
+            ],
+            "capability_hints": [
+                "enzyme_design",
+                "function_annotation"
+            ],
+            "capability_hint_details": [
+                {
+                    "name": "enzyme_design",
+                    "required": true,
+                    "degraded_message": "Enzyme-like design is unsupported until an enzyme-design capability is registered."
+                },
+                {
+                    "name": "function_annotation",
+                    "io_type": "sequence_or_structure_to_function_terms",
+                    "required": true,
+                    "degraded_message": "Function annotation is required for enzyme-like design review."
+                }
+            ]
+        }
+    },
+    "tool_options": [
+        {
+            "tool_id": "esmfold",
+            "label": "esmfold",
+            "capabilities": [
+                "structure_prediction"
+            ],
+            "support_level": "P0",
+            "execution": "nextflow"
+        },
+        {
+            "tool_id": "nim_esmfold",
+            "label": "nim_esmfold",
+            "capabilities": [
+                "structure_prediction"
+            ],
+            "support_level": "P0",
+            "execution": {
+                "backend": "remote_model_service",
+                "provider": "nvidia_nim"
+            }
+        },
+        {
+            "tool_id": "alphafold",
+            "label": "alphafold",
+            "capabilities": [
+                "structure_prediction"
+            ],
+            "support_level": "P0",
+            "execution": {
+                "backend": "remote_model_service",
+                "provider": "nvidia_nim"
+            }
+        },
+        {
+            "tool_id": "openfold",
+            "label": "openfold",
+            "capabilities": [
+                "structure_prediction"
+            ],
+            "support_level": "P0",
+            "execution": {
+                "backend": "remote_model_service",
+                "provider": "nvidia_nim"
+            }
+        },
+        {
+            "tool_id": "protein_mpnn",
+            "label": "protein_mpnn",
+            "capabilities": [
+                "sequence_design"
+            ],
+            "support_level": "P0",
+            "execution": {
+                "backend": "remote_model_service",
+                "provider": "nvidia_nim"
+            }
+        },
+        {
+            "tool_id": "protgpt2",
+            "label": "protgpt2",
+            "capabilities": [
+                "sequence_generation"
+            ],
+            "support_level": "P0",
+            "execution": {
+                "backend": "remote_model_service",
+                "provider": "plm_rest"
+            }
+        },
+        {
+            "tool_id": "biopython_qc",
+            "label": "biopython_qc",
+            "capabilities": [
+                "quality_qc"
+            ],
+            "support_level": "P0",
+            "execution": "python"
+        },
+        {
+            "tool_id": "mmseqs2",
+            "label": "mmseqs2",
+            "capabilities": [
+                "sequence_similarity_search",
+                "objective_scoring"
+            ],
+            "support_level": "P0",
+            "execution": "python"
+        },
+        {
+            "tool_id": "blastp",
+            "label": "blastp",
+            "capabilities": [
+                "sequence_similarity_search",
+                "objective_scoring"
+            ],
+            "support_level": "P0",
+            "execution": "python"
+        },
+        {
+            "tool_id": "dssp",
+            "label": "dssp",
+            "capabilities": [
+                "secondary_structure_annotation",
+                "quality_qc"
+            ],
+            "support_level": "P0",
+            "execution": "python"
+        },
+        {
+            "tool_id": "objective_ranker",
+            "label": "objective_ranker",
+            "capabilities": [
+                "objective_scoring"
+            ],
+            "support_level": "P0",
+            "execution": "python"
+        },
+        {
+            "tool_id": "foldseek",
+            "label": "foldseek",
+            "capabilities": [
+                "structure_similarity_search",
+                "objective_scoring"
+            ],
+            "support_level": "P1",
+            "execution": {
+                "backend": "foldseek_web_api",
+                "provider": "foldseek_web"
+            }
+        },
+        {
+            "tool_id": "interproscan",
+            "label": "interproscan",
+            "capabilities": [
+                "function_annotation",
+                "objective_scoring"
+            ],
+            "support_level": "P1",
+            "execution": "python"
+        },
+        {
+            "tool_id": "mda_analysis",
+            "label": "mda_analysis",
+            "capabilities": [
+                "stability_simulation",
+                "objective_scoring"
+            ],
+            "support_level": "P1",
+            "execution": "python"
+        },
+        {
+            "tool_id": "autodock_vina",
+            "label": "autodock_vina",
+            "capabilities": [
+                "docking_scoring",
+                "objective_scoring"
+            ],
+            "support_level": "P1",
+            "execution": "python"
+        }
+    ],
+    "web_schema": {
+        "groups": [
+            {
+                "id": "objective",
+                "fields": [
+                    "task_kind",
+                    "objective_type",
+                    "objective_weights",
+                    "goal_summary",
+                    "objective_description"
+                ]
+            },
+            {
+                "id": "inputs",
+                "fields": [
+                    "sequence",
+                    "template_pdb",
+                    "initial_artifacts",
+                    "target_ligand"
+                ]
+            },
+            {
+                "id": "design_constraints",
+                "fields": [
+                    "length_range",
+                    "design_count"
+                ]
+            },
+            {
+                "id": "quality_constraints",
+                "fields": [
+                    "quality_metric",
+                    "min_quality_score"
+                ]
+            },
+            {
+                "id": "structure_constraints",
+                "fields": [
+                    "target_fold",
+                    "secondary_structure_bias"
+                ]
+            },
+            {
+                "id": "function_constraints",
+                "fields": [
+                    "motif_pattern",
+                    "binding_partner",
+                    "active_site_residues"
+                ]
+            },
+            {
+                "id": "safety_constraints",
+                "fields": [
+                    "safety_level",
+                    "forbidden_motifs",
+                    "forbidden_functions",
+                    "organism"
+                ]
+            },
+            {
+                "id": "execution_preferences",
+                "fields": [
+                    "run_profile",
+                    "max_runtime_min",
+                    "tools_allowed",
+                    "tools_excluded"
+                ]
+            },
+            {
+                "id": "planner_policy",
+                "fields": [
+                    "require_plan_confirm",
+                    "allow_replan"
+                ]
+            }
+        ],
+        "fields": {
+            "task_kind": {
+                "group": "objective",
+                "type": "enum",
+                "ui_control": "select",
+                "nl_aliases": [
+                    "\u4efb\u52a1\u7c7b\u578b",
+                    "design mode",
+                    "task kind"
+                ],
+                "validators": {},
+                "options": [
+                    "de_novo_design",
+                    "sequence_evaluation",
+                    "template_constrained_design",
+                    "stability_optimization",
+                    "motif_scaffold_design",
+                    "binding_design",
+                    "enzyme_like_design"
+                ],
+                "default": "de_novo_design",
+                "maps_to": "constraints.task_kind",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "objective_type": {
+                "group": "objective",
+                "type": "enum",
+                "ui_control": "select",
+                "nl_aliases": [
+                    "\u76ee\u6807",
+                    "objective",
+                    "optimization target"
+                ],
+                "validators": {},
+                "options": [
+                    "stability",
+                    "structure",
+                    "binding",
+                    "activity"
+                ],
+                "default": null,
+                "maps_to": "objective.objective_type",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "objective_weights": {
+                "group": "objective",
+                "type": "object",
+                "ui_control": "json",
+                "nl_aliases": [
+                    "\u76ee\u6807\u6743\u91cd",
+                    "objective weights",
+                    "scoring weights"
+                ],
+                "validators": {
+                    "allowed_keys": [
+                        "generic_objective",
+                        "stability",
+                        "function",
+                        "novelty",
+                        "structure_quality"
+                    ]
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "objective.objective_weights",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "goal_summary": {
+                "group": "objective",
+                "type": "string",
+                "ui_control": "textarea",
+                "nl_aliases": [
+                    "\u76ee\u6807\u6458\u8981",
+                    "goal summary",
+                    "confirmed goal"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 2000
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "objective.description",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "objective_description": {
+                "group": "objective",
+                "type": "string",
+                "ui_control": "textarea",
+                "nl_aliases": [
+                    "\u76ee\u6807\u63cf\u8ff0",
+                    "goal",
+                    "description"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 2000
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "objective.description",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "sequence": {
+                "group": "inputs",
+                "type": "protein_sequence",
+                "ui_control": "textarea",
+                "nl_aliases": [
+                    "\u5e8f\u5217",
+                    "sequence"
+                ],
+                "validators": {
+                    "alphabet": "ACDEFGHIKLMNPQRSTVWY"
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "inputs.sequence",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "template_pdb": {
+                "group": "inputs",
+                "type": "string",
+                "ui_control": "file_or_text",
+                "nl_aliases": [
+                    "\u6a21\u677f\u7ed3\u6784",
+                    "template pdb",
+                    "template structure"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 4096
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "inputs.template_pdb",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "initial_artifacts": {
+                "group": "inputs",
+                "type": "artifact_ref_list",
+                "ui_control": "artifact_picker",
+                "nl_aliases": [
+                    "\u521d\u59cb\u4ea7\u7269",
+                    "artifacts",
+                    "artifact refs"
+                ],
+                "validators": {
+                    "ref_schemes": [
+                        "artifact",
+                        "task",
+                        "relative_path"
+                    ]
+                },
+                "options": [],
+                "default": [],
+                "maps_to": "initial_artifacts",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "target_ligand": {
+                "group": "inputs",
+                "type": "string",
+                "ui_control": "text",
+                "nl_aliases": [
+                    "\u914d\u4f53",
+                    "ligand",
+                    "small molecule"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 512
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "inputs.target_ligand",
+                "support_level": "P2",
+                "audit_visibility": "public"
+            },
+            "length_range": {
+                "group": "design_constraints",
+                "type": "integer_range",
+                "ui_control": "range",
+                "nl_aliases": [
+                    "\u957f\u5ea6",
+                    "aa",
+                    "amino acids"
+                ],
+                "validators": {
+                    "min": 1,
+                    "max": 5000
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.length_range",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "design_count": {
+                "group": "design_constraints",
+                "type": "integer",
+                "ui_control": "number",
+                "nl_aliases": [
+                    "\u5019\u9009\u6570",
+                    "design count"
+                ],
+                "validators": {
+                    "min": 1,
+                    "max": 100
+                },
+                "options": [],
+                "default": 4,
+                "maps_to": "constraints.design_count",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "quality_metric": {
+                "group": "quality_constraints",
+                "type": "enum",
+                "ui_control": "select",
+                "nl_aliases": [
+                    "\u8d28\u91cf\u6307\u6807",
+                    "quality metric"
+                ],
+                "validators": {},
+                "options": [
+                    "plddt",
+                    "ptm",
+                    "sequence_similarity",
+                    "custom_score"
+                ],
+                "default": "plddt",
+                "maps_to": "constraints.quality_metric",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "min_quality_score": {
+                "group": "quality_constraints",
+                "type": "number",
+                "ui_control": "number",
+                "nl_aliases": [
+                    "\u6700\u4f4e\u8d28\u91cf",
+                    "min quality",
+                    "score threshold"
+                ],
+                "validators": {
+                    "min": 0.0,
+                    "max": 1.0
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.min_quality_score",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "target_fold": {
+                "group": "structure_constraints",
+                "type": "string",
+                "ui_control": "text",
+                "nl_aliases": [
+                    "\u76ee\u6807\u6298\u53e0",
+                    "fold",
+                    "topology"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 512
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.target_fold",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "secondary_structure_bias": {
+                "group": "structure_constraints",
+                "type": "enum",
+                "ui_control": "select",
+                "nl_aliases": [
+                    "\u4e8c\u7ea7\u7ed3\u6784\u504f\u597d",
+                    "secondary structure"
+                ],
+                "validators": {},
+                "options": [
+                    "alpha",
+                    "beta",
+                    "mixed",
+                    "none"
+                ],
+                "default": "none",
+                "maps_to": "constraints.secondary_structure_bias",
+                "support_level": "P1",
+                "audit_visibility": "public"
+            },
+            "motif_pattern": {
+                "group": "function_constraints",
+                "type": "string",
+                "ui_control": "text",
+                "nl_aliases": [
+                    "motif",
+                    "\u57fa\u5e8f",
+                    "functional motif"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 512
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.motif_pattern",
+                "support_level": "P1",
+                "audit_visibility": "public"
+            },
+            "binding_partner": {
+                "group": "function_constraints",
+                "type": "string",
+                "ui_control": "text",
+                "nl_aliases": [
+                    "\u7ed3\u5408\u5bf9\u8c61",
+                    "binding partner",
+                    "target protein"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 512
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.binding_partner",
+                "support_level": "P2",
+                "audit_visibility": "public"
+            },
+            "active_site_residues": {
+                "group": "function_constraints",
+                "type": "residue_list",
+                "ui_control": "tag_input",
+                "nl_aliases": [
+                    "\u6d3b\u6027\u4f4d\u70b9",
+                    "active site residues"
+                ],
+                "validators": {
+                    "pattern": "^[A-Z][0-9]+$"
+                },
+                "options": [],
+                "default": [],
+                "maps_to": "constraints.active_site_residues",
+                "support_level": "P2",
+                "audit_visibility": "public"
+            },
+            "safety_level": {
+                "group": "safety_constraints",
+                "type": "enum",
+                "ui_control": "select",
+                "nl_aliases": [
+                    "\u5b89\u5168\u7b49\u7ea7",
+                    "safety"
+                ],
+                "validators": {},
+                "options": [
+                    "S0",
+                    "S1",
+                    "S2"
+                ],
+                "default": "S1",
+                "maps_to": "constraints.safety_level",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "forbidden_motifs": {
+                "group": "safety_constraints",
+                "type": "string_list",
+                "ui_control": "tag_input",
+                "nl_aliases": [
+                    "\u7981\u7528\u7247\u6bb5",
+                    "forbidden motifs"
+                ],
+                "validators": {
+                    "min_item_length": 1,
+                    "max_item_length": 128
+                },
+                "options": [],
+                "default": [],
+                "maps_to": "constraints.forbidden_motifs",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "forbidden_functions": {
+                "group": "safety_constraints",
+                "type": "string_list",
+                "ui_control": "tag_input",
+                "nl_aliases": [
+                    "\u7981\u7528\u529f\u80fd",
+                    "forbidden functions"
+                ],
+                "validators": {
+                    "min_item_length": 1,
+                    "max_item_length": 256
+                },
+                "options": [],
+                "default": [],
+                "maps_to": "constraints.forbidden_functions",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "organism": {
+                "group": "safety_constraints",
+                "type": "string",
+                "ui_control": "text",
+                "nl_aliases": [
+                    "\u7269\u79cd",
+                    "organism",
+                    "host organism"
+                ],
+                "validators": {
+                    "min_length": 1,
+                    "max_length": 512
+                },
+                "options": [],
+                "default": null,
+                "maps_to": "constraints.organism",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "run_profile": {
+                "group": "execution_preferences",
+                "type": "enum",
+                "ui_control": "segmented",
+                "nl_aliases": [
+                    "\u8fd0\u884c\u6a21\u5f0f",
+                    "profile",
+                    "speed"
+                ],
+                "validators": {},
+                "options": [
+                    "fast_smoke",
+                    "balanced",
+                    "high_accuracy"
+                ],
+                "default": "balanced",
+                "maps_to": "constraints.run_profile",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "max_runtime_min": {
+                "group": "execution_preferences",
+                "type": "integer",
+                "ui_control": "number",
+                "nl_aliases": [
+                    "\u6700\u957f\u8fd0\u884c\u65f6\u95f4",
+                    "max runtime",
+                    "time budget"
+                ],
+                "validators": {
+                    "min": 1,
+                    "max": 10080
+                },
+                "options": [],
+                "default": 60,
+                "maps_to": "constraints.max_runtime_min",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "tools_allowed": {
+                "group": "execution_preferences",
+                "type": "tool_id_list",
+                "ui_control": "multi_select",
+                "nl_aliases": [
+                    "\u5141\u8bb8\u5de5\u5177",
+                    "allowed tools"
+                ],
+                "validators": {
+                    "source": "ToolKG"
+                },
+                "options": [
+                    "esmfold",
+                    "nim_esmfold",
+                    "alphafold",
+                    "openfold",
+                    "protein_mpnn",
+                    "protgpt2",
+                    "biopython_qc",
+                    "mmseqs2",
+                    "blastp",
+                    "dssp",
+                    "objective_ranker",
+                    "foldseek",
+                    "interproscan",
+                    "mda_analysis",
+                    "autodock_vina"
+                ],
+                "default": [],
+                "maps_to": "constraints.tools_allowed",
+                "support_level": "P0",
+                "audit_visibility": "public",
+                "tool_options": [
+                    {
+                        "tool_id": "esmfold",
+                        "label": "esmfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": "nextflow"
+                    },
+                    {
+                        "tool_id": "nim_esmfold",
+                        "label": "nim_esmfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "alphafold",
+                        "label": "alphafold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "openfold",
+                        "label": "openfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "protein_mpnn",
+                        "label": "protein_mpnn",
+                        "capabilities": [
+                            "sequence_design"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "protgpt2",
+                        "label": "protgpt2",
+                        "capabilities": [
+                            "sequence_generation"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "plm_rest"
+                        }
+                    },
+                    {
+                        "tool_id": "biopython_qc",
+                        "label": "biopython_qc",
+                        "capabilities": [
+                            "quality_qc"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "mmseqs2",
+                        "label": "mmseqs2",
+                        "capabilities": [
+                            "sequence_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "blastp",
+                        "label": "blastp",
+                        "capabilities": [
+                            "sequence_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "dssp",
+                        "label": "dssp",
+                        "capabilities": [
+                            "secondary_structure_annotation",
+                            "quality_qc"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "objective_ranker",
+                        "label": "objective_ranker",
+                        "capabilities": [
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "foldseek",
+                        "label": "foldseek",
+                        "capabilities": [
+                            "structure_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": {
+                            "backend": "foldseek_web_api",
+                            "provider": "foldseek_web"
+                        }
+                    },
+                    {
+                        "tool_id": "interproscan",
+                        "label": "interproscan",
+                        "capabilities": [
+                            "function_annotation",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "mda_analysis",
+                        "label": "mda_analysis",
+                        "capabilities": [
+                            "stability_simulation",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "autodock_vina",
+                        "label": "autodock_vina",
+                        "capabilities": [
+                            "docking_scoring",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    }
+                ]
+            },
+            "tools_excluded": {
+                "group": "execution_preferences",
+                "type": "tool_id_list",
+                "ui_control": "multi_select",
+                "nl_aliases": [
+                    "\u6392\u9664\u5de5\u5177",
+                    "excluded tools"
+                ],
+                "validators": {
+                    "source": "ToolKG"
+                },
+                "options": [
+                    "esmfold",
+                    "nim_esmfold",
+                    "alphafold",
+                    "openfold",
+                    "protein_mpnn",
+                    "protgpt2",
+                    "biopython_qc",
+                    "mmseqs2",
+                    "blastp",
+                    "dssp",
+                    "objective_ranker",
+                    "foldseek",
+                    "interproscan",
+                    "mda_analysis",
+                    "autodock_vina"
+                ],
+                "default": [],
+                "maps_to": "constraints.tools_excluded",
+                "support_level": "P0",
+                "audit_visibility": "public",
+                "tool_options": [
+                    {
+                        "tool_id": "esmfold",
+                        "label": "esmfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": "nextflow"
+                    },
+                    {
+                        "tool_id": "nim_esmfold",
+                        "label": "nim_esmfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "alphafold",
+                        "label": "alphafold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "openfold",
+                        "label": "openfold",
+                        "capabilities": [
+                            "structure_prediction"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "protein_mpnn",
+                        "label": "protein_mpnn",
+                        "capabilities": [
+                            "sequence_design"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "nvidia_nim"
+                        }
+                    },
+                    {
+                        "tool_id": "protgpt2",
+                        "label": "protgpt2",
+                        "capabilities": [
+                            "sequence_generation"
+                        ],
+                        "support_level": "P0",
+                        "execution": {
+                            "backend": "remote_model_service",
+                            "provider": "plm_rest"
+                        }
+                    },
+                    {
+                        "tool_id": "biopython_qc",
+                        "label": "biopython_qc",
+                        "capabilities": [
+                            "quality_qc"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "mmseqs2",
+                        "label": "mmseqs2",
+                        "capabilities": [
+                            "sequence_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "blastp",
+                        "label": "blastp",
+                        "capabilities": [
+                            "sequence_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "dssp",
+                        "label": "dssp",
+                        "capabilities": [
+                            "secondary_structure_annotation",
+                            "quality_qc"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "objective_ranker",
+                        "label": "objective_ranker",
+                        "capabilities": [
+                            "objective_scoring"
+                        ],
+                        "support_level": "P0",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "foldseek",
+                        "label": "foldseek",
+                        "capabilities": [
+                            "structure_similarity_search",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": {
+                            "backend": "foldseek_web_api",
+                            "provider": "foldseek_web"
+                        }
+                    },
+                    {
+                        "tool_id": "interproscan",
+                        "label": "interproscan",
+                        "capabilities": [
+                            "function_annotation",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "mda_analysis",
+                        "label": "mda_analysis",
+                        "capabilities": [
+                            "stability_simulation",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    },
+                    {
+                        "tool_id": "autodock_vina",
+                        "label": "autodock_vina",
+                        "capabilities": [
+                            "docking_scoring",
+                            "objective_scoring"
+                        ],
+                        "support_level": "P1",
+                        "execution": "python"
+                    }
+                ]
+            },
+            "require_plan_confirm": {
+                "group": "planner_policy",
+                "type": "boolean",
+                "ui_control": "checkbox",
+                "nl_aliases": [
+                    "\u786e\u8ba4\u8ba1\u5212",
+                    "plan confirmation"
+                ],
+                "validators": {},
+                "options": [],
+                "default": true,
+                "maps_to": "constraints.require_plan_confirm",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            },
+            "allow_replan": {
+                "group": "planner_policy",
+                "type": "boolean",
+                "ui_control": "checkbox",
+                "nl_aliases": [
+                    "\u5141\u8bb8\u91cd\u89c4\u5212",
+                    "allow replan"
+                ],
+                "validators": {},
+                "options": [],
+                "default": true,
+                "maps_to": "constraints.allow_replan",
+                "support_level": "P0",
+                "audit_visibility": "public"
+            }
+        }
+    },
+    "cli_arguments": [
+        {
+            "field": "task_kind",
+            "flag": "--task-kind",
+            "type": "enum",
+            "default": "de_novo_design",
+            "required_by_profiles": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "stability_optimization",
+                "motif_scaffold_design",
+                "binding_design",
+                "enzyme_like_design"
+            ],
+            "nl_aliases": [
+                "\u4efb\u52a1\u7c7b\u578b",
+                "design mode",
+                "task kind"
+            ]
+        },
+        {
+            "field": "objective_type",
+            "flag": "--objective-type",
+            "type": "enum",
+            "default": null,
+            "required_by_profiles": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "binding_design",
+                "enzyme_like_design"
+            ],
+            "nl_aliases": [
+                "\u76ee\u6807",
+                "objective",
+                "optimization target"
+            ]
+        },
+        {
+            "field": "objective_weights",
+            "flag": "--objective-weights",
+            "type": "object",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u76ee\u6807\u6743\u91cd",
+                "objective weights",
+                "scoring weights"
+            ]
+        },
+        {
+            "field": "goal_summary",
+            "flag": "--goal-summary",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u76ee\u6807\u6458\u8981",
+                "goal summary",
+                "confirmed goal"
+            ]
+        },
+        {
+            "field": "objective_description",
+            "flag": "--objective-description",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u76ee\u6807\u63cf\u8ff0",
+                "goal",
+                "description"
+            ]
+        },
+        {
+            "field": "sequence",
+            "flag": "--sequence",
+            "type": "protein_sequence",
+            "default": null,
+            "required_by_profiles": [
+                "sequence_evaluation",
+                "stability_optimization"
+            ],
+            "nl_aliases": [
+                "\u5e8f\u5217",
+                "sequence"
+            ]
+        },
+        {
+            "field": "template_pdb",
+            "flag": "--template-pdb",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [
+                "template_constrained_design"
+            ],
+            "nl_aliases": [
+                "\u6a21\u677f\u7ed3\u6784",
+                "template pdb",
+                "template structure"
+            ]
+        },
+        {
+            "field": "initial_artifacts",
+            "flag": "--initial-artifacts",
+            "type": "artifact_ref_list",
+            "default": [],
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u521d\u59cb\u4ea7\u7269",
+                "artifacts",
+                "artifact refs"
+            ]
+        },
+        {
+            "field": "target_ligand",
+            "flag": "--target-ligand",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u914d\u4f53",
+                "ligand",
+                "small molecule"
+            ]
+        },
+        {
+            "field": "length_range",
+            "flag": "--length-range",
+            "type": "integer_range",
+            "default": null,
+            "required_by_profiles": [
+                "de_novo_design",
+                "template_constrained_design"
+            ],
+            "nl_aliases": [
+                "\u957f\u5ea6",
+                "aa",
+                "amino acids"
+            ]
+        },
+        {
+            "field": "design_count",
+            "flag": "--design-count",
+            "type": "integer",
+            "default": 4,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u5019\u9009\u6570",
+                "design count"
+            ]
+        },
+        {
+            "field": "quality_metric",
+            "flag": "--quality-metric",
+            "type": "enum",
+            "default": "plddt",
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u8d28\u91cf\u6307\u6807",
+                "quality metric"
+            ]
+        },
+        {
+            "field": "min_quality_score",
+            "flag": "--min-quality-score",
+            "type": "number",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u6700\u4f4e\u8d28\u91cf",
+                "min quality",
+                "score threshold"
+            ]
+        },
+        {
+            "field": "target_fold",
+            "flag": "--target-fold",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u76ee\u6807\u6298\u53e0",
+                "fold",
+                "topology"
+            ]
+        },
+        {
+            "field": "secondary_structure_bias",
+            "flag": "--secondary-structure-bias",
+            "type": "enum",
+            "default": "none",
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u4e8c\u7ea7\u7ed3\u6784\u504f\u597d",
+                "secondary structure"
+            ]
+        },
+        {
+            "field": "motif_pattern",
+            "flag": "--motif-pattern",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [
+                "motif_scaffold_design"
+            ],
+            "nl_aliases": [
+                "motif",
+                "\u57fa\u5e8f",
+                "functional motif"
+            ]
+        },
+        {
+            "field": "binding_partner",
+            "flag": "--binding-partner",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [
+                "binding_design"
+            ],
+            "nl_aliases": [
+                "\u7ed3\u5408\u5bf9\u8c61",
+                "binding partner",
+                "target protein"
+            ]
+        },
+        {
+            "field": "active_site_residues",
+            "flag": "--active-site-residues",
+            "type": "residue_list",
+            "default": [],
+            "required_by_profiles": [
+                "enzyme_like_design"
+            ],
+            "nl_aliases": [
+                "\u6d3b\u6027\u4f4d\u70b9",
+                "active site residues"
+            ]
+        },
+        {
+            "field": "safety_level",
+            "flag": "--safety-level",
+            "type": "enum",
+            "default": "S1",
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u5b89\u5168\u7b49\u7ea7",
+                "safety"
+            ]
+        },
+        {
+            "field": "forbidden_motifs",
+            "flag": "--forbidden-motifs",
+            "type": "string_list",
+            "default": [],
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u7981\u7528\u7247\u6bb5",
+                "forbidden motifs"
+            ]
+        },
+        {
+            "field": "forbidden_functions",
+            "flag": "--forbidden-functions",
+            "type": "string_list",
+            "default": [],
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u7981\u7528\u529f\u80fd",
+                "forbidden functions"
+            ]
+        },
+        {
+            "field": "organism",
+            "flag": "--organism",
+            "type": "string",
+            "default": null,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u7269\u79cd",
+                "organism",
+                "host organism"
+            ]
+        },
+        {
+            "field": "run_profile",
+            "flag": "--run-profile",
+            "type": "enum",
+            "default": "balanced",
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u8fd0\u884c\u6a21\u5f0f",
+                "profile",
+                "speed"
+            ]
+        },
+        {
+            "field": "max_runtime_min",
+            "flag": "--max-runtime-min",
+            "type": "integer",
+            "default": 60,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u6700\u957f\u8fd0\u884c\u65f6\u95f4",
+                "max runtime",
+                "time budget"
+            ]
+        },
+        {
+            "field": "tools_allowed",
+            "flag": "--tools-allowed",
+            "type": "tool_id_list",
+            "default": [],
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u5141\u8bb8\u5de5\u5177",
+                "allowed tools"
+            ]
+        },
+        {
+            "field": "tools_excluded",
+            "flag": "--tools-excluded",
+            "type": "tool_id_list",
+            "default": [],
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u6392\u9664\u5de5\u5177",
+                "excluded tools"
+            ]
+        },
+        {
+            "field": "require_plan_confirm",
+            "flag": "--require-plan-confirm",
+            "type": "boolean",
+            "default": true,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u786e\u8ba4\u8ba1\u5212",
+                "plan confirmation"
+            ]
+        },
+        {
+            "field": "allow_replan",
+            "flag": "--allow-replan",
+            "type": "boolean",
+            "default": true,
+            "required_by_profiles": [],
+            "nl_aliases": [
+                "\u5141\u8bb8\u91cd\u89c4\u5212",
+                "allow replan"
+            ]
+        }
+    ],
+    "cli_questions": [
+        {
+            "field": "task_kind",
+            "prompt": "\u4efb\u52a1\u7c7b\u578b (task_kind)",
+            "type": "enum",
+            "ui_control": "select",
+            "options": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "stability_optimization",
+                "motif_scaffold_design",
+                "binding_design",
+                "enzyme_like_design"
+            ],
+            "default": "de_novo_design",
+            "required_by_profiles": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "stability_optimization",
+                "motif_scaffold_design",
+                "binding_design",
+                "enzyme_like_design"
+            ]
+        },
+        {
+            "field": "objective_type",
+            "prompt": "\u76ee\u6807 (objective_type)",
+            "type": "enum",
+            "ui_control": "select",
+            "options": [
+                "stability",
+                "structure",
+                "binding",
+                "activity"
+            ],
+            "default": null,
+            "required_by_profiles": [
+                "de_novo_design",
+                "sequence_evaluation",
+                "template_constrained_design",
+                "binding_design",
+                "enzyme_like_design"
+            ]
+        },
+        {
+            "field": "objective_weights",
+            "prompt": "\u76ee\u6807\u6743\u91cd (objective_weights)",
+            "type": "object",
+            "ui_control": "json",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "goal_summary",
+            "prompt": "\u76ee\u6807\u6458\u8981 (goal_summary)",
+            "type": "string",
+            "ui_control": "textarea",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "objective_description",
+            "prompt": "\u76ee\u6807\u63cf\u8ff0 (objective_description)",
+            "type": "string",
+            "ui_control": "textarea",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "sequence",
+            "prompt": "\u5e8f\u5217 (sequence)",
+            "type": "protein_sequence",
+            "ui_control": "textarea",
+            "options": [],
+            "default": null,
+            "required_by_profiles": [
+                "sequence_evaluation",
+                "stability_optimization"
+            ]
+        },
+        {
+            "field": "template_pdb",
+            "prompt": "\u6a21\u677f\u7ed3\u6784 (template_pdb)",
+            "type": "string",
+            "ui_control": "file_or_text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": [
+                "template_constrained_design"
+            ]
+        },
+        {
+            "field": "initial_artifacts",
+            "prompt": "\u521d\u59cb\u4ea7\u7269 (initial_artifacts)",
+            "type": "artifact_ref_list",
+            "ui_control": "artifact_picker",
+            "options": [],
+            "default": [],
+            "required_by_profiles": []
+        },
+        {
+            "field": "target_ligand",
+            "prompt": "\u914d\u4f53 (target_ligand)",
+            "type": "string",
+            "ui_control": "text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "length_range",
+            "prompt": "\u957f\u5ea6 (length_range)",
+            "type": "integer_range",
+            "ui_control": "range",
+            "options": [],
+            "default": null,
+            "required_by_profiles": [
+                "de_novo_design",
+                "template_constrained_design"
+            ]
+        },
+        {
+            "field": "design_count",
+            "prompt": "\u5019\u9009\u6570 (design_count)",
+            "type": "integer",
+            "ui_control": "number",
+            "options": [],
+            "default": 4,
+            "required_by_profiles": []
+        },
+        {
+            "field": "quality_metric",
+            "prompt": "\u8d28\u91cf\u6307\u6807 (quality_metric)",
+            "type": "enum",
+            "ui_control": "select",
+            "options": [
+                "plddt",
+                "ptm",
+                "sequence_similarity",
+                "custom_score"
+            ],
+            "default": "plddt",
+            "required_by_profiles": []
+        },
+        {
+            "field": "min_quality_score",
+            "prompt": "\u6700\u4f4e\u8d28\u91cf (min_quality_score)",
+            "type": "number",
+            "ui_control": "number",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "target_fold",
+            "prompt": "\u76ee\u6807\u6298\u53e0 (target_fold)",
+            "type": "string",
+            "ui_control": "text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "secondary_structure_bias",
+            "prompt": "\u4e8c\u7ea7\u7ed3\u6784\u504f\u597d (secondary_structure_bias)",
+            "type": "enum",
+            "ui_control": "select",
+            "options": [
+                "alpha",
+                "beta",
+                "mixed",
+                "none"
+            ],
+            "default": "none",
+            "required_by_profiles": []
+        },
+        {
+            "field": "motif_pattern",
+            "prompt": "motif (motif_pattern)",
+            "type": "string",
+            "ui_control": "text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": [
+                "motif_scaffold_design"
+            ]
+        },
+        {
+            "field": "binding_partner",
+            "prompt": "\u7ed3\u5408\u5bf9\u8c61 (binding_partner)",
+            "type": "string",
+            "ui_control": "text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": [
+                "binding_design"
+            ]
+        },
+        {
+            "field": "active_site_residues",
+            "prompt": "\u6d3b\u6027\u4f4d\u70b9 (active_site_residues)",
+            "type": "residue_list",
+            "ui_control": "tag_input",
+            "options": [],
+            "default": [],
+            "required_by_profiles": [
+                "enzyme_like_design"
+            ]
+        },
+        {
+            "field": "safety_level",
+            "prompt": "\u5b89\u5168\u7b49\u7ea7 (safety_level)",
+            "type": "enum",
+            "ui_control": "select",
+            "options": [
+                "S0",
+                "S1",
+                "S2"
+            ],
+            "default": "S1",
+            "required_by_profiles": []
+        },
+        {
+            "field": "forbidden_motifs",
+            "prompt": "\u7981\u7528\u7247\u6bb5 (forbidden_motifs)",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "options": [],
+            "default": [],
+            "required_by_profiles": []
+        },
+        {
+            "field": "forbidden_functions",
+            "prompt": "\u7981\u7528\u529f\u80fd (forbidden_functions)",
+            "type": "string_list",
+            "ui_control": "tag_input",
+            "options": [],
+            "default": [],
+            "required_by_profiles": []
+        },
+        {
+            "field": "organism",
+            "prompt": "\u7269\u79cd (organism)",
+            "type": "string",
+            "ui_control": "text",
+            "options": [],
+            "default": null,
+            "required_by_profiles": []
+        },
+        {
+            "field": "run_profile",
+            "prompt": "\u8fd0\u884c\u6a21\u5f0f (run_profile)",
+            "type": "enum",
+            "ui_control": "segmented",
+            "options": [
+                "fast_smoke",
+                "balanced",
+                "high_accuracy"
+            ],
+            "default": "balanced",
+            "required_by_profiles": []
+        },
+        {
+            "field": "max_runtime_min",
+            "prompt": "\u6700\u957f\u8fd0\u884c\u65f6\u95f4 (max_runtime_min)",
+            "type": "integer",
+            "ui_control": "number",
+            "options": [],
+            "default": 60,
+            "required_by_profiles": []
+        },
+        {
+            "field": "tools_allowed",
+            "prompt": "\u5141\u8bb8\u5de5\u5177 (tools_allowed)",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "options": [
+                "esmfold",
+                "nim_esmfold",
+                "alphafold",
+                "openfold",
+                "protein_mpnn",
+                "protgpt2",
+                "biopython_qc",
+                "mmseqs2",
+                "blastp",
+                "dssp",
+                "objective_ranker",
+                "foldseek",
+                "interproscan",
+                "mda_analysis",
+                "autodock_vina"
+            ],
+            "default": [],
+            "required_by_profiles": []
+        },
+        {
+            "field": "tools_excluded",
+            "prompt": "\u6392\u9664\u5de5\u5177 (tools_excluded)",
+            "type": "tool_id_list",
+            "ui_control": "multi_select",
+            "options": [
+                "esmfold",
+                "nim_esmfold",
+                "alphafold",
+                "openfold",
+                "protein_mpnn",
+                "protgpt2",
+                "biopython_qc",
+                "mmseqs2",
+                "blastp",
+                "dssp",
+                "objective_ranker",
+                "foldseek",
+                "interproscan",
+                "mda_analysis",
+                "autodock_vina"
+            ],
+            "default": [],
+            "required_by_profiles": []
+        },
+        {
+            "field": "require_plan_confirm",
+            "prompt": "\u786e\u8ba4\u8ba1\u5212 (require_plan_confirm)",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "options": [],
+            "default": true,
+            "required_by_profiles": []
+        },
+        {
+            "field": "allow_replan",
+            "prompt": "\u5141\u8bb8\u91cd\u89c4\u5212 (allow_replan)",
+            "type": "boolean",
+            "ui_control": "checkbox",
+            "options": [],
+            "default": true,
+            "required_by_profiles": []
+        }
+    ],
+    "llm_extraction_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+            "task_kind": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u4efb\u52a1\u7c7b\u578b, design mode, task kind",
+                        "enum": [
+                            "de_novo_design",
+                            "sequence_evaluation",
+                            "template_constrained_design",
+                            "stability_optimization",
+                            "motif_scaffold_design",
+                            "binding_design",
+                            "enzyme_like_design"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "objective_type": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u76ee\u6807, objective, optimization target",
+                        "enum": [
+                            "stability",
+                            "structure",
+                            "binding",
+                            "activity"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "objective_weights": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "object",
+                        "description": "\u76ee\u6807\u6743\u91cd, objective weights, scoring weights"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "goal_summary": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u76ee\u6807\u6458\u8981, goal summary, confirmed goal"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "objective_description": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u76ee\u6807\u63cf\u8ff0, goal, description"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "sequence": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u5e8f\u5217, sequence"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "template_pdb": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u6a21\u677f\u7ed3\u6784, template pdb, template structure"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "initial_artifacts": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u521d\u59cb\u4ea7\u7269, artifacts, artifact refs",
+                        "items": {
+                            "type": "object"
+                        }
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "target_ligand": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u914d\u4f53, ligand, small molecule"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "length_range": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u957f\u5ea6, aa, amino acids"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "design_count": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "integer",
+                        "description": "\u5019\u9009\u6570, design count"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "quality_metric": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u8d28\u91cf\u6307\u6807, quality metric",
+                        "enum": [
+                            "plddt",
+                            "ptm",
+                            "sequence_similarity",
+                            "custom_score"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "min_quality_score": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "number",
+                        "description": "\u6700\u4f4e\u8d28\u91cf, min quality, score threshold"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "target_fold": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u76ee\u6807\u6298\u53e0, fold, topology"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "secondary_structure_bias": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u4e8c\u7ea7\u7ed3\u6784\u504f\u597d, secondary structure",
+                        "enum": [
+                            "alpha",
+                            "beta",
+                            "mixed",
+                            "none"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "motif_pattern": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "motif, \u57fa\u5e8f, functional motif"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "binding_partner": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u7ed3\u5408\u5bf9\u8c61, binding partner, target protein"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "active_site_residues": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u6d3b\u6027\u4f4d\u70b9, active site residues"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "safety_level": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u5b89\u5168\u7b49\u7ea7, safety",
+                        "enum": [
+                            "S0",
+                            "S1",
+                            "S2"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "forbidden_motifs": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u7981\u7528\u7247\u6bb5, forbidden motifs"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "forbidden_functions": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u7981\u7528\u529f\u80fd, forbidden functions"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "organism": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u7269\u79cd, organism, host organism"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "run_profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "\u8fd0\u884c\u6a21\u5f0f, profile, speed",
+                        "enum": [
+                            "fast_smoke",
+                            "balanced",
+                            "high_accuracy"
+                        ]
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "max_runtime_min": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "integer",
+                        "description": "\u6700\u957f\u8fd0\u884c\u65f6\u95f4, max runtime, time budget"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "tools_allowed": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u5141\u8bb8\u5de5\u5177, allowed tools",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "esmfold",
+                                "nim_esmfold",
+                                "alphafold",
+                                "openfold",
+                                "protein_mpnn",
+                                "protgpt2",
+                                "biopython_qc",
+                                "mmseqs2",
+                                "blastp",
+                                "dssp",
+                                "objective_ranker",
+                                "foldseek",
+                                "interproscan",
+                                "mda_analysis",
+                                "autodock_vina"
+                            ]
+                        }
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "tools_excluded": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "description": "\u6392\u9664\u5de5\u5177, excluded tools",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "esmfold",
+                                "nim_esmfold",
+                                "alphafold",
+                                "openfold",
+                                "protein_mpnn",
+                                "protgpt2",
+                                "biopython_qc",
+                                "mmseqs2",
+                                "blastp",
+                                "dssp",
+                                "objective_ranker",
+                                "foldseek",
+                                "interproscan",
+                                "mda_analysis",
+                                "autodock_vina"
+                            ]
+                        }
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "require_plan_confirm": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "boolean",
+                        "description": "\u786e\u8ba4\u8ba1\u5212, plan confirmation"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            },
+            "allow_replan": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "value",
+                    "confidence",
+                    "source"
+                ],
+                "properties": {
+                    "value": {
+                        "type": "boolean",
+                        "description": "\u5141\u8bb8\u91cd\u89c4\u5212, allow replan"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "minimum": 0.0,
+                        "maximum": 1.0
+                    },
+                    "source": {
+                        "const": "llm_extract"
+                    },
+                    "source_span": {
+                        "type": "string"
+                    }
+                }
+            }
+        }
+    },
+    "confirmed_task_spec_mapping": {
+        "task_kind": "constraints.task_kind",
+        "objective_type": "objective.objective_type",
+        "objective_weights": "objective.objective_weights",
+        "goal_summary": "objective.description",
+        "objective_description": "objective.description",
+        "sequence": "inputs.sequence",
+        "template_pdb": "inputs.template_pdb",
+        "initial_artifacts": "initial_artifacts",
+        "target_ligand": "inputs.target_ligand",
+        "length_range": "constraints.length_range",
+        "design_count": "constraints.design_count",
+        "quality_metric": "constraints.quality_metric",
+        "min_quality_score": "constraints.min_quality_score",
+        "target_fold": "constraints.target_fold",
+        "secondary_structure_bias": "constraints.secondary_structure_bias",
+        "motif_pattern": "constraints.motif_pattern",
+        "binding_partner": "constraints.binding_partner",
+        "active_site_residues": "constraints.active_site_residues",
+        "safety_level": "constraints.safety_level",
+        "forbidden_motifs": "constraints.forbidden_motifs",
+        "forbidden_functions": "constraints.forbidden_functions",
+        "organism": "constraints.organism",
+        "run_profile": "constraints.run_profile",
+        "max_runtime_min": "constraints.max_runtime_min",
+        "tools_allowed": "constraints.tools_allowed",
+        "tools_excluded": "constraints.tools_excluded",
+        "require_plan_confirm": "constraints.require_plan_confirm",
+        "allow_replan": "constraints.allow_replan"
+    },
+    "planner_capability_hints": {
+        "de_novo_design": [
+            "sequence_generation",
+            "structure_prediction"
+        ],
+        "sequence_evaluation": [
+            "sequence_evaluation",
+            "objective_scoring",
+            "quality_qc"
+        ],
+        "template_constrained_design": [
+            "sequence_design",
+            "structure_prediction"
+        ],
+        "stability_optimization": [
+            "objective_scoring",
+            "stability_simulation"
+        ],
+        "motif_scaffold_design": [
+            "motif_scaffolding",
+            "backbone_generation"
+        ],
+        "binding_design": [
+            "binding_design",
+            "docking_scoring"
+        ],
+        "enzyme_like_design": [
+            "enzyme_design",
+            "function_annotation"
+        ]
+    },
+    "planner_capability_hint_details": {
+        "de_novo_design": [
+            {
+                "name": "sequence_generation",
+                "required": true
+            },
+            {
+                "name": "structure_prediction",
+                "required": true
+            }
+        ],
+        "sequence_evaluation": [
+            {
+                "name": "sequence_evaluation",
+                "required": true
+            },
+            {
+                "name": "objective_scoring",
+                "required": true
+            },
+            {
+                "name": "quality_qc",
+                "required": true
+            }
+        ],
+        "template_constrained_design": [
+            {
+                "name": "sequence_design",
+                "required": true
+            },
+            {
+                "name": "structure_prediction",
+                "required": true
+            }
+        ],
+        "stability_optimization": [
+            {
+                "name": "objective_scoring",
+                "required": true,
+                "io_type": "candidates_to_objective_scores_topk",
+                "degraded_message": "Objective scoring is required for ranking stability optimization candidates."
+            },
+            {
+                "name": "stability_simulation",
+                "required": false,
+                "io_type": "trajectory_to_stability_metrics",
+                "degraded_message": "Stability simulation is experimental and may be shown as degraded."
+            }
+        ],
+        "motif_scaffold_design": [
+            {
+                "name": "motif_scaffolding",
+                "required": true,
+                "degraded_message": "Motif scaffold design requires a registered motif scaffolding capability."
+            },
+            {
+                "name": "backbone_generation",
+                "required": true,
+                "degraded_message": "Backbone generation is required before motif scaffold execution."
+            }
+        ],
+        "binding_design": [
+            {
+                "name": "binding_design",
+                "required": true,
+                "degraded_message": "Binding design is unsupported until a binding-design adapter-backed tool is registered."
+            },
+            {
+                "name": "docking_scoring",
+                "required": true,
+                "io_type": "structure_ligand_to_binding_score",
+                "degraded_message": "Docking scoring is required for binding design evaluation."
+            }
+        ],
+        "enzyme_like_design": [
+            {
+                "name": "enzyme_design",
+                "required": true,
+                "degraded_message": "Enzyme-like design is unsupported until an enzyme-design capability is registered."
+            },
+            {
+                "name": "function_annotation",
+                "required": true,
+                "io_type": "sequence_or_structure_to_function_terms",
+                "degraded_message": "Function annotation is required for enzyme-like design review."
+            }
+        ]
+    },
+    "conditional_required": [
+        {
+            "if": {
+                "field": "objective_type",
+                "equals": "binding"
+            },
+            "required": [
+                "binding_partner"
+            ],
+            "reason": "binding objective needs an explicit target partner",
+            "profile": "binding_design"
+        },
+        {
+            "if": {
+                "field": "objective_type",
+                "equals": "activity"
+            },
+            "required": [
+                "active_site_residues"
+            ],
+            "reason": "enzyme-like activity needs active-site anchors",
+            "profile": "enzyme_like_design"
+        }
+    ]
+}

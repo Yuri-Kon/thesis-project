@@ -1,0 +1,13 @@
+slice_type,slice_value,group_id,runs,success_rate,success_ci_low,success_ci_high,first_pass_success_rate,schema_valid_rate,executable_plan_rate,waiting_chain_complete_rate,failure_traceable_rate,duration_ms_mean,duration_ms_ci_low,duration_ms_ci_high,high_cost_call_mean,high_cost_call_ci_low,high_cost_call_ci_high,high_cost_failure_mean,patch_events_mean,replan_events_mean,suffix_replan_events_mean,recovery_event_mean,patch_minimality_hit_rate,suffix_replan_prefix_preservation_rate,action_continue_mean,action_patch_local_mean,action_suffix_replan_mean,action_stop_mean,shadow_action_agreement_rate
+difficulty,easy,static_top1,2,1.0,0.34237195288961925,1.0,0.5,1.0,1.0,1.0,1.0,278500.0,195000.0,362000.0,0.0,0.0,0.0,0.0,0.5,0.0,0.0,0.5,1.0,,4.0,0.5,0.0,0.0,
+difficulty,easy,fixed_threshold_gate,2,0.0,0.0,0.6576280471103807,0.0,1.0,1.0,1.0,1.0,32500.0,32000.0,33000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,easy,dynamic_no_belief_state,2,0.0,0.0,0.6576280471103807,0.0,1.0,1.0,1.0,1.0,27500.0,24000.0,31000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,easy,lite_belief_state,2,0.0,0.0,0.6576280471103807,0.0,1.0,1.0,1.0,1.0,1000.0,1000.0,1000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,medium,static_top1,4,1.0,0.5100999795960008,1.0,0.75,1.0,1.0,1.0,1.0,215250.0,139500.0,296750.0,0.5,0.0,1.0,0.0,0.25,0.0,0.0,0.25,1.0,,4.25,0.25,0.0,0.0,
+difficulty,medium,fixed_threshold_gate,4,0.0,0.0,0.48990002040399916,0.0,1.0,1.0,1.0,1.0,44000.0,30250.0,70750.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.25,0.0,0.0,0.0,
+difficulty,medium,dynamic_no_belief_state,4,0.0,0.0,0.48990002040399916,0.0,1.0,1.0,1.0,1.0,16500.0,1000.0,32000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,medium,lite_belief_state,4,0.0,0.0,0.48990002040399916,0.0,1.0,1.0,1.0,1.0,5250.0,1000.0,13750.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,hard,static_top1,1,1.0,0.20654329147389294,1.0,0.0,1.0,1.0,1.0,1.0,348000.0,348000.0,348000.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,1.0,1.0,,4.0,1.0,0.0,0.0,
+difficulty,hard,fixed_threshold_gate,1,0.0,0.0,0.7934567085261071,0.0,1.0,1.0,1.0,1.0,33000.0,33000.0,33000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,hard,dynamic_no_belief_state,1,0.0,0.0,0.7934567085261071,0.0,1.0,1.0,1.0,1.0,32000.0,32000.0,32000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,
+difficulty,hard,lite_belief_state,1,0.0,0.0,0.7934567085261071,0.0,1.0,1.0,1.0,1.0,1000.0,1000.0,1000.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,,,0.0,0.0,0.0,0.0,

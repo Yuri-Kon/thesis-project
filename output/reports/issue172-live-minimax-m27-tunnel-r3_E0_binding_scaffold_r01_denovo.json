@@ -1,0 +1,97 @@
+{
+  "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_binding_scaffold_r01",
+  "task_description": "Generate a scaffold with exposed pocket for small-molecule binding.\n\nExternal baseline style hint: Use a ReAct-style single trajectory baseline. Keep one concise tool path and avoid branch search or verbal reflection.",
+  "design_goal": "de_novo_design",
+  "created_at": "2026-04-22T01:45:31+00:00",
+  "status": "success",
+  "tool_chain": {
+    "sequence_design_tool": "protgpt2",
+    "structure_prediction_tool": "openfold",
+    "description": "序列设计(protgpt2) → 结构预测(openfold)"
+  },
+  "step_summaries": [
+    {
+      "step_id": "S1",
+      "tool": "protgpt2",
+      "status": "success",
+      "inputs_summary": {
+        "goal": "Generate a scaffold with exposed pocket for small-molecule binding.",
+        "length_range": [
+          45,
+          95
+        ],
+        "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+        "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_binding_scaffold_r01",
+        "step_id": "S1"
+      },
+      "outputs_summary": {
+        "sequence": "GENERATEASCAFFLDWITH...WRTPSATCWSMRRAPRSATS (382 aa)",
+        "device_used": "cuda"
+      },
+      "error_message": null
+    },
+    {
+      "step_id": "S2",
+      "tool": "openfold",
+      "status": "success",
+      "inputs_summary": {
+        "sequence": "GENERATEASCAFFLDWITHEPSEDPCKETFRSMALLMLECLEINDINGM... (382 chars)",
+        "goal": "Generate a scaffold with exposed pocket for small-... (217 chars)",
+        "length_range": [
+          45,
+          95
+        ],
+        "prompt": "Generate a scaffold with exposed pocket for small-molecule binding.",
+        "execution_mode": "openfold3_rest",
+        "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_binding_scaffold_r01",
+        "step_id": "S2"
+      },
+      "outputs_summary": {
+        "pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+        "plddt": 42.0,
+        "cif_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+        "sequence": "GENERATEASCAFFLDWITH...WRTPSATCWSMRRAPRSATS (382 aa)",
+        "metrics": {
+          "plddt_mean": 42.0,
+          "confidence": "low"
+        },
+        "stage_id": "S2"
+      },
+      "error_message": null
+    },
+    {
+      "step_id": "S3",
+      "tool": "biopython_qc",
+      "status": "success",
+      "inputs_summary": {
+        "pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/... (147 chars)",
+        "sequence": "GENERATEASCAFFLDWITHEPSEDPCKETFRSMALLMLECLEINDINGM... (382 chars)",
+        "task_id": "issue172-live-minimax-m27-tunnel-r3_E0_binding_scaffold_r01",
+        "step_id": "S3"
+      },
+      "outputs_summary": {
+        "stage_id": "S3",
+        "stage_name": "quality_gate",
+        "capability_id": "quality_qc",
+        "io_type": "sequence_structure_to_qc_metrics",
+        "pass_count": 1,
+        "fail_count": 0,
+        "pass_fail": true,
+        "best_candidate_id": "candidate_1",
+        "sequence": "GENERATEASCAFFLDWITH...WRTPSATCWSMRRAPRSATS (382 aa)",
+        "pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif"
+      },
+      "error_message": null
+    }
+  ],
+  "success_report": {
+    "final_sequence": "GENERATEASCAFFLDWITHEPSEDPCKETFRSMALLMLECLEINDINGMNVATTANPLALAPKQPLLPGVSSPTHAHTHTHQDAAPAKAPTPRLQRRDPRVLQPRTPQLRGHRRVQPTQVRPHPHRQGHQGRVQPRRLPPAARRHHLHRARRRPRRGHRGRHGAAGQPGPVLRASTGGQPAPPCRCPSPTGCSRSRRASSVPTAPACWAGPWSTRTPRATTPARSPAPTSARSSGSACRTSTGRCGSRRSRTPSGCCRCCWRRRTSTACSAWSTCTPTARGRWPTWASTTASTRTCRSPSSTRATSSPAPPGWGRCGTPPAASPTSRARATTTAASSWATAPSTASAAIPSIPTARPTTGSWRTPSATCWSMRRAPRSATS",
+    "sequence_length": 382,
+    "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_2746317213/openfold3_request_seed_2746317213_sample_1_model.cif",
+    "plddt_mean": 42.0,
+    "confidence": "low"
+  },
+  "failure_report": null,
+  "report_json_path": null,
+  "report_markdown_path": null
+}

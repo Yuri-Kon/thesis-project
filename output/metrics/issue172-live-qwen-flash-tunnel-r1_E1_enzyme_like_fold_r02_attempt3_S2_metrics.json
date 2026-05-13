@@ -1,0 +1,10 @@
+{
+  "task_id": "issue172-live-qwen-flash-tunnel-r1_E1_enzyme_like_fold_r02_attempt3",
+  "step_id": "S2",
+  "tool": "esmfold",
+  "sequence_length": 324,
+  "plddt_mean": 0.85,
+  "plddt_std": 0.12,
+  "confidence": "high",
+  "prediction_time_s": 10.5
+}

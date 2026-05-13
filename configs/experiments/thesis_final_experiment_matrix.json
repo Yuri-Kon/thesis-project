@@ -1,0 +1,88 @@
+{
+  "issue_id": 221,
+  "experiment_name": "thesis-final-four-group-matrix",
+  "description": "Final thesis four-group experiment matrix using the thesis-final-v1 real-case task set while reusing the frozen baseline group and metric contracts.",
+  "baseline_freeze_config_path": "configs/experiments/baseline_experiment_contract.json",
+  "task_set_config_path": "configs/experiments/thesis_final_task_set.json",
+  "output_root": "output/experiment/thesis-final-matrix",
+  "repeats": 2,
+  "default_goal": "de_novo_design",
+  "group_overrides": {
+    "dynamic_no_belief_state": {
+      "implementation_status": "implemented",
+      "supports_current_repo": true,
+      "notes": "Observation-driven dynamic baseline with runtime_policy=dynamic_observation_only."
+    },
+    "lite_belief_state": {
+      "implementation_status": "implemented",
+      "supports_current_repo": true,
+      "notes": "Lite belief-state baseline with runtime rerank and adaptive action selection enabled."
+    }
+  },
+  "repeat_policy": {
+    "by_budget_tier": {
+      "high_cost_sensitive": 1,
+      "standard": 2,
+      "low_cost_first": 2
+    }
+  },
+  "artifact_policy": {
+    "all_runs_required": [
+      "run_config_path",
+      "event_log_path"
+    ],
+    "success_runs_required": [
+      "snapshot_path",
+      "report_path"
+    ],
+    "waiting_runs_required": [
+      "snapshot_path"
+    ],
+    "failed_runs_required": []
+  },
+  "rerun_policy": {
+    "max_attempts": 2
+  },
+  "offline_thresholds": {
+    "schema_valid_rate": 0.995,
+    "executable_plan_rate": 0.95,
+    "patch_minimality_hit_rate": 0.8,
+    "suffix_replan_prefix_preservation_rate": 1.0
+  },
+  "requirement2_capability_map": {
+    "sequence_core": [
+      "sequence_generation",
+      "sequence_design"
+    ],
+    "quality_qc": [
+      "quality_qc"
+    ],
+    "objective_scoring": [
+      "objective_scoring"
+    ],
+    "structure_prediction": [
+      "structure_prediction"
+    ],
+    "similarity_search": [
+      "sequence_similarity_search"
+    ],
+    "secondary_structure": [
+      "secondary_structure_annotation"
+    ]
+  },
+  "base_constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "fallback_tool_ids": ["esmfold", "nim_esmfold"],
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1"
+  },
+  "base_metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1"
+  }
+}

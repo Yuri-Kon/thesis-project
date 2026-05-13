@@ -1,0 +1,116 @@
+<mxfile>
+  <diagram name="Problem Solution Comparison" id="problem-solution-comparison">
+    <mxGraphModel dx="860" dy="671" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1150" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="问题-方案对照图：固定流水线 vs 本系统" vertex="1">
+          <mxGeometry height="34" width="1720" x="40" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="从工具链选择、失败处理、安全审查和可追溯性四个维度说明设计动机。" vertex="1">
+          <mxGeometry height="30" width="1640" x="80" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="left_group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeWidth=2;fontFamily=Helvetica;fontSize=15;fontStyle=1;align=center;verticalAlign=top;spacing=12;strokeColor=#64748B;" value="固定流水线" vertex="1">
+          <mxGeometry height="820" width="760" x="80" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="right_group" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeWidth=2;fontFamily=Helvetica;fontSize=15;fontStyle=1;align=center;verticalAlign=top;spacing=12;strokeColor=#2563EB;" value="本系统" vertex="1">
+          <mxGeometry height="820" width="760" x="960" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#64748B;" value="用户输入目标" vertex="1">
+          <mxGeometry height="70" width="400" x="260" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#64748B;" value="人工或脚本选定工具链" vertex="1">
+          <mxGeometry height="70" width="400" x="260" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#64748B;" value="顺序执行固定步骤" vertex="1">
+          <mxGeometry height="70" width="400" x="260" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="l4" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#64748B;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;" value="步骤失败？" vertex="1">
+          <mxGeometry height="80" width="320" x="300" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#DC2626;fontColor=#991B1B;" value="任务失败&lt;br&gt;缺少自动恢复路径" vertex="1">
+          <mxGeometry height="86" width="400" x="260" y="740" as="geometry" />
+        </mxCell>
+        <mxCell id="l6" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="局限：候选单一路径、故障不可恢复、缺少显式审计链" vertex="1">
+          <mxGeometry height="46" width="590" x="165" y="870" as="geometry" />
+        </mxCell>
+        <mxCell id="le1" edge="1" parent="1" source="l1" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="l2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="le2" edge="1" parent="1" source="l2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="l3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="le3" edge="1" parent="1" source="l3" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="l4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="le4" edge="1" parent="1" source="l4" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="l5" value="yes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;" value="用户输入目标 + 约束" vertex="1">
+          <mxGeometry height="66" width="400" x="1140" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="Planner + ToolKG&lt;br&gt;生成 Top-K 候选" vertex="1">
+          <mxGeometry height="78" width="400" x="1140" y="305" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="人工审查&lt;br&gt;确认/选择候选" vertex="1">
+          <mxGeometry height="78" width="400" x="1140" y="425" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="Executor 执行&lt;br&gt;RuntimeState 更新" vertex="1">
+          <mxGeometry height="78" width="400" x="1140" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#15803D;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;" value="失败？" vertex="1">
+          <mxGeometry height="76" width="320" x="1180" y="665" as="geometry" />
+        </mxCell>
+        <mxCell id="r6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="retry → patch → replan&lt;br&gt;分层恢复" vertex="1">
+          <mxGeometry height="76" width="400" x="1140" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="r7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#0F766E;" value="DesignResult + EventLog + Snapshot&lt;br&gt;形成可追溯审计链" vertex="1">
+          <mxGeometry height="76" width="400" x="1140" y="874" as="geometry" />
+        </mxCell>
+        <mxCell id="safe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#DC2626;fontSize=12;" value="SafetyAgent 全程审查" vertex="1">
+          <mxGeometry height="160" width="150" x="1560" y="495" as="geometry" />
+        </mxCell>
+        <mxCell id="re1" edge="1" parent="1" source="r1" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="r2" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="re2" edge="1" parent="1" source="r2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="r3" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="re3" edge="1" parent="1" source="r3" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="r4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="re4" edge="1" parent="1" source="r4" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="r5" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="re5" edge="1" parent="1" source="r5" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="r6" value="yes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="re6" edge="1" parent="1" source="r6" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="r4" value="resume">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1060" y="828" />
+              <mxPoint x="1060" y="584" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="re7" edge="1" parent="1" source="r5" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="r7" value="no">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1610" y="703" />
+              <mxPoint x="1610" y="912" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="cmp1" parent="1" style="fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="工具链选择：人工固定 → 能力驱动候选生成" vertex="1">
+          <mxGeometry height="40" width="500" x="650" y="355" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp2" parent="1" style="fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="失败处理：直接失败 → retry / patch / replan" vertex="1">
+          <mxGeometry height="40" width="500" x="650" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="cmp3" parent="1" style="fontFamily=Helvetica;fontSize=12;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" value="安全与追溯：隐式检查 → SafetyAgent + EventLog + Snapshot" vertex="1">
+          <mxGeometry height="40" width="500" x="650" y="880" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

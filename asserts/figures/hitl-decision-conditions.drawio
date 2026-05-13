@@ -1,0 +1,138 @@
+<mxfile>
+  <diagram name="HITL Decision Conditions" id="hitl-decision-conditions">
+    <mxGraphModel dx="1191" dy="929" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" background="#FFFFFF" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="HITL 触发条件与决策逻辑图" vertex="1">
+          <mxGeometry height="34" width="1720" x="40" y="26" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="补充 FSM 状态转移图中的条件语义：只有置信度、成本、安全或恢复不确定性超过边界时进入 WAITING_*。" vertex="1">
+          <mxGeometry height="30" width="1640" x="80" y="66" as="geometry" />
+        </mxCell>
+        <mxCell id="planning" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;" value="PLANNING&lt;br&gt;生成 PlanCandidate Top-K" vertex="1">
+          <mxGeometry height="90" width="300" x="140" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="pdecision" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D97706;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;" value="候选置信度不足？&lt;br&gt;高成本工具？&lt;br&gt;safety warn？" vertex="1">
+          <mxGeometry height="120" width="300" x="610" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="planned" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="PLANNED&lt;br&gt;自动进入执行准备" vertex="1">
+          <mxGeometry height="90" width="300" x="1080" y="180" as="geometry" />
+        </mxCell>
+        <mxCell id="wplan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;align=left;" value="WAITING_PLAN_CONFIRM&lt;br&gt;PendingAction(plan_confirm)&lt;br&gt;人工确认候选或选择替代候选" vertex="1">
+          <mxGeometry height="120" width="360" x="1080" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="running" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="RUNNING&lt;br&gt;StepRunner 执行当前步骤" vertex="1">
+          <mxGeometry height="90" width="300" x="140" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="rdecision" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#15803D;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;" value="步骤失败？" vertex="1">
+          <mxGeometry height="120" width="300" x="610" y="565" as="geometry" />
+        </mxCell>
+        <mxCell id="next" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="RUNNING&lt;br&gt;继续下一步" vertex="1">
+          <mxGeometry height="90" width="300" x="1080" y="580" as="geometry" />
+        </mxCell>
+        <mxCell id="retry" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#0284C7;" value="retry 可用&lt;br&gt;自动重试" vertex="1">
+          <mxGeometry height="80" width="300" x="1080" y="700" as="geometry" />
+        </mxCell>
+        <mxCell id="recover" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="retry 耗尽后的失败分类" vertex="1">
+          <mxGeometry height="70" width="520" x="500" y="805" as="geometry" />
+        </mxCell>
+        <mxCell id="wpatch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;align=left;" value="WAITING_PATCH_CONFIRM&lt;br&gt;patchable local failure&lt;br&gt;人工确认局部修复" vertex="1">
+          <mxGeometry height="120" width="360" x="180" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="wreplan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#DC2626;align=left;" value="WAITING_REPLAN_CONFIRM&lt;br&gt;结构性失败或安全阻断&lt;br&gt;人工确认后缀重规划" vertex="1">
+          <mxGeometry height="120" width="400" x="720" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="failed" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=13;align=center;verticalAlign=middle;spacing=8;strokeColor=#64748B;" value="FAILED / STOP&lt;br&gt;不可恢复或用户终止" vertex="1">
+          <mxGeometry height="100" width="300" x="1300" y="940" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="planning" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="pdecision" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="pdecision" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="planned" value="no">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="pdecision" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="wplan" value="yes">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="390" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="planned" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="running" value="confirmed plan">
+          <mxGeometry relative="1" x="0.4204" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1480" y="225" />
+              <mxPoint x="1480" y="520" />
+              <mxPoint x="365" y="520" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="wplan" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="running" value="Decision approve/select">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1260" y="500" />
+              <mxPoint x="290" y="500" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="running" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="rdecision" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="rdecision" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="next" value="no">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e8" edge="1" parent="1" source="rdecision" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="retry" value="yes + retry budget">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="740" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="retry" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="running" value="resume">
+          <mxGeometry relative="1" x="0.8716" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1230" y="800" />
+              <mxPoint x="290" y="800" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="recover" value="yes + retry exhausted">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="760" y="680" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="recover" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="wpatch" value="local patchable">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="900" />
+              <mxPoint x="360" y="900" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="recover" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="wreplan" value="structural / safety">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="900" />
+              <mxPoint x="920" y="900" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="recover" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="failed" value="not recoverable">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="760" y="900" />
+              <mxPoint x="1200" y="900" />
+              <mxPoint x="1200" y="990" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="note" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="决策原则：自动路径处理低风险、确定性动作；WAITING_* 用于高成本、不确定或需研究者承担语义判断的动作。" vertex="1">
+          <mxGeometry height="42" width="1320" x="240" y="1100" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -10,20 +10,20 @@ from src.infra.benchmark_platform_adapters import (
 )
 
 
-def test_issue199_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
+def test_platform_adapter_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
     manifest, output_dir = build_issue199_platform_adapter_bundle(
-        config=load_json(Path("configs/experiments/issue199_benchmark_platform_adapters.json")),
+        config=load_json(Path("configs/experiments/benchmark_platform_adapters.json")),
         output_root=tmp_path,
-        freeze_id="issue199-test-freeze",
+        freeze_id="platform-adapter-test-freeze",
     )
 
-    assert manifest["freeze_id"] == "issue199-test-freeze"
-    assert (output_dir / "issue199_platform_adapter_manifest.json").exists()
-    assert (output_dir / "issue199_platform_adapter_report.md").exists()
+    assert manifest["freeze_id"] == "platform-adapter-test-freeze"
+    assert (output_dir / "platform_adapter_manifest.json").exists()
+    assert (output_dir / "platform_adapter_report.md").exists()
     assert (output_dir / "inspect_ai" / "inspect_react_samples.jsonl").exists()
-    assert (output_dir / "inspect_ai" / "inspect_issue199_react_smoke.py").exists()
+    assert (output_dir / "inspect_ai" / "inspect_react_smoke.py").exists()
     assert (output_dir / "mlflow" / "mlflow_react_samples.jsonl").exists()
-    assert (output_dir / "mlflow" / "mlflow_issue199_react_eval.py").exists()
+    assert (output_dir / "mlflow" / "mlflow_react_eval.py").exists()
     assert (output_dir / "promptfoo" / "promptfooconfig.yaml").exists()
     assert (output_dir / "promptfoo" / "promptfoo_react_provider.py").exists()
     assert (output_dir / "standardized" / "normalized_run.sample.json").exists()
@@ -33,10 +33,10 @@ def test_issue199_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
     promptfoo_config = (output_dir / "promptfoo" / "promptfooconfig.yaml").read_text(
         encoding="utf-8"
     )
-    inspect_task = (output_dir / "inspect_ai" / "inspect_issue199_react_smoke.py").read_text(
+    inspect_task = (output_dir / "inspect_ai" / "inspect_react_smoke.py").read_text(
         encoding="utf-8"
     )
-    report_text = (output_dir / "issue199_platform_adapter_report.md").read_text(
+    report_text = (output_dir / "platform_adapter_report.md").read_text(
         encoding="utf-8"
     )
     inspect_manifest = json.loads(
@@ -52,13 +52,13 @@ def test_issue199_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
     inspect_samples = (output_dir / "inspect_ai" / "inspect_react_samples.jsonl").read_text(
         encoding="utf-8"
     )
-    mlflow_script = (output_dir / "mlflow" / "mlflow_issue199_react_eval.py").read_text(
+    mlflow_script = (output_dir / "mlflow" / "mlflow_react_eval.py").read_text(
         encoding="utf-8"
     )
     assert "prompts:" in promptfoo_config
     assert "provider_alias: baseline" in promptfoo_config
     assert "metric: quality_rubric" in promptfoo_config
-    assert "issue199_adapter_contract" in inspect_task
+    assert "benchmark_adapter_contract" in inspect_task
     assert "mlflow.set_experiment" in mlflow_script
     assert "Allowlisted tools:" in inspect_samples
     assert "protgpt2" in inspect_samples
@@ -89,16 +89,16 @@ def test_promptfoo_payload_uses_provider_catalog_and_budget_fields() -> None:
             "openfold",
             "protein_mpnn",
         ],
-        task_id="issue199-react-smoke-001",
+        task_id="benchmark-react-smoke-001",
         task_key="enzyme_like_fold",
         goal="Design a compact enzyme-like fold.",
         constraints={"length_range": [40, 80]},
-        freeze_id="issue199-test-freeze",
-        tool_whitelist_version="issue199-tool-whitelist-v1",
+        freeze_id="platform-adapter-test-freeze",
+        tool_whitelist_version="platform-adapter-tool-whitelist-v1",
         dataset_version="issue170-remote-batch3-20260316",
     )
 
-    assert payload["plan"]["metadata"]["freeze_id"] == "issue199-test-freeze"
+    assert payload["plan"]["metadata"]["freeze_id"] == "platform-adapter-test-freeze"
     assert payload["plan"]["metadata"]["provider_alias"] == "baseline"
     assert payload["budget"]["planned_steps"] >= 1
     assert payload["budget"]["high_cost_planned_steps"] == 0
@@ -108,9 +108,9 @@ def test_promptfoo_payload_uses_provider_catalog_and_budget_fields() -> None:
 
 def test_standardized_evidence_sample_has_adapter_artifacts(tmp_path: Path) -> None:
     _, output_dir = build_issue199_platform_adapter_bundle(
-        config=load_json(Path("configs/experiments/issue199_benchmark_platform_adapters.json")),
+        config=load_json(Path("configs/experiments/benchmark_platform_adapters.json")),
         output_root=tmp_path,
-        freeze_id="issue199-evidence-freeze",
+        freeze_id="platform-adapter-evidence-freeze",
     )
 
     evidence_index = json.loads(

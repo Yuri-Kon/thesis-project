@@ -1,0 +1,10 @@
+{
+  "task_id": "thesis-final-smoke-fourgroup-t1-002_static_top1_t1_trpcage_denovo_short_peptide_r01",
+  "step_id": "S1",
+  "tool": "esmfold",
+  "sequence_length": 10,
+  "plddt_mean": 0.85,
+  "plddt_std": 0.12,
+  "confidence": "high",
+  "prediction_time_s": 10.5
+}

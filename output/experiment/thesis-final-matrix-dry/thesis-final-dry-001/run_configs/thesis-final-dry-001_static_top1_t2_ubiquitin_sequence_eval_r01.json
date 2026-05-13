@@ -1,0 +1,123 @@
+{
+  "issue_id": 221,
+  "generated_at": "2026-05-08T09:30:34+00:00",
+  "run_id": "thesis-final-dry-001_static_top1_t2_ubiquitin_sequence_eval_r01",
+  "task_id": "thesis-final-dry-001_static_top1_t2_ubiquitin_sequence_eval_r01",
+  "group": {
+    "id": "static_top1",
+    "label": "静态 Top-1",
+    "comparison_order": 0,
+    "implementation_status": "implemented",
+    "runtime_policy": "static_single_candidate",
+    "supports_current_repo": true,
+    "constraint_overrides": {
+      "plan_top_k": 1,
+      "patch_top_k": 1,
+      "replan_top_k": 1,
+      "enforce_candidate_validation": true,
+      "min_candidate_confidence": 0.0,
+      "high_cost_min_overall": 0.0,
+      "require_plan_confirm": false,
+      "require_patch_confirm": false
+    },
+    "output_fields": [
+      "success_rate",
+      "duration_ms_mean",
+      "high_cost_call_mean",
+      "patch_events_mean",
+      "replan_events_mean"
+    ],
+    "notes": "Pure static baseline with a single recommended candidate and no runtime adaptation."
+  },
+  "task": {
+    "task_key": "t2_ubiquitin_sequence_eval",
+    "goal": "Predict structure and produce a QC report for the 76-residue ubiquitin sequence.",
+    "display_name": "Ubiquitin sequence evaluation",
+    "difficulty": "medium",
+    "budget_tier": "standard",
+    "rationale": "",
+    "task_class": "T2",
+    "real_case": {
+      "source_ids": [
+        "1UBQ"
+      ],
+      "rationale": "Ubiquitin is a compact 76-residue protein with high-quality structural reference."
+    },
+    "expected_focus": [
+      "sequence_input",
+      "high_confidence_positive_control",
+      "report"
+    ],
+    "oracle_action": "continue_when_plddt_or_equivalent_confidence_is_available",
+    "constraints": {
+      "prompt": "Predict structure and produce a QC report for the 76-residue ubiquitin sequence.",
+      "goal_type": "sequence_evaluation",
+      "length_range": [
+        76,
+        76
+      ],
+      "objective_type": "structure_confidence",
+      "max_high_cost_steps": 1,
+      "inputs": {
+        "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+      },
+      "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+    },
+    "metadata": {}
+  },
+  "constraints": {
+    "safety_level": 1,
+    "prefer_remote": false,
+    "structure_prediction_tool_override": "openfold",
+    "structure_prediction_execution_mode": "openfold3_rest",
+    "secondary_structure_annotation_tool_override": "biopython_qc",
+    "task_set_version": "thesis-final-v1",
+    "plan_top_k": 1,
+    "patch_top_k": 1,
+    "replan_top_k": 1,
+    "enforce_candidate_validation": true,
+    "min_candidate_confidence": 0.0,
+    "high_cost_min_overall": 0.0,
+    "require_plan_confirm": false,
+    "require_patch_confirm": false,
+    "prompt": "Predict structure and produce a QC report for the 76-residue ubiquitin sequence.",
+    "goal_type": "sequence_evaluation",
+    "length_range": [
+      76,
+      76
+    ],
+    "objective_type": "structure_confidence",
+    "max_high_cost_steps": 1,
+    "inputs": {
+      "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG"
+    },
+    "sequence": "MQIFVKTLTGKTITLEVEPSDTIENVKAKIQDKEGIPPDQQRLIFAGKQLEDGRTLSDYNIQKESTLHLVLRLRGG",
+    "runtime_policy": "static_single_candidate"
+  },
+  "metadata": {
+    "issue": 221,
+    "experiment_track": "thesis_final_matrix",
+    "owner": "thesis-final",
+    "task_set_version": "thesis-final-v1",
+    "issue_id": 221,
+    "experiment": "w16_issue221_matrix",
+    "group_id": "static_top1",
+    "group_label": "静态 Top-1",
+    "task_key": "t2_ubiquitin_sequence_eval",
+    "replicate": 1,
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "difficulty": "medium",
+    "budget_tier": "standard"
+  },
+  "lineage": {
+    "freeze_id": "issue209-baseline-freeze-20260326",
+    "task_set_version": "thesis-final-v1",
+    "difficulty_scheme_version": "issue209-difficulty-v1",
+    "baseline_freeze_config_path": "configs/experiments/w13_issue209_baseline_freeze.json",
+    "baseline_freeze_config_hash": "04ceb6102ddc",
+    "baseline_freeze_manifest_path": null,
+    "task_source_config_path": "configs/experiments/thesis_final_task_set.json",
+    "task_source_config_hash": "b885e086dee2",
+    "high_cost_rules_hash": "ed687865eca1"
+  }
+}
