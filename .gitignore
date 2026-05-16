@@ -67,3 +67,4 @@ work/
 *.bkp
 output/reports/
 output/pdb/
+tmp/*.png
