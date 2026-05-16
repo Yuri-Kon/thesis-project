@@ -1,32 +1,6 @@
 # dev 分支用
 # 需要忽略的文件
 
-# 1. Latex编译生成文件
-
-*.aux
-*.bbl
-*.bcf
-*.blg
-*.brf
-*.idx
-*.ilg
-*.ind
-*.ist
-*.lof
-*.lot
-*.out
-*.toc
-*.fls
-*.fdb_latexmk
-*.synctex.gz
-*.synctex
-*.run.xml
-*.xdv
-*.nav
-*.snm
-*.log
-*.pdfsync
-
 # 2. 输出目录
 
 docs/**/output/
@@ -47,12 +21,6 @@ Thumbs.db
 
 .vscode/
 *.code-workspace
-
-# 5. 转化得到的文件
-
-*.pdf
-*.doc
-*.docx
 
 # 7. Latex目录
 
@@ -91,7 +59,6 @@ drafts/
 data/
 work/
 .nextflow.log.*
-tmp/
 .envrc
 .env
 *.env
