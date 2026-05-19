@@ -5,7 +5,7 @@ import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskSearch } from "../components/TaskSearch";
 import { TimelineSkeleton } from "../components/SkeletonCard";
-import { statusLabel } from "../utils/displayText";
+import { formatBeijingTimestamp, statusLabel } from "../utils/displayText";
 
 interface EventTimelinePageProps {
   state: WorkspaceState;
@@ -19,7 +19,7 @@ interface EventTimelinePageProps {
 export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, onRefresh, onInspectorChange }: EventTimelinePageProps) {
   const [showAllEvents, setShowAllEvents] = useState(false);
   const highlighted = state.events.filter((event) => event.highlight).length;
-  const latestEvent = state.events[0] ?? null;
+  const latestEvent = state.events[state.events.length - 1] ?? null;
   const visibleEvents = useMemo(
     () => (showAllEvents ? state.events : state.events.slice(0, 12)),
     [showAllEvents, state.events],
@@ -92,7 +92,7 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
                 <strong>{event.event_type}</strong>
                 <p>{event.summary}</p>
               </div>
-              <span>{event.ts ?? "无时间戳"}</span>
+              <span title={event.ts ?? undefined}>{formatBeijingTimestamp(event.ts)}</span>
             </li>
           ))}
         </ol>

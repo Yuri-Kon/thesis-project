@@ -147,3 +147,25 @@ export function statusLabel(value: string | null | undefined): string {
 export function booleanLabel(value: boolean): string {
   return value ? "是" : "否";
 }
+
+const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
+export function formatBeijingTimestamp(value: string | null | undefined): string {
+  if (!value) {
+    return "无时间戳";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+  return `${BEIJING_TIME_FORMATTER.format(parsed)} 北京时间`;
+}
