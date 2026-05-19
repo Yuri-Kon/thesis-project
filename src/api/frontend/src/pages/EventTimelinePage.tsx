@@ -5,7 +5,7 @@ import { MetricCard } from "../components/MetricCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { TaskSearch } from "../components/TaskSearch";
 import { TimelineSkeleton } from "../components/SkeletonCard";
-import { formatBeijingTimestamp, statusLabel } from "../utils/displayText";
+import { formatLocalTimestamp, statusLabel } from "../utils/displayText";
 
 interface EventTimelinePageProps {
   state: WorkspaceState;
@@ -92,7 +92,7 @@ export function EventTimelinePage({ state, taskId, onTaskIdChange, onLoadTask, o
                 <strong>{event.event_type}</strong>
                 <p>{event.summary}</p>
               </div>
-              <span title={event.ts ?? undefined}>{formatBeijingTimestamp(event.ts)}</span>
+              <span title={event.ts ?? undefined}>{formatLocalTimestamp(event.ts)}</span>
             </li>
           ))}
         </ol>

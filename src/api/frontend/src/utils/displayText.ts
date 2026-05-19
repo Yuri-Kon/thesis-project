@@ -148,8 +148,7 @@ export function booleanLabel(value: boolean): string {
   return value ? "是" : "否";
 }
 
-const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
-  timeZone: "Asia/Shanghai",
+const LOCAL_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "2-digit",
   day: "2-digit",
@@ -159,7 +158,7 @@ const BEIJING_TIME_FORMATTER = new Intl.DateTimeFormat("zh-CN", {
   hour12: false,
 });
 
-export function formatBeijingTimestamp(value: string | null | undefined): string {
+export function formatLocalTimestamp(value: string | null | undefined): string {
   if (!value) {
     return "无时间戳";
   }
@@ -167,5 +166,5 @@ export function formatBeijingTimestamp(value: string | null | undefined): string
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
-  return `${BEIJING_TIME_FORMATTER.format(parsed)} 北京时间`;
+  return `${LOCAL_TIME_FORMATTER.format(parsed)} 本地时间`;
 }

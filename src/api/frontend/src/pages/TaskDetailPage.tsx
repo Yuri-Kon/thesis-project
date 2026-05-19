@@ -12,7 +12,7 @@ import { StructureViewerPanel } from "../components/StructureViewerPanel";
 import { TaskDetailSkeleton } from "../components/SkeletonCard";
 import { TaskSearch } from "../components/TaskSearch";
 import { TheoryObjectSummary } from "../components/TheoryObjectSummary";
-import { statusLabel } from "../utils/displayText";
+import { formatLocalTimestamp, statusLabel } from "../utils/displayText";
 
 interface TaskDetailPageProps {
   state: WorkspaceState;
@@ -44,7 +44,7 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
             <dt>待处理</dt>
             <dd>{pendingLabel}</dd>
             <dt>更新时间</dt>
-            <dd>{task?.updated_at ?? "-"}</dd>
+            <dd>{task?.updated_at ? formatLocalTimestamp(task.updated_at) : "-"}</dd>
           </dl>
         ),
       },
@@ -91,7 +91,7 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
       <section className="metric-strip" aria-label="任务概览">
         <MetricCard label="外部状态" value={statusLabel(task?.status)} tone={task?.status?.includes("WAITING") ? "amber" : task?.status === "DONE" ? "green" : "blue"} />
         <MetricCard label="内部状态" value={statusLabel(task?.internal_status)} />
-        <MetricCard label="待处理操作" value={pendingLabel} detail={task?.updated_at ? `更新于 ${task.updated_at}` : undefined} tone={task?.pending_action ? "amber" : "neutral"} />
+        <MetricCard label="待处理操作" value={pendingLabel} detail={task?.updated_at ? `更新于 ${formatLocalTimestamp(task.updated_at)}` : undefined} tone={task?.pending_action ? "amber" : "neutral"} />
       </section>
       <section className="detail-grid">
       <section className="panel">
@@ -106,9 +106,9 @@ export function TaskDetailPage({ state, taskId, onTaskIdChange, onLoadTask, onRe
             <dt>内部状态</dt>
             <dd>{statusLabel(task.internal_status)}</dd>
             <dt>创建时间</dt>
-            <dd>{task.created_at}</dd>
+            <dd>{formatLocalTimestamp(task.created_at)}</dd>
             <dt>更新时间</dt>
-            <dd>{task.updated_at}</dd>
+            <dd>{formatLocalTimestamp(task.updated_at)}</dd>
             <dt>待处理操作</dt>
             <dd>{task.pending_action?.pending_action_id ?? "无"}</dd>
             <dt>约束</dt>

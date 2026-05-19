@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { identifierLabel } from "../utils/displayText";
+import { formatLocalTimestamp, identifierLabel } from "../utils/displayText";
 
 interface DraftProtectionDialogProps {
   intakeId: string;
@@ -51,7 +51,7 @@ export function DraftProtectionDialog({
         </p>
         <div className="draft-dialog-meta">
           <span>
-            最后更新：<strong>{updatedAt}</strong>
+            最后更新：<strong>{formatLocalTimestamp(updatedAt)}</strong>
           </span>
           <span>
             状态：<strong>{identifierLabel(status)}</strong>
