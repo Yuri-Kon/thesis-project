@@ -772,8 +772,10 @@ $$
 
 $$
 U_\pi(\pi,x_t)
-= \operatorname{clip}\left(S_{\text{static}}(\pi)+\Delta(\pi,x_t),0,1\right)
+= \operatorname{clip}\left(S_{\text{post}}(\pi)+\Delta(\pi,x_t),0,1\right)
 $$
+
+其中 $S_{\text{post}}(\pi)$ 表示用后验目标评分 $G_{\text{post}}(\pi;g,o_t)$ 替换静态目标项后的基础分。无后验证据时，$S_{\text{post}}(\pi)=S_{\text{static}}(\pi)$。实现中，完成 posterior objective binding 后的 `score_breakdown.overall` / `static_score` 对应该基础分，`final_score` 对应 $S_{\text{post}}(\pi)+\Delta(\pi,x_t)$ 的裁剪结果。
 
 ### 6.3 常量来源
 

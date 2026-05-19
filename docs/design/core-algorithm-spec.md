@@ -312,9 +312,11 @@ $$
 \Pi_{\text{raw},t} &= \operatorname{GenerateCandidates}(g,\mathcal{C},K,h_t),\\
 \Pi_t &= \operatorname{FeasibilityFilter}(\Pi_{\text{raw},t},\mathcal{C},K,h_t),\\
 S_{\text{static}}(\pi) &= \operatorname{StaticUtility}(\pi,g,\mathcal{C},K),\\
+G_{\text{post}}(\pi;g,o_t) &= \operatorname{PosteriorObjective}(\pi,g,o_t),\\
+S_{\text{post}}(\pi) &= \operatorname{ReplaceObjectiveTerm}(S_{\text{static}}(\pi),G_{\text{post}}(\pi;g,o_t)),\\
 x_{t+1} &= \operatorname{BeliefUpdate}(x_t,o_t,h_t),\\
-U_\pi(\pi,x_t) &= \operatorname{RuntimeCandidateUtility}(S_{\text{static}}(\pi),x_t),\\
-a_t &= \operatorname{RecoveryAwareActionSelection}(x_t,\Pi_t,h_t).
+U_\pi(\pi,x_{t+1}) &= \operatorname{RuntimeCandidateUtility}(S_{\text{post}}(\pi),x_{t+1}),\\
+a_t &= \operatorname{RecoveryAwareActionSelection}(x_{t+1},\Pi_t,h_t,\mathcal{C}).
 \end{aligned}
 $$
 
@@ -727,12 +729,14 @@ $$
 
 $$
 U_\pi(\pi,x_t)
-= \operatorname{clip}\left(S_{\text{static}}(\pi)+\Delta(\pi,x_t),0,1\right)
+= \operatorname{clip}\left(S_{\text{post}}(\pi)+\Delta(\pi,x_t),0,1\right)
 $$
 
 其中：
 
-- `static_score` 是静态评分器输出；
+- $S_{\text{post}}(\pi)$ 是用 $G_{\text{post}}(\pi;g,o_t)$ 替换静态目标项后的基础分；
+- 无后验证据时，$S_{\text{post}}(\pi)=S_{\text{static}}(\pi)$；
+- 实现中 `score_breakdown.overall` / `static_score` 是当前用于 rerank 的基础分；无 `posterior_objective` 时对应 $S_{\text{static}}$，有后验证据绑定时对应 $S_{\text{post}}$；
 - $\Delta(\pi,x_t)$ 是运行时状态与候选形状共同作用的有界修正项；
 - $\Delta(\pi,x_t)$ 只作用于已通过可执行性校验的候选。
 
@@ -887,16 +891,17 @@ Algorithm CEBRA-WP(g, C, K, h_t, o_t, x_t)
 6:  end if
 7:  for each pi in Pi_t do
 8:      S_static(pi) <- StaticUtility(pi, g, C, K)
-9:  end for
-10: x_{t+1} <- BeliefUpdate(x_t, o_t, h_t)
-11: for each pi in Pi_t do
-12:     Delta(pi,x_{t+1}) <- RuntimeAdjustment(pi, x_{t+1})
-13:     U_pi(pi,x_{t+1}) <- clip(S_static(pi)+Delta(pi,x_{t+1}),0,1)
-14: end for
-15: TopK_t <- SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
-16: compute U_a for continue / patch_local / suffix_replan / stop
-17: a_t <- ApplyHardPrioritiesAndSelectAction(U_a, x_{t+1}, h_t, C)
-18: return Decision_t with candidates, selected_action, explanations, evidence_refs
+9:      S_post(pi) <- ReplaceObjectiveTerm(S_static(pi), PosteriorObjective(pi, g, o_t))
+10: end for
+11: x_{t+1} <- BeliefUpdate(x_t, o_t, h_t)
+12: for each pi in Pi_t do
+13:     Delta(pi,x_{t+1}) <- RuntimeAdjustment(pi, x_{t+1})
+14:     U_pi(pi,x_{t+1}) <- clip(S_post(pi)+Delta(pi,x_{t+1}),0,1)
+15: end for
+16: TopK_t <- SelectDiverseTopK(Pi_t, U_pi, k, capability_coverage)
+17: compute U_a for continue / patch_local / suffix_replan / stop
+18: a_t <- ApplyHardPrioritiesAndSelectAction(U_a, x_{t+1}, h_t, C)
+19: return Decision_t with candidates, selected_action, explanations, evidence_refs
 ```
 
 以下约束必须可测试：
