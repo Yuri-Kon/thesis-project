@@ -534,6 +534,10 @@ structure_similarity 是结构相似性摘要。hit_count 表示找到 3 个参�
 
 它是一个轻量运行时状态向量，包含五个量：成功概率、结构性失败风险、恢复余量、剩余成本和证据充分性。它不是完整 POMDP 或强化学习控制器，而是为了让恢复决策可解释、可审计、可复现。
 
+### 问：这些数值是现场实时算出来的吗？
+
+现场 demo 为了稳定性使用固定 fixture，所以页面上的数值是预置的代表性样例，不是现场实时调用远程工具计算出来的。但这些字段对应真实系统中的同一套算法对象：候选分数来自工具能力、风险、成本、readiness 和恢复性；runtime state 来自 StepResult、SafetyResult、失败上下文和预算信息；final score 来自 S_post 加 runtime adjustment。真实实验矩阵中这些字段会从运行日志和快照中产生。
+
 ### 问：实验中 static_top1 成功率更高，算法价值在哪里？
 
 我没有把结论写成 CEBRA-WP 显著提高成功率。当前 84-run 矩阵支持的是机制结论：CEBRA-WP 链路可执行，Lite belief-state 可观测，HITL 和恢复决策可审计，固定阈值门控会带来额外高代价调用。算法价值主要在恢复控制、成本意识和审计解释，而不是单纯成功率提升。
@@ -556,3 +560,125 @@ http://127.0.0.1:8000/ui/tasks/demo_defense_done/events
 压缩主线：
 
 输入结构化 -> 高代价步骤前等待人工确认 -> 候选按风险成本和 runtime state 排序 -> 接受 patch 后完成 -> 报告、结构、事件日志可追溯。
+
+更多非演示类追问，例如模块划分、技术栈、Agent 分工、缺陷和创新点，见 `tmp/defense_followup_qa.md`。
+
+## 10. 算法数字速查
+
+这部分不一定在 5 分钟主讲里全部说，主要用于老师追问“这些数字怎么算出来”的时候快速回答。
+
+### 10.1 候选评分
+
+```text
+feasibility：工具能力覆盖、I/O 契约闭合、fallback 深度等形成的软可行性分。
+objective：候选与任务目标的匹配度；有后验证据时被 posterior objective 替换。
+risk：风险反向分，工具风险越低，该值越高。
+cost：成本反向分，成本越低，该值越高。
+overall：按权重合成后的候选基础分。
+```
+
+公式口径：
+
+```text
+S_static = w_f F_s + w_g G - w_c C_norm - w_r R_norm - w_rec Rec + w_q Q
+
+工程上常写成正向分数：
+overall = weighted_sum(feasibility, objective, risk, cost, confidence, readiness, coverage)
+```
+
+### 10.2 后验评分
+
+```text
+G_post = sum(lambda_m * rho_m * q_m)
+```
+
+解释：
+
+```text
+lambda_m 是目标维度权重；
+rho_m 是证据可靠性，direct > proxy > degraded > missing；
+q_m 是该目标维度的归一化结果分。
+```
+
+演示口径：
+
+```text
+候选阶段主要展示 S_static；
+完成态报告展示 posterior_score；
+有后验证据时，算法把 S_static 中的 objective 项替换为 G_post，形成 S_post。
+```
+
+### 10.3 运行时状态
+
+```text
+x_t = (p_success, p_structural_failure, recovery_margin, expected_remaining_cost, evidence_sufficiency)
+```
+
+更新口径：
+
+```text
+步骤成功：p_success 上升，p_structural_failure 下降，recovery_margin 上升。
+步骤失败：p_success 下降，p_structural_failure 上升，recovery_margin 下降，remaining cost 上升。
+结构相关失败：额外提高 p_structural_failure。
+safety warn/block：降低成功倾向，提高风险和恢复压力。
+evidence_sufficiency：由 cheap validation coverage、candidate agreement、metric completeness 平滑更新。
+```
+
+demo 中可直接讲的计算：
+
+```text
+budget_pressure = expected_remaining_cost / budget_cap
+                = 1.35 / 1.2
+                ≈ 1.12
+```
+
+### 10.4 运行时重排序
+
+```text
+U_pi(pi, x_t) = clip(S_post(pi) + Delta(pi, x_t), 0, 1)
+```
+
+解释：
+
+```text
+S_post 是候选基础分；
+Delta 是运行时修正；
+Delta 的输入包括 p_success、p_structural_failure、recovery_margin、evidence_sufficiency、budget_pressure，以及候选自身的 risk/cost/recovery score。
+```
+
+直观规则：
+
+```text
+p_success 高、evidence_sufficiency 高：倾向继续或保留当前候选。
+p_structural_failure 高：降低高风险候选，提高 replan 倾向。
+recovery_margin 高：支持 patch_local，因为还有局部恢复空间。
+budget_pressure 高：惩罚高成本候选，推动低成本 patch 或 stop/replan。
+```
+
+### 10.5 动作效用
+
+四类动作：
+
+```text
+continue
+patch_local
+suffix_replan
+stop
+```
+
+现场解释：
+
+```text
+continue：成功概率高、证据足、预算压力低时更高。
+patch_local：局部可修、恢复余量高、证据可复用时更高。
+suffix_replan：结构性失败压力高、但前缀还值得保留时更高。
+stop：成功率低、预算压力高、恢复余量低、人工介入价值低时才更高。
+```
+
+demo 的结论：
+
+```text
+p_success=0.64 和 recovery_margin=0.72 说明还不该 stop；
+p_structural_failure=0.31 和 budget_pressure=1.12 说明继续远程高代价调用不理想；
+所以系统推荐 patch_local，并通过 WAITING_PATCH_CONFIRM 交给人工确认。
+```
