@@ -434,6 +434,11 @@ InternalStatus.DONE
 output/demo/defense-full-flow/demo_defense_done.pdb
 output/demo/defense-full-flow/demo_defense_done_report.json
 output/demo/defense-full-flow/demo_defense_manifest.json
+output/demo/defense-full-flow/screenshots/dashboard.png
+output/demo/defense-full-flow/screenshots/task_builder.png
+output/demo/defense-full-flow/screenshots/hitl_candidates.png
+output/demo/defense-full-flow/screenshots/structure_viewer.png
+output/demo/defense-full-flow/screenshots/event_timeline.png
 ```
 
 PDB 可以复用现有 `_demo_structure_pdb_text()` 的合成结构，也可以稍作扩展为 50 到 80 个残基的 helix bundle。优先使用合成结构，因为：
@@ -444,6 +449,8 @@ PDB 可以复用现有 `_demo_structure_pdb_text()` 的合成结构，也可以�
 - 足够展示结构查看器交互
 
 报告 JSON 内容应与 `DesignResult.metadata` 保持一致，避免前端显示字段互相矛盾。
+
+截图目录固定为 `output/demo/defense-full-flow/screenshots/`。即使首版不自动截图，也应在 seed 时创建该目录，便于手工截图和后续 Playwright 自动截图复用同一产物结构。
 
 ## 9. API 设计
 

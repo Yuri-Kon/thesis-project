@@ -1,0 +1,63 @@
+{
+  "task_id": "demo_defense_done",
+  "source": "defense_demo_fixture",
+  "sequence": "NLYIQWLKDGGPSSGRPPPS",
+  "structure_pdb_path": "output/demo/defense-full-flow/demo_defense_done.pdb",
+  "scores": {
+    "plddt_mean": 88.2,
+    "stability_proxy": 0.81,
+    "sequence_length": 20,
+    "qc_pass": true
+  },
+  "objective_scoring": {
+    "objective_score": 0.84,
+    "posterior_score": {
+      "aggregate_score": 0.84,
+      "evidence_status": "sufficient_for_demo"
+    },
+    "top_k": [
+      {
+        "candidate_id": "patch_local_openfold",
+        "objective_score": 0.86,
+        "posterior_score": {
+          "evidence_status": "supported"
+        }
+      },
+      {
+        "candidate_id": "suffix_replan_low_cost",
+        "objective_score": 0.78,
+        "posterior_score": {
+          "evidence_status": "supported"
+        }
+      },
+      {
+        "candidate_id": "patch_remote_retry",
+        "objective_score": 0.71,
+        "posterior_score": {
+          "evidence_status": "degraded_remote_readiness"
+        }
+      }
+    ],
+    "warnings": [
+      "demo fixture; no remote inference was executed"
+    ],
+    "evidence_refs": [
+      {
+        "type": "event_log",
+        "path": "data/logs/demo_defense_done.jsonl"
+      },
+      {
+        "type": "pdb",
+        "path": "output/demo/defense-full-flow/demo_defense_done.pdb"
+      }
+    ]
+  },
+  "structure_similarity": {
+    "hit_count": 3,
+    "top_hit": {
+      "hit_id": "TRP_CAGE_REFERENCE",
+      "tm_score": 0.73,
+      "rmsd": 2.1
+    }
+  }
+}

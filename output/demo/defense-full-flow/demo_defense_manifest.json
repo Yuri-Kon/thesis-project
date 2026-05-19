@@ -1,0 +1,33 @@
+{
+  "source": "defense_demo_fixture",
+  "tasks": {
+    "intake": "demo_defense_intake",
+    "hitl": "demo_defense_hitl",
+    "done": "demo_defense_done"
+  },
+  "urls": {
+    "dashboard": "/ui",
+    "task_builder": "/ui/task-builder",
+    "hitl_task": "/ui/tasks/demo_defense_hitl",
+    "done_task": "/ui/tasks/demo_defense_done",
+    "done_events": "/ui/tasks/demo_defense_done/events",
+    "structure": "/tasks/demo_defense_done/structure"
+  },
+  "artifacts": {
+    "pdb": "output/demo/defense-full-flow/demo_defense_done.pdb",
+    "report": "output/demo/defense-full-flow/demo_defense_done_report.json",
+    "manifest": "output/demo/defense-full-flow/demo_defense_manifest.json",
+    "screenshots_dir": "output/demo/defense-full-flow/screenshots",
+    "screenshots": {
+      "dashboard": "output/demo/defense-full-flow/screenshots/dashboard.png",
+      "task_builder": "output/demo/defense-full-flow/screenshots/task_builder.png",
+      "hitl_candidates": "output/demo/defense-full-flow/screenshots/hitl_candidates.png",
+      "structure_viewer": "output/demo/defense-full-flow/screenshots/structure_viewer.png",
+      "event_timeline": "output/demo/defense-full-flow/screenshots/event_timeline.png"
+    }
+  },
+  "notes": [
+    "Local deterministic fixture; no LLM or remote model service is called.",
+    "PDB and report artifacts are for UI and audit-chain demonstration only."
+  ]
+}

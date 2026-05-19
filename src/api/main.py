@@ -72,6 +72,7 @@ from src.infra.tool_readiness import (
     build_capability_readiness_matrix,
     build_tool_readiness_snapshot,
 )
+from src.api.demo_fixtures import seed_defense_full_flow_demo
 
 API_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = API_DIR / "templates"
@@ -1328,6 +1329,27 @@ async def create_structure_viewer_demo_task() -> dict[str, str]:
         "structure_url": f"/tasks/{task_id}/structure",
         "pdb_path": str(pdb_path),
     }
+
+
+@app.post("/demo/defense-full-flow")
+async def create_defense_full_flow_demo() -> dict[str, Any]:
+    """创建答辩全流程本地演示任务。
+
+    Args:
+        无。
+
+    Returns:
+        演示任务 ID、展示 URL 与固定产物路径。
+    """
+
+    if os.getenv("PROTEIN_ENABLE_DEMO_FIXTURES") != "1":
+        raise HTTPException(status_code=404, detail="demo fixtures are disabled")
+    runtime = _ensure_runtime_initialized()
+    return seed_defense_full_flow_demo(
+        TASK_STORE,
+        output_dir=runtime.paths.output_dir,
+        log_dir=runtime.paths.log_dir,
+    )
 
 
 def _demo_structure_pdb_text() -> str:
