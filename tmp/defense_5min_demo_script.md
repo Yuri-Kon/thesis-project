@@ -88,6 +88,53 @@ http://127.0.0.1:8000/ui/tasks/demo_defense_done/events
 这里的重点不是让 AI 自动替我批准，而是系统给出候选、分数、风险、成本和解释，由人来做最终决策。
 ```
 
+### 3.0 解释候选方案中的决策证据
+
+操作：在候选方案卡片中指向“决策证据”“metadata”“tool readiness”或类似区域。如果页面需要展开候选详情，先展开默认推荐 `patch_local_openfold`。
+
+默认推荐候选可以按下面这组证据解释：
+
+```json
+{
+  "candidate_id": "patch_local_openfold",
+  "risk_level": "low",
+  "cost_estimate": "low",
+  "affected_steps": ["S2"],
+  "expected_effect": "Preserve S1 and patch S2 before resuming.",
+  "recovery_semantics": "patch_local",
+  "tool_id": "openfold",
+  "capability_id": "structure_prediction",
+  "io_type": "sequence_to_structure",
+  "adapter_mode": "local",
+  "tool_readiness": {
+    "status": "ready",
+    "reason": "Local deterministic fixture is available."
+  }
+}
+```
+
+讲稿：
+
+```text
+这里每个候选方案都有一组决策证据。candidate_id 表示候选动作的唯一标识；risk_level 和 cost_estimate 是给人看的离散风险和成本等级，便于现场快速比较。
+
+affected_steps 表示这个 patch 只影响 S2，也就是结构预测步骤；expected_effect 说明它会保留 S1 的成功前缀，只替换后续高代价结构预测路径。这一点对应 CEBRA-WP 中的恢复优先级：能局部修补时，优先 patch，而不是直接全量 replan。
+
+recovery_semantics 是 patch_local，说明这是一个局部工具替换型恢复动作。tool_id 是 openfold，capability_id 是 structure_prediction，io_type 是 sequence_to_structure，表示这个候选仍然满足“输入序列、输出结构”的工具契约。
+
+adapter_mode 是 local，tool_readiness 是 ready，说明这个候选当前可用；相比之下，远程 retry 候选虽然保持原计划，但 readiness 降级、成本更高，所以不会成为默认推荐。
+```
+
+再指向另外两个候选，补充：
+
+```text
+suffix_replan_low_cost 的语义是保留前缀、替换后缀路径，它比局部 patch 改动更大，所以成本和扰动通常高一些。
+
+patch_remote_retry 的目标匹配可能不低，因为它保留了原来的远程 OpenFold3 路径；但它的 adapter_mode 是 remote，readiness 是 degraded，所以 risk 和 cost 分数被拉低。
+
+因此候选排序不是只看目标匹配，而是同时看工具契约是否闭合、当前工具是否 ready、会影响哪些步骤、是否保留成功前缀、风险成本是否可接受。这就是论文里“约束感知、预算感知、恢复自适应”的含义。
+```
+
 ### 3.1 解释候选评分 JSON
 
 操作：指向候选卡片中的 score breakdown。如果页面展示 JSON 或可展开详情，就展开评分字段。
@@ -173,7 +220,7 @@ evidence_sufficiency 为 0.58，说明证据不是完全充分；budget_pressure
 
 ## 4. 2:45 - 3:25 完成态结果与报告
 
-操作：切到 `/ui/tasks/demo_defense_done`。先展示状态、报告、scores。
+操作：切到 `/ui/tasks/demo_defense_done`。先展示状态，再停留在报告浏览器卡片，依次指向 sequence、scores、objective scoring、top-k、warnings、evidence refs 和 structure similarity。
 
 讲稿：
 
@@ -181,6 +228,161 @@ evidence_sufficiency 为 0.58，说明证据不是完全充分；budget_pressure
 这里展示的是同一条链路在人工接受推荐 patch 后的完成态。任务状态已经进入 DONE。
 
 结果中包含序列、结构文件、评分、风险标记和报告路径。这里的报告不是单纯一段自然语言总结，而是把 objective scoring、structure similarity、证据来源和 warning 一起保存下来。
+```
+
+### 4.1 解释报告浏览器中的基础字段
+
+操作：指向报告浏览器中的任务来源、序列、结构路径和 scores 区域。
+
+页面中的报告核心字段：
+
+```json
+{
+  "task_id": "demo_defense_done",
+  "source": "defense_demo_fixture",
+  "sequence": "NLYIQWLKDGGPSSGRPPPS",
+  "structure_pdb_path": "output/demo/defense-full-flow/demo_defense_done.pdb",
+  "scores": {
+    "plddt_mean": 88.2,
+    "stability_proxy": 0.81,
+    "sequence_length": 20,
+    "qc_pass": true
+  }
+}
+```
+
+讲稿：
+
+```text
+报告浏览器首先展示任务结果的基础字段。task_id 用来把报告和任务、事件日志、结构文件关联起来；source 标记这个结果来自 defense_demo_fixture，说明这是本地确定性演示数据。
+
+sequence 是本次评估的短肽序列；structure_pdb_path 是结构查看器实际加载的 PDB 文件路径。也就是说，前端看到的三维结构不是孤立页面，而是 DesignResult 报告中的一个可追溯产物。
+
+scores 这一组是结果层指标。plddt_mean 表示结构预测置信度的演示指标；stability_proxy 是稳定性的代理分数；sequence_length 是序列长度；qc_pass 表示质量门禁是否通过。
+
+这些字段来自执行完成后的 DesignResult 和报告产物。在真实链路里，它们会由结构预测工具、质量检查工具和 SummarizerAgent 汇总；在现场 demo 中由 fixture 固定生成，用来稳定展示报告契约和前端渲染。
+```
+
+### 4.2 解释 objective scoring
+
+操作：指向 objective scoring 卡片。
+
+页面中的 objective scoring：
+
+```json
+{
+  "objective_score": 0.84,
+  "posterior_score": {
+    "aggregate_score": 0.84,
+    "evidence_status": "sufficient_for_demo"
+  }
+}
+```
+
+讲稿：
+
+```text
+objective_score 是结果相对任务目标的综合目标分。在这个 demo 中，目标是稳定性评估，所以它把结构置信、稳定性代理分和质量门禁这些结果证据汇总成一个面向目标的分数。
+
+posterior_score 表示后验评分。这里的“后验”是相对于执行前候选评分而言的：候选阶段只有工具能力、风险、成本和 runtime state；完成后系统已经有结构文件、质量指标和事件证据，所以可以形成结果层的 aggregate_score。
+
+evidence_status 是 sufficient_for_demo，表示这些证据足够支撑演示中的报告展示，但不等价于真实湿实验验证。这和论文结论边界一致。
+```
+
+算法衔接：
+
+```text
+从 CEBRA-WP 角度看，前面的 HITL 页面展示的是候选动作的运行时效用 U(pi, x_t)，这里展示的是执行完成后的目标证据和后验结果评分。两者共同构成“先决策、后验证、可追溯”的闭环。
+```
+
+### 4.3 解释 top-k 候选后验结果
+
+操作：指向 top-k / candidate ranking 区域。
+
+页面中的 top-k：
+
+```json
+[
+  {
+    "candidate_id": "patch_local_openfold",
+    "objective_score": 0.86,
+    "posterior_score": {
+      "evidence_status": "supported"
+    }
+  },
+  {
+    "candidate_id": "suffix_replan_low_cost",
+    "objective_score": 0.78,
+    "posterior_score": {
+      "evidence_status": "supported"
+    }
+  },
+  {
+    "candidate_id": "patch_remote_retry",
+    "objective_score": 0.71,
+    "posterior_score": {
+      "evidence_status": "degraded_remote_readiness"
+    }
+  }
+]
+```
+
+讲稿：
+
+```text
+这里的 top-k 不是重新执行三条路径，而是把候选阶段的方案和完成后的证据放在同一个报告里，便于复盘为什么默认推荐 patch_local_openfold。
+
+patch_local_openfold 的 objective_score 为 0.86，并且 evidence_status 是 supported，说明它既是候选阶段的默认推荐，也能被完成态证据支持。
+
+suffix_replan_low_cost 也被标记为 supported，但分数较低，说明它作为备选恢复路径是合理的，只是改动范围和成本更大。
+
+patch_remote_retry 的 evidence_status 是 degraded_remote_readiness，说明它的问题不是目标不相关，而是运行时工具 readiness 降级导致风险和成本不可接受。
+
+这体现了 CEBRA-WP 的一个关键点：候选排序不是只看一个最终分，而是把候选来源、工具状态、成本风险、运行时证据和完成态证据一起保留下来，支持事后审计。
+```
+
+### 4.4 解释 warnings、evidence refs 和 structure similarity
+
+操作：指向 warnings、evidence refs、structure similarity 区域。
+
+页面中的字段：
+
+```json
+{
+  "warnings": [
+    "demo fixture; no remote inference was executed"
+  ],
+  "evidence_refs": [
+    {
+      "type": "event_log",
+      "path": "data/logs/demo_defense_done.jsonl"
+    },
+    {
+      "type": "pdb",
+      "path": "output/demo/defense-full-flow/demo_defense_done.pdb"
+    }
+  ],
+  "structure_similarity": {
+    "hit_count": 3,
+    "top_hit": {
+      "hit_id": "TRP_CAGE_REFERENCE",
+      "tm_score": 0.73,
+      "rmsd": 2.1
+    }
+  }
+}
+```
+
+讲稿：
+
+```text
+warnings 用来明确报告边界。这里写明没有执行远程推理，所以我不会把这个结构解释成真实模型实时预测结果。
+
+evidence_refs 是证据索引。event_log 指向事件日志，可以追溯任务状态、等待态、人工决策和完成过程；pdb 指向结构文件，可以被结构查看器加载。
+
+structure_similarity 是结构相似性摘要。hit_count 表示找到 3 个参考匹配；top_hit 是 TRP_CAGE_REFERENCE；tm_score 和 rmsd 是结构相似性指标。这里它们用于演示报告字段和结构证据组织方式，不用于宣称真实生物学功能。
+
+所以报告浏览器的作用有三个：第一，把结果从“页面展示”变成可保存的数据契约；第二，把算法决策、结构产物和事件日志连起来；第三，为老师追问“这个结论从哪里来”提供可回溯证据。
 ```
 
 指向 warning 或 source 字段，说：
