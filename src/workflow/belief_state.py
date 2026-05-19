@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from src.models.budget_pressure import derive_budget_pressure
 from src.models.contracts import (
     RuntimeFailureContext,
     RuntimeState,
@@ -10,7 +11,6 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
-from src.models.budget_pressure import derive_budget_pressure
 
 __all__ = [
     "BELIEF_STATE_UPDATE_RULES",
@@ -191,7 +191,7 @@ def update_runtime_state(
     - 直接序列化；
     - 跨快照回放；
     - 被测试稳定复现。
-    
+
     调用方优先传入 ``RuntimeStateUpdateInput``，以固定更新器输入边界。
     保留原有关键字参数仅用于兼容既有调用路径。
 
@@ -285,7 +285,9 @@ def update_runtime_state(
                     )
                 if gap is not None:
                     recovery_margin += 0.02 * _clamp_unit_interval(gap)
-            structure_similarity_signal = _extract_structure_similarity_signal(step_result)
+            structure_similarity_signal = _extract_structure_similarity_signal(
+                step_result
+            )
             if structure_similarity_signal:
                 observation_summary.update(structure_similarity_signal)
         elif step_result.status == "failed":
@@ -388,9 +390,7 @@ def update_runtime_state(
 
     return RuntimeState(
         p_success=_round_metric(_clamp_unit_interval(p_success)),
-        p_structural_failure=_round_metric(
-            _clamp_unit_interval(p_structural_failure)
-        ),
+        p_structural_failure=_round_metric(_clamp_unit_interval(p_structural_failure)),
         recovery_margin=_round_metric(_clamp_unit_interval(recovery_margin)),
         expected_remaining_cost=_round_metric(max(expected_remaining_cost, 0.0)),
         evidence_sufficiency=_round_metric(evidence_sufficiency),
@@ -423,12 +423,8 @@ def extract_failure_context(step_result: StepResult) -> RuntimeFailureContext:
     if isinstance(recovery_meta, dict):
         failure_context["recovery"] = {
             "reason": _as_non_empty_text(recovery_meta.get("reason")),
-            "upgrade_reason": _as_non_empty_text(
-                recovery_meta.get("upgrade_reason")
-            ),
-            "recovery_layer": _as_non_empty_text(
-                recovery_meta.get("recovery_layer")
-            ),
+            "upgrade_reason": _as_non_empty_text(recovery_meta.get("upgrade_reason")),
+            "recovery_layer": _as_non_empty_text(recovery_meta.get("recovery_layer")),
         }
         upgrade_reason = _as_non_empty_text(recovery_meta.get("upgrade_reason"))
         reason = _as_non_empty_text(recovery_meta.get("reason"))
@@ -441,9 +437,7 @@ def extract_failure_context(step_result: StepResult) -> RuntimeFailureContext:
     if s6_action:
         failure_context["recovery_action"] = s6_action
 
-    return RuntimeFailureContext.model_validate(
-        _drop_none_values(failure_context)
-    )
+    return RuntimeFailureContext.model_validate(_drop_none_values(failure_context))
 
 
 def _coerce_update_input(
@@ -515,7 +509,7 @@ def _resolve_evidence_sufficiency(
     previous_value: float,
     evidence_signal: float,
 ) -> float:
-    # 中文注释：派生量只在运行时现场计算，持久化主状态仍只保留 evidence_sufficiency 本身。
+    # 派生量只在运行时现场计算，持久化主状态仍只保留 evidence_sufficiency 本身。
     return _clamp_unit_interval((0.70 * previous_value) + (0.30 * evidence_signal))
 
 
@@ -562,11 +556,7 @@ def _estimate_cheap_validation_coverage(
     total_steps: int | None,
 ) -> float:
     coverage = 0.35
-    if (
-        completed_steps is not None
-        and total_steps is not None
-        and total_steps > 0
-    ):
+    if completed_steps is not None and total_steps is not None and total_steps > 0:
         coverage += 0.35 * min(max(completed_steps / total_steps, 0.0), 1.0)
     if step_result is None:
         return _clamp_unit_interval(coverage)
@@ -742,7 +732,9 @@ def _extract_structure_similarity_signal(step_result: StepResult) -> dict[str, A
         top_coverage = _as_float(top_hit.get("coverage"))
     return _drop_none_values(
         {
-            "structure_similarity_hit_count": int(hit_count) if hit_count is not None else None,
+            "structure_similarity_hit_count": int(hit_count)
+            if hit_count is not None
+            else None,
             "structure_similarity_top_tm_score": (
                 _round_metric(_clamp_unit_interval(top_tm_score))
                 if top_tm_score is not None

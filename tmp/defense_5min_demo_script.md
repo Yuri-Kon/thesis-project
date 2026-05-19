@@ -4,6 +4,8 @@
 
 适用场景：结题验收现场演示。本文按 5 分钟设计，精确到每一步打开哪个页面、做什么操作、说什么说明。
 
+讲解原则：现场不讲函数级细节，不展开具体代码片段；只讲“页面背后的模块职责”和“CEBRA-WP 控制流如何落到工程结构中”。
+
 ## 0. 上台前准备
 
 上台前先启动服务，不把启动时间算入 5 分钟演示。
@@ -44,6 +46,12 @@ http://127.0.0.1:8000/ui/tasks/demo_defense_done/events
 现场演示使用本地确定性 demo fixture，不调用远程 LLM 或 OpenFold3 服务，目的是稳定展示系统机制。真实实验结果在论文第七章和冻结实验产物中说明。
 ```
 
+代码层补充，可视情况插入：
+
+```text
+从代码结构上看，后端入口主要在 src/api，数据契约在 src/models，控制流在 src/workflow，多 Agent 职责在 src/agents。前端页面只负责展示和提交人工决策，不直接改变工作流状态。这样可以保证算法控制流集中在后端，而不是分散在 UI 里。
+```
+
 ## 2. 0:35 - 1:15 输入解析与任务录入
 
 操作：切到 `/ui/task-builder`。
@@ -62,6 +70,12 @@ http://127.0.0.1:8000/ui/tasks/demo_defense_done/events
 可以看到任务会被整理为 sequence、objective type、budget policy、runtime policy、是否需要人工审查等字段。这样做的原因是，后续 PlannerAgent 不能只根据一句自然语言直接执行，而是要基于明确约束生成候选计划。
 
 这对应论文第三章的任务接入需求，以及第四章中“目标、约束、工具能力和预算共同决定候选工作流”的设计。
+```
+
+代码层补充，可视情况插入：
+
+```text
+代码里这部分对应任务接入和数据模型层。前端 Task Builder 收集输入，后端 API 把它转成统一的任务对象和约束字段。后续 Planner、Executor、RuntimeEvaluator 都不直接依赖页面表单，而是依赖这些结构化契约。
 ```
 
 ## 3. 1:15 - 2:45 HITL 候选比较与算法解释
@@ -86,6 +100,12 @@ http://127.0.0.1:8000/ui/tasks/demo_defense_done/events
 第三个 patch_remote_retry 是继续重试远程服务，但成本和风险更高。
 
 这里的重点不是让 AI 自动替我批准，而是系统给出候选、分数、风险、成本和解释，由人来做最终决策。
+```
+
+代码层补充，可视情况插入：
+
+```text
+这一页背后的关键代码不是前端按钮，而是后端的状态机和 PendingAction 契约。系统进入 WAITING_PATCH_CONFIRM 之前，会把当前任务、候选 patch、运行时状态摘要和事件日志写好；之后前端只是读取这些对象并展示给人。也就是说，人工确认是控制流的一部分，而不是临时弹窗。
 ```
 
 ### 3.0 解释候选方案中的决策证据
@@ -135,6 +155,12 @@ patch_remote_retry 的目标匹配可能不低，因为它保留了原来的远�
 因此候选排序不是只看目标匹配，而是同时看工具契约是否闭合、当前工具是否 ready、会影响哪些步骤、是否保留成功前缀、风险成本是否可接受。这就是论文里“约束感知、预算感知、恢复自适应”的含义。
 ```
 
+代码层补充，可视情况插入：
+
+```text
+在代码层，这些字段对应候选对象的统一数据契约。Planner 负责产生候选和解释，workflow 层负责判断候选是否进入等待态，models 层保证 candidate_id、risk、cost、payload 和 metadata 都是结构化字段。这样后续审计时不会只剩一段自然语言理由。
+```
+
 ### 3.1 解释候选评分 JSON
 
 操作：指向候选卡片中的 score breakdown。如果页面展示 JSON 或可展开详情，就展开评分字段。
@@ -157,6 +183,36 @@ patch_remote_retry 的目标匹配可能不低，因为它保留了原来的远�
 这里的评分对应论文第四章 CEBRA-WP 的静态效用部分。feasibility 表示这个候选在工具能力、输入输出契约和前后步骤衔接上是否可执行；objective 表示它和当前稳定性评估目标的匹配程度；risk 表示风险越低分越高；cost 表示成本越低分越高；overall 是综合分。
 
 所以这个 0.86 不是大模型随口给出的分数，而是把可行性、目标匹配、风险和成本拆开之后再合成的候选效用。这样做的好处是，老师或者用户可以追问“为什么推荐它”，系统能够把依据拆开解释。
+```
+
+代码层补充，可视情况插入：
+
+```text
+实现上，这类 score breakdown 由规划和候选评估模块统一生成。代码不会只保存 overall 一个数，而是保留 feasibility、objective、risk、cost 等分项。这样前端能展示“为什么这个候选排第一”，实验统计也能回溯每次排序依据。
+```
+
+### 3.1.1 这些候选分数是怎么算出来的
+
+操作：仍停留在 score breakdown 区域。不要展开代码，只讲计算口径。
+
+讲稿：
+
+```text
+这里需要说明一下这些数值的来源。现场 demo 为了稳定，候选分数是 fixture 中固定好的代表值；但真实系统里不是手填一个 overall，而是由候选工具链的工具元数据、风险、成本、readiness 和恢复性计算出来。
+
+以 feasibility 为例，代码里会看工具覆盖度和 fallback 深度。直观上，候选使用的工具越能覆盖当前任务能力、替代路径越充分，feasibility 越高。
+
+risk 和 cost 是反向分数：工具风险越低，risk score 越高；工具成本越低，cost score 越高。因此这里 risk 为 0.90、cost 为 0.86，表示 local patch 这条路径相对低风险、低成本。
+
+objective 表示候选和任务目标的匹配程度。这个 demo 的目标是稳定性评估，所以 local OpenFold 兼容路径可以产出结构证据，能够继续支持后续稳定性代理评分。
+
+overall 是把这些分项按权重合成后的候选基础分。在论文公式里，对应静态效用 S_static；如果后续已有目标证据，则 objective 项会被后验目标评分替换，形成 S_post。
+```
+
+可以补一句实现映射：
+
+```text
+从代码结构看，Planner 或候选评估模块负责生成 score_breakdown；RuntimeEvaluator 不重新判断工具是否存在，而是在已有分数和 runtime state 基础上做运行时修正。这样静态可行性和运行时自适应是分层的。
 ```
 
 ### 3.2 解释运行状态 JSON
@@ -196,6 +252,34 @@ evidence_sufficiency 为 0.58，说明证据不是完全充分；budget_pressure
 从算法角度看，这一步就是 CEBRA-WP 的运行时自适应层：系统先根据 StepResult、tool readiness 和历史执行结果更新 runtime state，再用这个状态解释为什么此时不直接继续高代价远程调用，而是生成 patch_confirm 的 PendingAction。
 ```
 
+代码层补充，可视情况插入：
+
+```text
+代码里 runtime state 的更新集中在 workflow 运行时层，而不是由某个 Agent 自己随意改状态。Executor 产生 StepResult，SafetyAgent 产生风险判断，workflow 层把这些观测统一汇入 RuntimeState。这样做是为了保证 CEBRA-WP 的状态更新可复现、可测试、可写入快照。
+```
+
+### 3.2.1 这些运行时状态数值是怎么算出来的
+
+操作：指向 runtime state JSON，尤其是 `expected_remaining_cost`、`budget_pressure`、`evidence_sufficiency`。
+
+讲稿：
+
+```text
+这里的 runtime state 在 demo 中同样是固定 fixture，用于稳定演示等待态。但真实系统里它来自执行观测的规则化更新。
+
+初始状态是一个保守的中性估计，例如 p_success 从 0.5 附近开始，p_structural_failure 从 0.25 附近开始，recovery_margin 从 0.6 附近开始。执行过程中，如果一个步骤成功，p_success 会增加，p_structural_failure 会下降，recovery_margin 会增加；如果结构相关步骤失败，p_structural_failure 会明显上升，recovery_margin 会下降。
+
+evidence_sufficiency 不是一次性跳变，而是平滑更新。它由廉价验证覆盖、候选一致性、指标完整性三类信号汇总，再和上一轮 evidence_sufficiency 做平滑，避免一次偶然观测让系统过度反应。
+
+expected_remaining_cost 表示从当前状态继续到结束还暴露多少成本。budget_pressure 则是从 expected_remaining_cost 和预算上限派生出来的。这里 expected_remaining_cost 是 1.35，budget_cap 是 1.2，所以 budget_pressure 大约是 1.35 / 1.2，也就是 1.12。这个数超过 1，说明已经接近或略高于预算压力线。
+```
+
+再把它和决策连起来：
+
+```text
+所以这里系统不是因为单个阈值触发等待，而是同时看到：成功概率还可以、结构失败风险不低、恢复余量还够、证据不完全充分、预算压力偏高。这个组合更适合让人确认一个低成本 local patch，而不是直接继续远程高代价调用。
+```
+
 ### 3.3 解释右侧“理论对象”面板
 
 操作：指向右侧“理论对象”面板，按从上到下的顺序解释。
@@ -215,7 +299,33 @@ evidence_sufficiency 为 0.58，说明证据不是完全充分；budget_pressure
 再用一句话靠近公式：
 
 ```text
-如果用论文里的形式表达，这里就是对候选 pi 先计算静态效用 S_static(pi)，再结合运行时状态 x_t 形成运行时效用 U(pi, x_t)，最后把推荐动作映射到 FSM 的 WAITING_PATCH_CONFIRM 状态。算法可以给建议，但状态推进和人工确认仍由 FSM 和 HITL 契约控制。
+如果用论文里的形式表达，这里就是先计算候选的静态效用 S_static(pi)，再在有目标证据时形成 S_post(pi)，最后叠加运行时修正 Delta(pi, x_t)，得到运行时效用 U(pi, x_t)。这里展示的 demo 没有额外显示 delta 标量，所以最终分和静态分相同；但控制流仍然体现了 CEBRA-WP 的思想：算法给出推荐动作，FSM 和 HITL 决定是否推进。
+```
+
+代码层补充，可视情况插入：
+
+```text
+代码中对应的是 RuntimeEvaluator 这一类运行时评估组件。它不负责调用模型，也不负责改 UI，而是把候选分数、运行时状态和动作偏好合成为可展示的 final score、runtime adjustment 和 action utility。换句话说，它是 CEBRA-WP 在工程里的主要算法落点之一。
+```
+
+### 3.4 如果老师追问：动作效用怎么影响 patch / replan / stop
+
+操作：仍停留在 HITL 页面，指向“选中操作：补丁确认”或 action utility / 理论对象区域。
+
+讲稿：
+
+```text
+CEBRA-WP 不只给候选排序，还会估计四类控制动作的效用：continue、patch_local、suffix_replan 和 stop。
+
+continue 偏好高 p_success、高 evidence_sufficiency、低 structural failure 和低 budget pressure。patch_local 偏好较高 recovery_margin、局部可修复性和可复用证据。suffix_replan 偏好结构性失败压力较高、当前成功率下降、但前缀仍可保留的场景。stop 只有在成功率很低、预算压力高、恢复余量低，并且人工介入价值也低时才会成为强候选。
+
+以这个 demo 的数值看，p_success 是 0.64，recovery_margin 是 0.72，说明当前还没到 stop；p_structural_failure 是 0.31，budget_pressure 是 1.12，又说明继续远程高代价调用不划算。因此系统把动作落到 patch_confirm，让人确认局部修补路径。
+```
+
+代码层补充，可视情况插入：
+
+```text
+实现上，动作效用由 RuntimeEvaluator 根据 RuntimeState 和派生特征计算；但最终是否进入 WAITING_PATCH_CONFIRM、是否应用 Decision，仍由 workflow/FSM 控制。也就是说，算法提供效用和建议，系统控制流负责合法迁移。
 ```
 
 ## 4. 2:45 - 3:25 完成态结果与报告
@@ -263,6 +373,12 @@ scores 这一组是结果层指标。plddt_mean 表示结构预测置信度的�
 这些字段来自执行完成后的 DesignResult 和报告产物。在真实链路里，它们会由结构预测工具、质量检查工具和 SummarizerAgent 汇总；在现场 demo 中由 fixture 固定生成，用来稳定展示报告契约和前端渲染。
 ```
 
+代码层补充，可视情况插入：
+
+```text
+代码上，报告不是前端临时拼出来的，而是后端结果契约的一部分。工具适配层产生结构和指标，workflow 汇总执行状态，SummarizerAgent 负责把已有证据整理成 DesignResult。前端报告浏览器只是读取这个结构化结果。
+```
+
 ### 4.2 解释 objective scoring
 
 操作：指向 objective scoring 卡片。
@@ -293,6 +409,12 @@ evidence_status 是 sufficient_for_demo，表示这些证据足够支撑演示�
 
 ```text
 从 CEBRA-WP 角度看，前面的 HITL 页面展示的是候选动作的运行时效用 U(pi, x_t)，这里展示的是执行完成后的目标证据和后验结果评分。两者共同构成“先决策、后验证、可追溯”的闭环。
+```
+
+代码层补充，可视情况插入：
+
+```text
+实现中，这一层对应 posterior objective scoring 的结果绑定。也就是候选阶段先有 S_static，执行后如果产生了结构、质量和目标证据，就把 objective 部分替换为后验目标分，形成 S_post。最终 runtime adjustment 叠加在这个基础分上，而不是直接覆盖掉原来的候选可行性判断。
 ```
 
 ### 4.3 解释 top-k 候选后验结果
@@ -339,6 +461,12 @@ suffix_replan_low_cost 也被标记为 supported，但分数较低，说明它�
 patch_remote_retry 的 evidence_status 是 degraded_remote_readiness，说明它的问题不是目标不相关，而是运行时工具 readiness 降级导致风险和成本不可接受。
 
 这体现了 CEBRA-WP 的一个关键点：候选排序不是只看一个最终分，而是把候选来源、工具状态、成本风险、运行时证据和完成态证据一起保留下来，支持事后审计。
+```
+
+代码层补充，可视情况插入：
+
+```text
+代码里保留 top-k 的原因，是为了让系统不是单轨迹黑箱执行。即使最终选择了默认候选，其他候选的分数和证据状态也会保留，用于 HITL 比较、失败复盘和实验统计。这也是它和普通“LLM 生成一条计划然后执行”的主要区别。
 ```
 
 ### 4.4 解释 warnings、evidence refs 和 structure similarity
@@ -427,6 +555,12 @@ structure_similarity 是结构相似性摘要。hit_count 表示找到 3 个参�
 这几个事件体现了 HITL 的关键边界：进入等待态后执行暂停，人工决策写入后才继续推进，最后进入完成态。
 ```
 
+代码层补充，可视情况插入：
+
+```text
+代码里 EventLog 和 TaskSnapshot 是控制流审计的核心。Workflow 层每次进入 WAITING、应用 Decision、退出等待态、进入 DONE，都会留下事件记录。这样 CEBRA-WP 的动作建议不是只在页面上显示一下，而是和状态迁移、人工决策、产物路径一起固化下来。
+```
+
 ## 7. 4:35 - 5:00 实验结果与收束
 
 操作：回到 Dashboard 或停留在事件页都可以，不再切复杂页面。
@@ -459,6 +593,12 @@ structure_similarity 是结构相似性摘要。hit_count 表示找到 3 个参�
 
 ```text
 它是工作流层的规划与恢复控制算法，不是新的蛋白质生成模型。核心过程是：候选生成、硬可行性过滤、静态评分、运行时状态更新、候选重排序和恢复动作选择。它的目标是在高代价、会失败的科研工作流中减少盲目执行，并保留可解释的恢复路径。
+```
+
+### 问：这个算法在代码中怎么落地？
+
+```text
+我会从模块职责上回答。Planner 负责产生候选计划、patch 或 replan 候选；models 层定义 Plan、PendingAction、Decision、RuntimeState 和 DesignResult 这些数据契约；workflow 层负责 FSM、等待态、恢复和事件日志；RuntimeEvaluator 负责把候选分数、运行时状态和动作效用组合起来；前端只展示这些结构化对象并提交人工决策。这样 CEBRA-WP 是贯穿控制流的算法，而不是某一个孤立函数。
 ```
 
 ### 问：Lite belief-state 是什么？
