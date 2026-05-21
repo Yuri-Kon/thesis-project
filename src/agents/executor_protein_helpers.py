@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from collections.abc import Callable
 from pathlib import Path
@@ -29,6 +30,13 @@ _S4_DEFAULT_MAX_DEGRADATION_ROUNDS = 1
 
 class ProteinExecutorLike(Protocol):
     step_runner: StepRunner
+
+
+@dataclass(frozen=True)
+class _RefinementTrend:
+    degraded_rounds: int
+    stop_reason: str | None
+    rollback_applied: bool = False
 
 
 def configure_test_hooks(
@@ -389,38 +397,12 @@ def refine_sequences_from_s3(
     )
     now_iso = datetime.now(timezone.utc).isoformat()
     if not candidates:
-        failed = StepResult(
-            task_id=context.task.task_id,
-            step_id=refinement_step_id,
-            tool=tool_id,
-            status="failed",
-            failure_type=FailureType.NON_RETRYABLE.value,
-            error_message=(
-                "S4 refinement requires at least one quality-passed baseline "
-                f"from '{baseline_source_step_id}'"
-            ),
-            error_details={
-                "failure_code": "S4_NO_BASELINE_CANDIDATE",
-                "phase": "structure_refinement",
-                "timestamp": now_iso,
-            },
-            inputs={"source_step_id": baseline_source_step_id},
-            outputs={
-                "stage_id": "S4",
-                "stage_name": "structure_conditioned_refinement",
-                "source_step_id": baseline_source_step_id,
-                "refinement_iterations": [],
-                "iteration_count": 0,
-                "stop_reason": "missing_baseline",
-            },
-            metrics={
-                "exec_type": "structure_refinement_loop",
-                "max_iterations": loop_config["max_iterations"],
-                "convergence_delta": loop_config["convergence_delta"],
-                "max_degradation_rounds": loop_config["max_degradation_rounds"],
-            },
-            risk_flags=[],
-            logs_path=None,
+        failed = _build_missing_baseline_refinement_result(
+            context=context,
+            refinement_step_id=refinement_step_id,
+            tool_id=tool_id,
+            baseline_source_step_id=baseline_source_step_id,
+            loop_config=loop_config,
             timestamp=now_iso,
         )
         context.add_step_result(failed)
@@ -464,20 +446,11 @@ def refine_sequences_from_s3(
             rollback_applied = successful_iterations > 0
             stop_reason = "refinement_failed"
             iteration_logs.append(
-                StructureRefinementIteration(
+                _failed_refinement_iteration(
                     iteration=iteration,
                     source_candidate_id=source_candidate_id,
                     source_pdb_path=_as_str(source_pdb_path),
                     source_plddt=source_plddt,
-                    refined_candidate_id=None,
-                    refined_sequence=None,
-                    refined_pdb_path=None,
-                    refined_plddt=None,
-                    gain_vs_baseline=None,
-                    gain_vs_previous=None,
-                    qc_pass_count=0,
-                    qc_fail_count=0,
-                    status="failed",
                     stop_reason=stop_reason,
                 )
             )
@@ -492,40 +465,25 @@ def refine_sequences_from_s3(
             rollback_applied = successful_iterations > 0
             stop_reason = "empty_refinement_candidates"
             iteration_logs.append(
-                StructureRefinementIteration(
+                _failed_refinement_iteration(
                     iteration=iteration,
                     source_candidate_id=source_candidate_id,
                     source_pdb_path=_as_str(source_pdb_path),
                     source_plddt=source_plddt,
-                    refined_candidate_id=None,
-                    refined_sequence=None,
-                    refined_pdb_path=None,
-                    refined_plddt=None,
-                    gain_vs_baseline=None,
-                    gain_vs_previous=None,
-                    qc_pass_count=0,
-                    qc_fail_count=0,
-                    status="failed",
                     stop_reason=stop_reason,
                 )
             )
             break
 
-        projected_rows = []
-        for candidate_index, refined_candidate in enumerate(latest_refined_candidates, start=1):
-            projected_rows.append(
-                _run_structure_projection_for_refinement(
-                    step_runner=self.step_runner,
-                    context=context,
-                    structure_template=structure_template,
-                    structure_step_id=structure_step_id,
-                    sequence=_as_str(refined_candidate.get("sequence")) or "",
-                    refined_candidate_id=_as_str(refined_candidate.get("candidate_id"))
-                    or f"{refinement_step_id}_iter{iteration}_cand{candidate_index}",
-                    iteration=iteration,
-                    candidate_index=candidate_index,
-                )
-            )
+        projected_rows = _project_refined_candidates(
+            step_runner=self.step_runner,
+            context=context,
+            structure_template=structure_template,
+            structure_step_id=structure_step_id,
+            refinement_step_id=refinement_step_id,
+            iteration=iteration,
+            refined_candidates=latest_refined_candidates,
+        )
 
         qc_batch = evaluate_quality_gate_batch(
             projected_rows,
@@ -538,17 +496,11 @@ def refine_sequences_from_s3(
             rollback_applied = successful_iterations > 0
             stop_reason = "quality_gate_rejected"
             iteration_logs.append(
-                StructureRefinementIteration(
+                _failed_refinement_iteration(
                     iteration=iteration,
                     source_candidate_id=source_candidate_id,
                     source_pdb_path=_as_str(source_pdb_path),
                     source_plddt=source_plddt,
-                    refined_candidate_id=None,
-                    refined_sequence=None,
-                    refined_pdb_path=None,
-                    refined_plddt=None,
-                    gain_vs_baseline=None,
-                    gain_vs_previous=None,
                     qc_pass_count=len(passed_rows),
                     qc_fail_count=len(failed_rows),
                     status="failed_qc",
@@ -561,34 +513,18 @@ def refine_sequences_from_s3(
         current_plddt = _coerce_float(best_row.get("plddt"))
         gain_vs_baseline = _diff_or_none(current_plddt, baseline_plddt)
         gain_vs_previous = _diff_or_none(current_plddt, previous_plddt)
-        iteration_stop_reason = None
-
-        if (
-            current_plddt is not None
-            and previous_plddt is not None
-            and current_plddt < previous_plddt
-        ):
-            degraded_rounds += 1
-        else:
-            degraded_rounds = 0
-
-        if (
-            current_plddt is not None
-            and previous_plddt is not None
-            and current_plddt < previous_plddt
-            and degraded_rounds > loop_config["max_degradation_rounds"]
-        ):
+        trend = _evaluate_refinement_trend(
+            current_plddt=current_plddt,
+            previous_plddt=previous_plddt,
+            degraded_rounds=degraded_rounds,
+            loop_config=loop_config,
+        )
+        degraded_rounds = trend.degraded_rounds
+        iteration_stop_reason = trend.stop_reason
+        if trend.rollback_applied:
             rollback_applied = True
-            stop_reason = "degradation_limit"
-            iteration_stop_reason = stop_reason
-        elif (
-            current_plddt is not None
-            and previous_plddt is not None
-            and current_plddt >= previous_plddt
-            and (current_plddt - previous_plddt) <= loop_config["convergence_delta"]
-        ):
-            stop_reason = "converged"
-            iteration_stop_reason = stop_reason
+        if iteration_stop_reason is not None:
+            stop_reason = iteration_stop_reason
 
         if current_plddt is not None and (
             best_plddt is None or current_plddt > best_plddt
@@ -641,21 +577,209 @@ def refine_sequences_from_s3(
         audit_payload=audit_payload,
     )
 
+    result = _build_refinement_result(
+        context=context,
+        refinement_step_id=refinement_step_id,
+        tool_id=tool_id,
+        baseline_source_step_id=baseline_source_step_id,
+        max_candidates=max_candidates,
+        loop_config=loop_config,
+        baseline=baseline,
+        baseline_plddt=baseline_plddt,
+        selected_candidate=selected_candidate,
+        final_plddt=final_plddt,
+        latest_refined_candidates=latest_refined_candidates,
+        iteration_logs=iteration_logs,
+        successful_iterations=successful_iterations,
+        stop_reason=stop_reason,
+        rollback_applied=rollback_applied,
+        audit_path=audit_path,
+    )
+    context.add_step_result(result)
+    append_event(
+        context.task.task_id,
+        {
+            "event": "STEP_FINISHED" if result.status == "success" else "STEP_FAILED",
+            "task_id": context.task.task_id,
+            "step_id": refinement_step_id,
+            "tool": tool_id,
+            "status": result.status,
+            "failure_type": result.failure_type,
+            "error_message": result.error_message,
+            "timestamp": result.timestamp,
+            "state": context.status.value,
+            "external_status": to_external_status(context.status).value,
+            "data": _build_structure_refinement_trace_data(result),
+        },
+    )
+    return result
+
+
+def _build_missing_baseline_refinement_result(
+    *,
+    context: WorkflowContext,
+    refinement_step_id: str,
+    tool_id: str,
+    baseline_source_step_id: str,
+    loop_config: dict[str, Any],
+    timestamp: str,
+) -> StepResult:
+    return StepResult(
+        task_id=context.task.task_id,
+        step_id=refinement_step_id,
+        tool=tool_id,
+        status="failed",
+        failure_type=FailureType.NON_RETRYABLE.value,
+        error_message=(
+            "S4 refinement requires at least one quality-passed baseline "
+            f"from '{baseline_source_step_id}'"
+        ),
+        error_details={
+            "failure_code": "S4_NO_BASELINE_CANDIDATE",
+            "phase": "structure_refinement",
+            "timestamp": timestamp,
+        },
+        inputs={"source_step_id": baseline_source_step_id},
+        outputs={
+            "stage_id": "S4",
+            "stage_name": "structure_conditioned_refinement",
+            "source_step_id": baseline_source_step_id,
+            "refinement_iterations": [],
+            "iteration_count": 0,
+            "stop_reason": "missing_baseline",
+        },
+        metrics={
+            "exec_type": "structure_refinement_loop",
+            "max_iterations": loop_config["max_iterations"],
+            "convergence_delta": loop_config["convergence_delta"],
+            "max_degradation_rounds": loop_config["max_degradation_rounds"],
+        },
+        risk_flags=[],
+        logs_path=None,
+        timestamp=timestamp,
+    )
+
+
+def _failed_refinement_iteration(
+    *,
+    iteration: int,
+    source_candidate_id: str,
+    source_pdb_path: str | None,
+    source_plddt: float | None,
+    stop_reason: str,
+    status: str = "failed",
+    qc_pass_count: int = 0,
+    qc_fail_count: int = 0,
+) -> StructureRefinementIteration:
+    return StructureRefinementIteration(
+        iteration=iteration,
+        source_candidate_id=source_candidate_id,
+        source_pdb_path=source_pdb_path,
+        source_plddt=source_plddt,
+        refined_candidate_id=None,
+        refined_sequence=None,
+        refined_pdb_path=None,
+        refined_plddt=None,
+        gain_vs_baseline=None,
+        gain_vs_previous=None,
+        qc_pass_count=qc_pass_count,
+        qc_fail_count=qc_fail_count,
+        status=status,
+        stop_reason=stop_reason,
+    )
+
+
+def _project_refined_candidates(
+    *,
+    step_runner: StepRunner,
+    context: WorkflowContext,
+    structure_template: PlanStep,
+    structure_step_id: str,
+    refinement_step_id: str,
+    iteration: int,
+    refined_candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    projected_rows = []
+    for candidate_index, refined_candidate in enumerate(refined_candidates, start=1):
+        projected_rows.append(
+            _run_structure_projection_for_refinement(
+                step_runner=step_runner,
+                context=context,
+                structure_template=structure_template,
+                structure_step_id=structure_step_id,
+                sequence=_as_str(refined_candidate.get("sequence")) or "",
+                refined_candidate_id=_as_str(refined_candidate.get("candidate_id"))
+                or f"{refinement_step_id}_iter{iteration}_cand{candidate_index}",
+                iteration=iteration,
+                candidate_index=candidate_index,
+            )
+        )
+    return projected_rows
+
+
+def _evaluate_refinement_trend(
+    *,
+    current_plddt: float | None,
+    previous_plddt: float | None,
+    degraded_rounds: int,
+    loop_config: dict[str, Any],
+) -> _RefinementTrend:
+    if current_plddt is None or previous_plddt is None:
+        return _RefinementTrend(degraded_rounds=0, stop_reason=None)
+    if current_plddt < previous_plddt:
+        next_degraded_rounds = degraded_rounds + 1
+        if next_degraded_rounds > loop_config["max_degradation_rounds"]:
+            return _RefinementTrend(
+                degraded_rounds=next_degraded_rounds,
+                stop_reason="degradation_limit",
+                rollback_applied=True,
+            )
+        return _RefinementTrend(
+            degraded_rounds=next_degraded_rounds,
+            stop_reason=None,
+        )
+    if (current_plddt - previous_plddt) <= loop_config["convergence_delta"]:
+        return _RefinementTrend(degraded_rounds=0, stop_reason="converged")
+    return _RefinementTrend(degraded_rounds=0, stop_reason=None)
+
+
+def _build_refinement_result(
+    *,
+    context: WorkflowContext,
+    refinement_step_id: str,
+    tool_id: str,
+    baseline_source_step_id: str,
+    max_candidates: int,
+    loop_config: dict[str, Any],
+    baseline: dict[str, Any],
+    baseline_plddt: float | None,
+    selected_candidate: dict[str, Any] | None,
+    final_plddt: float | None,
+    latest_refined_candidates: list[dict[str, Any]],
+    iteration_logs: list[StructureRefinementIteration],
+    successful_iterations: int,
+    stop_reason: str,
+    rollback_applied: bool,
+    audit_path: Path,
+) -> StepResult:
     result_status = "success" if successful_iterations > 0 else "failed"
-    error_message = None
-    error_details: Dict[str, Any] = {}
-    failure_type = None
-    if result_status == "failed":
-        failure_type = FailureType.NON_RETRYABLE.value
-        error_message = "S4 refinement loop produced no valid candidates"
-        error_details = {
+    failure_type = FailureType.NON_RETRYABLE.value if result_status == "failed" else None
+    error_message = (
+        "S4 refinement loop produced no valid candidates"
+        if result_status == "failed"
+        else None
+    )
+    error_details: Dict[str, Any] = (
+        {
             "failure_code": "S4_REFINEMENT_FAILED",
             "phase": "structure_refinement",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "stop_reason": stop_reason,
         }
-
-    result = StepResult(
+        if result_status == "failed"
+        else {}
+    )
+    return StepResult(
         task_id=context.task.task_id,
         step_id=refinement_step_id,
         tool=tool_id,
@@ -713,24 +837,15 @@ def refine_sequences_from_s3(
         logs_path=None,
         timestamp=datetime.now(timezone.utc).isoformat(),
     )
-    context.add_step_result(result)
-    append_event(
-        context.task.task_id,
-        {
-            "event": "STEP_FINISHED" if result.status == "success" else "STEP_FAILED",
-            "task_id": context.task.task_id,
-            "step_id": refinement_step_id,
-            "tool": tool_id,
-            "status": result.status,
-            "failure_type": result.failure_type,
-            "error_message": result.error_message,
-            "timestamp": result.timestamp,
-            "state": context.status.value,
-            "external_status": to_external_status(context.status).value,
-            "data": _build_structure_refinement_trace_data(result),
-        },
-    )
-    return result
+
+
+def _resolve_plan_step(*, plan: Plan | None, step_id: str) -> PlanStep | None:
+    if plan is None:
+        return None
+    for step in plan.steps:
+        if step.id == step_id:
+            return step
+    return None
 
 
 def _resolve_structure_step_template(
@@ -738,12 +853,7 @@ def _resolve_structure_step_template(
     plan: Plan | None,
     structure_step_id: str,
 ) -> PlanStep | None:
-    if plan is None:
-        return None
-    for step in plan.steps:
-        if step.id == structure_step_id:
-            return step
-    return None
+    return _resolve_plan_step(plan=plan, step_id=structure_step_id)
 
 
 def _resolve_quality_gate_step_template(
@@ -751,12 +861,7 @@ def _resolve_quality_gate_step_template(
     plan: Plan | None,
     quality_step_id: str,
 ) -> PlanStep | None:
-    if plan is None:
-        return None
-    for step in plan.steps:
-        if step.id == quality_step_id:
-            return step
-    return None
+    return _resolve_plan_step(plan=plan, step_id=quality_step_id)
 
 
 def _resolve_refinement_step_template(

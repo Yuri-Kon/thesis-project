@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from src.agents.planner import PlannerAgent, TopKResult
+from src.agents.candidate_generator.models import TopKResult
+from src.agents.planner import PlannerAgent
 from src.models.contracts import (
     PendingActionCandidate,
     PendingActionType,
     Plan,
     PlanPatch,
     PlanStep,
+    RuntimeState,
     StepResult,
     now_iso,
 )
@@ -21,6 +23,7 @@ from src.workflow.belief_state import extract_failure_context, update_runtime_st
 from src.workflow.errors import FailureType
 from src.workflow.patch import apply_patch, build_patch_request
 from src.workflow.recovery import (
+    WorkflowActionSelectorResult,
     WorkflowActionSelectorInput,
     resolve_s6_recovery_action,
     select_workflow_action,
@@ -39,7 +42,7 @@ from src.workflow.patch_recovery_metadata import (
 class StepRunnerLike(Protocol):
     """最小化约束的 StepRunner 接口（便于注入/测试）"""
 
-    def run_step(self, step, context: WorkflowContext) -> StepResult:  # type: ignore
+    def run_step(self, step: PlanStep, context: WorkflowContext) -> StepResult:
         ...
 
 
@@ -57,6 +60,14 @@ class PatchRunOutcome:
     step_results: list[StepResult]
     next_step_index: int
     pending_patch: PendingPatch | None = None
+
+
+@dataclass(frozen=True)
+class PatchCandidateSet:
+    plan_patch: PlanPatch
+    selected_candidate: PendingActionCandidate
+    patch_top_k: TopKResult
+    candidate_set_v1_ready: bool
 
 
 class PatchRunner:
@@ -134,74 +145,25 @@ class PatchRunner:
         )
         selected_candidate: PendingActionCandidate | None = None
         try:
-            patch_request = build_patch_request(
+            candidate_set = self._build_patch_candidate_set(
                 plan=plan,
-                failed_step_index=step_index,
-                failed_result=result,
                 context=context,
+                step=step,
+                step_index=step_index,
+                result=result,
+                patch_reason=patch_reason,
+                runtime_state_preview=runtime_state_preview,
             )
-            candidate_set_v1_ready = True
-            try:
-                patch_top_k = self._planner.patch_top_k(
-                    patch_request,
-                    k=_resolve_top_k(context.task.constraints.get("patch_top_k"), default=3),
-                    runtime_state=runtime_state_preview,
+            if candidate_set is None:
+                return PatchRunOutcome(
+                    plan=plan,
+                    step_results=[result],
+                    next_step_index=step_index + 1,
                 )
-                selected_candidate = next(
-                    (
-                        candidate
-                        for candidate in patch_top_k.candidates
-                        if candidate.candidate_id == patch_top_k.default_recommendation
-                    ),
-                    patch_top_k.candidates[0] if patch_top_k.candidates else None,
-                )
-                if selected_candidate is None:
-                    raise ValueError("patch_top_k returned no candidates")
-                candidate_action = self._select_candidate_action(
-                    context=context,
-                    result=result,
-                    runtime_state_preview=runtime_state_preview,
-                    phase="patch",
-                    suggested_action=selected_candidate.metadata.get("shadow_action"),
-                    suggested_reason=selected_candidate.metadata.get(
-                        "shadow_action_reason"
-                    ),
-                )
-                if candidate_action.action != "patch_local":
-                    return PatchRunOutcome(
-                        plan=plan,
-                        step_results=[result],
-                        next_step_index=step_index + 1,
-                    )
-                payload = selected_candidate.structured_payload
-                if not isinstance(payload, PlanPatch):
-                    raise ValueError("patch_top_k default candidate is not PlanPatch")
-                plan_patch = payload
-            except Exception:
-                # 回退到旧路径，保持对自定义 Planner.patch 的兼容
-                plan_patch = self._planner.patch(patch_request)
-                patch_candidate = PendingActionCandidate(
-                    candidate_id=f"patch_{step.id.lower()}",
-                    payload=plan_patch,
-                    structured_payload=plan_patch,
-                    summary="fallback patch candidate",
-                    tool_id=step.tool,
-                    capability_id=_extract_capability_from_step(step),
-                    metadata={
-                        "reason": patch_reason,
-                        "recovery_layer": "tool_level",
-                    },
-                )
-                selected_candidate = patch_candidate
-                patch_top_k = TopKResult(
-                    candidates=[patch_candidate],
-                    default_recommendation=patch_candidate.candidate_id,
-                    explanation="fallback patch_top_k generated from planner.patch",
-                )
-                candidate_set_v1_ready = False
+            selected_candidate = candidate_set.selected_candidate
             gate = self._planner.evaluate_top_k_gate(
                 candidate_kind="patch",
-                top_k_result=patch_top_k,
+                top_k_result=candidate_set.patch_top_k,
                 task_constraints=context.task.constraints,
             )
         except Exception as exc:
@@ -231,7 +193,7 @@ class PatchRunner:
 
         if gate.requires_hitl:
             recovery_meta = _extract_recovery_metadata(
-                plan_patch=plan_patch,
+                plan_patch=candidate_set.plan_patch,
                 selected_candidate=selected_candidate,
                 source_step=step,
             )
@@ -258,10 +220,10 @@ class PatchRunner:
             pending_action = build_pending_action(
                 task_id=context.task.task_id,
                 action_type=PendingActionType.PATCH_CONFIRM,
-                candidates=patch_top_k.candidates,
-                default_suggestion=patch_top_k.default_recommendation,
-                default_recommendation=patch_top_k.default_recommendation,
-                explanation=f"{patch_top_k.explanation} gate={gate.reason}",
+                candidates=candidate_set.patch_top_k.candidates,
+                default_suggestion=candidate_set.patch_top_k.default_recommendation,
+                default_recommendation=candidate_set.patch_top_k.default_recommendation,
+                explanation=f"{candidate_set.patch_top_k.explanation} gate={gate.reason}",
                 metadata={
                     "workflow_action": result.metrics.get("workflow_action"),
                     "workflow_action_reason": result.metrics.get(
@@ -274,9 +236,9 @@ class PatchRunner:
             )
             validate_candidate_set_output(
                 pending_action,
-                require_v1_fields=candidate_set_v1_ready,
-                require_s5_fields=candidate_set_v1_ready,
-                require_shadow_rerank_fields=candidate_set_v1_ready,
+                require_v1_fields=candidate_set.candidate_set_v1_ready,
+                require_s5_fields=candidate_set.candidate_set_v1_ready,
+                require_shadow_rerank_fields=candidate_set.candidate_set_v1_ready,
             )
             enter_waiting_state(
                 context,
@@ -308,9 +270,9 @@ class PatchRunner:
             InternalStatus.PATCHING,
             reason="patch_start_auto",
         )
-        candidate_pairs = _extract_patch_candidates(patch_top_k)
+        candidate_pairs = _extract_patch_candidates(candidate_set.patch_top_k)
         if not candidate_pairs:
-            candidate_pairs = [(selected_candidate, plan_patch)]
+            candidate_pairs = [(selected_candidate, candidate_set.plan_patch)]
 
         last_failed_result: StepResult | None = None
         recovery_attempts: list[dict[str, Any]] = []
@@ -384,7 +346,7 @@ class PatchRunner:
             last_failed_result = patched_result
 
         escalation_recovery = _extract_recovery_metadata(
-            plan_patch=plan_patch,
+            plan_patch=candidate_set.plan_patch,
             selected_candidate=selected_candidate,
             source_step=step,
         )
@@ -394,12 +356,7 @@ class PatchRunner:
                 escalation_recovery,
                 upgrade_reason="patch_failed",
             )
-            metrics = dict(last_failed_result.metrics)
-            recovery = metrics.get("recovery", {})
-            if isinstance(recovery, dict):
-                recovery["attempts"] = recovery_attempts
-                metrics["recovery"] = recovery
-            last_failed_result.metrics = metrics
+            _attach_recovery_attempts(last_failed_result, recovery_attempts)
         _emit_recovery_escalation_event(
             context,
             step_id=step.id,
@@ -414,12 +371,7 @@ class PatchRunner:
                 escalation_recovery,
                 upgrade_reason="patch_failed",
             )
-            metrics = dict(result.metrics)
-            recovery = metrics.get("recovery", {})
-            if isinstance(recovery, dict):
-                recovery["attempts"] = recovery_attempts
-                metrics["recovery"] = recovery
-            result.metrics = metrics
+            _attach_recovery_attempts(result, recovery_attempts)
             return PatchRunOutcome(
                 plan=plan,
                 step_results=[result],
@@ -430,6 +382,76 @@ class PatchRunner:
             step_results=[last_failed_result],
             next_step_index=step_index + 1,
         )
+
+    def _build_patch_candidate_set(
+        self,
+        *,
+        plan: Plan,
+        context: WorkflowContext,
+        step: PlanStep,
+        step_index: int,
+        result: StepResult,
+        patch_reason: str,
+        runtime_state_preview: RuntimeState | None,
+    ) -> PatchCandidateSet | None:
+        patch_request = build_patch_request(
+            plan=plan,
+            failed_step_index=step_index,
+            failed_result=result,
+            context=context,
+        )
+        try:
+            patch_top_k = self._planner.patch_top_k(
+                patch_request,
+                k=_resolve_top_k(context.task.constraints.get("patch_top_k"), default=3),
+                runtime_state=runtime_state_preview,
+            )
+            selected_candidate = _select_default_patch_candidate(patch_top_k)
+            candidate_action = self._select_candidate_action(
+                context=context,
+                result=result,
+                runtime_state_preview=runtime_state_preview,
+                phase="patch",
+                suggested_action=selected_candidate.metadata.get("shadow_action"),
+                suggested_reason=selected_candidate.metadata.get(
+                    "shadow_action_reason"
+                ),
+            )
+            if candidate_action.action != "patch_local":
+                return None
+            payload = selected_candidate.structured_payload
+            if not isinstance(payload, PlanPatch):
+                raise ValueError("patch_top_k default candidate is not PlanPatch")
+            return PatchCandidateSet(
+                plan_patch=payload,
+                selected_candidate=selected_candidate,
+                patch_top_k=patch_top_k,
+                candidate_set_v1_ready=True,
+            )
+        except Exception:
+            plan_patch = self._planner.patch(patch_request)
+            patch_candidate = PendingActionCandidate(
+                candidate_id=f"patch_{step.id.lower()}",
+                payload=plan_patch,
+                structured_payload=plan_patch,
+                summary="fallback patch candidate",
+                tool_id=step.tool,
+                capability_id=_extract_capability_from_step(step),
+                metadata={
+                    "reason": patch_reason,
+                    "recovery_layer": "tool_level",
+                },
+            )
+            return PatchCandidateSet(
+                plan_patch=plan_patch,
+                selected_candidate=patch_candidate,
+                patch_top_k=TopKResult(
+                    candidates=[patch_candidate],
+                    default_recommendation=patch_candidate.candidate_id,
+                    explanation="fallback patch_top_k generated from planner.patch",
+                ),
+                candidate_set_v1_ready=False,
+            )
 
     def _should_patch(self, result: StepResult) -> bool:
         if result.status != "failed":
@@ -456,7 +478,7 @@ class PatchRunner:
         plan: Plan,
         context: WorkflowContext,
         result: StepResult,
-    ):
+    ) -> RuntimeState | None:
         if not runtime_policy_uses_belief_state(context.task):
             return None
         completed_steps = len(context.step_results)
@@ -475,8 +497,8 @@ class PatchRunner:
         result: StepResult,
         *,
         context: WorkflowContext,
-        runtime_state_preview,
-    ):
+        runtime_state_preview: RuntimeState | None,
+    ) -> WorkflowActionSelectorResult | None:
         if result.status != "failed":
             return None
 
@@ -524,11 +546,11 @@ class PatchRunner:
         *,
         context: WorkflowContext,
         result: StepResult,
-        runtime_state_preview,
+        runtime_state_preview: RuntimeState | None,
         phase: str,
         suggested_action: Any,
         suggested_reason: Any,
-    ):
+    ) -> WorkflowActionSelectorResult:
         decision = select_workflow_action(
             WorkflowActionSelectorInput(
                 phase=phase,
@@ -554,7 +576,7 @@ class PatchRunner:
         self,
         patched_result: StepResult,
         *,
-        original_step,
+        original_step: PlanStep,
         previous_result: StepResult,
         plan_patch: PlanPatch,
     ) -> None:
@@ -641,7 +663,7 @@ def _attach_recovery_upgrade_meta(
 
 def _attach_workflow_action_meta(
     result: StepResult,
-    decision,
+    decision: WorkflowActionSelectorResult,
 ) -> None:
     metrics = dict(result.metrics)
     metrics["workflow_action"] = decision.action
@@ -753,6 +775,32 @@ def _extract_patch_candidates(
             )
         )
     return pairs
+
+
+def _select_default_patch_candidate(top_k: TopKResult) -> PendingActionCandidate:
+    selected = next(
+        (
+            candidate
+            for candidate in top_k.candidates
+            if candidate.candidate_id == top_k.default_recommendation
+        ),
+        top_k.candidates[0] if top_k.candidates else None,
+    )
+    if selected is None:
+        raise ValueError("patch_top_k returned no candidates")
+    return selected
+
+
+def _attach_recovery_attempts(
+    result: StepResult,
+    recovery_attempts: list[dict[str, Any]],
+) -> None:
+    metrics = dict(result.metrics)
+    recovery = metrics.get("recovery", {})
+    if isinstance(recovery, dict):
+        recovery["attempts"] = recovery_attempts
+        metrics["recovery"] = recovery
+    result.metrics = metrics
 
 
 def _extract_stage_id(result: StepResult) -> str | None:
