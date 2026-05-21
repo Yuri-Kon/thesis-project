@@ -88,6 +88,13 @@ from src.workflow.context import WorkflowContext
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.workflow.runtime_evaluator import compute_runtime_delta
 from src.workflow.status import transition_task_status
+from src.agents.planner_denovo import is_de_novo_task_kind
+from src.agents.planner_payloads import build_candidate_generation_constraints
+from src.agents.planner_projection import normalize_top_k
+from src.agents.planner_selection import (
+    executable_rate_route_trigger,
+    schema_failure_route_trigger,
+)
 
 
 @dataclass(frozen=True)
@@ -230,11 +237,11 @@ _DEFAULT_PROVIDER_CATALOG_PATH = (
 )
 _PLANNER_PROVIDER_ENV = "PLANNER_LLM_PROVIDER"
 _PREFERRED_LOCAL_PROVIDER_ORDER = (
+    "qwen-flash",
     "glm-5",
     "deepseek-v4-pro",
     "deepseek-v4-flash",
     "glm-4.7",
-    "qwen-flash",
     "nemotron",
     "openai",
 )
@@ -696,16 +703,15 @@ class PlannerAgent:
                         + 1
                     )
                     runtime_state["schema_fail_streak"] = streak
-                    if (
-                        runtime_cfg.enable_dual_route
-                        and streak >= runtime_cfg.schema_fail_threshold
-                    ):
+                    schema_trigger = schema_failure_route_trigger(
+                        enable_dual_route=runtime_cfg.enable_dual_route,
+                        schema_fail_streak=streak,
+                        threshold=runtime_cfg.schema_fail_threshold,
+                    )
+                    if schema_trigger is not None:
                         route_trigger = RouteTrigger(
-                            reason="schema_fail_streak",
-                            threshold=(
-                                f"schema_fail_streak={streak}"
-                                f">={runtime_cfg.schema_fail_threshold}"
-                            ),
+                            reason=schema_trigger.reason,
+                            threshold=schema_trigger.threshold,
                         )
                         use_external = True
                         base_plan = self.plan(task, use_external=True)
@@ -724,44 +730,29 @@ class PlannerAgent:
                 runtime_state.get("last_executable_rate")
             )
 
-            if (
-                runtime_cfg.enable_dual_route
-                and not use_external
-                and self._fallback_llm_provider is not None
-            ):
-                drop = (
-                    previous_rate - executable_rate
-                    if previous_rate is not None
-                    else 0.0
+            trigger_spec = executable_rate_route_trigger(
+                enable_dual_route=runtime_cfg.enable_dual_route,
+                use_external=use_external,
+                fallback_available=self._fallback_llm_provider is not None,
+                executable_rate=executable_rate,
+                previous_rate=previous_rate,
+                rate_threshold=runtime_cfg.executable_rate_threshold,
+                drop_threshold=runtime_cfg.executable_drop_threshold,
+            )
+            if trigger_spec is not None:
+                route_trigger = RouteTrigger(
+                    reason=trigger_spec.reason,
+                    threshold=trigger_spec.threshold,
                 )
-                trigger: RouteTrigger | None = None
-                if executable_rate < runtime_cfg.executable_rate_threshold:
-                    trigger = RouteTrigger(
-                        reason="candidate_executable_rate_low",
-                        threshold=(
-                            f"candidate_executable_rate={executable_rate:.3f}"
-                            f"<{runtime_cfg.executable_rate_threshold:.3f}"
-                        ),
-                    )
-                elif drop >= runtime_cfg.executable_drop_threshold:
-                    trigger = RouteTrigger(
-                        reason="candidate_executable_rate_drop",
-                        threshold=(
-                            f"candidate_executable_drop={drop:.3f}"
-                            f">={runtime_cfg.executable_drop_threshold:.3f}"
-                        ),
-                    )
-                if trigger is not None:
-                    route_trigger = trigger
-                    use_external = True
-                    base_plan = self.plan(task, use_external=True)
-                    top_k = self._build_plan_top_k(
-                        task,
-                        base_plan,
-                        k=_normalize_top_k(top_k_value),
-                        runtime_state=context.runtime_state,
-                    )
-                    executable_rate = self._estimate_executable_rate(top_k, task)
+                use_external = True
+                base_plan = self.plan(task, use_external=True)
+                top_k = self._build_plan_top_k(
+                    task,
+                    base_plan,
+                    k=_normalize_top_k(top_k_value),
+                    runtime_state=context.runtime_state,
+                )
+                executable_rate = self._estimate_executable_rate(top_k, task)
 
             gate = self.evaluate_top_k_gate(
                 candidate_kind="plan",
@@ -1535,9 +1526,7 @@ def _safe_float(value: object, *, default: float) -> float:
 
 
 def _normalize_top_k(value: int) -> int:
-    if value <= 0:
-        return 1
-    return value
+    return normalize_top_k(value)
 
 
 def _require_default_candidate(
@@ -2441,16 +2430,13 @@ def _candidate_generation_constraints(
     constraints: dict[str, Any],
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    generation_constraints = dict(constraints)
-    if isinstance(metadata, dict) and metadata:
-        generation_constraints["metadata"] = dict(metadata)
-        confirmed = metadata.get("confirmed_task_spec")
-        if isinstance(confirmed, dict):
-            generation_constraints.setdefault("confirmed_task_spec", dict(confirmed))
-        hints = metadata.get("planner_capability_hints")
-        if isinstance(hints, (list, tuple, set)):
-            generation_constraints.setdefault("capability_hints", list(hints))
-    return generation_constraints
+    return cast(
+        dict[str, Any],
+        build_candidate_generation_constraints(
+            constraints=constraints,
+            metadata=metadata,
+        ),
+    )
 
 
 def _extract_capability_hints(constraints: dict[str, Any]) -> tuple[str, ...]:
@@ -4512,7 +4498,10 @@ def _extract_task_kind(task: ProteinDesignTask) -> str:
 
 
 def _is_de_novo_task(task: ProteinDesignTask) -> bool:
-    return _extract_task_kind(task) == _DE_NOVO_GOAL_TYPE
+    return is_de_novo_task_kind(
+        _extract_task_kind(task),
+        denovo_goal_type=_DE_NOVO_GOAL_TYPE,
+    )
 
 
 def _extract_length_range(constraints: dict) -> List[int] | None:

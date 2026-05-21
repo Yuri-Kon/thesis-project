@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from copy import deepcopy
-import re
 from enum import Enum, StrEnum
 from typing import Literal, NotRequired, TypedDict, cast
 
@@ -9,6 +8,13 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.kg.kg_client import ToolKGError, get_tool_nodes
 from src.models.contracts import now_iso
+from src.models.task_intake_payload import build_rule_extraction_payload
+from src.models.task_intake_precheck import (
+    build_safety_risk_flags,
+    coerce_string_list,
+    resolve_precheck_action,
+)
+from src.models.task_intake_validator import validate_registry_value
 
 
 TASK_FIELD_REGISTRY_VERSION = "task-intake.v1"
@@ -1469,201 +1475,10 @@ def _merge_extracted_text(draft: TaskSpecDraft, text: str) -> None:
 
 
 def _build_rule_extraction_payload(text: str) -> JsonObject:
-    fields: JsonObject = {}
-    source_spans: list[str] = []
-
-    def add_field(
-        field_name: str,
-        value: JsonValue,
-        confidence: float,
-        source_span: str | None = None,
-    ) -> None:
-        fields[field_name] = {
-            "value": value,
-            "source": TaskDraftFieldSource.LLM_EXTRACT.value,
-            "confidence": confidence,
-            "source_span": source_span,
-        }
-        if source_span:
-            source_spans.append(source_span)
-
-    lowered = text.lower()
-    design_intent = any(
-        marker in lowered
-        for marker in ("design", "de novo", "de-novo", "generate", "protein")
-    ) or any(marker in text for marker in ("设计", "生成", "蛋白", "从头"))
-    if "de novo" in lowered or "de-novo" in lowered or "从头" in text:
-        add_field("task_kind", "de_novo_design", 0.86, "de novo")
-    elif "评估" in text or "evaluate" in lowered:
-        add_field(
-            "task_kind",
-            "sequence_evaluation",
-            0.84,
-            _first_present_span(text, ["评估", "evaluate"]),
-        )
-    elif "template" in lowered or "模板" in text:
-        add_field(
-            "task_kind",
-            "template_constrained_design",
-            0.84,
-            _first_present_span(text, ["模板", "template"]),
-        )
-    elif design_intent:
-        add_field(
-            "task_kind",
-            "de_novo_design",
-            0.80,
-            _first_present_span(text, ["设计", "design", "生成", "protein"]),
-        )
-
-    if "稳定" in text or "stability" in lowered or "stable" in lowered:
-        add_field(
-            "objective_type",
-            "stability",
-            0.88,
-            _first_present_span(text, ["稳定", "stability", "stable"]),
-        )
-    elif "binding" in lowered or "结合" in text:
-        add_field(
-            "objective_type",
-            "binding",
-            0.72,
-            _first_present_span(text, ["binding", "结合"]),
-        )
-    elif "结构" in text or "structure" in lowered:
-        add_field(
-            "objective_type",
-            "structure",
-            0.78,
-            _first_present_span(text, ["结构", "structure"]),
-        )
-    elif "活性" in text or "activity" in lowered:
-        add_field(
-            "objective_type",
-            "activity",
-            0.76,
-            _first_present_span(text, ["活性", "activity"]),
-        )
-
-    range_match = re.search(r"(\d{2,4})\s*(?:-|~|到|至)\s*(\d{2,4})", text)
-    if range_match:
-        add_field(
-            "length_range",
-            [int(range_match.group(1)), int(range_match.group(2))],
-            0.92,
-            range_match.group(0),
-        )
-    else:
-        approx_match = re.search(
-            r"(?:约|大约|around|about)?\s*(\d{2,4})\s*(?:个)?\s*(?:aa|氨基酸)",
-            text,
-            re.IGNORECASE,
-        )
-        if approx_match:
-            center = int(approx_match.group(1))
-            add_field(
-                "length_range",
-                [max(1, center - 20), center + 20],
-                0.91,
-                approx_match.group(0),
-            )
-
-    count_match = re.search(
-        r"(\d{1,2})\s*(?:个)?(?:候选|candidate)",
+    return build_rule_extraction_payload(
         text,
-        re.IGNORECASE,
-    )
-    if count_match:
-        add_field(
-            "design_count",
-            int(count_match.group(1)),
-            0.84,
-            count_match.group(0),
-        )
-
-    if "快" in text or "fast" in lowered:
-        add_field(
-            "run_profile",
-            "fast_smoke",
-            0.82,
-            _first_present_span(text, ["快", "fast"]),
-        )
-    elif "balanced" in lowered or "均衡" in text:
-        add_field(
-            "run_profile",
-            "balanced",
-            0.86,
-            _first_present_span(text, ["均衡", "balanced"]),
-        )
-    elif (
-        "high accuracy" in lowered
-        or "high-accuracy" in lowered
-        or "thorough" in lowered
-        or "高精度" in text
-        or "全面" in text
-    ):
-        add_field(
-            "run_profile",
-            "high_accuracy",
-            0.86,
-            _first_present_span(text, ["高精度", "全面", "high accuracy", "thorough"]),
-        )
-
-    safety_match = re.search(r"\bS[0-2]\b", text, re.IGNORECASE)
-    if safety_match:
-        add_field(
-            "safety_level",
-            safety_match.group(0).upper(),
-            0.9,
-            safety_match.group(0),
-        )
-    elif "低风险" in text or "low risk" in lowered:
-        add_field(
-            "safety_level",
-            "S1",
-            0.70,
-            _first_present_span(text, ["低风险", "low risk"]),
-        )
-    elif "安全" in text or "safe" in lowered:
-        add_field(
-            "safety_level", "S1", 0.68, _first_present_span(text, ["安全", "safe"])
-        )
-
-    if "无需确认计划" in text or "no plan confirmation" in lowered:
-        add_field(
-            "require_plan_confirm",
-            False,
-            0.92,
-            _first_present_span(text, ["无需确认计划", "no plan confirmation"]),
-        )
-    elif "确认计划" in text or "confirm plan" in lowered:
-        add_field(
-            "require_plan_confirm",
-            True,
-            0.95,
-            _first_present_span(text, ["确认计划", "confirm plan"]),
-        )
-
-    tool_preferences = _extract_tool_preferences(text)
-    if tool_preferences:
-        add_field(
-            "tools_allowed",
-            cast(JsonValue, tool_preferences),
-            0.76,
-            ", ".join(tool_preferences),
-        )
-
-    if fields and design_intent and "goal_summary" not in fields:
-        add_field("goal_summary", _goal_summary_from_text(text), 0.84, text.strip())
-
-    return cast(
-        JsonObject,
-        {
-            "fields": fields,
-            "unmapped_text": [],
-            "source_spans": cast(JsonValue, source_spans),
-            "mode": "rule_extract",
-        },
+        allowed_tool_ids=_allowed_tool_ids(),
+        source_value=TaskDraftFieldSource.LLM_EXTRACT.value,
     )
 
 
@@ -1747,29 +1562,6 @@ def _unwrap_extracted_field(
     return raw_field["value"], float(confidence), source_span, source
 
 
-def _first_present_span(text: str, needles: list[str]) -> str | None:
-    lowered = text.lower()
-    for needle in needles:
-        if not needle:
-            continue
-        if needle in text or needle.lower() in lowered:
-            return needle
-    return None
-
-
-def _goal_summary_from_text(text: str) -> str:
-    return re.sub(r"\s+", " ", text.strip())[:2000]
-
-
-def _extract_tool_preferences(text: str) -> list[str]:
-    lowered = text.lower()
-    has_tool_cue = any(
-        marker in lowered for marker in ("use", "prefer", "allowed", "tool")
-    ) or any(marker in text for marker in ("使用", "优先", "允许", "工具"))
-    if not has_tool_cue:
-        return []
-    allowed = _allowed_tool_ids()
-    return sorted(tool_id for tool_id in allowed if tool_id.lower() in lowered)
 
 
 def _merge_structured_fields(
@@ -1879,128 +1671,15 @@ def _required_fields_for(fields: dict[str, TaskDraftField]) -> list[str]:
     return list(dict.fromkeys(required))
 
 
-def _numeric_validator_value(
-    validators: JsonObject,
-    key: str,
-    default: int | float,
-) -> int | float:
-    value = validators.get(key)
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        return value
-    return default
-
-
-def _string_validator_value(
-    validators: JsonObject,
-    key: str,
-    default: str,
-) -> str:
-    value = validators.get(key)
-    if isinstance(value, str):
-        return value
-    return default
 
 
 def _validate_registry_value(field_name: str, value: JsonValue) -> str | None:
-    registry = _registry_fields()
-    field = registry.get(field_name)
-    if field is None:
-        return f"unknown intake field: {field_name}"
-
-    field_type = field["type"]
-    if field_type == "enum" and value not in set(field["options"]):
-        return f"{field_name} must be one of {field['options']}"
-    if field_type == "string":
-        if not isinstance(value, str) or not value.strip():
-            return f"{field_name} must be a non-empty string"
-        validators = field.get("validators", {})
-        min_length = int(_numeric_validator_value(validators, "min_length", 0))
-        max_length = int(_numeric_validator_value(validators, "max_length", len(value)))
-        if len(value) < min_length:
-            return f"{field_name} is shorter than allowed"
-        if len(value) > max_length:
-            return f"{field_name} is longer than allowed"
-    if field_type == "boolean" and not isinstance(value, bool):
-        return f"{field_name} must be a boolean"
-    if field_type == "integer":
-        if not isinstance(value, int) or isinstance(value, bool):
-            return f"{field_name} must be an integer"
-        validators = field.get("validators", {})
-        minimum = int(_numeric_validator_value(validators, "min", value))
-        maximum = int(_numeric_validator_value(validators, "max", value))
-        if value < minimum or value > maximum:
-            return f"{field_name} is outside allowed range"
-    if field_type == "number":
-        if not isinstance(value, (int, float)) or isinstance(value, bool):
-            return f"{field_name} must be a number"
-        validators = field.get("validators", {})
-        minimum = _numeric_validator_value(validators, "min", value)
-        maximum = _numeric_validator_value(validators, "max", value)
-        if value < minimum or value > maximum:
-            return f"{field_name} is outside allowed range"
-    if field_type == "object":
-        if not isinstance(value, dict):
-            return f"{field_name} must be an object"
-        validators = field.get("validators", {})
-        allowed_keys = validators.get("allowed_keys")
-        if isinstance(allowed_keys, list):
-            allowed = {item for item in allowed_keys if isinstance(item, str)}
-            unknown = sorted(str(key) for key in value if str(key) not in allowed)
-            if unknown:
-                return f"{field_name} contains unknown keys: {', '.join(unknown)}"
-        for item in value.values():
-            if (
-                not isinstance(item, (int, float))
-                or isinstance(item, bool)
-                or item < 0
-            ):
-                return f"{field_name} values must be non-negative numbers"
-    if field_type == "integer_range":
-        validators = field.get("validators", {})
-        minimum = int(_numeric_validator_value(validators, "min", 0))
-        maximum = int(_numeric_validator_value(validators, "max", 0))
-        if (
-            not isinstance(value, list)
-            or len(value) != 2
-            or not all(
-                isinstance(item, int) and not isinstance(item, bool) for item in value
-            )
-        ):
-            return f"{field_name} must be [min, max] integers"
-        lower = value[0]
-        upper = value[1]
-        if not isinstance(lower, int) or not isinstance(upper, int):
-            return f"{field_name} must be [min, max] integers"
-        if lower > upper or lower < minimum or upper > maximum:
-            return f"{field_name} must be [min, max] integers"
-    if field_type == "protein_sequence":
-        if not isinstance(value, str) or not value.strip():
-            return f"{field_name} must be a non-empty sequence"
-        alphabet = set(_string_validator_value(field["validators"], "alphabet", ""))
-        invalid = set(value.upper()) - alphabet
-        if invalid:
-            return f"{field_name} contains invalid residues: {''.join(sorted(invalid))}"
-    if field_type in {"string_list", "tool_id_list"}:
-        if not isinstance(value, list) or not all(
-            isinstance(item, str) and item for item in value
-        ):
-            return f"{field_name} must be a list of strings"
-        if field_type == "tool_id_list":
-            values = {item for item in value if isinstance(item, str)}
-            invalid_tool_ids = sorted(values - _allowed_tool_ids())
-            if invalid_tool_ids:
-                return (
-                    f"{field_name} contains unknown tool_id(s): "
-                    f"{', '.join(invalid_tool_ids)}"
-                )
-    if field_type == "residue_list":
-        if not isinstance(value, list) or not all(
-            isinstance(item, str) and re.match(r"^[A-Z][0-9]+$", item) for item in value
-        ):
-            return f"{field_name} must be residue ids like A42"
-    if field_type == "artifact_ref_list":
-        return _validate_artifact_ref_list(field_name, value)
-    return None
+    return validate_registry_value(
+        field_name,
+        value,
+        registry=_registry_fields(),
+        allowed_tool_ids=_allowed_tool_ids(),
+    )
 
 
 def _allowed_tool_ids() -> set[str]:
@@ -2011,139 +1690,50 @@ def _allowed_tool_ids() -> set[str]:
     }
 
 
+
+
 def _validate_artifact_ref_list(field_name: str, value: object) -> str | None:
     if not isinstance(value, list):
         return f"{field_name} must be a list of artifact refs"
-
-    artifacts = cast(list[object], value)
-    for index, raw_artifact in enumerate(artifacts):
-        artifact = cast(dict[object, object], raw_artifact)
-        if not isinstance(raw_artifact, dict):
-            return f"{field_name}[{index}] must be an object"
-        kind = artifact.get("kind")
-        if not isinstance(kind, str) or not kind.strip():
-            return f"{field_name}[{index}].kind must be a non-empty string"
-
-        ref_values = [
-            artifact.get("artifact_id"),
-            artifact.get("uri"),
-            artifact.get("path"),
-            artifact.get("ref"),
-        ]
-        if not any(isinstance(item, str) and item.strip() for item in ref_values):
-            return f"{field_name}[{index}] must include artifact_id, uri, path, or ref"
-
-        artifact_id = artifact.get("artifact_id")
-        if isinstance(artifact_id, str) and not re.match(
-            r"^[A-Za-z0-9_.:-]+$",
-            artifact_id,
-        ):
-            return f"{field_name}[{index}].artifact_id is invalid"
-
-        uri = artifact.get("uri")
-        if isinstance(uri, str) and not (
-            uri.startswith("artifact://") or uri.startswith("task://")
-        ):
-            return f"{field_name}[{index}].uri must use artifact:// or task://"
-
-        path = artifact.get("path")
-        if isinstance(path, str) and (
-            path.startswith("/")
-            or path.startswith("~")
-            or ".." in path.split("/")
-            or not path.strip()
-        ):
-            return f"{field_name}[{index}].path must be a safe relative path"
-
-        ref = artifact.get("ref")
-        if isinstance(ref, str) and not re.match(
-            r"^task_[A-Za-z0-9_:-]+\.[A-Za-z][A-Za-z0-9_.-]*$",
-            ref,
-        ):
-            return f"{field_name}[{index}].ref must look like task_id.artifact_key"
-
-    return None
+    return validate_registry_value(
+        field_name,
+        cast(JsonValue, value),
+        registry={
+            field_name: {
+                "type": "artifact_ref_list",
+                "validators": {},
+                "options": [],
+            }
+        },
+        allowed_tool_ids=set(),
+    )
 
 
 def _run_safety_input_precheck(session: TaskIntakeSession) -> TaskIntakeSafetyCheck:
     fields = {name: field.value for name, field in session.draft.fields.items()}
     input_summary = _build_safety_input_summary(session, fields)
-    risk_flags: list[TaskIntakeSafetyRisk] = []
-    safety_text = _safety_search_text(fields, session.raw_input)
 
-    if any(term in safety_text for term in ("weapon", "bioweapon", "病原增强")):
-        risk_flags.append(
-            TaskIntakeSafetyRisk(
-                level="block",
-                code="SAFETY_INPUT_BLOCK",
-                message="input appears to request a blocked unsafe biological use",
-                details={"terms": ["weapon", "bioweapon", "病原增强"]},
-            )
+    def make_risk(
+        level: Literal["warn", "block"],
+        code: str,
+        message: str,
+        details: JsonObject,
+    ) -> TaskIntakeSafetyRisk:
+        return TaskIntakeSafetyRisk(
+            level=level,
+            code=code,
+            message=message,
+            details=details,
         )
 
-    sequence = fields.get("sequence")
-    forbidden_motifs = fields.get("forbidden_motifs")
-    if isinstance(sequence, str) and isinstance(forbidden_motifs, list):
-        normalized_sequence = sequence.upper()
-        for motif in forbidden_motifs:
-            if isinstance(motif, str) and motif.upper() in normalized_sequence:
-                risk_flags.append(
-                    TaskIntakeSafetyRisk(
-                        level="warn",
-                        code="FORBIDDEN_MOTIF_PRESENT",
-                        message=(
-                            "forbidden_motifs contains motif present in sequence: "
-                            f"{motif}"
-                        ),
-                        details={"motif": motif},
-                    )
-                )
-
-    for forbidden_function in _coerce_string_list(fields.get("forbidden_functions")):
-        if _text_mentions_forbidden_function(
-            fields, session.raw_input, forbidden_function
-        ):
-            risk_flags.append(
-                TaskIntakeSafetyRisk(
-                    level="block",
-                    code="FORBIDDEN_FUNCTION_REQUESTED",
-                    message=(
-                        "input requests a function listed in forbidden_functions: "
-                        f"{forbidden_function}"
-                    ),
-                    details={"forbidden_function": forbidden_function},
-                )
-            )
-
-    if _mentions_high_risk_intent(fields, session.raw_input):
-        risk_flags.append(
-            TaskIntakeSafetyRisk(
-                level="block",
-                code="HIGH_RISK_BIOFUNCTION_REQUEST",
-                message="input appears to request a high-risk biological function",
-                details={"keywords": list(_HIGH_RISK_FUNCTION_KEYWORDS)},
-            )
-        )
-
-    if fields.get("safety_level") == "S2" or any(
-        term in safety_text for term in ("pathogenic", "毒性", "病原")
-    ):
-        risk_flags.append(
-            TaskIntakeSafetyRisk(
-                level="warn",
-                code="SAFETY_INPUT_WARN",
-                message="input may need additional safety review before task creation",
-                details={"safety_level": fields.get("safety_level")},
-            )
-        )
-
-    action: Literal["ok", "warn", "block"] = "ok"
-    if any(risk.level == "block" for risk in risk_flags):
-        action = "block"
-    elif any(risk.level == "warn" for risk in risk_flags):
-        action = "warn"
+    risk_flags = build_safety_risk_flags(
+        fields=fields,
+        raw_input=session.raw_input,
+        forbidden_keywords=_HIGH_RISK_FUNCTION_KEYWORDS,
+        make_risk=make_risk,
+    )
     return TaskIntakeSafetyCheck(
-        action=action,
+        action=resolve_precheck_action([risk.level for risk in risk_flags]),
         risk_flags=risk_flags,
         input_summary=input_summary,
     )
@@ -2297,46 +1887,9 @@ def _artifact_refs_from_value(value: JsonValue) -> list[JsonObject]:
 
 
 def _coerce_string_list(value: JsonValue) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str) and item.strip()]
+    return coerce_string_list(value)
 
 
-def _text_mentions_forbidden_function(
-    fields: JsonObject,
-    raw_input: JsonObject,
-    forbidden_function: str,
-) -> bool:
-    target = forbidden_function.strip().lower()
-    if not target:
-        return False
-    return target in _safety_search_text(fields, raw_input)
-
-
-def _mentions_high_risk_intent(
-    fields: JsonObject,
-    raw_input: JsonObject,
-) -> bool:
-    haystack = _safety_search_text(fields, raw_input)
-    return any(keyword in haystack for keyword in _HIGH_RISK_FUNCTION_KEYWORDS)
-
-
-def _safety_search_text(fields: JsonObject, raw_input: JsonObject) -> str:
-    pieces: list[str] = []
-    raw_text = raw_input.get("text")
-    if isinstance(raw_text, str):
-        pieces.append(raw_text)
-    for name in (
-        "goal_summary",
-        "objective_description",
-        "motif_pattern",
-        "binding_partner",
-        "target_ligand",
-    ):
-        value = fields.get(name)
-        if isinstance(value, str):
-            pieces.append(value)
-    return "\n".join(pieces).lower()
 
 
 def _build_human_summary(session: TaskIntakeSession) -> str:
