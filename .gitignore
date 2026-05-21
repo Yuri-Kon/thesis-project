@@ -68,3 +68,4 @@ work/
 output/reports/
 output/pdb/
 tmp/*.png
+output/metrics/*.json
