@@ -44,6 +44,13 @@ from src.workflow.runtime_policy import (
     DYNAMIC_OBSERVATION_ONLY_POLICY,
     resolve_runtime_policy,
 )
+from src.workflow.recovery_event_replay import normalize_runtime_state_summary
+from src.workflow.recovery_predicates import (
+    has_failure_signal,
+    is_hard_blocked_suggestion,
+    should_choose_stop,
+)
+from src.workflow.recovery_scoring import compute_stop_utility
 
 __all__ = [
     "restore_context_from_snapshot",
@@ -200,7 +207,7 @@ def select_workflow_action(
     )
     observation_only = runtime_policy == DYNAMIC_OBSERVATION_ONLY_POLICY
 
-    runtime_summary = _normalize_runtime_state_summary(
+    runtime_summary = normalize_runtime_state_summary(
         selector_input.runtime_state_summary
     )
     p_success = _safe_float(runtime_summary.get("p_success"), default=0.5)
@@ -229,14 +236,12 @@ def select_workflow_action(
     prefix_preservability = derived_runtime_features["prefix_preservability"]
     local_patchability = derived_runtime_features["local_patchability"]
     safety_terminality = derived_runtime_features["safety_terminality"]
-    u_stop = _clip_float(
-        0.32 * (1.0 - p_success)
-        + 0.24 * min(budget_pressure, 1.0)
-        + 0.18 * (1.0 - recovery_margin)
-        + 0.16 * safety_terminality
-        + 0.10 * (1.0 - intervention_value),
-        lower=0.0,
-        upper=1.0,
+    u_stop = compute_stop_utility(
+        p_success=p_success,
+        budget_pressure=budget_pressure,
+        recovery_margin=recovery_margin,
+        safety_terminality=safety_terminality,
+        intervention_value=intervention_value,
     )
     allow_auto_stop = _safe_bool(
         runtime_summary.get("allow_auto_stop"),
@@ -246,11 +251,11 @@ def select_workflow_action(
     normalized_failure_type = _normalize_failure_type(selector_input.failure_type)
     normalized_failure_code = _normalize_text(selector_input.failure_code)
     normalized_stage_id = _normalize_text(selector_input.stage_id)
-    has_failure_signal = (
-        normalized_failure_type is not None
-        or normalized_failure_code is not None
-        or bool(selector_input.retry_exhausted)
-        or bool(selector_input.safety_blocked)
+    failure_signal_present = has_failure_signal(
+        failure_type_present=normalized_failure_type is not None,
+        failure_code_present=normalized_failure_code is not None,
+        retry_exhausted=bool(selector_input.retry_exhausted),
+        safety_blocked=bool(selector_input.safety_blocked),
     )
     s6_default_action = resolve_s6_recovery_action(
         stage_id=normalized_stage_id,
@@ -260,120 +265,24 @@ def select_workflow_action(
         safety_blocked=bool(selector_input.safety_blocked),
     )
 
-    if (
-        selector_input.safety_blocked
-        and "suffix_replan" in allowed_actions
-        and not _should_choose_stop(
-            allowed_actions=allowed_actions,
-            allow_auto_stop=allow_auto_stop,
-            u_stop=u_stop,
-            p_success=p_success,
-            budget_pressure=budget_pressure,
-            recovery_margin=recovery_margin,
-            intervention_value=intervention_value,
-        )
-    ):
-        action = "suffix_replan"
-        reason = "safety block disables continue and escalates to suffix replan"
-        basis = "hard_priority"
-    elif suggested_action is not None and not _is_hard_blocked_suggestion(
-        suggested_action=suggested_action,
-        safety_blocked=bool(selector_input.safety_blocked),
-    ):
-        action = suggested_action
-        reason = selector_input.suggested_reason or (
-            f"candidate/runtime suggestion selected {suggested_action}"
-        )
-        basis = "suggested_action"
-    elif not has_failure_signal:
-        action = "continue"
-        if observation_only:
-            reason = (
-                "observation-only runtime policy saw no failure or safety signal "
-                "in the current execution step"
-            )
-            basis = "observation_only"
-        else:
-            reason = "no failure or safety signal is present in the current execution step"
-            basis = "default_continue"
-    elif _should_choose_stop(
+    action, reason, basis = _choose_workflow_action(
+        phase=phase,
         allowed_actions=allowed_actions,
+        suggested_action=suggested_action,
+        suggested_reason=selector_input.suggested_reason,
+        safety_blocked=bool(selector_input.safety_blocked),
+        failure_signal_present=failure_signal_present,
+        observation_only=observation_only,
         allow_auto_stop=allow_auto_stop,
         u_stop=u_stop,
         p_success=p_success,
         budget_pressure=budget_pressure,
         recovery_margin=recovery_margin,
         intervention_value=intervention_value,
-    ):
-        action = "stop"
-        reason = (
-            "runtime stop threshold met; route through terminal_stop replan candidate"
-        )
-        basis = "action_priority"
-    elif (
-        phase != "replan"
-        and "patch_local" in allowed_actions
-        and s6_default_action == "patch"
-        and (
-            (
-                local_patchability >= 0.55
-                and recovery_margin >= 0.30
-            )
-            or (
-                phase == "patch"
-                and local_patchability >= 0.65
-                and recovery_margin >= 0.15
-            )
-        )
-        and not (
-            p_structural_failure >= 0.55
-            and recovery_margin <= 0.1
-        )
-    ):
-        action = "patch_local"
-        if observation_only:
-            reason = (
-                "observation-only runtime policy routes the local failure "
-                "through patch_local"
-            )
-            basis = "observation_only"
-        else:
-            reason = "failure still looks local and existing recovery order prefers patch"
-            basis = "action_priority"
-    elif (
-        "suffix_replan" in allowed_actions
-        and (
-            s6_default_action == "replan"
-            or (
-                p_structural_failure >= 0.55
-                and recovery_margin <= 0.1
-            )
-        )
-    ):
-        action = "suffix_replan"
-        if observation_only:
-            reason = (
-                "observation-only runtime policy escalates to suffix_replan "
-                "from the current failure signal"
-            )
-            basis = "observation_only"
-        else:
-            reason = (
-                "structural failure pressure is high or trigger matrix already prefers replan"
-            )
-            basis = "action_priority"
-    else:
-        action = "continue"
-        if observation_only:
-            reason = (
-                "observation-only runtime policy keeps the current path because "
-                "the present signal does not justify escalation"
-            )
-            basis = "observation_only"
-        else:
-            reason = "current context does not justify escalating beyond the existing path"
-            basis = "default_continue"
-
+        local_patchability=local_patchability,
+        p_structural_failure=p_structural_failure,
+        s6_default_action=s6_default_action,
+    )
     route = resolve_workflow_action_route(action)
     if selector_input.action_utilities is not None:
         action_utilities = dict(selector_input.action_utilities)
@@ -429,6 +338,169 @@ def select_workflow_action(
         },
     )
 
+
+
+def _choose_workflow_action(
+    *,
+    phase: str,
+    allowed_actions: frozenset[str],
+    suggested_action: str | None,
+    suggested_reason: str | None,
+    safety_blocked: bool,
+    failure_signal_present: bool,
+    observation_only: bool,
+    allow_auto_stop: bool,
+    u_stop: float,
+    p_success: float,
+    budget_pressure: float,
+    recovery_margin: float,
+    intervention_value: float,
+    local_patchability: float,
+    p_structural_failure: float,
+    s6_default_action: str,
+) -> tuple[str, str, str]:
+    if (
+        safety_blocked
+        and "suffix_replan" in allowed_actions
+        and not should_choose_stop(
+            allowed_actions=allowed_actions,
+            allow_auto_stop=allow_auto_stop,
+            u_stop=u_stop,
+            p_success=p_success,
+            budget_pressure=budget_pressure,
+            recovery_margin=recovery_margin,
+            intervention_value=intervention_value,
+        )
+    ):
+        action = "suffix_replan"
+        reason = "safety block disables continue and escalates to suffix replan"
+        basis = "hard_priority"
+    elif suggested_action is not None and not is_hard_blocked_suggestion(
+        suggested_action=suggested_action,
+        safety_blocked=bool(safety_blocked),
+    ):
+        action = suggested_action
+        reason = suggested_reason or (
+            f"candidate/runtime suggestion selected {suggested_action}"
+        )
+        basis = "suggested_action"
+    elif not failure_signal_present:
+        action = "continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy saw no failure or safety signal "
+                "in the current execution step"
+            )
+            basis = "observation_only"
+        else:
+            reason = "no failure or safety signal is present in the current execution step"
+            basis = "default_continue"
+    elif should_choose_stop(
+        allowed_actions=allowed_actions,
+        allow_auto_stop=allow_auto_stop,
+        u_stop=u_stop,
+        p_success=p_success,
+        budget_pressure=budget_pressure,
+        recovery_margin=recovery_margin,
+        intervention_value=intervention_value,
+    ):
+        action = "stop"
+        reason = (
+            "runtime stop threshold met; route through terminal_stop replan candidate"
+        )
+        basis = "action_priority"
+    elif (
+        _should_choose_patch_local(
+            phase=phase,
+            allowed_actions=allowed_actions,
+            s6_default_action=s6_default_action,
+            local_patchability=local_patchability,
+            recovery_margin=recovery_margin,
+            p_structural_failure=p_structural_failure,
+        )
+    ):
+        action = "patch_local"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy routes the local failure "
+                "through patch_local"
+            )
+            basis = "observation_only"
+        else:
+            reason = "failure still looks local and existing recovery order prefers patch"
+            basis = "action_priority"
+    elif (
+        _should_choose_suffix_replan(
+            allowed_actions=allowed_actions,
+            s6_default_action=s6_default_action,
+            p_structural_failure=p_structural_failure,
+            recovery_margin=recovery_margin,
+        )
+    ):
+        action = "suffix_replan"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy escalates to suffix_replan "
+                "from the current failure signal"
+            )
+            basis = "observation_only"
+        else:
+            reason = (
+                "structural failure pressure is high or trigger matrix already prefers replan"
+            )
+            basis = "action_priority"
+    else:
+        action = "continue"
+        if observation_only:
+            reason = (
+                "observation-only runtime policy keeps the current path because "
+                "the present signal does not justify escalation"
+            )
+            basis = "observation_only"
+        else:
+            reason = "current context does not justify escalating beyond the existing path"
+            basis = "default_continue"
+
+    return action, reason, basis
+
+
+def _should_choose_patch_local(
+    *,
+    phase: str,
+    allowed_actions: frozenset[str],
+    s6_default_action: str,
+    local_patchability: float,
+    recovery_margin: float,
+    p_structural_failure: float,
+) -> bool:
+    patchable = local_patchability >= 0.55 and recovery_margin >= 0.30
+    patch_phase_salvage = (
+        phase == "patch"
+        and local_patchability >= 0.65
+        and recovery_margin >= 0.15
+    )
+    structural_collapse = p_structural_failure >= 0.55 and recovery_margin <= 0.1
+    return (
+        phase != "replan"
+        and "patch_local" in allowed_actions
+        and s6_default_action == "patch"
+        and (patchable or patch_phase_salvage)
+        and not structural_collapse
+    )
+
+
+def _should_choose_suffix_replan(
+    *,
+    allowed_actions: frozenset[str],
+    s6_default_action: str,
+    p_structural_failure: float,
+    recovery_margin: float,
+) -> bool:
+    structural_collapse = p_structural_failure >= 0.55 and recovery_margin <= 0.1
+    return (
+        "suffix_replan" in allowed_actions
+        and (s6_default_action == "replan" or structural_collapse)
+    )
 
 def build_terminal_stop_candidate(
     *,
@@ -583,14 +655,6 @@ def _normalize_workflow_action(value: str | None) -> str | None:
     return None
 
 
-def _normalize_runtime_state_summary(
-    payload: dict[str, Any] | None,
-) -> dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {}
-    return dict(payload)
-
-
 def _normalize_text(value: object) -> str | None:
     if not isinstance(value, str):
         return None
@@ -619,10 +683,6 @@ def _safe_bool(value: object, *, default: bool) -> bool:
     return default
 
 
-def _clip_float(value: float, *, lower: float, upper: float) -> float:
-    return max(lower, min(upper, float(value)))
-
-
 def _normalize_failure_type(value: FailureType | str | None) -> FailureType | None:
     if isinstance(value, FailureType):
         return value
@@ -632,36 +692,6 @@ def _normalize_failure_type(value: FailureType | str | None) -> FailureType | No
         except ValueError:
             return None
     return None
-
-
-def _is_hard_blocked_suggestion(
-    *,
-    suggested_action: str,
-    safety_blocked: bool,
-) -> bool:
-    return safety_blocked and suggested_action == "continue"
-
-
-def _should_choose_stop(
-    *,
-    allowed_actions: frozenset[str],
-    allow_auto_stop: bool,
-    u_stop: float,
-    p_success: float,
-    budget_pressure: float,
-    recovery_margin: float,
-    intervention_value: float,
-) -> bool:
-    if "stop" not in allowed_actions:
-        return False
-    if allow_auto_stop and u_stop >= 0.72:
-        return True
-    return (
-        p_success <= 0.20
-        and budget_pressure >= 0.85
-        and recovery_margin <= 0.20
-        and intervention_value <= 0.35
-    )
 
 
 def _resolve_preserve_prefix_until_step_index(

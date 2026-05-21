@@ -125,47 +125,16 @@ def enter_waiting_state(
     Raises:
         ValueError: 当 PendingAction 与目标 WAITING_* 状态不匹配。
     """
-    _validate_waiting_transition(context, pending_action, to_status, record)
-
-    # 记录进入 WAITING_* 状态前的状态
-    prev_status = to_external_status(context.status)
-    new_status = _to_external_waiting_status(to_status)
-
-    context.pending_action = pending_action
-    if record is not None:
-        record.pending_action = pending_action
-
-    # 写入旧格式事件日志以保持兼容性
-    log_handler = event_logger or _default_event_logger
-    log_handler(
-        {
-            "event": "PENDING_ACTION_CREATED",
-            "task_id": context.task.task_id,
-            "pending_action_id": pending_action.pending_action_id,
-            "action_type": pending_action.action_type.value,
-            "candidate_ids": [c.candidate_id for c in pending_action.candidates],
-            "default_suggestion": pending_action.default_suggestion,
-            "default_recommendation": pending_action.default_recommendation,
-        }
+    prev_status, new_status = _validate_before_waiting(
+        context, pending_action, to_status, record
     )
-
-    # 写入结构化 WAITING_ENTER EventLog
-    selected_candidate = None
-    default_candidate_id = (
-        pending_action.default_recommendation or pending_action.default_suggestion
+    _attach_pending_action(context, record, pending_action)
+    _emit_pending_action_created(
+        context=context,
+        pending_action=pending_action,
+        event_logger=event_logger,
     )
-    if default_candidate_id:
-        for candidate in pending_action.candidates:
-            if candidate.candidate_id == default_candidate_id:
-                selected_candidate = candidate
-                break
-    if selected_candidate is None and pending_action.candidates:
-        selected_candidate = pending_action.candidates[0]
-    selected_meta = (
-        selected_candidate.metadata
-        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
-        else {}
-    )
+    selected_candidate = _select_waiting_candidate(pending_action)
     waiting_runtime_summary = _build_waiting_runtime_summary(
         pending_action=pending_action,
         selected_candidate=selected_candidate,
@@ -176,119 +145,21 @@ def enter_waiting_state(
             WAITING_RUNTIME_SUMMARY_METADATA_KEY,
             waiting_runtime_summary,
         )
-    runtime_state_summary = build_context_runtime_state_summary(
-        context,
-        require_runtime_state=True,
-        external_state=new_status,
-    )
-    runtime_trace = runtime_policy_trace(context.task)
-    waiting_enter_event = make_waiting_enter(
-        task_id=context.task.task_id,
-        pending_action_id=pending_action.pending_action_id,
+    _write_waiting_enter_event(
+        context=context,
+        pending_action=pending_action,
+        to_status=to_status,
         prev_status=prev_status,
         new_status=new_status,
-        waiting_state=to_status.value,
-        actor_type=ActorType.SYSTEM,
-        internal_status=to_status,
-        data={
-            "action_type": pending_action.action_type.value,
-            "action_name": _ACTION_NAME_MAP[pending_action.action_type],
-            "reason": reason or "entering_waiting_state",
-            "candidate_count": len(pending_action.candidates),
-            "explanation": pending_action.explanation,
-            "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
-            "tool_id": (
-                selected_candidate.tool_id if selected_candidate else selected_meta.get("tool_id")
-            ),
-            "capability_id": (
-                selected_candidate.capability_id
-                if selected_candidate
-                else selected_meta.get("capability_id")
-            ),
-            "io_type": (
-                selected_candidate.io_type if selected_candidate else selected_meta.get("io_type")
-            ),
-            "adapter_mode": (
-                selected_candidate.adapter_mode
-                if selected_candidate
-                else selected_meta.get("adapter_mode")
-            ),
-            "adapter_id": (
-                selected_candidate.adapter_id
-                if selected_candidate
-                else selected_meta.get("adapter_id")
-            ),
-            "execution_mode": (
-                selected_candidate.execution_mode
-                if selected_candidate
-                else selected_meta.get("execution_mode")
-            ),
-            "provider": (
-                selected_candidate.provider
-                if selected_candidate
-                else selected_meta.get("provider")
-            ),
-            "endpoint_type": (
-                selected_candidate.endpoint_type
-                if selected_candidate
-                else selected_meta.get("endpoint_type")
-            ),
-            "remote_job_id": (
-                selected_candidate.remote_job_id
-                if selected_candidate
-                else selected_meta.get("remote_job_id")
-            ),
-            "waiting_runtime_summary": (
-                pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
-                if isinstance(pending_action.metadata, dict)
-                else None
-            ),
-            "action_score": (
-                selected_meta.get(ACTION_SCORE_METADATA_KEY)
-                if isinstance(selected_meta.get(ACTION_SCORE_METADATA_KEY), dict)
-                else None
-            ),
-            "shadow_score": (
-                selected_meta.get(SHADOW_SCORE_METADATA_KEY)
-                if isinstance(selected_meta.get(SHADOW_SCORE_METADATA_KEY), dict)
-                else None
-            ),
-            "terminal_policy": selected_meta.get("terminal_policy"),
-            "terminal_reason": selected_meta.get("terminal_reason"),
-            "replan_mode": selected_meta.get("replan_mode"),
-            "preserve_prefix_until_step_index": selected_meta.get(
-                "preserve_prefix_until_step_index"
-            ),
-            "evidence_source": (
-                selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY)
-                if isinstance(selected_meta.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY), dict)
-                else None
-            ),
-            "tool_readiness": (
-                selected_meta.get(TOOL_READINESS_METADATA_KEY)
-                if isinstance(selected_meta.get(TOOL_READINESS_METADATA_KEY), dict)
-                else None
-            ),
-            "capability_readiness": (
-                selected_meta.get(CAPABILITY_READINESS_METADATA_KEY)
-                if isinstance(selected_meta.get(CAPABILITY_READINESS_METADATA_KEY), dict)
-                else None
-            ),
-            "runtime_policy": runtime_trace["runtime_policy"],
-            "belief_state_enabled": runtime_trace["belief_state_enabled"],
-            "runtime_state_summary": runtime_state_summary,
-        },
+        selected_candidate=selected_candidate,
+        reason=reason,
     )
-    write_event_log(waiting_enter_event)
-
-    snapshot = build_task_snapshot(
-        context,
-        state_override=new_status,
-        pending_action_id=pending_action.pending_action_id,
-        require_runtime_state=True,
+    _build_waiting_snapshot(
+        context=context,
+        new_status=new_status,
+        pending_action=pending_action,
+        snapshot_writer=snapshot_writer,
     )
-    (snapshot_writer or default_snapshot_writer)(snapshot)
-    _ = reason
 
 
 def _validate_waiting_transition(
@@ -322,6 +193,202 @@ def _validate_waiting_transition(
         raise ValueError("pending_action.task_id does not match task")
     if record is not None and record.status != to_external_status(context.status):
         raise ValueError("record status does not match context status")
+
+
+def _validate_before_waiting(
+    context: WorkflowContext,
+    pending_action: PendingAction,
+    to_status: InternalStatus,
+    record: TaskRecord | None,
+) -> tuple[ExternalStatus, ExternalStatus]:
+    _validate_waiting_transition(context, pending_action, to_status, record)
+    return to_external_status(context.status), _to_external_waiting_status(to_status)
+
+
+def _attach_pending_action(
+    context: WorkflowContext,
+    record: TaskRecord | None,
+    pending_action: PendingAction,
+) -> None:
+    context.pending_action = pending_action
+    if record is not None:
+        record.pending_action = pending_action
+
+
+def _emit_pending_action_created(
+    *,
+    context: WorkflowContext,
+    pending_action: PendingAction,
+    event_logger: EventLogger | None,
+) -> None:
+    log_handler = event_logger or _default_event_logger
+    log_handler(
+        {
+            "event": "PENDING_ACTION_CREATED",
+            "task_id": context.task.task_id,
+            "pending_action_id": pending_action.pending_action_id,
+            "action_type": pending_action.action_type.value,
+            "candidate_ids": [c.candidate_id for c in pending_action.candidates],
+            "default_suggestion": pending_action.default_suggestion,
+            "default_recommendation": pending_action.default_recommendation,
+        }
+    )
+
+
+def _select_waiting_candidate(
+    pending_action: PendingAction,
+) -> PendingActionCandidate | None:
+    default_candidate_id = (
+        pending_action.default_recommendation or pending_action.default_suggestion
+    )
+    if default_candidate_id:
+        for candidate in pending_action.candidates:
+            if candidate.candidate_id == default_candidate_id:
+                return candidate
+    if pending_action.candidates:
+        return pending_action.candidates[0]
+    return None
+
+
+def _write_waiting_enter_event(
+    *,
+    context: WorkflowContext,
+    pending_action: PendingAction,
+    to_status: InternalStatus,
+    prev_status: ExternalStatus,
+    new_status: ExternalStatus,
+    selected_candidate: PendingActionCandidate | None,
+    reason: str | None,
+) -> None:
+    waiting_enter_event = make_waiting_enter(
+        task_id=context.task.task_id,
+        pending_action_id=pending_action.pending_action_id,
+        prev_status=prev_status,
+        new_status=new_status,
+        waiting_state=to_status.value,
+        actor_type=ActorType.SYSTEM,
+        internal_status=to_status,
+        data=_build_waiting_enter_data(
+            context=context,
+            pending_action=pending_action,
+            new_status=new_status,
+            selected_candidate=selected_candidate,
+            reason=reason,
+        ),
+    )
+    write_event_log(waiting_enter_event)
+
+
+def _build_waiting_snapshot(
+    *,
+    context: WorkflowContext,
+    new_status: ExternalStatus,
+    pending_action: PendingAction,
+    snapshot_writer: SnapshotWriter | None,
+) -> None:
+    snapshot = build_task_snapshot(
+        context,
+        state_override=new_status,
+        pending_action_id=pending_action.pending_action_id,
+        require_runtime_state=True,
+    )
+    (snapshot_writer or default_snapshot_writer)(snapshot)
+
+
+def _build_waiting_enter_data(
+    *,
+    context: WorkflowContext,
+    pending_action: PendingAction,
+    new_status: ExternalStatus,
+    selected_candidate: PendingActionCandidate | None,
+    reason: str | None,
+) -> dict[str, object]:
+    selected_meta = _candidate_metadata(selected_candidate)
+    runtime_state_summary = build_context_runtime_state_summary(
+        context,
+        require_runtime_state=True,
+        external_state=new_status,
+    )
+    runtime_trace = runtime_policy_trace(context.task)
+    return {
+        "action_type": pending_action.action_type.value,
+        "action_name": _ACTION_NAME_MAP[pending_action.action_type],
+        "reason": reason or "entering_waiting_state",
+        "candidate_count": len(pending_action.candidates),
+        "explanation": pending_action.explanation,
+        "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
+        "tool_id": _candidate_attr_or_meta(selected_candidate, selected_meta, "tool_id"),
+        "capability_id": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "capability_id"
+        ),
+        "io_type": _candidate_attr_or_meta(selected_candidate, selected_meta, "io_type"),
+        "adapter_mode": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "adapter_mode"
+        ),
+        "adapter_id": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "adapter_id"
+        ),
+        "execution_mode": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "execution_mode"
+        ),
+        "provider": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "provider"
+        ),
+        "endpoint_type": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "endpoint_type"
+        ),
+        "remote_job_id": _candidate_attr_or_meta(
+            selected_candidate, selected_meta, "remote_job_id"
+        ),
+        "waiting_runtime_summary": pending_action.metadata.get(
+            WAITING_RUNTIME_SUMMARY_METADATA_KEY
+        )
+        if isinstance(pending_action.metadata, dict)
+        else None,
+        "action_score": _dict_meta(selected_meta, ACTION_SCORE_METADATA_KEY),
+        "shadow_score": _dict_meta(selected_meta, SHADOW_SCORE_METADATA_KEY),
+        "terminal_policy": selected_meta.get("terminal_policy"),
+        "terminal_reason": selected_meta.get("terminal_reason"),
+        "replan_mode": selected_meta.get("replan_mode"),
+        "preserve_prefix_until_step_index": selected_meta.get(
+            "preserve_prefix_until_step_index"
+        ),
+        "evidence_source": _dict_meta(
+            selected_meta, DEFAULT_RECOMMENDATION_REASON_METADATA_KEY
+        ),
+        "tool_readiness": _dict_meta(selected_meta, TOOL_READINESS_METADATA_KEY),
+        "capability_readiness": _dict_meta(
+            selected_meta, CAPABILITY_READINESS_METADATA_KEY
+        ),
+        "runtime_policy": runtime_trace["runtime_policy"],
+        "belief_state_enabled": runtime_trace["belief_state_enabled"],
+        "runtime_state_summary": runtime_state_summary,
+    }
+
+
+def _candidate_metadata(
+    candidate: PendingActionCandidate | None,
+) -> dict[str, object]:
+    if candidate is not None and isinstance(candidate.metadata, dict):
+        return dict(candidate.metadata)
+    return {}
+
+
+def _candidate_attr_or_meta(
+    candidate: PendingActionCandidate | None,
+    metadata: dict[str, object],
+    field_name: str,
+) -> object:
+    if candidate is not None:
+        value = getattr(candidate, field_name, None)
+        if value is not None:
+            return value
+    return metadata.get(field_name)
+
+
+def _dict_meta(metadata: dict[str, object], key: str) -> object:
+    value = metadata.get(key)
+    return value if isinstance(value, dict) else None
 
 
 def _to_external_waiting_status(to_status: InternalStatus) -> ExternalStatus:

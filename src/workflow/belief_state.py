@@ -185,6 +185,29 @@ def update_runtime_state(
     total_steps: int | None = None,
     budget_cap: float | None = None,
 ) -> RuntimeState:
+    return _update_runtime_state_impl(
+        previous_state=previous_state,
+        update_input=update_input,
+        step_result=step_result,
+        safety_result=safety_result,
+        failure_context=failure_context,
+        completed_steps=completed_steps,
+        total_steps=total_steps,
+        budget_cap=budget_cap,
+    )
+
+
+def _update_runtime_state_impl(
+    *,
+    previous_state: RuntimeState | None,
+    update_input: RuntimeStateUpdateInput | None = None,
+    step_result: StepResult | None = None,
+    safety_result: SafetyResult | None = None,
+    failure_context: RuntimeFailureContext | Mapping[str, Any] | None = None,
+    completed_steps: int | None = None,
+    total_steps: int | None = None,
+    budget_cap: float | None = None,
+) -> RuntimeState:
     """以确定性规则更新 Lite 版运行时 belief-state。
 
     第一版刻意采用小步、可解释的规则增减，确保结果能够：
