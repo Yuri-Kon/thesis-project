@@ -30,6 +30,10 @@ from src.workflow.step_runner import StepRunner
 from src.workflow.status import transition_task_status
 from src.workflow.pending_action import build_pending_action, enter_waiting_state
 from src.workflow.runtime_policy import resolve_runtime_policy, runtime_policy_uses_belief_state
+from src.workflow.patch_recovery_metadata import (
+    extract_capability_from_step as _extract_capability_from_step_impl,
+    extract_recovery_metadata,
+)
 
 
 class StepRunnerLike(Protocol):
@@ -73,6 +77,21 @@ class PatchRunner:
         self._planner: PlannerAgent = planner_agent or PlannerAgent()
 
     def run_step_with_patch(
+        self,
+        plan: Plan,
+        step_index: int,
+        context: WorkflowContext,
+        *,
+        record: TaskRecord | None = None,
+    ) -> PatchRunOutcome:
+        return self._run_step_with_patch_impl(
+            plan,
+            step_index,
+            context,
+            record=record,
+        )
+
+    def _run_step_with_patch_impl(
         self,
         plan: Plan,
         step_index: int,
@@ -592,66 +611,12 @@ def _extract_recovery_metadata(
     source_step: PlanStep,
     patched_step: StepResult | None = None,
 ) -> dict[str, Any]:
-    metadata = (
-        plan_patch.metadata
-        if plan_patch is not None and isinstance(plan_patch.metadata, dict)
-        else {}
+    return extract_recovery_metadata(
+        plan_patch=plan_patch,
+        selected_candidate=selected_candidate,
+        source_step=source_step,
+        patched_step=patched_step,
     )
-    candidate_meta = (
-        selected_candidate.metadata
-        if selected_candidate is not None and isinstance(selected_candidate.metadata, dict)
-        else {}
-    )
-    capability_id = metadata.get("capability_id")
-    if not isinstance(capability_id, str) or not capability_id:
-        capability_id = selected_candidate.capability_id if selected_candidate else None
-    if not isinstance(capability_id, str) or not capability_id:
-        capability_id = _extract_capability_from_step(source_step)
-
-    from_tool = metadata.get("from_tool")
-    if not isinstance(from_tool, str) or not from_tool:
-        from_tool = source_step.tool
-    to_tool = metadata.get("to_tool")
-    if not isinstance(to_tool, str) or not to_tool:
-        to_tool = (
-            patched_step.tool
-            if patched_step is not None
-            else (selected_candidate.tool_id if selected_candidate else source_step.tool)
-        )
-    recovery_layer = metadata.get("recovery_layer")
-    if not isinstance(recovery_layer, str) or not recovery_layer:
-        recovery_layer = str(candidate_meta.get("recovery_layer") or "tool_level")
-    reason = metadata.get("reason")
-    if not isinstance(reason, str) or not reason:
-        reason = str(candidate_meta.get("reason") or candidate_meta.get("recovery_reason") or "patch_required")
-
-    payload: dict[str, Any] = {
-        "recovery_layer": recovery_layer,
-        "capability_id": capability_id,
-        "from_tool": from_tool,
-        "to_tool": to_tool,
-        "reason": reason,
-        "candidate_id": selected_candidate.candidate_id if selected_candidate else None,
-        "io_type": selected_candidate.io_type if selected_candidate else None,
-        "adapter_mode": selected_candidate.adapter_mode if selected_candidate else None,
-        "adapter_id": selected_candidate.adapter_id if selected_candidate else None,
-        "execution_mode": selected_candidate.execution_mode if selected_candidate else None,
-        "provider": selected_candidate.provider if selected_candidate else None,
-        "endpoint_type": selected_candidate.endpoint_type if selected_candidate else None,
-        "remote_job_id": selected_candidate.remote_job_id if selected_candidate else None,
-    }
-    for key in (
-        "runtime_state_summary",
-        "action_score",
-        "shadow_score",
-        "default_recommendation_reason",
-    ):
-        value = candidate_meta.get(key)
-        if value is not None:
-            payload[key] = value
-    if isinstance(metadata.get("strategy"), str):
-        payload["strategy"] = metadata.get("strategy")
-    return payload
 
 
 def _attach_recovery_upgrade_meta(
@@ -759,16 +724,7 @@ def _emit_recovery_escalation_event(
 
 
 def _extract_capability_from_step(step: PlanStep) -> str:
-    metadata = step.metadata if isinstance(step.metadata, dict) else {}
-    raw = metadata.get("capability")
-    if isinstance(raw, str) and raw:
-        return raw
-    values = metadata.get("capabilities")
-    if isinstance(values, list):
-        for item in values:
-            if isinstance(item, str) and item:
-                return item
-    return "unknown"
+    return _extract_capability_from_step_impl(step)
 
 
 def _extract_patch_candidates(

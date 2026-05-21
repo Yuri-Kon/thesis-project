@@ -1,6 +1,10 @@
 import pytest
 
-from src.workflow.action_features import ACTION_FEATURE_NAMES, derive_action_features
+from src.workflow.action_features import (
+    ACTION_FEATURE_NAMES,
+    FEATURE_RULES,
+    derive_action_features,
+)
 from src.workflow.errors import FailureType
 
 
@@ -149,3 +153,22 @@ def test_observed_values_take_priority():
     assert derivation.features["intervention_value"].source == "observed"
     assert derivation.values["safety_terminality"] == pytest.approx(0.0)
     assert derivation.features["safety_terminality"].source == "observed"
+
+
+@pytest.mark.unit
+def test_feature_rules_cover_each_public_feature_independently():
+    assert {rule.name for rule in FEATURE_RULES} == set(ACTION_FEATURE_NAMES)
+
+    derivation = derive_action_features(
+        runtime_state={
+            "p_success": 0.42,
+            "p_structural_failure": 0.31,
+            "recovery_margin": 0.57,
+            "expected_remaining_cost": 0.9,
+            "evidence_sufficiency": 0.63,
+        },
+        failed_step_index=1,
+    )
+
+    for rule in FEATURE_RULES:
+        assert derivation.features[rule.name].reason
