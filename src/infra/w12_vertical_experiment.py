@@ -6,6 +6,7 @@ import json
 import math
 import random
 from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
@@ -77,6 +78,52 @@ CANONICAL_GROUP_ALIASES: dict[str, str] = {
     "tot_multi_branch": "E1",
     "reflexion_recovery": "E2",
 }
+
+
+@dataclass
+class _RunEventMetrics:
+    """单次 run 的事件扫描暂存区，避免 extract_run_metrics 直接维护所有细节。"""
+
+    timestamps: list[datetime] = field(default_factory=list)
+    step_failed_details: list[dict[str, Any]] = field(default_factory=list)
+    layer_counter: Counter[str] = field(default_factory=Counter)
+    tool_usage: Counter[str] = field(default_factory=Counter)
+    capability_usage: Counter[str] = field(default_factory=Counter)
+    high_cost_rule_hits: Counter[str] = field(default_factory=Counter)
+    waiting_enter_ids: set[str] = field(default_factory=set)
+    waiting_exit_ids: set[str] = field(default_factory=set)
+    decision_pending_ids: set[str] = field(default_factory=set)
+    action_counter: Counter[str] = field(default_factory=Counter)
+    suffix_prefix_samples: list[bool] = field(default_factory=list)
+    candidate_validation_failed: int = 0
+    patch_event_count: int = 0
+    replan_event_count: int = 0
+    suffix_replan_event_count: int = 0
+    step_failed_count: int = 0
+    step_finished_count: int = 0
+    waiting_enter_count: int = 0
+    high_cost_call_count: int = 0
+    high_cost_failure_count: int = 0
+    runtime_state_observable: bool = False
+    shadow_output_observable: bool = False
+    shadow_action_agreement_count: int = 0
+    shadow_action_observation_count: int = 0
+    final_status: str | None = None
+
+
+@dataclass
+class _GroupAggregateCounters:
+    """组级聚合暂存区，只负责跨 run 的计数合并。"""
+
+    patch_layer_counter: Counter[str] = field(default_factory=Counter)
+    suffix_prefix_samples: list[bool] = field(default_factory=list)
+    capability_counter: Counter[str] = field(default_factory=Counter)
+    tool_counter: Counter[str] = field(default_factory=Counter)
+    high_cost_rule_counter: Counter[str] = field(default_factory=Counter)
+    total_patch_events_with_layer: int = 0
+    shadow_action_agreement_total: int = 0
+    shadow_action_observation_total: int = 0
+    aliases: list[str] = field(default_factory=list)
 
 
 def now_iso() -> str:
@@ -705,6 +752,305 @@ def _optional_path(value: Any) -> Path | None:
     return Path(text)
 
 
+def _collect_run_event_metrics(
+    *,
+    rows: list[dict[str, Any]],
+    tool_capability_map: dict[str, list[str]],
+    high_cost_rules: list[dict[str, Any]],
+) -> _RunEventMetrics:
+    metrics = _RunEventMetrics()
+    for row in rows:
+        event_name = _event_name(row)
+        shadow_action = _observe_runtime_and_shadow(metrics, row)
+        actual_action = _resolve_actual_action(
+            row=row,
+            event_name=event_name,
+            shadow_action=shadow_action,
+        )
+        _update_action_observation(
+            metrics,
+            actual_action=actual_action,
+            shadow_action=shadow_action,
+        )
+        _update_status_and_recovery_metrics(
+            metrics,
+            row=row,
+            event_name=event_name,
+            actual_action=actual_action,
+        )
+        _update_waiting_metrics(metrics, row=row, event_name=event_name)
+        _update_step_and_tool_metrics(
+            metrics,
+            row=row,
+            event_name=event_name,
+            tool_capability_map=tool_capability_map,
+            high_cost_rules=high_cost_rules,
+        )
+    return metrics
+
+
+def _observe_runtime_and_shadow(
+    metrics: _RunEventMetrics,
+    row: dict[str, Any],
+) -> str | None:
+    metrics.runtime_state_observable = (
+        metrics.runtime_state_observable or _has_runtime_state_observation(row)
+    )
+    metrics.shadow_output_observable = (
+        metrics.shadow_output_observable or _has_shadow_output(row)
+    )
+    timestamp = parse_iso_datetime(row.get("timestamp") or row.get("ts"))
+    if timestamp is not None:
+        metrics.timestamps.append(timestamp)
+    return _normalize_action_name(_extract_shadow_action(row), row=row)
+
+
+def _resolve_actual_action(
+    *,
+    row: dict[str, Any],
+    event_name: str,
+    shadow_action: str | None,
+) -> str | None:
+    if event_name in _PATCH_EVENT_NAMES:
+        return "patch_local"
+    if event_name == "RECOVERY_ESCALATED":
+        return _normalize_action_name(
+            _extract_logged_action_name(row) or "replan",
+            row=row,
+            shadow_action=shadow_action,
+        )
+    if event_name in {"STEP_FINISHED", "STEP_FAILED"}:
+        return _normalize_action_name(
+            _extract_logged_action_name(row),
+            row=row,
+            shadow_action=shadow_action,
+        )
+    return None
+
+
+def _update_action_observation(
+    metrics: _RunEventMetrics,
+    *,
+    actual_action: str | None,
+    shadow_action: str | None,
+) -> None:
+    if actual_action is None:
+        return
+    metrics.action_counter[actual_action] += 1
+    if shadow_action is None:
+        return
+    metrics.shadow_action_observation_count += 1
+    if shadow_action == actual_action:
+        metrics.shadow_action_agreement_count += 1
+
+
+def _update_status_and_recovery_metrics(
+    metrics: _RunEventMetrics,
+    *,
+    row: dict[str, Any],
+    event_name: str,
+    actual_action: str | None,
+) -> None:
+    if event_name == "TASK_STATUS_CHANGED":
+        to_status = row.get("to_status")
+        if isinstance(to_status, str) and to_status:
+            metrics.final_status = to_status
+        reason = row.get("reason")
+        if isinstance(reason, str) and "suffix_replan" in reason:
+            metrics.suffix_replan_event_count += 1
+        if to_status == "REPLANNING":
+            metrics.replan_event_count += 1
+
+    if event_name in _PATCH_EVENT_NAMES:
+        metrics.patch_event_count += 1
+        layer = _nested(row, "data", "recovery", "recovery_layer")
+        if isinstance(layer, str) and layer:
+            metrics.layer_counter[layer] += 1
+
+    if event_name == "RECOVERY_ESCALATED" and actual_action == "suffix_replan":
+        metrics.suffix_replan_event_count += 1
+
+    prefix_preserved = _nested(row, "data", "recovery", "prefix_preserved")
+    if isinstance(prefix_preserved, bool):
+        metrics.suffix_prefix_samples.append(prefix_preserved)
+
+    if event_name == "CANDIDATE_VALIDATION_FAILED":
+        metrics.candidate_validation_failed += 1
+
+
+def _update_waiting_metrics(
+    metrics: _RunEventMetrics,
+    *,
+    row: dict[str, Any],
+    event_name: str,
+) -> None:
+    if event_name == "WAITING_ENTER":
+        metrics.waiting_enter_count += 1
+        pending_action_id = row.get("pending_action_id")
+        key = (
+            str(pending_action_id)
+            if pending_action_id
+            else f"__missing__{metrics.waiting_enter_count}"
+        )
+        metrics.waiting_enter_ids.add(key)
+    if event_name == "WAITING_EXIT":
+        pending_action_id = row.get("pending_action_id")
+        key = str(pending_action_id) if pending_action_id else "__missing__"
+        metrics.waiting_exit_ids.add(key)
+    if event_name == "DECISION_APPLIED":
+        pending_action_id = row.get("pending_action_id")
+        if pending_action_id:
+            metrics.decision_pending_ids.add(str(pending_action_id))
+
+
+def _update_step_and_tool_metrics(
+    metrics: _RunEventMetrics,
+    *,
+    row: dict[str, Any],
+    event_name: str,
+    tool_capability_map: dict[str, list[str]],
+    high_cost_rules: list[dict[str, Any]],
+) -> None:
+    if event_name not in {"STEP_FINISHED", "STEP_FAILED"}:
+        return
+    status = row.get("status")
+    if status == "failed" or event_name == "STEP_FAILED":
+        metrics.step_failed_count += 1
+        metrics.step_failed_details.append(_step_failure_detail(row))
+    elif status == "success":
+        metrics.step_finished_count += 1
+
+    tool = row.get("tool")
+    if not isinstance(tool, str) or not tool:
+        return
+    capabilities = tool_capability_map.get(tool, [])
+    metrics.tool_usage[tool] += 1
+    for capability in capabilities:
+        metrics.capability_usage[capability] += 1
+    _update_high_cost_metrics(
+        metrics,
+        row=row,
+        status=status,
+        event_name=event_name,
+        tool=tool,
+        capabilities=capabilities,
+        high_cost_rules=high_cost_rules,
+    )
+
+
+def _step_failure_detail(row: dict[str, Any]) -> dict[str, Any]:
+    failure_code = (
+        row.get("failure_type")
+        or _nested(row, "data", "failure_code")
+        or _nested(row, "error_details", "failure_code")
+    )
+    return {
+        "step_id": row.get("step_id"),
+        "tool": row.get("tool"),
+        "failure_code": failure_code,
+    }
+
+
+def _update_high_cost_metrics(
+    metrics: _RunEventMetrics,
+    *,
+    row: dict[str, Any],
+    status: Any,
+    event_name: str,
+    tool: str,
+    capabilities: list[str],
+    high_cost_rules: list[dict[str, Any]],
+) -> None:
+    matched_rules = [
+        rule["rule_id"]
+        for rule in high_cost_rules
+        if _match_high_cost_rule(
+            row=row,
+            tool=tool,
+            capabilities=capabilities,
+            rule=rule,
+        )
+    ]
+    if not matched_rules:
+        return
+    metrics.high_cost_call_count += 1
+    if status == "failed" or event_name == "STEP_FAILED":
+        metrics.high_cost_failure_count += 1
+    for rule_id in matched_rules:
+        metrics.high_cost_rule_hits[rule_id] += 1
+
+
+def _waiting_chain_complete(metrics: _RunEventMetrics) -> bool:
+    if not metrics.waiting_enter_ids:
+        return True
+    return metrics.waiting_enter_ids.issubset(
+        metrics.waiting_exit_ids | metrics.decision_pending_ids
+    )
+
+
+def _failure_traceable(step_failed_details: list[dict[str, Any]]) -> bool:
+    for detail in step_failed_details:
+        if not (detail.get("step_id") and detail.get("tool") and detail.get("failure_code")):
+            return False
+    return True
+
+
+def _abnormal_reasons(
+    *,
+    final_status: str,
+    waiting_chain_complete: bool,
+    failure_traceable: bool,
+    step_failed_count: int,
+) -> list[str]:
+    reasons: list[str] = []
+    waiting_or_terminal = {
+        "FAILED",
+        "CANCELLED",
+        "WAITING_PLAN_CONFIRM",
+        "WAITING_PATCH_CONFIRM",
+        "WAITING_REPLAN_CONFIRM",
+        "WAITING_PATCH",
+        "WAITING_REPLAN",
+    }
+    if final_status in waiting_or_terminal:
+        reasons.append(f"terminal_or_waiting_status:{final_status}")
+    if not waiting_chain_complete:
+        reasons.append("waiting_chain_incomplete")
+    if not failure_traceable:
+        reasons.append("failure_not_traceable")
+    if step_failed_count > 0:
+        reasons.append("step_failed")
+    return reasons
+
+
+def _apply_snapshot_observability(
+    *,
+    metrics: _RunEventMetrics,
+    snapshot_artifacts: dict[str, Any],
+) -> None:
+    if isinstance(snapshot_artifacts.get("runtime_state"), dict):
+        metrics.runtime_state_observable = True
+    if not isinstance(snapshot_artifacts.get("decision_summary"), dict):
+        return
+    decision_summary = snapshot_artifacts.get("decision_summary") or {}
+    if isinstance(decision_summary.get("shadow_score"), dict):
+        metrics.shadow_output_observable = True
+    if isinstance(decision_summary.get("shadow_action"), str) and decision_summary.get("shadow_action"):
+        metrics.shadow_output_observable = True
+
+
+def _shadow_action_rates(metrics: _RunEventMetrics) -> tuple[float | None, int, float | None]:
+    if metrics.shadow_action_observation_count <= 0:
+        return None, 0, None
+    agreement_rate = (
+        metrics.shadow_action_agreement_count / metrics.shadow_action_observation_count
+    )
+    bias_count = (
+        metrics.shadow_action_observation_count - metrics.shadow_action_agreement_count
+    )
+    return agreement_rate, bias_count, bias_count / metrics.shadow_action_observation_count
+
+
 def extract_run_metrics(
     run: dict[str, Any],
     *,
@@ -722,156 +1068,13 @@ def extract_run_metrics(
         else {}
     )
 
-    timestamps: list[datetime] = []
-    step_failed_details: list[dict[str, Any]] = []
-    layer_counter: Counter[str] = Counter()
-    tool_usage: Counter[str] = Counter()
-    capability_usage: Counter[str] = Counter()
-    high_cost_rule_hits: Counter[str] = Counter()
+    event_metrics = _collect_run_event_metrics(
+        rows=rows,
+        tool_capability_map=tool_capability_map,
+        high_cost_rules=resolved_high_cost_rules,
+    )
 
-    waiting_enter_ids: set[str] = set()
-    waiting_exit_ids: set[str] = set()
-    decision_pending_ids: set[str] = set()
-
-    candidate_validation_failed = 0
-    patch_event_count = 0
-    replan_event_count = 0
-    suffix_replan_event_count = 0
-    step_failed_count = 0
-    step_finished_count = 0
-    waiting_enter_count = 0
-    high_cost_call_count = 0
-    high_cost_failure_count = 0
-    runtime_state_observable = False
-    shadow_output_observable = False
-    action_counter: Counter[str] = Counter()
-    shadow_action_agreement_count = 0
-    shadow_action_observation_count = 0
-
-    suffix_prefix_samples: list[bool] = []
-    final_status: str | None = None
-
-    for row in rows:
-        event_name = _event_name(row)
-        runtime_state_observable = runtime_state_observable or _has_runtime_state_observation(row)
-        shadow_output_observable = shadow_output_observable or _has_shadow_output(row)
-        shadow_action = _normalize_action_name(
-            _extract_shadow_action(row),
-            row=row,
-        )
-
-        ts = parse_iso_datetime(row.get("timestamp") or row.get("ts"))
-        if ts is not None:
-            timestamps.append(ts)
-
-        if event_name in _PATCH_EVENT_NAMES:
-            actual_action = "patch_local"
-        elif event_name == "RECOVERY_ESCALATED":
-            actual_action = _normalize_action_name(
-                _extract_logged_action_name(row) or "replan",
-                row=row,
-                shadow_action=shadow_action,
-            )
-        elif event_name in {"STEP_FINISHED", "STEP_FAILED"}:
-            actual_action = _normalize_action_name(
-                _extract_logged_action_name(row),
-                row=row,
-                shadow_action=shadow_action,
-            )
-        else:
-            actual_action = None
-
-        if actual_action is not None:
-            action_counter[actual_action] += 1
-            if shadow_action is not None:
-                shadow_action_observation_count += 1
-                if shadow_action == actual_action:
-                    shadow_action_agreement_count += 1
-
-        if event_name == "TASK_STATUS_CHANGED":
-            to_status = row.get("to_status")
-            if isinstance(to_status, str) and to_status:
-                final_status = to_status
-            reason = row.get("reason")
-            if isinstance(reason, str) and "suffix_replan" in reason:
-                suffix_replan_event_count += 1
-            if to_status == "REPLANNING":
-                replan_event_count += 1
-
-        if event_name in _PATCH_EVENT_NAMES:
-            patch_event_count += 1
-            layer = _nested(row, "data", "recovery", "recovery_layer")
-            if isinstance(layer, str) and layer:
-                layer_counter[layer] += 1
-
-        if event_name == "RECOVERY_ESCALATED" and actual_action == "suffix_replan":
-            suffix_replan_event_count += 1
-
-        prefix_preserved = _nested(row, "data", "recovery", "prefix_preserved")
-        if isinstance(prefix_preserved, bool):
-            suffix_prefix_samples.append(prefix_preserved)
-
-        if event_name == "CANDIDATE_VALIDATION_FAILED":
-            candidate_validation_failed += 1
-
-        if event_name in {"WAITING_ENTER"}:
-            waiting_enter_count += 1
-            pending_action_id = row.get("pending_action_id")
-            key = str(pending_action_id) if pending_action_id else f"__missing__{waiting_enter_count}"
-            waiting_enter_ids.add(key)
-
-        if event_name in {"WAITING_EXIT"}:
-            pending_action_id = row.get("pending_action_id")
-            key = str(pending_action_id) if pending_action_id else "__missing__"
-            waiting_exit_ids.add(key)
-
-        if event_name in {"DECISION_APPLIED"}:
-            pending_action_id = row.get("pending_action_id")
-            if pending_action_id:
-                decision_pending_ids.add(str(pending_action_id))
-
-        if event_name in {"STEP_FINISHED", "STEP_FAILED"}:
-            status = row.get("status")
-            if status == "failed" or event_name == "STEP_FAILED":
-                step_failed_count += 1
-                failure_code = (
-                    row.get("failure_type")
-                    or _nested(row, "data", "failure_code")
-                    or _nested(row, "error_details", "failure_code")
-                )
-                detail = {
-                    "step_id": row.get("step_id"),
-                    "tool": row.get("tool"),
-                    "failure_code": failure_code,
-                }
-                step_failed_details.append(detail)
-            elif status == "success":
-                step_finished_count += 1
-
-            tool = row.get("tool")
-            if isinstance(tool, str) and tool:
-                tool_usage[tool] += 1
-                capabilities = tool_capability_map.get(tool, [])
-                for capability in capabilities:
-                    capability_usage[capability] += 1
-                matched_rules = [
-                    rule["rule_id"]
-                    for rule in resolved_high_cost_rules
-                    if _match_high_cost_rule(
-                        row=row,
-                        tool=tool,
-                        capabilities=capabilities,
-                        rule=rule,
-                    )
-                ]
-                if matched_rules:
-                    high_cost_call_count += 1
-                    if status == "failed" or event_name == "STEP_FAILED":
-                        high_cost_failure_count += 1
-                    for rule_id in matched_rules:
-                        high_cost_rule_hits[rule_id] += 1
-
-    final_status = resolve_final_status(run, final_status)
+    final_status = resolve_final_status(run, event_metrics.final_status)
 
     started_at = parse_iso_datetime(run.get("started_at"))
     finished_at = parse_iso_datetime(run.get("finished_at"))
@@ -879,53 +1082,37 @@ def extract_run_metrics(
         run=run,
         started_at=started_at,
         finished_at=finished_at,
-        timestamps=timestamps,
+        timestamps=event_metrics.timestamps,
     )
 
     success = final_status == "DONE"
     first_pass_success = (
         success
-        and patch_event_count == 0
-        and replan_event_count == 0
-        and waiting_enter_count == 0
+        and event_metrics.patch_event_count == 0
+        and event_metrics.replan_event_count == 0
+        and event_metrics.waiting_enter_count == 0
     )
-    schema_valid = candidate_validation_failed == 0
-    executable_plan = step_failed_count == 0
+    schema_valid = event_metrics.candidate_validation_failed == 0
+    executable_plan = event_metrics.step_failed_count == 0
 
-    waiting_chain_complete = True
-    if waiting_enter_ids:
-        waiting_chain_complete = waiting_enter_ids.issubset(waiting_exit_ids | decision_pending_ids)
-
-    failure_traceable = True
-    if step_failed_details:
-        for detail in step_failed_details:
-            if not (detail.get("step_id") and detail.get("tool") and detail.get("failure_code")):
-                failure_traceable = False
-                break
-
-    abnormal_reasons: list[str] = []
-    if final_status in {"FAILED", "CANCELLED", "WAITING_PLAN_CONFIRM", "WAITING_PATCH_CONFIRM", "WAITING_REPLAN_CONFIRM", "WAITING_PATCH", "WAITING_REPLAN"}:
-        abnormal_reasons.append(f"terminal_or_waiting_status:{final_status}")
-    if not waiting_chain_complete:
-        abnormal_reasons.append("waiting_chain_incomplete")
-    if not failure_traceable:
-        abnormal_reasons.append("failure_not_traceable")
-    if step_failed_count > 0:
-        abnormal_reasons.append("step_failed")
+    waiting_chain_complete = _waiting_chain_complete(event_metrics)
+    failure_traceable = _failure_traceable(event_metrics.step_failed_details)
+    abnormal_reasons = _abnormal_reasons(
+        final_status=final_status,
+        waiting_chain_complete=waiting_chain_complete,
+        failure_traceable=failure_traceable,
+        step_failed_count=event_metrics.step_failed_count,
+    )
 
     requirement2_coverage = build_requirement2_coverage(
-        capability_usage=dict(capability_usage),
+        capability_usage=dict(event_metrics.capability_usage),
         requirement2_capability_map=requirement2_capability_map,
     )
 
-    if isinstance(snapshot_artifacts.get("runtime_state"), dict):
-        runtime_state_observable = True
-    if isinstance(snapshot_artifacts.get("decision_summary"), dict):
-        decision_summary = snapshot_artifacts.get("decision_summary") or {}
-        if isinstance(decision_summary.get("shadow_score"), dict):
-            shadow_output_observable = True
-        if isinstance(decision_summary.get("shadow_action"), str) and decision_summary.get("shadow_action"):
-            shadow_output_observable = True
+    _apply_snapshot_observability(
+        metrics=event_metrics,
+        snapshot_artifacts=snapshot_artifacts,
+    )
 
     belief_state_metrics = _collect_belief_state_metrics(
         rows=rows,
@@ -933,15 +1120,11 @@ def extract_run_metrics(
         run=run,
     )
 
-    shadow_action_agreement_rate = None
-    if shadow_action_observation_count > 0:
-        shadow_action_agreement_rate = (
-            shadow_action_agreement_count / shadow_action_observation_count
-        )
-    shadow_actual_bias_count = shadow_action_observation_count - shadow_action_agreement_count
-    shadow_actual_bias_rate = None
-    if shadow_action_observation_count > 0:
-        shadow_actual_bias_rate = shadow_actual_bias_count / shadow_action_observation_count
+    (
+        shadow_action_agreement_rate,
+        shadow_actual_bias_count,
+        shadow_actual_bias_rate,
+    ) = _shadow_action_rates(event_metrics)
 
     original_group_id = run.get("group_id")
     canonical_group_id = canonicalize_group_id(original_group_id)
@@ -966,37 +1149,37 @@ def extract_run_metrics(
         "first_pass_success": first_pass_success,
         "schema_valid": schema_valid,
         "executable_plan": executable_plan,
-        "patch_event_count": patch_event_count,
-        "replan_event_count": replan_event_count,
-        "suffix_replan_event_count": suffix_replan_event_count,
-        "waiting_enter_count": waiting_enter_count,
-        "step_failed_count": step_failed_count,
-        "step_finished_count": step_finished_count,
+        "patch_event_count": event_metrics.patch_event_count,
+        "replan_event_count": event_metrics.replan_event_count,
+        "suffix_replan_event_count": event_metrics.suffix_replan_event_count,
+        "waiting_enter_count": event_metrics.waiting_enter_count,
+        "step_failed_count": event_metrics.step_failed_count,
+        "step_finished_count": event_metrics.step_finished_count,
         "waiting_chain_complete": waiting_chain_complete,
         "failure_traceable": failure_traceable,
         "snapshot_linked": bool(snapshot_path and snapshot_path.exists()),
         "report_linked": bool(report_path and report_path.exists()),
-        "runtime_state_observable": runtime_state_observable,
-        "shadow_output_observable": shadow_output_observable,
-        "action_continue_count": action_counter.get("continue", 0),
-        "action_patch_local_count": action_counter.get("patch_local", 0),
-        "action_suffix_replan_count": action_counter.get("suffix_replan", 0),
-        "action_stop_count": action_counter.get("stop", 0),
-        "shadow_action_agreement_count": shadow_action_agreement_count,
-        "shadow_action_observation_count": shadow_action_observation_count,
+        "runtime_state_observable": event_metrics.runtime_state_observable,
+        "shadow_output_observable": event_metrics.shadow_output_observable,
+        "action_continue_count": event_metrics.action_counter.get("continue", 0),
+        "action_patch_local_count": event_metrics.action_counter.get("patch_local", 0),
+        "action_suffix_replan_count": event_metrics.action_counter.get("suffix_replan", 0),
+        "action_stop_count": event_metrics.action_counter.get("stop", 0),
+        "shadow_action_agreement_count": event_metrics.shadow_action_agreement_count,
+        "shadow_action_observation_count": event_metrics.shadow_action_observation_count,
         "shadow_action_agreement_rate": shadow_action_agreement_rate,
         "shadow_actual_bias_count": shadow_actual_bias_count,
         "shadow_actual_bias_rate": shadow_actual_bias_rate,
-        "layer_counter": dict(layer_counter),
-        "tool_usage": dict(tool_usage),
-        "capability_usage": dict(capability_usage),
-        "high_cost_call_count": high_cost_call_count,
-        "high_cost_failure_count": high_cost_failure_count,
-        "high_cost_rule_hits": dict(high_cost_rule_hits),
+        "layer_counter": dict(event_metrics.layer_counter),
+        "tool_usage": dict(event_metrics.tool_usage),
+        "capability_usage": dict(event_metrics.capability_usage),
+        "high_cost_call_count": event_metrics.high_cost_call_count,
+        "high_cost_failure_count": event_metrics.high_cost_failure_count,
+        "high_cost_rule_hits": dict(event_metrics.high_cost_rule_hits),
         "requirement2_coverage": requirement2_coverage,
-        "suffix_prefix_samples": suffix_prefix_samples,
+        "suffix_prefix_samples": event_metrics.suffix_prefix_samples,
         "abnormal_reasons": abnormal_reasons,
-        "step_failed_details": step_failed_details,
+        "step_failed_details": event_metrics.step_failed_details,
         "replay_sample_id": run.get("replay_sample_id"),
         "replay_source_freeze_id": run.get("replay_source_freeze_id"),
     }
@@ -1045,6 +1228,210 @@ def _mean_summary(values: list[float], *, iterations: int, seed: int) -> dict[st
     }
 
 
+def _collect_group_aggregate_counters(
+    *,
+    rows: list[dict[str, Any]],
+    group_id: str,
+) -> _GroupAggregateCounters:
+    counters = _GroupAggregateCounters(
+        aliases=sorted(
+            {
+                str(row.get("group_id"))
+                for row in rows
+                if isinstance(row.get("group_id"), str) and row.get("group_id") != group_id
+            }
+        )
+    )
+    for row in rows:
+        _merge_counter_mapping(
+            target=counters.patch_layer_counter,
+            raw_mapping=row.get("layer_counter"),
+            on_count=lambda count: setattr(
+                counters,
+                "total_patch_events_with_layer",
+                counters.total_patch_events_with_layer + count,
+            ),
+        )
+        _merge_counter_mapping(
+            target=counters.capability_counter,
+            raw_mapping=row.get("capability_usage"),
+        )
+        _merge_counter_mapping(
+            target=counters.tool_counter,
+            raw_mapping=row.get("tool_usage"),
+        )
+        _merge_counter_mapping(
+            target=counters.high_cost_rule_counter,
+            raw_mapping=row.get("high_cost_rule_hits"),
+        )
+        counters.suffix_prefix_samples.extend(
+            [bool(value) for value in row.get("suffix_prefix_samples") or []]
+        )
+        counters.shadow_action_agreement_total += int(
+            row.get("shadow_action_agreement_count", 0) or 0
+        )
+        counters.shadow_action_observation_total += int(
+            row.get("shadow_action_observation_count", 0) or 0
+        )
+    return counters
+
+
+def _group_float_series(rows: list[dict[str, Any]], key: str) -> list[float]:
+    return [float(item.get(key, 0) or 0) for item in rows]
+
+
+def _group_action_totals(
+    *,
+    continue_counts: list[float],
+    patch_counts: list[float],
+    suffix_replan_counts: list[float],
+    stop_counts: list[float],
+) -> dict[str, float]:
+    return {
+        "continue": sum(continue_counts),
+        "patch_local": sum(patch_counts),
+        "suffix_replan": sum(suffix_replan_counts),
+        "stop": sum(stop_counts),
+    }
+
+
+def _group_proportion_summaries(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        "success": _proportion_summary([bool(item.get("success")) for item in rows]),
+        "first_pass": _proportion_summary([bool(item.get("first_pass_success")) for item in rows]),
+        "schema": _proportion_summary([bool(item.get("schema_valid")) for item in rows]),
+        "executable": _proportion_summary([bool(item.get("executable_plan")) for item in rows]),
+        "waiting_chain": _proportion_summary([bool(item.get("waiting_chain_complete")) for item in rows]),
+        "traceability": _proportion_summary([bool(item.get("failure_traceable")) for item in rows]),
+        "snapshot_linked": _proportion_summary([bool(item.get("snapshot_linked")) for item in rows]),
+        "runtime_state_observable": _proportion_summary(
+            [bool(item.get("runtime_state_observable")) for item in rows]
+        ),
+        "shadow_output_observable": _proportion_summary(
+            [bool(item.get("shadow_output_observable")) for item in rows]
+        ),
+    }
+
+
+def _merge_counter_mapping(
+    *,
+    target: Counter[str],
+    raw_mapping: Any,
+    on_count: Any = None,
+) -> None:
+    if not isinstance(raw_mapping, dict):
+        return
+    for key, value in raw_mapping.items():
+        if isinstance(key, str) and isinstance(value, (int, float)):
+            count = int(value)
+            target[key] += count
+            if on_count is not None:
+                on_count(count)
+
+
+def _build_requirement2_slice_rows(
+    *,
+    group_id: str,
+    requirement2_capability_map: dict[str, list[str]],
+    requirement2_bucket_status: dict[str, bool],
+    counters: _GroupAggregateCounters,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for bucket, capabilities in requirement2_capability_map.items():
+        rows.append(
+            {
+                "group_id": group_id,
+                "slice_type": "capability_bucket",
+                "name": bucket,
+                "covered": requirement2_bucket_status.get(bucket, False),
+                "usage_count": sum(
+                    counters.capability_counter.get(cap, 0) for cap in capabilities
+                ),
+            }
+        )
+    rows.extend(
+        {
+            "group_id": group_id,
+            "slice_type": "capability",
+            "name": capability,
+            "covered": usage > 0,
+            "usage_count": usage,
+        }
+        for capability, usage in sorted(counters.capability_counter.items())
+    )
+    rows.extend(
+        {
+            "group_id": group_id,
+            "slice_type": "tool",
+            "name": tool,
+            "covered": usage > 0,
+            "usage_count": usage,
+        }
+        for tool, usage in sorted(counters.tool_counter.items())
+    )
+    return rows
+
+
+def _build_abnormal_rows(
+    *,
+    rows: list[dict[str, Any]],
+    group_id: str,
+) -> list[dict[str, Any]]:
+    abnormal_rows: list[dict[str, Any]] = []
+    for row in rows:
+        for reason in row.get("abnormal_reasons") or []:
+            abnormal_rows.append(
+                {
+                    "run_id": row.get("run_id"),
+                    "task_id": row.get("task_id"),
+                    "group_id": group_id,
+                    "replicate": row.get("replicate"),
+                    "reason": reason,
+                    "final_status": row.get("final_status"),
+                    "event_log_path": row.get("event_log_path"),
+                }
+            )
+    return abnormal_rows
+
+
+def _ratio_or_none(numerator: float, denominator: float) -> float | None:
+    return numerator / denominator if denominator > 0 else None
+
+
+def _patch_minimality_rate(counters: _GroupAggregateCounters) -> float | None:
+    if counters.total_patch_events_with_layer <= 0:
+        return None
+    return (
+        counters.patch_layer_counter.get("parameter_level", 0)
+        / counters.total_patch_events_with_layer
+    )
+
+
+def _suffix_prefix_preservation_rate(counters: _GroupAggregateCounters) -> float | None:
+    if not counters.suffix_prefix_samples:
+        return None
+    return (
+        sum(1 for flag in counters.suffix_prefix_samples if flag)
+        / len(counters.suffix_prefix_samples)
+    )
+
+
+def _group_shadow_rates(
+    counters: _GroupAggregateCounters,
+) -> tuple[float | None, int, float | None]:
+    if counters.shadow_action_observation_total <= 0:
+        return None, 0, None
+    agreement_rate = (
+        counters.shadow_action_agreement_total
+        / counters.shadow_action_observation_total
+    )
+    bias_total = (
+        counters.shadow_action_observation_total
+        - counters.shadow_action_agreement_total
+    )
+    return agreement_rate, bias_total, bias_total / counters.shadow_action_observation_total
+
+
 def aggregate_group_metrics(
     runs: list[dict[str, Any]],
     *,
@@ -1074,44 +1461,24 @@ def aggregate_group_metrics(
         if not rows:
             continue
 
-        success = _proportion_summary([bool(item.get("success")) for item in rows])
-        first_pass = _proportion_summary([bool(item.get("first_pass_success")) for item in rows])
-        schema = _proportion_summary([bool(item.get("schema_valid")) for item in rows])
-        executable = _proportion_summary([bool(item.get("executable_plan")) for item in rows])
-        waiting_chain = _proportion_summary([bool(item.get("waiting_chain_complete")) for item in rows])
-        traceability = _proportion_summary([bool(item.get("failure_traceable")) for item in rows])
-        snapshot_linked = _proportion_summary([bool(item.get("snapshot_linked")) for item in rows])
-        runtime_state_observable = _proportion_summary(
-            [bool(item.get("runtime_state_observable")) for item in rows]
-        )
-        shadow_output_observable = _proportion_summary(
-            [bool(item.get("shadow_output_observable")) for item in rows]
-        )
+        proportions = _group_proportion_summaries(rows)
 
-        patch_counts = [float(item.get("patch_event_count", 0) or 0) for item in rows]
-        replan_counts = [float(item.get("replan_event_count", 0) or 0) for item in rows]
-        suffix_counts = [float(item.get("suffix_replan_event_count", 0) or 0) for item in rows]
-        duration_values = [float(item.get("duration_ms", 0.0) or 0.0) for item in rows]
-        high_cost_counts = [float(item.get("high_cost_call_count", 0) or 0) for item in rows]
-        high_cost_failure_counts = [
-            float(item.get("high_cost_failure_count", 0) or 0) for item in rows
-        ]
-        action_continue_counts = [
-            float(item.get("action_continue_count", 0) or 0) for item in rows
-        ]
-        action_patch_counts = [
-            float(item.get("action_patch_local_count", 0) or 0) for item in rows
-        ]
-        action_suffix_replan_counts = [
-            float(item.get("action_suffix_replan_count", 0) or 0) for item in rows
-        ]
-        action_stop_counts = [float(item.get("action_stop_count", 0) or 0) for item in rows]
-        action_totals_by_name = {
-            "continue": sum(action_continue_counts),
-            "patch_local": sum(action_patch_counts),
-            "suffix_replan": sum(action_suffix_replan_counts),
-            "stop": sum(action_stop_counts),
-        }
+        patch_counts = _group_float_series(rows, "patch_event_count")
+        replan_counts = _group_float_series(rows, "replan_event_count")
+        suffix_counts = _group_float_series(rows, "suffix_replan_event_count")
+        duration_values = _group_float_series(rows, "duration_ms")
+        high_cost_counts = _group_float_series(rows, "high_cost_call_count")
+        high_cost_failure_counts = _group_float_series(rows, "high_cost_failure_count")
+        action_continue_counts = _group_float_series(rows, "action_continue_count")
+        action_patch_counts = _group_float_series(rows, "action_patch_local_count")
+        action_suffix_replan_counts = _group_float_series(rows, "action_suffix_replan_count")
+        action_stop_counts = _group_float_series(rows, "action_stop_count")
+        action_totals_by_name = _group_action_totals(
+            continue_counts=action_continue_counts,
+            patch_counts=action_patch_counts,
+            suffix_replan_counts=action_suffix_replan_counts,
+            stop_counts=action_stop_counts,
+        )
         action_total = sum(action_totals_by_name.values())
 
         patch_summary = _mean_summary(patch_counts, iterations=iterations, seed=seed + idx * 11 + 1)
@@ -1149,64 +1516,15 @@ def aggregate_group_metrics(
             seed=seed + idx * 11 + 10,
         )
 
-        patch_layer_counter: Counter[str] = Counter()
-        suffix_prefix_samples: list[bool] = []
-        capability_counter: Counter[str] = Counter()
-        tool_counter: Counter[str] = Counter()
-        high_cost_rule_counter: Counter[str] = Counter()
-        total_patch_events_with_layer = 0
-        shadow_action_agreement_total = 0
-        shadow_action_observation_total = 0
-        aliases = sorted(
-            {
-                str(row.get("group_id"))
-                for row in rows
-                if isinstance(row.get("group_id"), str) and row.get("group_id") != group_id
-            }
-        )
+        counters = _collect_group_aggregate_counters(rows=rows, group_id=group_id)
 
-        for row in rows:
-            for layer, count in (row.get("layer_counter") or {}).items():
-                if isinstance(layer, str) and isinstance(count, (int, float)):
-                    patch_layer_counter[layer] += int(count)
-                    total_patch_events_with_layer += int(count)
-            for key, value in (row.get("capability_usage") or {}).items():
-                if isinstance(key, str) and isinstance(value, (int, float)):
-                    capability_counter[key] += int(value)
-            for key, value in (row.get("tool_usage") or {}).items():
-                if isinstance(key, str) and isinstance(value, (int, float)):
-                    tool_counter[key] += int(value)
-            for key, value in (row.get("high_cost_rule_hits") or {}).items():
-                if isinstance(key, str) and isinstance(value, (int, float)):
-                    high_cost_rule_counter[key] += int(value)
-            suffix_prefix_samples.extend([bool(v) for v in row.get("suffix_prefix_samples") or []])
-            shadow_action_agreement_total += int(
-                row.get("shadow_action_agreement_count", 0) or 0
-            )
-            shadow_action_observation_total += int(
-                row.get("shadow_action_observation_count", 0) or 0
-            )
-
-        patch_minimality_hit_rate = None
-        if total_patch_events_with_layer > 0:
-            patch_minimality_hit_rate = patch_layer_counter.get("parameter_level", 0) / total_patch_events_with_layer
-
-        suffix_prefix_preservation_rate = None
-        if suffix_prefix_samples:
-            suffix_prefix_preservation_rate = (
-                sum(1 for flag in suffix_prefix_samples if flag) / len(suffix_prefix_samples)
-            )
-
-        shadow_action_agreement_rate = None
-        if shadow_action_observation_total > 0:
-            shadow_action_agreement_rate = (
-                shadow_action_agreement_total / shadow_action_observation_total
-            )
-        shadow_actual_bias_total = shadow_action_observation_total - shadow_action_agreement_total
-        shadow_actual_bias_rate = None
-        if shadow_action_observation_total > 0:
-            shadow_actual_bias_rate = shadow_actual_bias_total / shadow_action_observation_total
-
+        patch_minimality_hit_rate = _patch_minimality_rate(counters)
+        suffix_prefix_preservation_rate = _suffix_prefix_preservation_rate(counters)
+        (
+            shadow_action_agreement_rate,
+            shadow_actual_bias_total,
+            shadow_actual_bias_rate,
+        ) = _group_shadow_rates(counters)
         belief_core_observed_rates = {
             field: _proportion_summary(
                 [bool(item.get(f"belief_state_{field}_observed")) for item in rows]
@@ -1242,31 +1560,31 @@ def aggregate_group_metrics(
         requirement2_bucket_status: dict[str, bool] = {}
         for bucket, capabilities in requirement2_capability_map.items():
             requirement2_bucket_status[bucket] = any(
-                capability_counter.get(cap, 0) > 0 for cap in capabilities
+                counters.capability_counter.get(cap, 0) > 0 for cap in capabilities
             )
 
         summary_row = {
             "group_id": group_id,
             "canonical_group_id": canonicalize_group_id(group_id),
-            "group_aliases": aliases,
+            "group_aliases": counters.aliases,
             "runs": len(rows),
-            "success_rate": success["rate"],
-            "success_ci_low": success["ci_low"],
-            "success_ci_high": success["ci_high"],
-            "first_pass_success_rate": first_pass["rate"],
-            "first_pass_ci_low": first_pass["ci_low"],
-            "first_pass_ci_high": first_pass["ci_high"],
-            "schema_valid_rate": schema["rate"],
-            "schema_ci_low": schema["ci_low"],
-            "schema_ci_high": schema["ci_high"],
-            "executable_plan_rate": executable["rate"],
-            "executable_ci_low": executable["ci_low"],
-            "executable_ci_high": executable["ci_high"],
-            "waiting_chain_complete_rate": waiting_chain["rate"],
-            "failure_traceable_rate": traceability["rate"],
-            "snapshot_linked_rate": snapshot_linked["rate"],
-            "runtime_state_observable_rate": runtime_state_observable["rate"],
-            "shadow_output_observable_rate": shadow_output_observable["rate"],
+            "success_rate": proportions["success"]["rate"],
+            "success_ci_low": proportions["success"]["ci_low"],
+            "success_ci_high": proportions["success"]["ci_high"],
+            "first_pass_success_rate": proportions["first_pass"]["rate"],
+            "first_pass_ci_low": proportions["first_pass"]["ci_low"],
+            "first_pass_ci_high": proportions["first_pass"]["ci_high"],
+            "schema_valid_rate": proportions["schema"]["rate"],
+            "schema_ci_low": proportions["schema"]["ci_low"],
+            "schema_ci_high": proportions["schema"]["ci_high"],
+            "executable_plan_rate": proportions["executable"]["rate"],
+            "executable_ci_low": proportions["executable"]["ci_low"],
+            "executable_ci_high": proportions["executable"]["ci_high"],
+            "waiting_chain_complete_rate": proportions["waiting_chain"]["rate"],
+            "failure_traceable_rate": proportions["traceability"]["rate"],
+            "snapshot_linked_rate": proportions["snapshot_linked"]["rate"],
+            "runtime_state_observable_rate": proportions["runtime_state_observable"]["rate"],
+            "shadow_output_observable_rate": proportions["shadow_output_observable"]["rate"],
             "belief_state_observable_rate": belief_state_observable["rate"],
             "belief_state_core_complete_rate": belief_state_core_complete["rate"],
             "belief_state_core_completeness_mean": belief_core_completeness["mean"],
@@ -1312,7 +1630,7 @@ def aggregate_group_metrics(
         }
         for action_name, total in action_totals_by_name.items():
             summary_row[f"action_{action_name}_rate"] = (
-                total / action_total if action_total > 0 else None
+                _ratio_or_none(total, action_total)
             )
         for field, field_summary in belief_core_observed_rates.items():
             summary_row[f"belief_state_{field}_observable_rate"] = field_summary["rate"]
@@ -1328,11 +1646,11 @@ def aggregate_group_metrics(
                 "patch_events_total": sum(patch_counts),
                 "replan_events_total": sum(replan_counts),
                 "suffix_replan_events_total": sum(suffix_counts),
-                "patch_parameter_level": patch_layer_counter.get("parameter_level", 0),
-                "patch_tool_level": patch_layer_counter.get("tool_level", 0),
-                "patch_structure_level": patch_layer_counter.get("structure_level", 0),
+                "patch_parameter_level": counters.patch_layer_counter.get("parameter_level", 0),
+                "patch_tool_level": counters.patch_layer_counter.get("tool_level", 0),
+                "patch_structure_level": counters.patch_layer_counter.get("structure_level", 0),
                 "patch_minimality_hit_rate": patch_minimality_hit_rate,
-                "suffix_prefix_sample_size": len(suffix_prefix_samples),
+                "suffix_prefix_sample_size": len(counters.suffix_prefix_samples),
                 "suffix_prefix_preservation_rate": suffix_prefix_preservation_rate,
             }
         )
@@ -1342,7 +1660,7 @@ def aggregate_group_metrics(
                 "group_id": group_id,
                 "high_cost_calls_total": sum(high_cost_counts),
                 "high_cost_failures_total": sum(high_cost_failure_counts),
-                "high_cost_rule_hits": dict(high_cost_rule_counter),
+                "high_cost_rule_hits": dict(counters.high_cost_rule_counter),
             }
         )
 
@@ -1350,26 +1668,18 @@ def aggregate_group_metrics(
             {
                 "group_id": group_id,
                 "canonical_group_id": canonicalize_group_id(group_id),
-                "group_aliases": aliases,
+                "group_aliases": counters.aliases,
                 "action_total": action_total,
                 "action_continue_total": sum(action_continue_counts),
-                "action_continue_rate": (
-                    action_totals_by_name["continue"] / action_total if action_total > 0 else None
-                ),
+                "action_continue_rate": _ratio_or_none(action_totals_by_name["continue"], action_total),
                 "action_patch_local_total": sum(action_patch_counts),
-                "action_patch_local_rate": (
-                    action_totals_by_name["patch_local"] / action_total if action_total > 0 else None
-                ),
+                "action_patch_local_rate": _ratio_or_none(action_totals_by_name["patch_local"], action_total),
                 "action_suffix_replan_total": sum(action_suffix_replan_counts),
-                "action_suffix_replan_rate": (
-                    action_totals_by_name["suffix_replan"] / action_total if action_total > 0 else None
-                ),
+                "action_suffix_replan_rate": _ratio_or_none(action_totals_by_name["suffix_replan"], action_total),
                 "action_stop_total": sum(action_stop_counts),
-                "action_stop_rate": (
-                    action_totals_by_name["stop"] / action_total if action_total > 0 else None
-                ),
-                "shadow_action_observation_total": shadow_action_observation_total,
-                "shadow_action_agreement_total": shadow_action_agreement_total,
+                "action_stop_rate": _ratio_or_none(action_totals_by_name["stop"], action_total),
+                "shadow_action_observation_total": counters.shadow_action_observation_total,
+                "shadow_action_agreement_total": counters.shadow_action_agreement_total,
                 "shadow_action_agreement_rate": shadow_action_agreement_rate,
                 "shadow_actual_bias_total": shadow_actual_bias_total,
                 "shadow_actual_bias_rate": shadow_actual_bias_rate,
@@ -1380,7 +1690,7 @@ def aggregate_group_metrics(
             {
                 "group_id": group_id,
                 "canonical_group_id": canonicalize_group_id(group_id),
-                "group_aliases": aliases,
+                "group_aliases": counters.aliases,
                 "runs": len(rows),
                 "belief_state_observable_rate": belief_state_observable["rate"],
                 "belief_state_core_complete_rate": belief_state_core_complete["rate"],
@@ -1397,50 +1707,15 @@ def aggregate_group_metrics(
             }
         )
 
-        for bucket, capabilities in requirement2_capability_map.items():
-            requirement2_rows.append(
-                {
-                    "group_id": group_id,
-                    "slice_type": "capability_bucket",
-                    "name": bucket,
-                    "covered": requirement2_bucket_status.get(bucket, False),
-                    "usage_count": sum(capability_counter.get(cap, 0) for cap in capabilities),
-                }
+        requirement2_rows.extend(
+            _build_requirement2_slice_rows(
+                group_id=group_id,
+                requirement2_capability_map=requirement2_capability_map,
+                requirement2_bucket_status=requirement2_bucket_status,
+                counters=counters,
             )
-        for capability, usage in sorted(capability_counter.items()):
-            requirement2_rows.append(
-                {
-                    "group_id": group_id,
-                    "slice_type": "capability",
-                    "name": capability,
-                    "covered": usage > 0,
-                    "usage_count": usage,
-                }
-            )
-        for tool, usage in sorted(tool_counter.items()):
-            requirement2_rows.append(
-                {
-                    "group_id": group_id,
-                    "slice_type": "tool",
-                    "name": tool,
-                    "covered": usage > 0,
-                    "usage_count": usage,
-                }
-            )
-
-        for row in rows:
-            for reason in row.get("abnormal_reasons") or []:
-                abnormal_rows.append(
-                    {
-                        "run_id": row.get("run_id"),
-                        "task_id": row.get("task_id"),
-                        "group_id": group_id,
-                        "replicate": row.get("replicate"),
-                        "reason": reason,
-                        "final_status": row.get("final_status"),
-                        "event_log_path": row.get("event_log_path"),
-                    }
-                )
+        )
+        abnormal_rows.extend(_build_abnormal_rows(rows=rows, group_id=group_id))
 
         gate_checks = build_threshold_gate_checks(
             summary_row=summary_row,

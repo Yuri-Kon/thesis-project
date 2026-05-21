@@ -16,19 +16,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from src.models.contracts import (
     ProteinDesignTask,
-    ACTION_UTILITY_METADATA_KEY,
-    DEFAULT_RECOMMENDATION_REASON_METADATA_KEY,
     Decision,
     DecisionChoice,
     DesignResult,
-    FINAL_SCORE_METADATA_KEY,
     PendingAction,
-    PendingActionCandidate,
     PendingActionStatus,
-    RUNTIME_ADJUSTMENT_METADATA_KEY,
-    RUNTIME_STATE_SUMMARY_METADATA_KEY,
-    STATIC_SCORE_METADATA_KEY,
-    WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
 from src.models.db import TaskRecord
 from src.models.validation import (
@@ -69,7 +61,12 @@ from src.models.task_intake import (
 from src.storage.log_store import append_event, read_timeline_events
 from src.workflow.context import WorkflowContext
 from src.api.event_filters import event_matches_filters, normalize_text
-from src.api.view_models import PendingActionToolDisplay, build_tool_display
+from src.api.pending_views import (
+    PendingActionDetail,
+    PendingActionSummary,
+    build_pending_action_detail,
+    build_pending_action_summary_model,
+)
 from src.infra.tool_readiness import build_capability_readiness_matrix
 from src.api.demo_fixtures import seed_defense_full_flow_demo
 
@@ -207,18 +204,6 @@ class DecisionSubmitRequest(BaseModel):
     comment: Optional[str] = Field(None, description="可选的决策备注")
 
 
-class PendingActionSummary(BaseModel):
-    pending_action_id: str = Field(..., description="PendingAction ID")
-    task_id: str = Field(..., description="所属任务 ID")
-    action_type: PendingActionType = Field(..., description="待决策类型")
-    status: PendingActionStatus = Field(..., description="PendingAction 状态")
-    created_at: str = Field(..., description="创建时间")
-    candidate_count: int = Field(..., description="候选数量")
-    default_suggestion: Optional[str] = Field(None, description="默认建议候选 ID")
-    explanation: str = Field(..., description="待决策说明")
-    summary: str = Field(..., description="候选摘要")
-
-
 class TaskTimelineEvent(BaseModel):
     seq: int = Field(..., description="日志行序号(稳定排序键)")
     task_id: str = Field(..., description="任务 ID")
@@ -255,44 +240,6 @@ class TaskTimelineEvent(BaseModel):
     highlight: bool = Field(..., description="是否属于关键高亮事件")
     data: Dict[str, Any] = Field(default_factory=dict)
     payload: Dict[str, Any] = Field(default_factory=dict)
-
-
-class PendingActionCandidateDisplay(BaseModel):
-    rank: int = Field(..., description="候选排名（按返回顺序）")
-    candidate_id: str
-    is_default: bool
-    summary: str
-    explanation: str
-    recommendation_reason: str
-    risk_level: Optional[str] = None
-    cost_estimate: Optional[str] = None
-    expected_effect: Optional[str] = None
-    affected_steps: list[str] = Field(default_factory=list)
-    recovery_semantics: Optional[str] = None
-    overall_score: Optional[float] = None
-    score_breakdown: Dict[str, float] = Field(default_factory=dict)
-    runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
-    workflow_action_reason: Optional[str] = None
-    theory_objects: Dict[str, Any] = Field(default_factory=dict)
-    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
-    tool: PendingActionToolDisplay
-
-
-class PendingActionDetail(BaseModel):
-    pending_action_id: str
-    task_id: str
-    action_type: PendingActionType
-    status: PendingActionStatus
-    created_at: str
-    default_suggestion: Optional[str] = None
-    explanation: str
-    recommendation_summary: str
-    runtime_state_summary: Dict[str, Any] = Field(default_factory=dict)
-    workflow_action_reason: Optional[str] = None
-    theory_objects: Dict[str, Any] = Field(default_factory=dict)
-    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
-    score_breakdown: Dict[str, float] = Field(default_factory=dict)
-    candidates: list[PendingActionCandidateDisplay] = Field(default_factory=list)
 
 
 class ToolReadinessEntry(BaseModel):
@@ -372,457 +319,8 @@ def _render_task_builder_html() -> str:
     return template_path.read_text(encoding="utf-8")
 
 
-def _build_pending_action_summary(pending_action: PendingAction) -> str:
-    if not pending_action.candidates:
-        return pending_action.explanation
-
-    snippets: list[str] = []
-    for candidate in pending_action.candidates[:2]:
-        text = candidate.summary or candidate.explanation or candidate.candidate_id
-        snippets.append(text.strip())
-
-    summary = " | ".join(snippets)
-    hidden_count = len(pending_action.candidates) - len(snippets)
-    if hidden_count > 0:
-        summary = f"{summary} | +{hidden_count} more"
-    return summary
-
-
 def _normalize_text(value: Any) -> Optional[str]:
     return normalize_text(value)
-
-
-def _build_tool_display(
-    candidate: PendingActionCandidate,
-) -> PendingActionToolDisplay:
-    return build_tool_display(candidate)
-
-
-def _build_candidate_reason(
-    candidate: PendingActionCandidate,
-    *,
-    is_default: bool,
-    tool_display: PendingActionToolDisplay,
-) -> str:
-    reason_parts: list[str] = []
-    if is_default:
-        reason_parts.append("默认推荐")
-    overall = candidate.score_breakdown.get("overall")
-    if isinstance(overall, (int, float)):
-        reason_parts.append(f"overall={float(overall):.2f}")
-    reason_parts.append(f"risk={candidate.risk_level or 'unknown'}")
-    reason_parts.append(f"cost={candidate.cost_estimate or 'unknown'}")
-    reason_parts.append(f"tool_source={tool_display.source}")
-    if tool_display.execution_mode:
-        reason_parts.append(f"execution_mode={tool_display.execution_mode}")
-    if tool_display.provider:
-        reason_parts.append(f"provider={tool_display.provider}")
-    if tool_display.readiness_status:
-        reason_parts.append(f"readiness={tool_display.readiness_status}")
-    if tool_display.can_fallback:
-        reason_parts.append("supports_fallback")
-    return "; ".join(reason_parts)
-
-
-def _dict_or_empty(value: Any) -> dict[str, Any]:
-    return dict(value) if isinstance(value, dict) else {}
-
-
-def _list_of_dicts(value: Any) -> list[dict[str, Any]]:
-    if not isinstance(value, list):
-        return []
-    return [dict(item) for item in value if isinstance(item, dict)]
-
-
-def _string_list(value: Any) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, str) and item.strip()]
-
-
-def _message_from_reason(value: Any) -> str | None:
-    if isinstance(value, dict):
-        message = _normalize_text(value.get("message"))
-        code = _normalize_text(value.get("code"))
-        return message or code
-    return _normalize_text(value)
-
-
-def _compact_numeric_summary(value: Any, *, keys: tuple[str, ...]) -> dict[str, Any]:
-    payload = _dict_or_empty(value)
-    if not payload:
-        return {}
-
-    summary: dict[str, Any] = {}
-    for key in keys:
-        raw = payload.get(key)
-        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
-            summary[key] = float(raw)
-    for key in ("source", "formula_version", "shadow_only", "action"):
-        raw = payload.get(key)
-        if isinstance(raw, (str, bool)):
-            summary[key] = raw
-    return summary
-
-
-def _score_summary_from_score_breakdown(
-    score_breakdown: dict[str, float],
-) -> dict[str, Any]:
-    overall = score_breakdown.get("overall")
-    if not isinstance(overall, (int, float)) or isinstance(overall, bool):
-        return {}
-    return {
-        "value": float(overall),
-        "source": "score_breakdown.overall",
-    }
-
-
-def _selected_action_utility(
-    pending_evidence: dict[str, Any],
-    selected_action: str | None,
-) -> dict[str, Any]:
-    action_utilities = _dict_or_empty(pending_evidence.get("action_utilities"))
-    if selected_action:
-        summary = _compact_numeric_summary(
-            action_utilities.get(selected_action),
-            keys=("utility", "value", "budget_pressure", "intervention_value"),
-        )
-        if summary:
-            return summary
-    explicit = _compact_numeric_summary(
-        pending_evidence.get(ACTION_UTILITY_METADATA_KEY),
-        keys=("utility", "value", "budget_pressure", "intervention_value"),
-    )
-    if explicit:
-        return explicit
-    if len(action_utilities) == 1:
-        only_key, only_value = next(iter(action_utilities.items()))
-        summary = _compact_numeric_summary(
-            only_value,
-            keys=("utility", "value", "budget_pressure", "intervention_value"),
-        )
-        if summary:
-            summary.setdefault("action", only_key)
-            return summary
-    return {}
-
-
-def _workflow_evidence_from_pending_action(
-    pending_action: PendingAction,
-) -> dict[str, Any]:
-    evidence = pending_action.metadata.get("workflow_action_evidence")
-    return _dict_or_empty(evidence)
-
-
-def _candidate_runtime_state_summary(
-    candidate: PendingActionCandidate,
-    pending_evidence: dict[str, Any],
-) -> dict[str, Any]:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    return (
-        _dict_or_empty(metadata.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
-        or _dict_or_empty(pending_evidence.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
-    )
-
-
-def _candidate_workflow_action_reason(
-    candidate: PendingActionCandidate,
-    pending_evidence: dict[str, Any],
-) -> str | None:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    return (
-        _message_from_reason(metadata.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
-        or _message_from_reason(pending_evidence.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
-        or _normalize_text(metadata.get("workflow_action_reason"))
-        or _normalize_text(metadata.get("rerank_reason"))
-    )
-
-
-def _candidate_evidence_refs(
-    candidate: PendingActionCandidate,
-    pending_evidence: dict[str, Any],
-) -> list[dict[str, Any]]:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    return (
-        _list_of_dicts(metadata.get("evidence_refs"))
-        or _list_of_dicts(pending_evidence.get("evidence_refs"))
-    )
-
-
-def _candidate_theory_objects(
-    candidate: PendingActionCandidate,
-    pending_action: PendingAction,
-    pending_evidence: dict[str, Any],
-) -> dict[str, Any]:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    waiting_summary = _dict_or_empty(
-        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
-    )
-    runtime_summary = _candidate_runtime_state_summary(candidate, pending_evidence)
-    selected_action = (
-        _normalize_text(pending_evidence.get("selected_action"))
-        or _normalize_text(pending_action.metadata.get("workflow_action"))
-        or _normalize_text(waiting_summary.get("selected_action"))
-    )
-
-    static_score = (
-        _compact_numeric_summary(metadata.get(STATIC_SCORE_METADATA_KEY), keys=("value",))
-        or _compact_numeric_summary(
-            waiting_summary.get(STATIC_SCORE_METADATA_KEY),
-            keys=("value",),
-        )
-        or _score_summary_from_score_breakdown(candidate.score_breakdown)
-    )
-    runtime_adjustment = (
-        _compact_numeric_summary(
-            metadata.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
-            keys=("value",),
-        )
-        or _compact_numeric_summary(
-            waiting_summary.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
-            keys=("value",),
-        )
-        or _compact_numeric_summary(
-            pending_evidence.get(RUNTIME_ADJUSTMENT_METADATA_KEY),
-            keys=("value",),
-        )
-    )
-    final_score = (
-        _compact_numeric_summary(metadata.get(FINAL_SCORE_METADATA_KEY), keys=("value",))
-        or _compact_numeric_summary(
-            waiting_summary.get(FINAL_SCORE_METADATA_KEY),
-            keys=("value",),
-        )
-    )
-
-    theory: dict[str, Any] = {}
-    for key, value in (
-        ("static_score", static_score),
-        ("runtime_adjustment", runtime_adjustment),
-        ("final_score", final_score),
-    ):
-        if value:
-            theory[key] = value
-    if selected_action:
-        theory["selected_action"] = selected_action
-
-    action_utility = _selected_action_utility(pending_evidence, selected_action)
-    if action_utility:
-        theory["action_utility"] = action_utility
-
-    for key in ("evidence_sufficiency", "budget_pressure"):
-        raw = pending_evidence.get(key, runtime_summary.get(key))
-        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
-            theory[key] = float(raw)
-    return theory
-
-
-def _pending_theory_objects(
-    pending_action: PendingAction,
-    pending_evidence: dict[str, Any],
-    candidates: list[PendingActionCandidateDisplay],
-) -> dict[str, Any]:
-    if candidates:
-        default_candidate = next((item for item in candidates if item.is_default), None)
-        selected_candidate = default_candidate or candidates[0]
-        theory = dict(selected_candidate.theory_objects)
-    else:
-        theory = {}
-
-    waiting_summary = _dict_or_empty(
-        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
-    )
-    selected_action = (
-        _normalize_text(pending_evidence.get("selected_action"))
-        or _normalize_text(pending_action.metadata.get("workflow_action"))
-        or _normalize_text(waiting_summary.get("selected_action"))
-    )
-    if selected_action:
-        theory["selected_action"] = selected_action
-
-    action_utility = _selected_action_utility(pending_evidence, selected_action)
-    if action_utility:
-        theory["action_utility"] = action_utility
-
-    runtime_summary = _pending_runtime_state_summary(pending_action, pending_evidence)
-    for key in ("evidence_sufficiency", "budget_pressure"):
-        raw = pending_evidence.get(key, runtime_summary.get(key))
-        if isinstance(raw, (int, float)) and not isinstance(raw, bool):
-            theory[key] = float(raw)
-    return theory
-
-
-def _candidate_affected_steps(candidate: PendingActionCandidate) -> list[str]:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    explicit = _string_list(metadata.get("affected_steps")) or _string_list(
-        metadata.get("affected_step_ids")
-    )
-    if explicit:
-        return explicit
-
-    payload = candidate.payload
-    operations = getattr(payload, "operations", None)
-    if not isinstance(operations, list):
-        return []
-
-    steps: list[str] = []
-    for operation in operations:
-        step_id = getattr(operation, "step_id", None)
-        if isinstance(step_id, str) and step_id.strip():
-            steps.append(step_id)
-    return list(dict.fromkeys(steps))
-
-
-def _candidate_expected_effect(candidate: PendingActionCandidate) -> str | None:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    return (
-        _normalize_text(metadata.get("expected_effect"))
-        or _normalize_text(metadata.get("expected_effect_summary"))
-        or _normalize_text(metadata.get("recommendation_effect"))
-    )
-
-
-def _candidate_recovery_semantics(candidate: PendingActionCandidate) -> str | None:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    return (
-        _normalize_text(metadata.get("recovery_semantics"))
-        or _normalize_text(metadata.get("recovery_action"))
-        or _normalize_text(metadata.get("recovery_layer"))
-        or _normalize_text(metadata.get("workflow_action"))
-        or _normalize_text(metadata.get("terminal_policy"))
-    )
-
-
-def _pending_runtime_state_summary(
-    pending_action: PendingAction,
-    pending_evidence: dict[str, Any],
-) -> dict[str, Any]:
-    waiting_summary = _dict_or_empty(
-        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
-    )
-    return (
-        _dict_or_empty(waiting_summary.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
-        or _dict_or_empty(pending_evidence.get(RUNTIME_STATE_SUMMARY_METADATA_KEY))
-    )
-
-
-def _pending_workflow_action_reason(
-    pending_action: PendingAction,
-    pending_evidence: dict[str, Any],
-) -> str | None:
-    waiting_summary = _dict_or_empty(
-        pending_action.metadata.get(WAITING_RUNTIME_SUMMARY_METADATA_KEY)
-    )
-    return (
-        _message_from_reason(waiting_summary.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
-        or _message_from_reason(pending_evidence.get(DEFAULT_RECOMMENDATION_REASON_METADATA_KEY))
-        or _normalize_text(pending_action.metadata.get("workflow_action_reason"))
-        or _normalize_text(pending_action.explanation)
-    )
-
-
-def _build_pending_action_detail(
-    record: TaskRecord, pending_action: PendingAction
-) -> PendingActionDetail:
-    default_suggestion = (
-        pending_action.default_suggestion or pending_action.default_recommendation
-    )
-    candidates: list[PendingActionCandidateDisplay] = []
-    pending_evidence = _workflow_evidence_from_pending_action(pending_action)
-
-    for index, candidate in enumerate(pending_action.candidates, start=1):
-        is_default = candidate.candidate_id == default_suggestion
-        summary = candidate.summary or candidate.explanation or candidate.candidate_id
-        explanation = candidate.explanation or summary
-        score_breakdown = {
-            key: float(value)
-            for key, value in candidate.score_breakdown.items()
-            if isinstance(value, (int, float))
-        }
-        overall_score = score_breakdown.get("overall")
-        tool_display = _build_tool_display(candidate)
-        recommendation_reason = _build_candidate_reason(
-            candidate,
-            is_default=is_default,
-            tool_display=tool_display,
-        )
-        candidates.append(
-            PendingActionCandidateDisplay(
-                rank=index,
-                candidate_id=candidate.candidate_id,
-                is_default=is_default,
-                summary=summary,
-                explanation=explanation,
-                recommendation_reason=recommendation_reason,
-                risk_level=candidate.risk_level,
-                cost_estimate=candidate.cost_estimate,
-                expected_effect=_candidate_expected_effect(candidate),
-                affected_steps=_candidate_affected_steps(candidate),
-                recovery_semantics=_candidate_recovery_semantics(candidate),
-                overall_score=overall_score,
-                score_breakdown=score_breakdown,
-                runtime_state_summary=_candidate_runtime_state_summary(
-                    candidate,
-                    pending_evidence,
-                ),
-                workflow_action_reason=_candidate_workflow_action_reason(
-                    candidate,
-                    pending_evidence,
-                ),
-                theory_objects=_candidate_theory_objects(
-                    candidate,
-                    pending_action,
-                    pending_evidence,
-                ),
-                evidence_refs=_candidate_evidence_refs(candidate, pending_evidence),
-                tool=tool_display,
-            )
-        )
-
-    recommendation_summary = pending_action.explanation
-    if default_suggestion:
-        default_candidate = next(
-            (item for item in candidates if item.candidate_id == default_suggestion),
-            None,
-        )
-        if default_candidate is not None:
-            recommendation_summary = (
-                f"default={default_suggestion}; {default_candidate.recommendation_reason}"
-            )
-        else:
-            recommendation_summary = f"default={default_suggestion}; reason not found"
-
-    return PendingActionDetail(
-        pending_action_id=pending_action.pending_action_id,
-        task_id=record.id,
-        action_type=pending_action.action_type,
-        status=pending_action.status,
-        created_at=pending_action.created_at,
-        default_suggestion=default_suggestion,
-        explanation=pending_action.explanation,
-        recommendation_summary=recommendation_summary,
-        runtime_state_summary=_pending_runtime_state_summary(
-            pending_action,
-            pending_evidence,
-        ),
-        workflow_action_reason=_pending_workflow_action_reason(
-            pending_action,
-            pending_evidence,
-        ),
-        theory_objects=_pending_theory_objects(
-            pending_action,
-            pending_evidence,
-            candidates,
-        ),
-        evidence_refs=_list_of_dicts(pending_evidence.get("evidence_refs")),
-        score_breakdown=(
-            next(
-                (item.score_breakdown for item in candidates if item.is_default),
-                candidates[0].score_breakdown if candidates else {},
-            )
-        ),
-        candidates=candidates,
-    )
 
 
 def _find_record_by_pending_action_id(pending_action_id: str) -> Optional[TaskRecord]:
@@ -1787,19 +1285,9 @@ async def list_pending_actions(
             continue
 
         summaries.append(
-            PendingActionSummary(
-                pending_action_id=pending_action.pending_action_id,
+            build_pending_action_summary_model(
                 task_id=record.id,
-                action_type=pending_action.action_type,
-                status=pending_action.status,
-                created_at=pending_action.created_at,
-                candidate_count=len(pending_action.candidates),
-                default_suggestion=(
-                    pending_action.default_suggestion
-                    or pending_action.default_recommendation
-                ),
-                explanation=pending_action.explanation,
-                summary=_build_pending_action_summary(pending_action),
+                pending_action=pending_action,
             )
         )
 
@@ -1820,7 +1308,7 @@ async def get_pending_action_detail(pending_action_id: str) -> PendingActionDeta
             status_code=404,
             detail=f"pending_action {pending_action_id} not found in task record",
         )
-    return _build_pending_action_detail(record, pending_action)
+    return build_pending_action_detail(record, pending_action)
 
 
 @app.post("/pending-actions/{pending_action_id}/decision", response_model=TaskRecord)
