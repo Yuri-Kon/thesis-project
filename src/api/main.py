@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import tempfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, Optional, cast
@@ -27,7 +28,6 @@ from src.models.contracts import (
     RUNTIME_ADJUSTMENT_METADATA_KEY,
     RUNTIME_STATE_SUMMARY_METADATA_KEY,
     STATIC_SCORE_METADATA_KEY,
-    TOOL_READINESS_METADATA_KEY,
     WAITING_RUNTIME_SUMMARY_METADATA_KEY,
 )
 from src.models.db import TaskRecord
@@ -68,10 +68,9 @@ from src.models.task_intake import (
 )
 from src.storage.log_store import append_event, read_timeline_events
 from src.workflow.context import WorkflowContext
-from src.infra.tool_readiness import (
-    build_capability_readiness_matrix,
-    build_tool_readiness_snapshot,
-)
+from src.api.event_filters import event_matches_filters, normalize_text
+from src.api.view_models import PendingActionToolDisplay, build_tool_display
+from src.infra.tool_readiness import build_capability_readiness_matrix
 from src.api.demo_fixtures import seed_defense_full_flow_demo
 
 API_DIR = Path(__file__).resolve().parent
@@ -258,28 +257,6 @@ class TaskTimelineEvent(BaseModel):
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
-class PendingActionToolDisplay(BaseModel):
-    tool_id: Optional[str] = None
-    adapter_id: Optional[str] = None
-    capability_id: Optional[str] = None
-    io_type: Optional[str] = None
-    adapter_mode: Optional[str] = None
-    execution_mode: Optional[str] = None
-    provider: Optional[str] = None
-    endpoint_type: Optional[str] = None
-    remote_job_id: Optional[str] = None
-    failure_code: Optional[str] = None
-    recovery_hint: Optional[str] = None
-    source: str = Field(..., description="工具来源(local/remote/mock/hybrid/unknown)")
-    available: bool = Field(..., description="工具信息是否可用于决策展示")
-    can_fallback: bool = Field(..., description="是否可回退到备选工具")
-    availability_hint: str = Field(..., description="工具可用性提示")
-    readiness_status: Optional[str] = None
-    degraded_reasons: list[str] = Field(default_factory=list)
-    suggested_recovery: Optional[str] = None
-    readiness_snapshot: Dict[str, Any] = Field(default_factory=dict)
-
-
 class PendingActionCandidateDisplay(BaseModel):
     rank: int = Field(..., description="候选排名（按返回顺序）")
     candidate_id: str
@@ -412,133 +389,13 @@ def _build_pending_action_summary(pending_action: PendingAction) -> str:
 
 
 def _normalize_text(value: Any) -> Optional[str]:
-    if not isinstance(value, str):
-        return None
-    normalized = value.strip()
-    return normalized if normalized else None
+    return normalize_text(value)
 
 
 def _build_tool_display(
     candidate: PendingActionCandidate,
 ) -> PendingActionToolDisplay:
-    metadata = candidate.metadata if isinstance(candidate.metadata, dict) else {}
-    tool_id = candidate.tool_id or _normalize_text(metadata.get("tool_id"))
-    capability_id = candidate.capability_id or _normalize_text(
-        metadata.get("capability_id")
-    )
-    io_type = candidate.io_type or _normalize_text(metadata.get("io_type"))
-    adapter_mode = candidate.adapter_mode or _normalize_text(
-        metadata.get("adapter_mode")
-    )
-    adapter_id = candidate.adapter_id or _normalize_text(metadata.get("adapter_id"))
-    execution_mode = candidate.execution_mode or _normalize_text(
-        metadata.get("execution_mode")
-    )
-    provider = candidate.provider or _normalize_text(metadata.get("provider"))
-    endpoint_type = candidate.endpoint_type or _normalize_text(
-        metadata.get("endpoint_type")
-    )
-    remote_job_id = candidate.remote_job_id or _normalize_text(
-        metadata.get("remote_job_id")
-    )
-    failure_code = _normalize_text(metadata.get("failure_code"))
-    recovery_hint = _normalize_text(metadata.get("recovery_hint"))
-
-    source = (
-        adapter_mode
-        if adapter_mode in {"local", "remote", "mock", "hybrid"}
-        else "unknown"
-    )
-
-    missing: list[str] = []
-    if tool_id is None:
-        missing.append("tool_id")
-    if capability_id is None:
-        missing.append("capability_id")
-    if io_type is None:
-        missing.append("io_type")
-    if adapter_mode is None:
-        missing.append("adapter_mode")
-    can_fallback = any(
-        metadata.get(key)
-        for key in (
-            "fallback_tool",
-            "fallback_tool_id",
-            "fallback_from",
-            "fallback_candidates",
-            "fallback_options",
-        )
-    )
-    fallback_depth = candidate.score_breakdown.get("fallback_depth")
-    if isinstance(fallback_depth, (int, float)) and fallback_depth > 0:
-        can_fallback = True
-
-    available = source != "unknown" and not missing
-    if missing:
-        availability_hint = (
-            f"Tool metadata missing ({', '.join(missing)}); use degraded display."
-        )
-    elif execution_mode == "openfold3_rest":
-        availability_hint = (
-            "OpenFold3 REST execution mode configured; availability depends on remote service health."
-        )
-    elif source == "remote":
-        availability_hint = (
-            "Remote adapter configured; availability depends on remote service health."
-        )
-    elif source == "local":
-        availability_hint = "Local adapter configured."
-    elif source == "mock":
-        availability_hint = "Mock adapter configured for demo."
-    elif source == "hybrid":
-        availability_hint = "Hybrid adapter configured."
-    else:
-        availability_hint = "Tool source unknown; use degraded display."
-
-    if can_fallback:
-        availability_hint = f"{availability_hint} Fallback path is available."
-
-    readiness_snapshot: dict[str, Any] = {}
-    readiness_status: str | None = None
-    degraded_reasons: list[str] = []
-    suggested_recovery: str | None = None
-    if tool_id:
-        raw_snapshot = metadata.get(TOOL_READINESS_METADATA_KEY)
-        if isinstance(raw_snapshot, dict) and raw_snapshot.get("tool_id") == tool_id:
-            readiness_snapshot = dict(raw_snapshot)
-        else:
-            readiness_snapshot = build_tool_readiness_snapshot(tool_id)
-        readiness_status = _normalize_text(readiness_snapshot.get("status"))
-        reason = _normalize_text(readiness_snapshot.get("reason"))
-        if readiness_status and readiness_status != "ready" and reason:
-            degraded_reasons.append(reason)
-        suggested_recovery = _normalize_text(readiness_snapshot.get("suggested_recovery"))
-        if readiness_status:
-            available = available and readiness_status == "ready"
-            if readiness_status != "ready" and reason:
-                availability_hint = f"{availability_hint} Readiness: {reason}"
-
-    return PendingActionToolDisplay(
-        tool_id=tool_id,
-        adapter_id=adapter_id,
-        capability_id=capability_id,
-        io_type=io_type,
-        adapter_mode=adapter_mode,
-        execution_mode=execution_mode,
-        provider=provider,
-        endpoint_type=endpoint_type,
-        remote_job_id=remote_job_id,
-        failure_code=failure_code,
-        recovery_hint=recovery_hint,
-        source=source,
-        available=available,
-        can_fallback=can_fallback,
-        availability_hint=availability_hint,
-        readiness_status=readiness_status,
-        degraded_reasons=degraded_reasons,
-        suggested_recovery=suggested_recovery,
-        readiness_snapshot=readiness_snapshot,
-    )
+    return build_tool_display(candidate)
 
 
 def _build_candidate_reason(
@@ -1832,7 +1689,11 @@ def _resolve_structure_artifact_path(raw_path: str) -> Path | None:
     if not path.is_absolute():
         path = Path.cwd() / path
     resolved = path.resolve()
-    allowed_roots = [Path.cwd().resolve(), Path("/tmp").resolve()]
+    allowed_roots = [
+        Path.cwd().resolve(),
+        Path("/tmp").resolve(),
+        Path(tempfile.gettempdir()).resolve(),
+    ]
     output_dir = os.getenv("PROTEIN_OUTPUT_DIR")
     if output_dir:
         allowed_roots.append(Path(output_dir).expanduser().resolve())
@@ -1850,30 +1711,14 @@ def _event_matches_filters(
     adapter_mode: Optional[str],
     execution_mode: Optional[str],
 ) -> bool:
-    if event_type and event.get("event_type") != event_type:
-        return False
-
-    if tool_id:
-        related_tools = {
-            _normalize_text(event.get("tool")),
-            _normalize_text(event.get("tool_id")),
-            _normalize_text(event.get("from_tool")),
-            _normalize_text(event.get("to_tool")),
-        }
-        related_tools.discard(None)
-        if tool_id not in related_tools:
-            return False
-
-    if capability_id and event.get("capability_id") != capability_id:
-        return False
-
-    if adapter_mode and event.get("adapter_mode") != adapter_mode:
-        return False
-
-    if execution_mode and event.get("execution_mode") != execution_mode:
-        return False
-
-    return True
+    return event_matches_filters(
+        event,
+        event_type=event_type,
+        tool_id=tool_id,
+        capability_id=capability_id,
+        adapter_mode=adapter_mode,
+        execution_mode=execution_mode,
+    )
 
 
 @app.get("/tasks/{task_id}/events", response_model=list[TaskTimelineEvent])

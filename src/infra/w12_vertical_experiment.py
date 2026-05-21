@@ -11,6 +11,16 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from src.infra.active_tool_metadata import build_high_cost_rules_from_metadata
+from src.infra.experiments._metric_aggregators import (
+    build_threshold_gate_checks,
+    group_runs_by_order,
+)
+from src.infra.experiments._metric_extractors import (
+    build_requirement2_coverage,
+    compute_duration_ms,
+    resolve_final_status,
+    resolve_run_artifact_paths,
+)
 
 
 DEFAULT_REQUIREMENT2_CAPABILITY_MAP: dict[str, list[str]] = {
@@ -702,9 +712,7 @@ def extract_run_metrics(
     requirement2_capability_map: dict[str, list[str]],
     high_cost_rules: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    event_log_path = _optional_path(run.get("event_log_path")) or Path("")
-    snapshot_path = _optional_path(run.get("snapshot_path"))
-    report_path = _optional_path(run.get("report_path"))
+    event_log_path, snapshot_path, report_path = resolve_run_artifact_paths(run)
     rows = read_jsonl(event_log_path)
     resolved_high_cost_rules = normalize_high_cost_rules(high_cost_rules)
     snapshot_payload = _load_snapshot_payload(snapshot_path) if snapshot_path else None
@@ -863,24 +871,16 @@ def extract_run_metrics(
                     for rule_id in matched_rules:
                         high_cost_rule_hits[rule_id] += 1
 
-    if final_status is None:
-        explicit = run.get("status_external")
-        if isinstance(explicit, str) and explicit:
-            final_status = explicit
-        else:
-            final_status = "UNKNOWN"
+    final_status = resolve_final_status(run, final_status)
 
     started_at = parse_iso_datetime(run.get("started_at"))
     finished_at = parse_iso_datetime(run.get("finished_at"))
-    duration_ms = run.get("duration_ms")
-    if isinstance(duration_ms, (int, float)):
-        duration_ms_value = float(duration_ms)
-    elif started_at and finished_at:
-        duration_ms_value = (finished_at - started_at).total_seconds() * 1000.0
-    elif timestamps:
-        duration_ms_value = (max(timestamps) - min(timestamps)).total_seconds() * 1000.0
-    else:
-        duration_ms_value = 0.0
+    duration_ms_value = compute_duration_ms(
+        run=run,
+        started_at=started_at,
+        finished_at=finished_at,
+        timestamps=timestamps,
+    )
 
     success = final_status == "DONE"
     first_pass_success = (
@@ -913,9 +913,10 @@ def extract_run_metrics(
     if step_failed_count > 0:
         abnormal_reasons.append("step_failed")
 
-    requirement2_coverage: dict[str, bool] = {}
-    for bucket, capabilities in requirement2_capability_map.items():
-        requirement2_coverage[bucket] = any(capability_usage.get(cap, 0) > 0 for cap in capabilities)
+    requirement2_coverage = build_requirement2_coverage(
+        capability_usage=dict(capability_usage),
+        requirement2_capability_map=requirement2_capability_map,
+    )
 
     if isinstance(snapshot_artifacts.get("runtime_state"), dict):
         runtime_state_observable = True
@@ -1053,15 +1054,11 @@ def aggregate_group_metrics(
     thresholds: dict[str, float],
     requirement2_capability_map: dict[str, list[str]],
 ) -> dict[str, Any]:
-    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    group_order_set = set(group_order)
-    for row in runs:
-        group_id = row.get("group_id")
-        canonical_group_id = row.get("canonical_group_id") or canonicalize_group_id(group_id)
-        if isinstance(canonical_group_id, str) and canonical_group_id in group_order_set:
-            grouped[canonical_group_id].append(row)
-        elif isinstance(group_id, str):
-            grouped[group_id].append(row)
+    grouped = group_runs_by_order(
+        runs,
+        group_order=group_order,
+        canonicalize_group_id=canonicalize_group_id,
+    )
 
     summary_rows: list[dict[str, Any]] = []
     patch_rows: list[dict[str, Any]] = []
@@ -1445,23 +1442,10 @@ def aggregate_group_metrics(
                     }
                 )
 
-        gate_checks: list[dict[str, Any]] = []
-        for metric_name, threshold in thresholds.items():
-            value = summary_row.get(metric_name)
-            passed = isinstance(value, (int, float)) and value >= threshold
-            if metric_name == "suffix_replan_prefix_preservation_rate":
-                passed = isinstance(value, (int, float)) and abs(float(value) - threshold) < 1e-9
-            if value is None:
-                passed = False
-            gate_checks.append(
-                {
-                    "metric": metric_name,
-                    "threshold": threshold,
-                    "value": value,
-                    "passed": passed,
-                    "reason": None if passed else ("missing_value" if value is None else "below_threshold"),
-                }
-            )
+        gate_checks = build_threshold_gate_checks(
+            summary_row=summary_row,
+            thresholds=thresholds,
+        )
 
         gate_rows.append(
             {
