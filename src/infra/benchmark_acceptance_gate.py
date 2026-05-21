@@ -35,7 +35,7 @@ def run_issue200_acceptance_gate(
     resolved_output_root = output_root or Path(normalized["output_root"])
     resolved_freeze_id = freeze_id or normalized["freeze_id"]
     output_dir = resolved_output_root / resolved_freeze_id
-    output_dir.mkdir(parents=True, exist_ok=True)
+    _ = output_dir.mkdir(parents=True, exist_ok=True)
 
     checks = _build_gate_checks(normalized)
     counts = Counter(check["status"] for check in checks)
@@ -88,7 +88,7 @@ def run_issue200_acceptance_gate(
     write_json(output_dir / "benchmark_gate_summary.json", gate_summary)
     write_json(output_dir / "benchmark_gate_blockers.json", blockers)
     write_json(output_dir / "benchmark_gate_evidence_index.json", evidence_index)
-    (output_dir / "benchmark_acceptance_gate_summary.md").write_text(
+    _ = (output_dir / "benchmark_acceptance_gate_summary.md").write_text(
         _render_gate_summary(report),
         encoding="utf-8",
     )

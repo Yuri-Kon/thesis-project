@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from src.adapters.builtins import ensure_builtin_adapters
 from src.adapters.registry import get_adapter
@@ -20,8 +20,8 @@ def build_issue200_gate_checks(
     kg = load_tool_kg()
     ensure_builtin_adapters()
 
-    tools = kg.get("tools", [])
-    capabilities = kg.get("capabilities", [])
+    tools = cast(list[object], kg.get("tools", []))
+    capabilities = cast(list[object], kg.get("capabilities", []))
     tool_nodes = {
         str(tool.get("id")): tool
         for tool in tools
@@ -203,7 +203,7 @@ def build_adapter_registration_check(config: dict[str, Any]) -> dict[str, Any]:
     missing_adapters: list[str] = []
     for tool_id in allowed_tool_ids:
         try:
-            get_adapter(tool_id)
+            _ = get_adapter(tool_id)
         except KeyError:
             missing_adapters.append(tool_id)
     return make_gate_check(
