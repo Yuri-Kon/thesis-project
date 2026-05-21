@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+
+from src.models.failure_codes import normalize_failure_code_value
+
 type JsonScalar = str | int | float | bool | None
 type JsonValue = JsonScalar | JsonObject | JsonArray
 type JsonObject = dict[str, JsonValue]
@@ -194,11 +197,11 @@ def _extract_failure_code(context: FieldExtractionContext) -> str | None:
     if failure_code is not None:
         return failure_code
     error_details = _mapping_field(context.payload, "error_details")
-    failure_code = _string_field(error_details, "failure_code")
+    failure_code = normalize_failure_code_value(error_details.get("failure_code"))
     if failure_code is not None:
         return failure_code
     s6 = _mapping_field(context.data, "s6")
-    return _string_field(s6, "trigger_failure_code")
+    return normalize_failure_code_value(s6.get("trigger_failure_code"))
 
 
 def _extract_recovery_hint(context: FieldExtractionContext) -> str | None:

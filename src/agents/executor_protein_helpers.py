@@ -21,6 +21,7 @@ from src.workflow.recovery import (
     build_structure_refinement_audit,
     persist_structure_refinement_audit,
 )
+from src.workflow.failure_codes import extract_step_failure_code
 from src.workflow.step_runner import StepRunner
 
 _S4_DEFAULT_MAX_ITERATIONS = 3
@@ -871,9 +872,8 @@ def _resolve_refinement_step_template(
 ) -> PlanStep | None:
     if plan is None:
         return None
-    for step in plan.steps:
-        if step.id == refinement_step_id:
-            return step
+    if step := _resolve_plan_step(plan=plan, step_id=refinement_step_id):
+        return step
     for step in plan.steps:
         metadata = step.metadata if isinstance(step.metadata, dict) else {}
         if metadata.get("stage_id") == "S4":
@@ -980,7 +980,7 @@ def _extract_s2_candidates_for_quality_gate(
             "plddt": plddt,
             "tool_id": source_result.tool,
             "lineage": outputs.get("lineage", {}),
-            "failure_code": _extract_failure_code(source_result),
+            "failure_code": extract_step_failure_code(source_result),
             "failure_reason": source_result.error_message,
         }
         resolved.append(row)
@@ -1481,16 +1481,7 @@ def _normalize_s2_failure_code(result: StepResult) -> str:
 
 
 def _select_best_structure_result(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any] | None:
-    if not rows:
-        return None
-    ranked = sorted(
-        rows,
-        key=lambda row: (
-            -(float(row.get("plddt")) if isinstance(row.get("plddt"), (int, float)) else -1.0),
-            str(row.get("candidate_id", "")),
-        ),
-    )
-    return ranked[0]
+    return _select_best_by_plddt(rows)
 
 
 def _collect_projection_artifacts(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
@@ -1505,33 +1496,33 @@ def _collect_projection_artifacts(rows: Sequence[Dict[str, Any]]) -> Dict[str, A
 
 
 def _select_best_quality_candidate(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any] | None:
+    return _select_best_by_plddt(rows)
+
+
+def _select_best_by_plddt(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any] | None:
     if not rows:
         return None
     ranked = sorted(
         rows,
         key=lambda row: (
-            -(float(row.get("plddt")) if isinstance(row.get("plddt"), (int, float)) else -1.0),
+            -_plddt_sort_value(row),
             str(row.get("candidate_id", "")),
         ),
     )
     return ranked[0]
 
 
-def _extract_failure_code(result: StepResult) -> str | None:
-    if not isinstance(result.error_details, dict):
-        return None
-    value = result.error_details.get("failure_code")
-    if isinstance(value, FailureCode):
-        return value.value
-    if isinstance(value, str):
-        return value
-    return None
+def _plddt_sort_value(row: Dict[str, Any]) -> float:
+    value = row.get("plddt")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return -1.0
 
 
 def _build_quality_gate_trace_data(result: StepResult) -> Dict[str, Any]:
     outputs = result.outputs if isinstance(result.outputs, dict) else {}
     reject_counts = outputs.get("reject_code_counts")
-    failure_code = _extract_failure_code(result)
+    failure_code = extract_step_failure_code(result)
     failed_rows = outputs.get("failed_samples")
     failed_samples: list[dict[str, Any]] = []
     if isinstance(failed_rows, list):
