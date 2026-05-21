@@ -1,11 +1,12 @@
 from __future__ import annotations
 from pathlib import Path
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from pydantic import BaseModel, Field
 
-from src.models.contracts import DesignResult, now_iso, StepResult, SafetyResult
+from src.agents.summarizer_sections import DeNovoReportView, render_de_novo_markdown
+from src.models.contracts import DesignResult, now_iso, ProteinDesignTask, StepResult
 from src.workflow.context import WorkflowContext
 
 
@@ -226,11 +227,11 @@ class SummarizerAgent:
             },
         )
 
-        summary_report_path.write_text(design.model_dump_json(indent=2))
+        _ = summary_report_path.write_text(design.model_dump_json(indent=2))
         return design
 
 
-def _extract_visualization_artifacts(context: WorkflowContext) -> dict:
+def _extract_visualization_artifacts(context: WorkflowContext) -> dict[str, object]:
     for result in context.step_results.values():
         outputs = result.outputs or {}
         if any(
@@ -257,22 +258,24 @@ def _extract_visualization_artifacts(context: WorkflowContext) -> dict:
 
 
 def _select_report_path(
-    artifacts: dict,
+    artifacts: dict[str, object],
     report_dir: Path,
     task_id: str,
 ) -> tuple[Path, str]:
     report_html_path = artifacts.get("report_html_path")
-    if report_html_path:
+    if isinstance(report_html_path, str) and report_html_path:
         return Path(report_html_path), "visualization_tool"
 
     plotly_html_path = artifacts.get("plotly_html_path")
     metrics_json_path = artifacts.get("metrics_json_path")
-    if plotly_html_path or metrics_json_path:
+    normalized_plotly_path = plotly_html_path if isinstance(plotly_html_path, str) else None
+    normalized_metrics_path = metrics_json_path if isinstance(metrics_json_path, str) else None
+    if normalized_plotly_path or normalized_metrics_path:
         fallback_path = report_dir / f"{task_id}.html"
         _write_fallback_report(
             fallback_path,
-            plotly_html_path,
-            metrics_json_path,
+            normalized_plotly_path,
+            normalized_metrics_path,
         )
         return fallback_path, "visualization_fallback"
 
@@ -411,7 +414,7 @@ def _write_fallback_report(
             "</html>",
         ]
     )
-    report_path.write_text(report_html, encoding="utf-8")
+    _ = report_path.write_text(report_html, encoding="utf-8")
 
 
 def _build_metrics_table(metrics_json_path: str | None) -> str:
@@ -443,37 +446,35 @@ def _build_metrics_table(metrics_json_path: str | None) -> str:
 _DE_NOVO_GOAL_TYPE = "de_novo_design"
 
 
-def _extract_goal_type(task) -> str:
+def _extract_goal_type(task: ProteinDesignTask) -> str:
     """从任务中提取 goal_type（与 planner.py 逻辑保持一致）"""
     for container in (task.constraints, task.metadata):
-        if isinstance(container, dict):
-            goal_block = container.get("goal")
-            if isinstance(goal_block, dict):
-                goal_type = goal_block.get("type")
-                if isinstance(goal_type, str) and goal_type:
-                    return goal_type
-            goal_type = container.get("goal_type")
+        goal_block = container.get("goal")
+        if isinstance(goal_block, dict):
+            goal_type = goal_block.get("type")
             if isinstance(goal_type, str) and goal_type:
                 return goal_type
+        goal_type = container.get("goal_type")
+        if isinstance(goal_type, str) and goal_type:
+            return goal_type
 
     goal_value = task.goal
-    if isinstance(goal_value, str):
-        stripped = goal_value.strip()
-        if stripped == _DE_NOVO_GOAL_TYPE:
-            return stripped
-        if stripped.startswith("{") and stripped.endswith("}"):
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                return ""
-            if isinstance(parsed, dict):
-                goal_type = parsed.get("type")
-                if isinstance(goal_type, str) and goal_type:
-                    return goal_type
+    stripped = goal_value.strip()
+    if stripped == _DE_NOVO_GOAL_TYPE:
+        return stripped
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return ""
+        if isinstance(parsed, dict):
+            goal_type = parsed.get("type")
+            if isinstance(goal_type, str) and goal_type:
+                return goal_type
     return ""
 
 
-def _is_de_novo_task(task) -> bool:
+def _is_de_novo_task(task: ProteinDesignTask) -> bool:
     """判断任务是否为 de novo 设计任务"""
     return _extract_goal_type(task) == _DE_NOVO_GOAL_TYPE
 
@@ -728,147 +729,9 @@ def generate_de_novo_report(context: WorkflowContext) -> DeNovoReport:
 
 
 def _render_de_novo_markdown(report: DeNovoReport) -> str:
-    """将 DeNovoReport 渲染为 Markdown 格式"""
-    lines = []
+    """将 DeNovoReport 渲染为 Markdown 格式。"""
 
-    # 标题
-    lines.append(f"# De Novo 蛋白设计报告")
-    lines.append("")
-
-    # 任务概览
-    lines.append("## 任务概览")
-    lines.append("")
-    lines.append(f"- **任务 ID**: `{report.task_id}`")
-    lines.append(f"- **设计目标**: {report.task_description}")
-    lines.append(f"- **任务类型**: {report.design_goal}")
-    lines.append(f"- **生成时间**: {report.created_at}")
-    status_emoji = {"success": "✅", "failed": "❌", "partial": "⚠️"}.get(
-        report.status, "❓"
-    )
-    lines.append(f"- **执行状态**: {status_emoji} {report.status}")
-    lines.append("")
-
-    # 工具链
-    lines.append("## 工具链")
-    lines.append("")
-    if report.tool_chain.description:
-        lines.append(f"**执行链路**: {report.tool_chain.description}")
-    else:
-        lines.append("未识别到标准工具链")
-    lines.append("")
-
-    # 执行步骤
-    lines.append("## 执行步骤")
-    lines.append("")
-    for step in report.step_summaries:
-        step_emoji = {"success": "✅", "failed": "❌", "skipped": "⚠️"}.get(
-            step.status, "❓"
-        )
-        lines.append(f"### {step.step_id}: {step.tool} {step_emoji}")
-        lines.append("")
-
-        if step.inputs_summary:
-            lines.append("**输入**:")
-            for key, value in step.inputs_summary.items():
-                lines.append(f"- `{key}`: {value}")
-            lines.append("")
-
-        if step.outputs_summary:
-            lines.append("**输出**:")
-            for key, value in step.outputs_summary.items():
-                if isinstance(value, dict):
-                    lines.append(f"- `{key}`:")
-                    for k, v in value.items():
-                        lines.append(f"  - `{k}`: {v}")
-                else:
-                    lines.append(f"- `{key}`: {value}")
-            lines.append("")
-
-        if step.error_message:
-            lines.append(f"**错误**: {step.error_message}")
-            lines.append("")
-
-    # 结果
-    if report.success_report:
-        lines.append("## 设计结果")
-        lines.append("")
-        sr = report.success_report
-        if sr.final_sequence:
-            seq_display = sr.final_sequence
-            if len(seq_display) > 60:
-                seq_display = f"{seq_display[:30]}...{seq_display[-30:]}"
-            lines.append(f"- **设计序列**: `{seq_display}`")
-        if sr.sequence_length:
-            lines.append(f"- **序列长度**: {sr.sequence_length} aa")
-        if sr.structure_pdb_path:
-            lines.append(f"- **结构文件**: `{sr.structure_pdb_path}`")
-        if sr.plddt_mean is not None:
-            lines.append(f"- **pLDDT 均值**: {sr.plddt_mean:.2f}")
-        if sr.confidence:
-            lines.append(f"- **置信度等级**: {sr.confidence}")
-        lines.append("")
-
-        if sr.objective_score is not None or sr.objective_top_k:
-            lines.append("### 目标评分")
-            lines.append("")
-            if sr.objective_score is not None:
-                lines.append(f"- **综合目标分**: {sr.objective_score:.3f}")
-            if sr.posterior_score:
-                evidence_status = sr.posterior_score.get("evidence_status") or "-"
-                evidence_sufficiency = sr.posterior_score.get("evidence_sufficiency")
-                if isinstance(evidence_sufficiency, (int, float)):
-                    lines.append(
-                        f"- **证据充分度**: {evidence_sufficiency:.3f} ({evidence_status})"
-                    )
-            if sr.rank_reason:
-                lines.append(f"- **排序理由**: {sr.rank_reason}")
-            if sr.objective_warnings:
-                lines.append(
-                    f"- **评分警告**: {'; '.join(sr.objective_warnings)}"
-                )
-            if sr.objective_top_k:
-                lines.append("")
-                lines.append("| Rank | Candidate | Score | Reason |")
-                lines.append("| --- | --- | ---: | --- |")
-                for row in sr.objective_top_k:
-                    rank = row.get("top_k_rank") or row.get("rank") or "-"
-                    candidate_id = row.get("candidate_id") or row.get("id") or "-"
-                    score = row.get("objective_score")
-                    score_text = f"{score:.3f}" if isinstance(score, (int, float)) else "-"
-                    reason = row.get("rank_reason") or row.get("objective_explanation") or "-"
-                    lines.append(f"| {rank} | `{candidate_id}` | {score_text} | {reason} |")
-            lines.append("")
-
-    if report.failure_report:
-        lines.append("## 失败分析")
-        lines.append("")
-        fr = report.failure_report
-        if fr.failed_step_id:
-            lines.append(f"- **失败步骤**: {fr.failed_step_id}")
-        if fr.failed_tool:
-            lines.append(f"- **失败工具**: {fr.failed_tool}")
-        if fr.failure_type:
-            lines.append(f"- **失败类型**: {fr.failure_type}")
-        if fr.error_message:
-            lines.append(f"- **错误信息**: {fr.error_message}")
-        if fr.safety_action:
-            lines.append(f"- **安全判定**: {fr.safety_action}")
-        if fr.safety_reason:
-            lines.append(f"- **安全原因**: {fr.safety_reason}")
-        lines.append("")
-
-        if fr.suggested_next_steps:
-            lines.append("### 建议的下一步")
-            lines.append("")
-            for i, step in enumerate(fr.suggested_next_steps, 1):
-                lines.append(f"{i}. {step}")
-            lines.append("")
-
-    # 页脚
-    lines.append("---")
-    lines.append("*此报告由 SummarizerAgent 自动生成*")
-
-    return "\n".join(lines)
+    return render_de_novo_markdown(cast(DeNovoReportView, cast(object, report)))
 
 
 def write_de_novo_reports(
@@ -886,10 +749,10 @@ def write_de_novo_reports(
     md_path = report_dir / f"{report.task_id}_denovo.md"
 
     # 写入 JSON
-    json_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
+    _ = json_path.write_text(report.model_dump_json(indent=2), encoding="utf-8")
 
     # 写入 Markdown
     md_content = _render_de_novo_markdown(report)
-    md_path.write_text(md_content, encoding="utf-8")
+    _ = md_path.write_text(md_content, encoding="utf-8")
 
     return json_path, md_path
