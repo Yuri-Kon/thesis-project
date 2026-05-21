@@ -27,7 +27,7 @@ from src.models.contracts import (
     now_iso,
 )
 from src.workflow.context import WorkflowContext
-from src.workflow.errors import FailureCode
+from src.workflow.failure_codes import extract_step_failure_code_or_default
 
 __all__ = ["SafetyAgent"]
 
@@ -142,8 +142,13 @@ class SafetyAgent:
                 self._build_failure_flag(
                     step,
                     step_result,
-                    failure_code=self._extract_failure_code(step_result),
-                    failure_reason=step_result.error_message or "step execution failed",
+                    failure_code=extract_step_failure_code_or_default(
+                        step_result,
+                        default="STEP_EXECUTION_FAILED",
+                    ),
+                    failure_reason=(
+                        step_result.error_message or "step execution failed"
+                    ),
                 )
             )
             action = "block"
@@ -301,16 +306,6 @@ class SafetyAgent:
             else:
                 fail_count = 0
         return int(pass_count), int(fail_count)
-
-    def _extract_failure_code(self, step_result: StepResult) -> str:
-        failure_code = ""
-        if isinstance(step_result.error_details, dict):
-            value = step_result.error_details.get("failure_code")
-            if isinstance(value, FailureCode):
-                failure_code = value.value
-            elif isinstance(value, str):
-                failure_code = value
-        return failure_code or "STEP_EXECUTION_FAILED"
 
     def _build_failure_flag(
         self,

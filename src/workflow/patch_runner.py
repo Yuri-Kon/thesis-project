@@ -37,6 +37,7 @@ from src.workflow.patch_recovery_metadata import (
     extract_capability_from_step as _extract_capability_from_step_impl,
     extract_recovery_metadata,
 )
+from src.workflow.failure_codes import extract_step_failure_code
 
 
 class StepRunnerLike(Protocol):
@@ -459,7 +460,7 @@ class PatchRunner:
 
         retry_exhausted = result.metrics.get("retry_exhausted", False)
         stage_id = _extract_stage_id(result)
-        failure_code = _extract_failure_code(result)
+        failure_code = extract_step_failure_code(result)
         action = resolve_s6_recovery_action(
             stage_id=stage_id,
             failure_code=failure_code,
@@ -503,7 +504,7 @@ class PatchRunner:
             return None
 
         stage_id = _extract_stage_id(result)
-        failure_code = _extract_failure_code(result)
+        failure_code = extract_step_failure_code(result)
         retry_exhausted = bool(result.metrics.get("retry_exhausted"))
         s6_action = resolve_s6_recovery_action(
             stage_id=stage_id,
@@ -555,7 +556,7 @@ class PatchRunner:
             WorkflowActionSelectorInput(
                 phase=phase,
                 stage_id=_extract_stage_id(result),
-                failure_code=_extract_failure_code(result),
+                failure_code=extract_step_failure_code(result),
                 failure_type=result.failure_type,
                 retry_exhausted=bool(result.metrics.get("retry_exhausted")),
                 safety_blocked=result.failure_type == FailureType.SAFETY_BLOCK,
@@ -686,27 +687,14 @@ def _emit_replacement_decision_event(
         "tool_level": "REPLACE_TOOL",
         "structure_level": "STRUCTURE_PATCH",
     }.get(layer, "REPLACE_TOOL")
-    append_event(
-        context.task.task_id,
-        {
-            "event": event_name,
-            "task_id": context.task.task_id,
-            "step_id": step_id,
-            "timestamp": now_iso(),
-            "state": context.status.value,
-            "external_status": to_external_status(context.status).value,
-            "data": {
-                "action_name": "patch",
-                "action_score": recovery.get("action_score"),
-                "decision": decision,
-                "shadow_score": recovery.get("shadow_score"),
-                "evidence_source": recovery.get("default_recommendation_reason"),
-                "recovery": recovery,
-                "runtime_state_summary": build_context_runtime_state_summary(
-                    context,
-                    require_runtime_state=True,
-                ),
-            },
+    _emit_recovery_event(
+        context,
+        event_name=event_name,
+        step_id=step_id,
+        recovery=recovery,
+        data_overrides={
+            "action_name": "patch",
+            "decision": decision,
         },
     )
 
@@ -719,28 +707,48 @@ def _emit_recovery_escalation_event(
     detail: str,
     recovery: dict[str, Any],
 ) -> None:
+    _emit_recovery_event(
+        context,
+        event_name="RECOVERY_ESCALATED",
+        step_id=step_id,
+        recovery=recovery,
+        data_overrides={
+            "action_name": "replan",
+            "reason": reason,
+            "detail": detail,
+        },
+    )
+
+
+def _emit_recovery_event(
+    context: WorkflowContext,
+    *,
+    event_name: str,
+    step_id: str,
+    recovery: dict[str, Any],
+    data_overrides: dict[str, Any],
+) -> None:
+    data = {
+        "action_score": recovery.get("action_score"),
+        "shadow_score": recovery.get("shadow_score"),
+        "evidence_source": recovery.get("default_recommendation_reason"),
+        "recovery": recovery,
+        "runtime_state_summary": build_context_runtime_state_summary(
+            context,
+            require_runtime_state=True,
+        ),
+        **data_overrides,
+    }
     append_event(
         context.task.task_id,
         {
-            "event": "RECOVERY_ESCALATED",
+            "event": event_name,
             "task_id": context.task.task_id,
             "step_id": step_id,
             "timestamp": now_iso(),
             "state": context.status.value,
             "external_status": to_external_status(context.status).value,
-            "data": {
-                "action_name": "replan",
-                "action_score": recovery.get("action_score"),
-                "reason": reason,
-                "detail": detail,
-                "shadow_score": recovery.get("shadow_score"),
-                "evidence_source": recovery.get("default_recommendation_reason"),
-                "recovery": recovery,
-                "runtime_state_summary": build_context_runtime_state_summary(
-                    context,
-                    require_runtime_state=True,
-                ),
-            },
+            "data": data,
         },
     )
 
@@ -808,14 +816,6 @@ def _extract_stage_id(result: StepResult) -> str | None:
     stage_id = outputs.get("stage_id")
     if isinstance(stage_id, str) and stage_id:
         return stage_id
-    return None
-
-
-def _extract_failure_code(result: StepResult) -> str | None:
-    details = result.error_details if isinstance(result.error_details, dict) else {}
-    failure_code = details.get("failure_code")
-    if isinstance(failure_code, str) and failure_code:
-        return failure_code
     return None
 
 

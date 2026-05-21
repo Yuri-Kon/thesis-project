@@ -11,6 +11,7 @@ from src.models.contracts import (
     SafetyResult,
     StepResult,
 )
+from src.workflow.failure_codes import extract_step_failure_code
 
 __all__ = [
     "BELIEF_STATE_UPDATE_RULES",
@@ -279,7 +280,10 @@ def _update_runtime_state_impl(
                 "last_tool": step_result.tool,
                 "last_stage_id": stage_id,
                 "last_failure_type": _as_non_empty_text(step_result.failure_type),
-                "last_failure_code": _extract_failure_code(step_result),
+                "last_failure_code": extract_step_failure_code(
+                    step_result,
+                    include_risk_flags=True,
+                ),
             }
         )
 
@@ -431,7 +435,10 @@ def extract_failure_context(step_result: StepResult) -> RuntimeFailureContext:
     recovery_meta = step_result.metrics.get("recovery")
     failure_context: dict[str, Any] = {
         "failure_type": _as_non_empty_text(step_result.failure_type),
-        "failure_code": _extract_failure_code(step_result),
+        "failure_code": extract_step_failure_code(
+            step_result,
+            include_risk_flags=True,
+        ),
         "retry_exhausted": _as_bool(step_result.metrics.get("retry_exhausted")),
     }
 
@@ -637,7 +644,7 @@ def _estimate_metric_completeness(
             completeness += 0.25
         if isinstance(step_result.metrics, dict) and step_result.metrics:
             completeness += 0.20
-        if _extract_failure_code(step_result):
+        if extract_step_failure_code(step_result, include_risk_flags=True):
             completeness += 0.10
     if safety_result is not None and safety_result.risk_flags:
         completeness += 0.10
@@ -676,18 +683,6 @@ def _extract_stage_id(step_result: StepResult) -> str | None:
     outputs = step_result.outputs if isinstance(step_result.outputs, dict) else {}
     stage_id = outputs.get("stage_id")
     return _as_non_empty_text(stage_id)
-
-
-def _extract_failure_code(step_result: StepResult) -> str | None:
-    if isinstance(step_result.error_details, dict):
-        failure_code = _as_non_empty_text(step_result.error_details.get("failure_code"))
-        if failure_code:
-            return failure_code
-    for flag in step_result.risk_flags:
-        code = _as_non_empty_text(flag.code)
-        if code:
-            return code
-    return None
 
 
 def _is_structural_step(*, stage_id: str | None, tool_id: str) -> bool:
