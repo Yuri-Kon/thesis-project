@@ -1,7 +1,7 @@
 [project]
 name = "thesis-paper"
 version = "0.1.0"
-description = "Add your description here"
+description = "Aims to create paper and ppt"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
