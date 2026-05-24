@@ -1,6 +1,7 @@
 # paper 分支专用
 resources/Protein Design/files/
 .DS_Store
+.envrc
 
 *.~lock.*
 ~$*.doc
@@ -8,6 +9,11 @@ resources/Protein Design/files/
 
 reference/*
 reference/report/*
+
+HIT-PowerPoint.pptx
+hit.png
+
+outputs/
 
 *.bkp
 *.pyc
@@ -23,4 +29,3 @@ reference/report/*
 # 需要跟踪的内容
 !reference/report/
 !reference/report/reduce_aigc.md
-
