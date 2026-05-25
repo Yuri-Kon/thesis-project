@@ -1,3 +1,20 @@
+---
+title: "毕业设计答辩讲稿"
+date: "2026-05-25"
+lang: zh-CN
+documentclass: ctexart
+CJKmainfont: "SimSun"
+mainfont: "Times New Roman"
+monofont: "Maple Mono NF CN"
+fontsize: 12pt
+
+geometry:
+  - left=2.8cm
+  - right=2.8cm
+  - top=2.5cm
+  - bottom=2.5cm
+colorlinks: true
+---
 # 毕业设计答辩讲稿参照
 
 本文档对应当前 `ppt/finalterm/2022112879-郑彦文-毕业设计答辩.pptx`。当前 PPT 共 18 页，其中第 1-13 页为正式汇报，第 14-17 页为备份页，第 18 页为结束页。正式汇报建议控制在 8-10 分钟，目标时长约 9 分钟 20 秒，问答约 5 分钟。
