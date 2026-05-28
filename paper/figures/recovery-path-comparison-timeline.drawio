@@ -1,108 +1,96 @@
 <mxfile>
   <diagram name="Recovery Path Comparison Timeline" id="recovery-path-comparison-timeline">
-    <mxGraphModel dx="1290" dy="1007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1250" background="#FFFFFF" math="0" shadow="0">
+    <mxGraphModel dx="1191" dy="929" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1030" background="#FFFFFF" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="title" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="恢复路径对比时间线：fixed gate 与 lite belief-state" vertex="1">
-          <mxGeometry height="34" width="1820" x="40" y="26" as="geometry" />
+        <mxCell id="h1" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;fontStyle=1;" value="&lt;font face=&quot;Times New Roman&quot;&gt;fixed_threshold_gate&lt;/font&gt;固定阈值修补" vertex="1">
+          <mxGeometry height="65" width="330" x="95" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="subtitle" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="基于 thesis-final-v1-001 结果摘要：fixed_threshold_gate 触发真实 patch 事件；lite_belief_state 持续产出 runtime_state 与 action utility。" vertex="1">
-          <mxGeometry height="30" width="1740" x="80" y="66" as="geometry" />
+        <mxCell id="h2" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;fontStyle=1;" value="&lt;font face=&quot;Times New Roman&quot;&gt;lite_belief_state&lt;/font&gt;轻量信念状态" vertex="1">
+          <mxGeometry height="65" width="330" x="575" y="40" as="geometry" />
         </mxCell>
-        <mxCell id="lane1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeWidth=2;fontFamily=Helvetica;fontSize=15;fontStyle=1;align=center;verticalAlign=top;spacing=12;strokeColor=#EA580C;" value="fixed_threshold_gate&lt;br&gt;运行时门控后置拦截" vertex="1">
-          <mxGeometry height="100" width="300" x="80" y="160" as="geometry" />
+        <mxCell id="lf1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="阈值触发局部修补" vertex="1">
+          <mxGeometry height="70" width="280" x="120" y="155" as="geometry" />
         </mxCell>
-        <mxCell id="f1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="候选执行" vertex="1">
-          <mxGeometry height="70" width="190" x="470" y="170" as="geometry" />
+        <mxCell id="dotlf1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="1" vertex="1">
+          <mxGeometry height="40" width="40" x="200" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="f2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="高成本/低收益触发" vertex="1">
-          <mxGeometry height="70" width="220" x="750" y="170" as="geometry" />
+        <mxCell id="lf2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="产生6次&lt;font face=&quot;Times New Roman&quot;&gt;tool-level patch&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="280" x="120" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="f3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="WAITING_PATCH&lt;br&gt;patch_local" vertex="1">
-          <mxGeometry height="90" width="230" x="1060" y="160" as="geometry" />
+        <mxCell id="dotlf2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="2" vertex="1">
+          <mxGeometry height="40" width="40" x="200" y="395" as="geometry" />
         </mxCell>
-        <mxCell id="f4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#EA580C;" value="重复结构映射&lt;br&gt;openfold 重跑" vertex="1">
-          <mxGeometry height="90" width="230" x="1380" y="160" as="geometry" />
-        </mxCell>
-        <mxCell id="f5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#DC2626;" value="可能进入循环耗尽&lt;br&gt;1 个 FAILED 案例" vertex="1">
-          <mxGeometry height="90" width="230" x="1380" y="310" as="geometry" />
-        </mxCell>
-        <mxCell id="fe1" edge="1" parent="1" source="f1" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="f2" value="">
+        <mxCell id="ellf2" edge="1" parent="1" source="lf1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="lf2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fe2" edge="1" parent="1" source="f2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="f3" value="patch decision">
+        <mxCell id="lf3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="高代价调用总数28" vertex="1">
+          <mxGeometry height="70" width="280" x="120" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="dotlf3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="3" vertex="1">
+          <mxGeometry height="40" width="40" x="200" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="ellf3" edge="1" parent="1" source="lf2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="lf3" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fe3" edge="1" parent="1" source="f3" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="f4" value="resume">
+        <mxCell id="lf4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="修补循环耗尽时失败" vertex="1">
+          <mxGeometry height="70" width="280" x="120" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="dotlf4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="4" vertex="1">
+          <mxGeometry height="40" width="40" x="200" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="ellf4" edge="1" parent="1" source="lf3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="lf4" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="fe4" edge="1" parent="1" source="f4" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" target="f2" value="risk remains">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1495" y="285" />
-              <mxPoint x="860" y="285" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="lr1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="21/21&lt;font face=&quot;Times New Roman&quot;&gt;runs&lt;/font&gt;产生&lt;font face=&quot;Times New Roman&quot;&gt;RuntimeState&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="280" x="600" y="155" as="geometry" />
         </mxCell>
-        <mxCell id="fe5" edge="1" parent="1" source="f4" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="f5" value="loop exhausted">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1495" y="285" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="dotlr1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="1" vertex="1">
+          <mxGeometry height="40" width="40" x="760" y="250" as="geometry" />
         </mxCell>
-        <mxCell id="fmetric" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#475569;align=left;" value="观测指标&lt;br&gt;patch_events_total = 6&lt;br&gt;action_patch_local_total = 6&lt;br&gt;high_cost_mean = 1.333&lt;br&gt;success_rate = 0.9524" vertex="1">
-          <mxGeometry height="150" width="500" x="470" y="330" as="geometry" />
+        <mxCell id="lr2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="观测预算压力与证据充分性" vertex="1">
+          <mxGeometry height="70" width="280" x="600" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="lane2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=6;fillColor=#FFFFFF;strokeWidth=2;fontFamily=Helvetica;fontSize=15;fontStyle=1;align=center;verticalAlign=top;spacing=12;strokeColor=#7C3AED;" value="lite_belief_state&lt;br&gt;运行时状态前置调节" vertex="1">
-          <mxGeometry height="100" width="300" x="80" y="650" as="geometry" />
+        <mxCell id="dotlr2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="2" vertex="1">
+          <mxGeometry height="40" width="40" x="760" y="395" as="geometry" />
         </mxCell>
-        <mxCell id="l1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="生成候选 Top-K" vertex="1">
-          <mxGeometry height="70" width="190" x="470" y="660" as="geometry" />
-        </mxCell>
-        <mxCell id="l2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="runtime_state&lt;br&gt;p_success / budget_pressure&lt;br&gt;recovery_margin" vertex="1">
-          <mxGeometry height="110" width="240" x="750" y="640" as="geometry" />
-        </mxCell>
-        <mxCell id="l3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;" value="runtime rerank&lt;br&gt;降低高风险候选分数" vertex="1">
-          <mxGeometry height="90" width="250" x="1080" y="650" as="geometry" />
-        </mxCell>
-        <mxCell id="l4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;" value="选择 continue&lt;br&gt;避免真实 patch" vertex="1">
-          <mxGeometry height="90" width="220" x="1430" y="650" as="geometry" />
-        </mxCell>
-        <mxCell id="l5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#DC2626;" value="边界案例&lt;br&gt;仍可能 WAITING_PATCH 循环" vertex="1">
-          <mxGeometry height="90" width="220" x="1430" y="800" as="geometry" />
-        </mxCell>
-        <mxCell id="le1" edge="1" parent="1" source="l1" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="l2" value="">
+        <mxCell id="erlr2" edge="1" parent="1" source="lr1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;" target="lr2" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="le2" edge="1" parent="1" source="l2" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="l3" value="belief summary">
+        <mxCell id="lr3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="候选重排序和动作效用可追踪" vertex="1">
+          <mxGeometry height="70" width="280" x="600" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="dotlr3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="3" vertex="1">
+          <mxGeometry height="40" width="40" x="760" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="erlr3" edge="1" parent="1" source="lr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;" target="lr3" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="le3" edge="1" parent="1" source="l3" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="l4" value="action utility">
+        <mxCell id="lr4" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="仍可能受任务边界限制失败" vertex="1">
+          <mxGeometry height="70" width="280" x="600" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="dotlr4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="4" vertex="1">
+          <mxGeometry height="40" width="40" x="760" y="685" as="geometry" />
+        </mxCell>
+        <mxCell id="erlr4" edge="1" parent="1" source="lr3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;" target="lr4" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="le4" edge="1" parent="1" source="l3" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="l5" value="edge case">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="1205" y="845" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="compare" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="对比结论&lt;br&gt;固定阈值门控暴露额外修补成本；&lt;font face=&quot;Times New Roman&quot;&gt;Lite belief-state&lt;/font&gt;主要提供运行时状态和动作效用解释。" vertex="1">
+          <mxGeometry height="90" width="560" x="220" y="780" as="geometry" />
         </mxCell>
-        <mxCell id="lmetric" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#475569;align=left;" value="观测指标&lt;br&gt;runtime_state_observable_rate = 1.0&lt;br&gt;action_utility_source = computed&lt;br&gt;patch_events_mean = 0&lt;br&gt;high_cost_mean = 0.952&lt;br&gt;success_rate = 0.9524" vertex="1">
-          <mxGeometry height="170" width="560" x="470" y="820" as="geometry" />
+        <mxCell id="boundary" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="该图只解释工作流恢复路径，不代表候选蛋白湿实验有效性。" vertex="1">
+          <mxGeometry height="65" width="560" x="220" y="900" as="geometry" />
         </mxCell>
-        <mxCell id="takeaway" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="论文表述边界&lt;br&gt;fixed 证明 patch 机制可执行，但会增加高代价调用；lite 的优势主要体现为可观测运行时状态与预防性 rerank，而不是绝对成功率提升。" vertex="1">
-          <mxGeometry height="70" width="1280" x="310" y="1080" as="geometry" />
+        <mxCell id="ec1" edge="1" parent="1" source="lf4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="compare" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-      </root>
-    </mxGraphModel>
-  </diagram>
-  <diagram id="exNM9MUEAZdO64y0AgOw" name="第 2 页">
-    <mxGraphModel dx="774" dy="604" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
-      <root>
-        <mxCell id="0" />
-        <mxCell id="1" parent="0" />
+        <mxCell id="ec2" edge="1" parent="1" source="lr4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="compare" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec3" edge="1" parent="1" source="compare" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#E11D48;" target="boundary" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
