@@ -14,6 +14,7 @@ ppt/
 *.swp
 *.swo
 *.lock
+!flake.lock
 *.DS_Store
 Thumbs.db
 
@@ -69,3 +70,5 @@ output/reports/
 output/pdb/
 tmp/*.png
 output/metrics/*.json
+
+.direnv/
