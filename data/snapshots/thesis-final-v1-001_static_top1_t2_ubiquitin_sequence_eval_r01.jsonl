@@ -1,0 +1,1 @@
+{"snapshot_id": "snapshot_5da973ac", "task_id": "thesis-final-v1-001_static_top1_t2_ubiquitin_sequence_eval_r01", "state": "DONE", "plan_version": null, "step_index": 2, "artifacts": {}, "current_step_index": 2, "completed_step_ids": ["S1", "S2"], "pending_action_id": null, "created_at": "2026-05-10T05:35:16+00:00"}

@@ -1,0 +1,1 @@
+{"snapshot_id": "snapshot_c5b354a1", "task_id": "thesis-final-v1-001_fixed_threshold_gate_t8_forbidden_motif_safety_probe_r02", "state": "DONE", "plan_version": null, "step_index": 1, "artifacts": {}, "current_step_index": 1, "completed_step_ids": ["S1"], "pending_action_id": null, "created_at": "2026-05-10T08:21:09+00:00"}

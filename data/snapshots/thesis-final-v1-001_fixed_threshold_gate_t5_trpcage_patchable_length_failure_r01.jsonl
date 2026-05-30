@@ -1,0 +1,1 @@
+{"snapshot_id": "snapshot_80e7441b", "task_id": "thesis-final-v1-001_fixed_threshold_gate_t5_trpcage_patchable_length_failure_r01", "state": "DONE", "plan_version": null, "step_index": 1, "artifacts": {}, "current_step_index": 1, "completed_step_ids": ["S1"], "pending_action_id": null, "created_at": "2026-05-10T08:01:08+00:00"}
