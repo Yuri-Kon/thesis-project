@@ -1,0 +1,84 @@
+{
+  "task_id": "thesis-final-v1-001_fixed_threshold_gate_t5_trpcage_patchable_length_failure_r02",
+  "sequence": "REALISTIC",
+  "structure_pdb_path": "/home/yurikon/Documents/thesis/thesis-project.dev/output/pdb/openfold3_request/seed_42/openfold3_request_seed_42_sample_1_model.cif",
+  "scores": {
+    "sequence_length": 9,
+    "plddt_mean": 42.0,
+    "confidence": "low"
+  },
+  "risk_flags": [],
+  "report_path": "output/reports/thesis-final-v1-001_fixed_threshold_gate_t5_trpcage_patchable_length_failure_r02.json",
+  "metadata": {
+    "created_at": "2026-05-10T08:04:09+00:00",
+    "step_ids": [
+      "S1"
+    ],
+    "artifacts": {},
+    "summary_report_path": "output/reports/thesis-final-v1-001_fixed_threshold_gate_t5_trpcage_patchable_length_failure_r02.json",
+    "report_source": "summary_json",
+    "plan_metadata": {
+      "provider": "baseline",
+      "model": "external_baseline",
+      "kg_explanation": {
+        "steps": [
+          {
+            "step_id": "S1",
+            "tool_id": "esmfold",
+            "capabilities": [
+              {
+                "capability_id": "structure_prediction",
+                "name": "Structure Prediction",
+                "domain": "protein/structure"
+              }
+            ],
+            "io_type": {
+              "io_type_id": "sequence_to_structure",
+              "input_types": [
+                "sequence"
+              ],
+              "output_types": [
+                "structure_pdb",
+                "plddt"
+              ],
+              "combinable": true
+            },
+            "constraints": {
+              "preconditions": [
+                "sequence_provided"
+              ],
+              "resource_assumptions": [
+                "nextflow_installed",
+                "container_engine_available",
+                "gpu_available"
+              ],
+              "model_assumptions": [
+                "single_chain_only"
+              ],
+              "limits": {
+                "max_length": 2000
+              }
+            }
+          }
+        ]
+      },
+      "planner_route": {
+        "provider_tier": "external",
+        "provider_name": "external_baseline"
+      }
+    },
+    "plan_version": null,
+    "execution_steps": [
+      {
+        "step_id": "S1",
+        "tool": "openfold",
+        "exec_type": "remote",
+        "provider": "openfold3_rest",
+        "model_id": null,
+        "backend": null
+      }
+    ],
+    "objective_scoring": {},
+    "structure_similarity": {}
+  }
+}
