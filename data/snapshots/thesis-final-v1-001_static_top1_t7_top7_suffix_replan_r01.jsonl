@@ -1,0 +1,1 @@
+{"snapshot_id": "snapshot_bc7d0b13", "task_id": "thesis-final-v1-001_static_top1_t7_top7_suffix_replan_r01", "state": "DONE", "plan_version": null, "step_index": 1, "artifacts": {}, "current_step_index": 1, "completed_step_ids": ["S1"], "pending_action_id": null, "created_at": "2026-05-10T06:30:03+00:00"}
