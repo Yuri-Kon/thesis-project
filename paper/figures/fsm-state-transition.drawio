@@ -1,94 +1,172 @@
 <mxfile>
   <diagram name="FSM State Transition" id="fsm-state-transition">
-    <mxGraphModel dx="1407" dy="1098" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1180" background="#FFFFFF" math="0" shadow="0">
+    <mxGraphModel dx="1290" dy="1007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1200" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="ecreated" edge="1" parent="1" source="start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="created" value="">
+        <mxCell id="title2" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="FSM 状态转移图：外部生命周期、内部恢复态与 HITL 决策边界" vertex="1">
+          <mxGeometry height="34" width="1820" x="40" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="&lt;font style=&quot;font-size: 15px;&quot;&gt;状态突变由 Workflow/FSM 统一负责；WAITING_* 表示执行暂停，终态不可再修改。&lt;/font&gt;" vertex="1">
+          <mxGeometry height="32" width="1760" x="70" y="62" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="CREATED" vertex="1">
+          <mxGeometry height="65" width="180" x="100" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="PLANNING" vertex="1">
+          <mxGeometry height="65" width="190" x="360" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="WAITING_PLAN_CONFIRM&lt;br&gt;PendingAction(plan_confirm)" vertex="1">
+          <mxGeometry height="90" width="270" x="655" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="PLANNED" vertex="1">
+          <mxGeometry height="65" width="200" x="690" y="305" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="RUNNING" vertex="1">
+          <mxGeometry height="75" width="210" x="1050" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="SUMMARIZING" vertex="1">
+          <mxGeometry height="70" width="230" x="1450" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="DONE" vertex="1">
+          <mxGeometry height="70" width="150" x="1700" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFEDD5;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="WAITING_PATCH_CONFIRM&lt;br&gt;external view&lt;br&gt;internal: WAITING_PATCH / PATCHING" vertex="1">
+          <mxGeometry height="105" width="330" x="700" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="n12" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFE4E6;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="WAITING_REPLAN_CONFIRM&lt;br&gt;external view&lt;br&gt;internal: WAITING_REPLAN / REPLANNING" vertex="1">
+          <mxGeometry height="105" width="350" x="1120" y="590" as="geometry" />
+        </mxCell>
+        <mxCell id="n13" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="FAILED&lt;br&gt;terminal" vertex="1">
+          <mxGeometry height="75" width="200" x="510" y="875" as="geometry" />
+        </mxCell>
+        <mxCell id="n14" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#64748B;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="CANCELLED&lt;br&gt;terminal" vertex="1">
+          <mxGeometry height="75" width="220" x="890" y="875" as="geometry" />
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="n4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n5" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="eplanning" edge="1" parent="1" source="created" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="planning" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ewplan" edge="1" parent="1" source="planning" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="wplan" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="eplanned" edge="1" parent="1" source="wplan" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="planned" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="erunning" edge="1" parent="1" source="planned" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="running" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="run_patch" edge="1" parent="1" source="running" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="patchD" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="patch_replan" edge="1" parent="1" source="patchD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="replanD" value="否">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="replan_stop" edge="1" parent="1" source="replanD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#D97706;" target="stopD" value="否">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="p_yes" edge="1" parent="1" source="patchD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" target="wpatch" value="是">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="r_yes" edge="1" parent="1" source="replanD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" target="wreplan" value="是">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="s_yes" edge="1" parent="1" source="stopD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#E11D48;" target="failed" value="是">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="to_sum_wpatch" edge="1" parent="1" source="wpatch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;" target="sum" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="to_sum_wreplan" edge="1" parent="1" source="wreplan" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;" target="sum" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="to_sum_running" edge="1" parent="1" source="running" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#059669;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" target="sum" value="完成">
+        <mxCell id="e16" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n6" value="requires HITL">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="950" y="595" />
-              <mxPoint x="950" y="1070" />
+              <mxPoint x="590" y="236" />
+              <mxPoint x="590" y="175" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="start" parent="1" style="ellipse;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="●" vertex="1">
-          <mxGeometry height="60" width="60" x="470" y="35" as="geometry" />
+        <mxCell id="e17" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.25;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0.75;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n7" value="auto allowed">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="740" y="270" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="created" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="CREATED" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="140" as="geometry" />
+        <mxCell id="e18" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;" target="n7" value="Decision: accept">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="planning" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="PLANNING" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="245" as="geometry" />
+        <mxCell id="e19" edge="1" parent="1" source="n7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;" target="n8" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="wplan" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;WAITING_PLAN_CONFIRM&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;PendingAction(plan_confirm)&lt;/font&gt;" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="350" as="geometry" />
+        <mxCell id="e20" edge="1" parent="1" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" value="all steps done">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1360" y="338" />
+              <mxPoint x="1360" y="255" />
+            </Array>
+            <mxPoint x="1260" y="337.5" as="sourcePoint" />
+            <mxPoint x="1450" y="255" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
-        <mxCell id="planned" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="PLANNED" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="455" as="geometry" />
+        <mxCell id="e21" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=12;fontFamily=Helvetica;labelBackgroundColor=none;" target="n10" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="running" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="RUNNING" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="560" as="geometry" />
+        <mxCell id="e22" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n11" value="local failure">
+          <mxGeometry relative="1" x="-0.775" as="geometry">
+            <mxPoint y="1" as="offset" />
+            <Array as="points">
+              <mxPoint x="1050" y="470" />
+              <mxPoint x="865" y="470" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="patchD" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="步骤失败&lt;br&gt;可局部修复？" vertex="1">
-          <mxGeometry height="120" width="240" x="85" y="700" as="geometry" />
+        <mxCell id="e23" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n12" value="safety block / global risk">
+          <mxGeometry relative="1" x="0.3858" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1103" y="510" />
+              <mxPoint x="1295" y="510" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="replanD" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="后续链路&lt;br&gt;需要重规划？" vertex="1">
-          <mxGeometry height="120" width="240" x="390" y="700" as="geometry" />
+        <mxCell id="e24" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=1;entryY=0.75;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n8" value="Decision: apply patch">
+          <mxGeometry relative="1" x="-0.9542" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="865" y="780" />
+              <mxPoint x="1790" y="780" />
+              <mxPoint x="1790" y="356" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="stopD" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="终止或取消？&lt;br&gt;终态保护" vertex="1">
-          <mxGeometry height="120" width="220" x="695" y="700" as="geometry" />
+        <mxCell id="e25" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n12" value="Decision: replan">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="wpatch" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;WAITING_PATCH_&lt;br&gt;CONFIRM&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;patch_confirm&lt;/font&gt;" vertex="1">
-          <mxGeometry height="105" width="270" x="70" y="870" as="geometry" />
+        <mxCell id="e26" edge="1" parent="1" source="n12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n8" value="Decision: apply suffix replan">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1383" y="760" />
+              <mxPoint x="1550" y="760" />
+              <mxPoint x="1550" y="440" />
+              <mxPoint x="1208" y="440" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="wreplan" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;WAITING_REPLAN_&lt;br&gt;CONFIRM&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;replan_confirm&lt;/font&gt;" vertex="1">
-          <mxGeometry height="105" width="290" x="365" y="870" as="geometry" />
+        <mxCell id="e27" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n13" value="reject">
+          <mxGeometry relative="1" x="0.0495" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="723" y="250" />
+              <mxPoint x="610" y="250" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="failed" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFF1F2;strokeColor=#E11D48;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="FAILED/CANCELLED" vertex="1">
-          <mxGeometry height="80" width="230" x="700" y="880" as="geometry" />
+        <mxCell id="e28" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n14" value="cancel">
+          <mxGeometry relative="1" x="-0.7153" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="858" y="290" />
+              <mxPoint x="960" y="290" />
+              <mxPoint x="960" y="550" />
+              <mxPoint x="1060" y="550" />
+            </Array>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="sum" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF2FF;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="SUMMARIZING→DONE" vertex="1">
-          <mxGeometry height="70" width="520" x="240" y="1035" as="geometry" />
+        <mxCell id="e29" edge="1" parent="1" source="n11" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n14" value="cancel">
+          <mxGeometry relative="1" x="-0.6784" y="-3" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="783" y="810" />
+              <mxPoint x="945" y="810" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e30" edge="1" parent="1" source="n12" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n13" value="terminal_stop / reject">
+          <mxGeometry relative="1" x="-0.9038" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1208" y="840" />
+              <mxPoint x="660" y="840" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n31" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="&lt;font style=&quot;font-size: 15px;&quot;&gt;WAITING_* invariant&lt;br&gt;1. Snapshot/log already persisted&lt;br&gt;2. no tool execution while waiting&lt;br&gt;3. only human Decision can resume / fail / cancel&lt;/font&gt;" vertex="1">
+          <mxGeometry height="115" width="410" x="1170" y="880" as="geometry" />
+        </mxCell>
+        <mxCell id="n32" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="&lt;font style=&quot;font-size: 15px;&quot;&gt;ExternalStatus exposes WAITING_PATCH_CONFIRM / WAITING_REPLAN_CONFIRM; InternalStatus may use WAITING_PATCH, PATCHING, WAITING_REPLAN, REPLANNING for implementation detail.&lt;/font&gt;" vertex="1">
+          <mxGeometry height="50" width="1380" x="220" y="1030" as="geometry" />
+        </mxCell>
+        <mxCell id="foot33" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" value="Sources: AGENT_CONTRACT.md, architecture.md fsm.lifecycle.overview, src/models/db.py, src/workflow/status.py" vertex="1">
+          <mxGeometry height="30" width="1820" x="40" y="1150" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
