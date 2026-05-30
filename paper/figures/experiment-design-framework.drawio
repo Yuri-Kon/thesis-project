@@ -1,29 +1,110 @@
-<mxfile host="Electron" agent="Codex" version="30.0.2">
+<mxfile>
   <diagram name="Experiment Design Framework" id="experiment-design-framework">
-    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="820" pageHeight="1090" math="0" shadow="0">
+    <mxGraphModel dx="1935" dy="1510" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1900" pageHeight="1220" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="page-bg" parent="1" style="shape=rect;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=none;" vertex="1"><mxGeometry x="0" y="0" width="820" height="1090" as="geometry" /></mxCell>
-        <mxCell id="t2" parent="1" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;fontFamily=Songti SC;fontSize=22;fontColor=#0F172A;align=center;verticalAlign=middle;spacing=4;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;实验设计框架&lt;/font&gt;&lt;/b&gt;" vertex="1"><mxGeometry x="40" y="22" width="740" height="38" as="geometry" /></mxCell>
-        <mxCell id="t3" parent="1" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;fontFamily=Songti SC;fontSize=16;fontColor=#475569;align=center;verticalAlign=middle;spacing=4;" value="&lt;font face=&quot;Songti SC&quot;&gt;面向 &lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;thesis-final-v1-001&lt;/font&gt;&lt;font face=&quot;Songti SC&quot;&gt; 的 84-run 内部消融矩阵&lt;/font&gt;" vertex="1"><mxGeometry x="54" y="58" width="712" height="28" as="geometry" /></mxCell>
-        <mxCell id="n4" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF2FF;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Songti SC;fontSize=17;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;任务集合&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;12 task_keys&lt;/font&gt;&lt;font face=&quot;Songti SC&quot;&gt;，覆盖 &lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;T1-T8&lt;/font&gt;&lt;font face=&quot;Songti SC&quot;&gt; 共 8 类场景&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;低成本成功路径 / 标准压力 / 高代价结构预测；总计 &lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;84 runs&lt;/font&gt;" vertex="1"><mxGeometry x="70" y="120" width="680" height="120" as="geometry" /></mxCell>
-        <mxCell id="n5" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;strokeWidth=1.4;fontFamily=Songti SC;fontSize=16;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="" vertex="1"><mxGeometry x="70" y="300" width="680" height="230" as="geometry" /></mxCell>
-        <mxCell id="t6" parent="1" style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;fontFamily=Songti SC;fontSize=18;fontColor=#0F172A;align=center;verticalAlign=middle;spacing=4;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;四组策略消融&lt;/font&gt;&lt;/b&gt;" vertex="1"><mxGeometry x="90" y="312" width="640" height="28" as="geometry" /></mxCell>
-        <mxCell id="n7" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F4F7FA;strokeColor=#475569;strokeWidth=1.4;fontFamily=Songti SC;fontSize=14;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;static_top1&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;静态 Top-1&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;无运行时调整&lt;/font&gt;" vertex="1"><mxGeometry x="100" y="360" width="300" height="58" as="geometry" /></mxCell>
-        <mxCell id="n8" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFF4D6;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Songti SC;fontSize=14;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;fixed_threshold_gate&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;固定阈值门控&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;可触发 patch&lt;/font&gt;" vertex="1"><mxGeometry x="420" y="360" width="300" height="58" as="geometry" /></mxCell>
-        <mxCell id="n9" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF8EF;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Songti SC;fontSize=14;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;dynamic_no_belief_state&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;动态观测恢复&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;无显式信念状态&lt;/font&gt;" vertex="1"><mxGeometry x="100" y="440" width="300" height="58" as="geometry" /></mxCell>
-        <mxCell id="n10" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F1EEFF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Songti SC;fontSize=14;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;lite_belief_state&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;RuntimeState&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;runtime adjustment + utility&lt;/font&gt;" vertex="1"><mxGeometry x="420" y="440" width="300" height="58" as="geometry" /></mxCell>
-        <mxCell id="n11" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF8EF;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Songti SC;fontSize=16;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;评价指标&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;完成与可执行：&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;success_rate / schema_valid / executable_plan&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;恢复行为：&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;patch / replan / suffix_replan&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;成本：&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;high_cost_call_total / duration_ms&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;机制可观测：&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;RuntimeState / budget_pressure / action_utility&lt;/font&gt;" vertex="1"><mxGeometry x="70" y="590" width="680" height="170" as="geometry" /></mxCell>
-        <mxCell id="n12" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#F4F7FA;strokeColor=#475569;strokeWidth=1.4;fontFamily=Songti SC;fontSize=16;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;证据产物&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;run_config&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;event log / snapshot / report&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;matrix summary CSV / evidence index&lt;/font&gt;" vertex="1"><mxGeometry x="70" y="820" width="410" height="150" as="geometry" /></mxCell>
-        <mxCell id="n13" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#EAF9FF;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Songti SC;fontSize=16;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;b&gt;&lt;font face=&quot;Songti SC&quot;&gt;结果锚点&lt;/font&gt;&lt;/b&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;81/84 DONE&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;3 FAILED&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;21/21 RuntimeState&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;高代价调用：&lt;/font&gt;&lt;font face=&quot;Times New Roman&quot;&gt;28 → 20&lt;/font&gt;" vertex="1"><mxGeometry x="520" y="820" width="230" height="150" as="geometry" /></mxCell>
-        <mxCell id="n14" parent="1" style="rounded=1;arcSize=8;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#94A3B8;strokeWidth=1.4;fontFamily=Songti SC;fontSize=15;align=center;verticalAlign=middle;spacing=8;spacingLeft=8;spacingRight=8;" value="&lt;font face=&quot;Songti SC&quot;&gt;结论边界：仅评价工程原型、工作流规划、恢复控制和成本行为&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Songti SC&quot;&gt;不等同于候选蛋白的湿实验功能验证&lt;/font&gt;" vertex="1"><mxGeometry x="70" y="1010" width="680" height="62" as="geometry" /></mxCell>
-        <mxCell id="e15" edge="1" parent="1" source="n4" target="n5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value="&lt;font face=&quot;Songti SC&quot;&gt;相同任务集与预算层&lt;/font&gt;"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e16" edge="1" parent="1" source="n5" target="n11" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value="&lt;font face=&quot;Songti SC&quot;&gt;聚合运行结果&lt;/font&gt;"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e17" edge="1" parent="1" source="n11" target="n12" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value="&lt;font face=&quot;Songti SC&quot;&gt;追溯原始证据&lt;/font&gt;"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e18" edge="1" parent="1" source="n11" target="n13" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#334155;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value="&lt;font face=&quot;Songti SC&quot;&gt;提取关键观察&lt;/font&gt;"><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e19" edge="1" parent="1" source="n12" target="n14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value=""><mxGeometry relative="1" as="geometry" /></mxCell>
-        <mxCell id="e20" edge="1" parent="1" source="n13" target="n14" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#64748B;strokeWidth=1.6;fontFamily=Songti SC;fontSize=14;labelBackgroundColor=#FFFFFF;" value=""><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="title2" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="实验设计框架图：数据集、对比组、指标与证据链" vertex="1">
+          <mxGeometry height="34" width="1820" x="40" y="24" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle3" parent="1" style="fontFamily=Helvetica;fontSize=12;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;" value="实验围绕纵向机制增量、横向代理范式对照、成本与治理指标展开，所有结论追溯到日志、快照、配置与评估脚本。" vertex="1">
+          <mxGeometry height="32" width="1760" x="70" y="62" as="geometry" />
+        </mxCell>
+        <mxCell id="n4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="实验数据集&lt;br&gt;D-main: 主任务集&lt;br&gt;D-recovery: 恢复压力集&lt;br&gt;D-hitl: 人工决策集" vertex="1">
+          <mxGeometry height="150" width="310" x="90" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="n5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="切分与防泄漏&lt;br&gt;time split&lt;br&gt;task_goal + constraints_hash&lt;br&gt;sequence_hash + tool_lineage" vertex="1">
+          <mxGeometry height="145" width="310" x="90" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="n6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="纵向机制增量&lt;br&gt;A0: degraded baseline&lt;br&gt;A1/A2: Top-K + hard validation&lt;br&gt;A3/A4: gates + recovery&lt;br&gt;A5/A6: six-stage + fallback + audit" vertex="1">
+          <mxGeometry height="190" width="430" x="560" y="170" as="geometry" />
+        </mxCell>
+        <mxCell id="n7" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFF7ED;strokeColor=#F97316;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="横向对照&lt;br&gt;E0: ReAct-style&lt;br&gt;E1: ToT-style&lt;br&gt;E2: Reflexion-style&lt;br&gt;same tools / same budget" vertex="1">
+          <mxGeometry height="170" width="430" x="560" y="430" as="geometry" />
+        </mxCell>
+        <mxCell id="n8" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#DCFCE7;strokeColor=#15803D;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="统一评估执行器&lt;br&gt;fixed seed / config version&lt;br&gt;tool whitelist / runtime policy&lt;br&gt;EventLog + TaskSnapshot capture" vertex="1">
+          <mxGeometry height="170" width="390" x="1140" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="n9" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="指标体系&lt;br&gt;效果: success / first-pass / constraints&lt;br&gt;机制: schema / executable / patch/replan&lt;br&gt;代价: latency / token / remote calls&lt;br&gt;治理: audit / trace / replay" vertex="1">
+          <mxGeometry height="210" width="390" x="1140" y="610" as="geometry" />
+        </mxCell>
+        <mxCell id="LtUmjFzZc6yuOdge8JRE-1" edge="1" parent="1" source="n10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="n9" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="t1zL3htOwm_9bWCzbHgz-1" edge="1" parent="1" source="n10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="n9" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="n10" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F1F5F9;strokeColor=#475569;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="统计分析&lt;br&gt;Wilson 95% CI&lt;br&gt;paired McNemar&lt;br&gt;bootstrap CI&lt;br&gt;effect size" vertex="1">
+          <mxGeometry height="170" width="280" x="1600" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="n11" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=1.4;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;" value="论文图表产出&lt;br&gt;A0-A6 总表&lt;br&gt;A6 vs E0/E1/E2&lt;br&gt;success-latency Pareto&lt;br&gt;recovery path distribution&lt;br&gt;audit radar" vertex="1">
+          <mxGeometry height="180" width="430" x="760" y="920" as="geometry" />
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="n4" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="n5" value="quality gate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.25;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="n6" value="same input set">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="440" y="466" />
+              <mxPoint x="440" y="265" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="n5" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n7" value="same budget">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="505" />
+              <mxPoint x="520" y="525" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="n6" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.25;entryDx=0;entryDy=0;exitX=1;exitY=0.75;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n8" value="run groups">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="n7" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0;entryY=0.75;entryDx=0;entryDy=0;exitX=1;exitY=0.25;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n8" value="run baselines">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e17" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;" target="n9" value="raw logs + artifacts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n10" value="aggregated indicators">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="n10" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.75;entryY=0;entryDx=0;entryDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="n11" value="tables and figures">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1740" y="900" />
+              <mxPoint x="1083" y="900" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="n9" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="n11" value="metric tables">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1335" y="880" />
+              <mxPoint x="975" y="880" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="n8" style="endArrow=block;html=1;rounded=1;strokeWidth=2;fontSize=15;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="n11" value="evidence index">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1240" y="560" />
+              <mxPoint x="1050" y="560" />
+              <mxPoint x="1050" y="870" />
+              <mxPoint x="868" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="n22" parent="1" style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#F8FAFC;strokeColor=#94A3B8;fontFamily=Helvetica;fontSize=13;fontSize=12;fontColor=#475569;align=left;verticalAlign=top;spacing=10;" value="通过门槛示例：schema 合法率 ≥ 99.5%；可执行 Plan 率 ≥ 95%；Patch 最小性命中率 ≥ 80%；suffix_replan 前缀保持率 = 100%；治理指标不下降。" vertex="1">
+          <mxGeometry height="85" width="760" x="230" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="foot23" parent="1" style="text;html=1;strokeColor=none;fillColor=none;fontSize=11;fontColor=#64748B;align=right;" value="Sources: docs/experiment/w11-w12-midterm-experiment-plan.md, docs/experiment/algorithm-group-paper-mapping.md, reports and evaluation scripts" vertex="1">
+          <mxGeometry height="30" width="1820" x="40" y="1170" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>

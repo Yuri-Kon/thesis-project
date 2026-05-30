@@ -1,105 +1,74 @@
 <mxfile>
-  <diagram name="T1 Instance Walkthrough" id="t1-instance-walkthrough">
-    <mxGraphModel dx="1290" dy="1007" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1000" pageHeight="1050" background="#FFFFFF" math="0" shadow="0">
+  <diagram name="T1 Trpcage Instance Walkthrough" id="t1-trpcage-instance-walkthrough">
+    <mxGraphModel dx="1720" dy="1342" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1250" background="#FFFFFF" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="input" parent="1" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fillColor=#EAF2FF;strokeColor=#2563EB;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="t1任务输入&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;Trp-cage&lt;/font&gt;目标约束" vertex="1">
-          <mxGeometry height="68" width="280" x="360" y="40" as="geometry" />
+        <mxCell id="title" parent="1" style="fontFamily=Helvetica;fontSize=22;fontStyle=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="具体实例走查：t1_trpcage_denovo_short_peptide 数据流" vertex="1">
+          <mxGeometry height="34" width="1720" x="40" y="26" as="geometry" />
         </mxCell>
-        <mxCell id="candidate" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="候选生成&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;ToolKG&lt;/font&gt;筛选候选链" vertex="1">
-          <mxGeometry height="75" width="340" x="330" y="145" as="geometry" />
+        <mxCell id="subtitle" parent="1" style="fontFamily=Helvetica;fontSize=15;fontColor=#475569;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;fillColor=none;strokeColor=none;" value="基于 thesis-final-v1-001 的 Trp-cage-like 短肽任务配置与运行结果，展示任务对象、计划执行和结果汇总之间的字段传递。" vertex="1">
+          <mxGeometry height="30" width="1640" x="80" y="66" as="geometry" />
         </mxCell>
-        <mxCell id="confirmD" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="候选需要确认？&lt;br&gt;高成本结构映射" vertex="1">
-          <mxGeometry height="115" width="240" x="380" y="260" as="geometry" />
+        <mxCell id="task" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#2563EB;align=left;" value="&lt;font&gt;ProteinDesignTask&lt;br&gt;run_id: thesis-final-v1-001_static_top1_t1_trpcage_denovo_short_peptide_r01&lt;br&gt;goal: Design an 18-24 residue monomeric Trp-cage-like peptide&lt;br&gt;constraints: length_range=[18,24], objective_type=foldability&lt;br&gt;safety_level=1, budget_tier=low_cost_first&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="1460" x="170" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="pending" parent="1" style="shape=document;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;PendingAction&lt;/font&gt;&lt;br&gt;&lt;font face=&quot;Times New Roman&quot;&gt;plan_confirm&lt;/font&gt;" vertex="1">
-          <mxGeometry height="80" width="230" x="700" y="277.5" as="geometry" />
+        <mxCell id="planner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#D97706;align=left;" value="&lt;font&gt;Planner + ToolKG&lt;br&gt;依据能力、预算和约束选择可执行工具链&lt;br&gt;structure_prediction_tool_override = openfold&lt;br&gt;fallback_tool_ids = [esmfold, nim_esmfold]&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="520" x="250" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="run1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="序列生成步骤执行" vertex="1">
-          <mxGeometry height="70" width="340" x="330" y="420" as="geometry" />
+        <mxCell id="plan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#7C3AED;align=left;" value="&lt;font&gt;Plan / Candidate&lt;br&gt;S1: tool=openfold&lt;br&gt;inputs: sequence or task-derived sequence context&lt;br&gt;outputs: structure_pdb, plddt&lt;br&gt;validation: schema_valid=true, executable_plan=true&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="520" x="1020" y="390" as="geometry" />
         </mxCell>
-        <mxCell id="run2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="结构映射步骤执行" vertex="1">
-          <mxGeometry height="70" width="340" x="330" y="525" as="geometry" />
+        <mxCell id="exec" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;align=left;" value="&lt;font&gt;Executor / StepRunner&lt;br&gt;解析步骤输入引用&lt;br&gt;调用 AdapterRegistry&lt;br&gt;记录 EventLog 与 TaskSnapshot&lt;/font&gt;" vertex="1">
+          <mxGeometry height="140" width="520" x="250" y="660" as="geometry" />
         </mxCell>
-        <mxCell id="failD" parent="1" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="工具失败或证据不足？&lt;br&gt;可修补" vertex="1">
-          <mxGeometry height="115" width="240" x="380" y="635" as="geometry" />
+        <mxCell id="step" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#15803D;align=left;" value="&lt;font&gt;StepResult(S1)&lt;br&gt;tool_usage: { openfold: 1 }&lt;br&gt;capability_usage: { structure_prediction: 1 }&lt;br&gt;status: success&lt;br&gt;high_cost_rule_hits: { structure_mapping: 1 }&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="520" x="1020" y="660" as="geometry" />
         </mxCell>
-        <mxCell id="patch" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;patch_local&lt;/font&gt;&lt;br&gt;局部修补" vertex="1">
-          <mxGeometry height="85" width="220" x="10" y="650" as="geometry" />
+        <mxCell id="summary" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#0F766E;align=left;" value="&lt;font&gt;DesignResult / Report&lt;br&gt;final_status: DONE&lt;br&gt;success: true&lt;br&gt;first_pass_success: true&lt;br&gt;duration_ms: 346000&lt;br&gt;report_path: output/reports/..._r01.json&lt;/font&gt;" vertex="1">
+          <mxGeometry height="160" width="620" x="530" y="915" as="geometry" />
         </mxCell>
-        <mxCell id="state" parent="1" style="shape=document;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;RuntimeState&lt;/font&gt;&lt;br&gt;预算压力&lt;br&gt;证据充分性" vertex="1">
-          <mxGeometry height="125" width="230" x="780" y="635" as="geometry" />
-        </mxCell>
-        <mxCell id="rank" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ECFEFF;strokeColor=#0891B2;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="目标评分与候选排序" vertex="1">
-          <mxGeometry height="70" width="340" x="330" y="790" as="geometry" />
-        </mxCell>
-        <mxCell id="result" parent="1" style="shape=document;boundedLbl=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#475569;strokeWidth=1.4;fontFamily=SimSun;fontSize=22;align=center;verticalAlign=middle;spacing=8;" value="&lt;font face=&quot;Times New Roman&quot;&gt;DesignResult&lt;/font&gt;&lt;br&gt;报告与日志" vertex="1">
-          <mxGeometry height="70" width="340" x="330" y="910" as="geometry" />
-        </mxCell>
-        <mxCell id="einputcandidate" edge="1" parent="1" source="input" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="candidate" value="">
+        <mxCell id="e1" edge="1" parent="1" source="task" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.25;exitY=1;exitDx=0;exitDy=0;labelPosition=left;verticalLabelPosition=middle;align=right;verticalAlign=middle;" target="planner" value="task context">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="ecandidateconfirmD" edge="1" parent="1" source="candidate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="confirmD" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="econfirmDrun1" edge="1" parent="1" source="confirmD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="run1" value="否/已确认">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="econfirmDpending" edge="1" parent="1" source="confirmD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" target="pending" value="是">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="ependingrun1" edge="1" parent="1" source="pending" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;exitX=1;exitY=0.5;exitDx=0;exitDy=0;" value="人工确认">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="875" y="390" as="sourcePoint" />
-            <mxPoint x="560" y="420" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="erun1run2" edge="1" parent="1" source="run1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="run2" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="erun2failD" edge="1" parent="1" source="run2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="failD" value="">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="efailDrank" edge="1" parent="1" source="failD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="rank" value="否">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="efailDpatch" edge="1" parent="1" source="failD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" target="patch" value="是">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="epatchrun2" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" value="重试">
+        <mxCell id="e2" edge="1" parent="1" source="planner" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;exitX=1;exitY=0.5;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="plan" value="candidate plan">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="60" y="620" />
-              <mxPoint x="440" y="620" />
+              <mxPoint x="900" y="465" />
             </Array>
-            <mxPoint x="60" y="650" as="sourcePoint" />
-            <mxPoint x="440" y="595" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="efailDstate" edge="1" parent="1" source="failD" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;" target="state" value="更新">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="estaterank" edge="1" parent="1" source="state" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#7C3AED;exitX=0.725;exitY=0.731;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;exitPerimeter=0;" value="重排">
+        <mxCell id="e3" edge="1" parent="1" source="plan" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;" target="exec" value="confirmed executable plan">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="947" y="770" />
-              <mxPoint x="630" y="770" />
+              <mxPoint x="1280" y="590" />
+              <mxPoint x="510" y="590" />
             </Array>
-            <mxPoint x="940" y="635" as="sourcePoint" />
-            <mxPoint x="630" y="790.0000000000002" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="erankresult" edge="1" parent="1" source="rank" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;" target="result" value="">
+        <mxCell id="e4" edge="1" parent="1" source="exec" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;" target="step" value="adapter call + outputs">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="900" y="730" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="step" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;" target="summary" value="summarize artifacts">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1280" y="870" />
+              <mxPoint x="840" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="audit" parent="1" style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;fillColor=#FFFFFF;strokeWidth=1.5;fontFamily=Helvetica;fontSize=16;align=center;verticalAlign=middle;spacing=8;strokeColor=#475569;align=left;" value="&lt;font&gt;审计链&lt;br&gt;EventLog linked: true&lt;br&gt;Snapshot linked: true&lt;br&gt;Lineage linked: true&lt;br&gt;missing_required_artifacts: []&lt;/font&gt;" vertex="1">
+          <mxGeometry height="170" width="260" x="1280" y="910" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="step" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;exitX=0.75;exitY=1;exitDx=0;exitDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;verticalAlign=middle;" target="audit" value="write">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="elog" edge="1" parent="1" source="result" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1.4;endArrow=block;endFill=1;fontFamily=SimSun;fontSize=22;strokeColor=#64748B;dashed=1;" value="">
-          <mxGeometry relative="1" as="geometry">
-            <mxPoint x="290" y="945.0000000000002" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="Z7ORXYT6BbcXMlPVPDAL-2" parent="1" style="ellipse;whiteSpace=wrap;html=1;" value="&lt;font face=&quot;Times New Roman&quot; style=&quot;font-size: 22px;&quot;&gt;EventLog&lt;/font&gt;&lt;br style=&quot;font-family: SimSun; font-size: 22px;&quot;&gt;&lt;font face=&quot;Times New Roman&quot; style=&quot;font-size: 22px;&quot;&gt;Snapshot&lt;/font&gt;&lt;br style=&quot;font-family: SimSun; font-size: 22px;&quot;&gt;&lt;span style=&quot;font-family: SimSun; font-size: 22px;&quot;&gt;可追溯证据&lt;/span&gt;" vertex="1">
-          <mxGeometry height="95" width="200" x="90" y="897.5" as="geometry" />
+        <mxCell id="e7" edge="1" parent="1" source="audit" style="endArrow=block;html=1;rounded=1;strokeWidth=1.8;fontSize=16;fontFamily=Helvetica;labelBackgroundColor=none;dashed=1;endArrow=open;labelPosition=center;verticalLabelPosition=top;align=center;verticalAlign=bottom;entryX=1;entryY=0.5;entryDx=0;entryDy=0;exitX=0;exitY=0.5;exitDx=0;exitDy=0;" target="summary" value="report linked">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
