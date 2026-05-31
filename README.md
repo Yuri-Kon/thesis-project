@@ -67,15 +67,6 @@ Planner 不只输出单一路径，而是在关键节点生成候选集合：
 
 ### 2.3 动作选择
 
-第一版动作空间限定为：
-=======
-- `PlanCandidate` / `PatchCandidate` / `ReplanCandidate`：用于关键节点的候选集合；
-- `RuntimeState`：轻量 belief-state，核心字段包括 `p_success`、
-  `p_structural_failure`、`recovery_margin`、`expected_remaining_cost`、
-  `evidence_sufficiency`、`budget_pressure` 和 `budget_cap`；
-- `PendingAction` / `Decision`：HITL 等待态中的候选展示和人工决策；
-- `TaskSnapshot` / `EventLog`：进入等待态前的持久化和后续恢复证据。
-
 CEBRA-WP v2 的算法对象已按版本归档：
 
 - `static_score.v1`：静态候选效用与 `score_breakdown`；
@@ -86,13 +77,16 @@ CEBRA-WP v2 的算法对象已按版本归档：
 
 动作选择的稳定语义是服务于恢复闭环，而不是替代恢复闭环。第一版动作空间包括：
 
-动作选择服务于恢复闭环，而不是替代恢复闭环。硬优先级包括：
-
-- safety block 禁止 continue；
+- `continue`：证据充分且风险可控时继续当前链路；
+- `patch_local`：局部错误可修复时保留成功前缀并生成最小 patch；
+- `suffix_replan`：后缀结构性风险升高时重规划剩余步骤；
+- `stop`：继续执行收益不足或风险过高时停止。
 
 硬约束和优先级包括：
 
 - safety block 禁止直接继续；
+- terminal state 不允许再发生状态迁移；
+- patch / replan 需要通过 `PendingAction` / `Decision` 进入 HITL 确认。
 
 ![运行时恢复时序图](docs/assets/readme/runtime-sequence.svg)
 
@@ -229,7 +223,46 @@ npm run check:ui
 npm run build:ui
 ```
 
-## 8. 当前验证基准
+## 8. 交付包说明
+
+若从压缩包解压本项目，建议先进入项目根目录并按以下步骤重建本地运行环境：
+
+```bash
+uv sync
+npm install
+```
+
+然后可启动后端服务：
+
+```bash
+uv run uvicorn src.api.main:app --reload
+```
+
+源码交付包重点包括可运行项目所需的源码、配置、基础文档和正式实验日志：
+
+- `src/`：后端、workflow、agent、adapter、API 和算法实现；
+- `services/`：OpenFold3 / PLM REST 服务封装；
+- `src/api/frontend/`：React + Vite 前端源码；
+- `configs/`：模型、工具、实验矩阵和论文最终任务集配置；
+- `tests/`：单元、集成、API 与服务契约测试；
+- `docs/experiment/`：论文实验设计、最终任务集说明和 `thesis-final-v1` 结果分析文档；
+- `data/logs/thesis-final-v1-001_*.jsonl`：正式矩阵实验事件日志；
+- `data/snapshots/thesis-final-v1-001_*.jsonl`：正式矩阵实验快照；
+- `output/experiment/thesis-final-matrix/thesis-final-v1-001/`：正式矩阵聚合结果、run 配置和指标；
+- `output/reports/thesis-final-v1-001*`：正式矩阵 DONE 任务报告及辅助报告。
+
+为控制体积，源码交付包默认不包含大体积文档截图目录和论文图形资产，例如
+`docs/system-validation/06-ui-screenshots/` 与 `asserts/`。正式实验结论可先参考
+`docs/experiment/thesis-final-v1-results.md`。
+
+以下内容通常不随交付包提供，需要在本机重建或重新运行生成：
+
+- `.venv/`、`node_modules/`、`.uv-cache/`：依赖和缓存；
+- `.git/`、`.pytest_cache/`、`__pycache__/`：版本库元数据和运行缓存；
+- `.env`、`.env.*`、`.envrc`：本机环境变量或路径配置；
+- 大量历史 `output/`、`data/` 运行产物：只保留与论文最终矩阵直接相关的证据。
+
+## 9. 当前验证基准
 
 截至 2026-04-30，`dev` 已合入分层 patch 恢复顺序修复。当前阶段验证基准为：
 
@@ -249,7 +282,7 @@ uv run pytest --ignore=tests/integration/test_nextflow_failure_fsm.py
 - Nextflow adapter 的单元契约仍在常规测试中覆盖；
 - 若将 Nextflow 集成路径纳入阶段产物，需要先补齐对应实现或显式标记测试跳过策略。
 
-## 9. 分支与 worktree
+## 10. 分支与 worktree
 
 当前常用 worktree：
 
@@ -267,7 +300,7 @@ uv run pytest --ignore=tests/integration/test_nextflow_failure_fsm.py
 4. 合入 `dev` 后再判断是否打阶段 tag；
 5. 需要对外稳定入口时，再同步 README 和代码状态到 `master`。
 
-## 10. README 维护规则
+## 11. README 维护规则
 
 阶段合并或算法/架构调整后，README 至少更新：
 
