@@ -1,3 +1,19 @@
+---
+title: SciToolAgent 四个 Case 工具说明
+documentclass: ctexart
+papersize: a4
+fontsize: 11pt
+linestretch: 1.25
+toc: true
+toc-depth: 2
+colorlinks: true
+
+monofont: "Maple Mono NF CN"
+highlight-style: tango
+
+header-includes:
+	- \usepackage{seqsplit}
+---
 # SciToolAgent 四个 Case 工具接入说明
 
 ## 1. 范围说明
@@ -43,15 +59,15 @@ Design protein sequence
 
 对应工具如下。
 
-| SciToolAgent 工具名 | 论文/Notebook 中的含义 | 推荐底层实现 | 我们项目当前状态 |
-| --- | --- | --- | --- |
-| `DesignProteinAlpha` | 生成 alpha 类蛋白序列 | Chroma CATH conditional generation | 需要新增，当前 `protgpt2` 只能近似替代，不能严格复现 CATH 条件设计 |
-| `DesignProteinBeta` | 生成 beta 类蛋白序列 | Chroma CATH conditional generation | 需要新增 |
-| `DesignProteinAlphaBeta` | 生成 alpha-beta 类蛋白序列 | Chroma CATH conditional generation | 需要新增；本地 notebook 检索到该工具 |
-| `SequenceToPdb` | 将蛋白序列折叠为 PDB，并返回 pLDDT | ESMFold | 可复用现有 `esmfold` / `nim_esmfold` / `openfold` adapter，但需要加 SciToolAgent 兼容别名 |
-| `AnalyzeProteinStructure` | 分析 PDB 二级结构组成 | DSSP + BioPython | 可复用现有 `dssp` / `biopython_qc`，但需要输出 SciToolAgent 风格百分比 |
-| `CalculateForceEnergyFromSequence` | 从序列预测 unfolding force / energy | ProteinForceGPT | 需要新增 adapter 或远程服务 |
-| `CalculateProteinANM` | 计算 ANM 前若干振动模态 | ProDy ANM | 需要新增 adapter，并添加 `prody` 依赖 |
+| SciToolAgent 工具名                                  | 论文/Notebook 中的含义              | 推荐底层实现                        | 我们项目当前状态                                                                    |
+|------------------------------------------------------|-------------------------------------|-------------------------------------|-------------------------------------------------------------------------------------|
+| \texttt{\seqsplit{DesignProteinAlpha}}               | 生成 alpha 类蛋白序列               | Chroma CATH conditional generation  | 需要新增，当前 protgpt2 只能近似替代，不能严格复现 CATH 条件设计                    |
+| DesignProteinBeta                                    | 生成 beta 类蛋白序列                | Chroma CATH conditional generation  | 需要新增                                                                            |
+| \texttt{\seqsplit{DesignProteinAlphaBeta}}           | 生成 alpha-beta 类蛋白序列          | Chroma CATH conditional generation  | 需要新增；本地 notebook 检索到该工具                                                |
+| SequenceToPdb                                        | 将蛋白序列折叠为 PDB，并返回 pLDDT  | ESMFold                             | 可复用现有 esmfold / nim_esmfold / openfold adapter，但需要加 SciToolAgent 兼容别名 |
+| \texttt{\seqsplit{AnalyzeProteinStructure}}          | 分析 PDB 二级结构组成               | DSSP + BioPython                    | 可复用现有 dssp / biopython_qc，但需要输出 SciToolAgent 风格百分比                  |
+| \texttt{\seqsplit{CalculateForceEnergyFromSequence}} | 从序列预测 unfolding force / energy | \texttt{\seqsplit{ProteinForceGPT}} | 需要新增 adapter 或远程服务                                                         |
+| \texttt{\seqsplit{CalculateProteinANM}}              | 计算 ANM 前若干振动模态             | ProDy ANM                           | 需要新增 adapter，并添加 prody 依赖                                                 |
 
 本地 notebook 的 alpha 演示实际规划路径是：
 
@@ -80,12 +96,12 @@ DesignProteinAlpha
 
 | 我们项目工具 | 可承担的 SciToolAgent 能力 | 说明 |
 | --- | --- | --- |
-| `esmfold` | `SequenceToPdb` | 本地/Nextflow 结构预测路径 |
-| `nim_esmfold` | `SequenceToPdb` | 远程 NVIDIA NIM ESMFold |
-| `openfold` / OpenFold3 adapter | `SequenceToPdb` fallback | 可作为结构预测备选 |
-| `dssp` | `AnalyzeProteinStructure` | 二级结构注释 |
+| `esmfold` | SequenceToPdb | 本地/Nextflow 结构预测路径 |
+| `nim_esmfold` | SequenceToPdb | 远程 NVIDIA NIM ESMFold |
+| `openfold` / OpenFold3 adapter | SequenceToPdb fallback | 可作为结构预测备选 |
+| `dssp` | AnalyzeProteinStructure | 二级结构注释 |
 | `biopython_qc` | 部分结构/序列 QC | 可辅助验证，但不是 DSSP 百分比输出的完整替代 |
-| `protgpt2` | `DesignProtein*` 弱替代 | 可生成序列，但不能保证 CATH alpha/beta/alpha-beta 条件 |
+| `protgpt2` | DesignProtein* 弱替代 | 可生成序列，但不能保证 CATH alpha/beta/alpha-beta 条件 |
 
 必须新增或补齐：
 
@@ -116,8 +132,8 @@ CalculateProteinANM
 
 | SciToolAgent wrapper | 内部委托 |
 | --- | --- |
-| `SequenceToPdb` | `ESMFoldAdapter`、`NIMESMFoldAdapter` 或 `OpenFold3Adapter` |
-| `AnalyzeProteinStructure` | `DSSPAdapter`，必要时补充 BioPython 解析 |
+| SequenceToPdb | ESMFoldAdapter、NIMESMFoldAdapter 或 OpenFold3Adapter |
+| AnalyzeProteinStructure | DSSPAdapter，必要时补充 BioPython 解析 |
 
 例如 `SequenceToPdb` 的输出应整理为：
 
@@ -173,13 +189,13 @@ src/adapters/scitoolagent/
 
 推荐工具到 adapter 的映射：
 
-| Adapter 类 | tool_id | 输入 | 输出 |
-| --- | --- | --- | --- |
-| `ChromaCATHDesignAdapter` | `DesignProteinAlpha` / `DesignProteinBeta` / `DesignProteinAlphaBeta` | `length`、`cath_class` | `sequence`、`protein_filename`、`cath_annotation` |
-| `SequenceToPdbCompatAdapter` | `SequenceToPdb` | `sequence`、可选 `protein_filename` | `pdb_path`、`plddt` |
-| `DSSPCompositionAdapter` | `AnalyzeProteinStructure` | `pdb_path` | `secondary_structure_percent` |
-| `ProteinForceGPTAdapter` | `CalculateForceEnergyFromSequence` | `sequence` | `unfolding_force`、`energy` |
-| `ProDyANMAdapter` | `CalculateProteinANM` | `pdb_path` 或 `protein_filename` | `eigenvalues`、`frequencies`、`num_modes` |
+| Adapter 类                                     | tool_id                                                                                                 | 输入                            | 输出                                            |
+|------------------------------------------------|---------------------------------------------------------------------------------------------------------|---------------------------------|-------------------------------------------------|
+| \texttt{\seqsplit{ChromaCATHDesignAdapter}}    | \texttt{\seqsplit{DesignProteinAlpha}} , DesignProteinBeta,  \texttt{\seqsplit{DesignProteinAlphaBeta}} | length、cath\_class              | sequence、protein\_filename、cath\_annotation     |
+| \texttt{\seqsplit{SequenceToPdbCompatAdapter}} | SequenceToPdb                                                                                           | sequence、可选 protein\_filename | pdb\_path、plddt                                 |
+| \texttt{\seqsplit{DSSPCompositionAdapter}}     | \texttt{\seqsplit{AnalyzeProteinStructure}}                                                             | pdb\_path                        | \texttt{\seqsplit{secondary\_structure\_percent}} |
+| \texttt{\seqsplit{ProteinForceGPTAdapter}}     | \texttt{\seqsplit{CalculateForceEnergyFromSequence}}                                                    | sequence                        | unfolding\_force、energy                         |
+| \texttt{\seqsplit{ProDyANMAdapter}}                                | \texttt{\seqsplit{CalculateProteinANM}}                                                                 | pdb\_path 或 protein\_filename    | eigenvalues、frequencies、num\_modes             |
 
 ## 5. 依赖和运行环境
 
@@ -360,11 +376,9 @@ def ensure_builtin_adapters() -> None:
 
 如果要复现论文中 alpha、beta、alpha-beta 三类结果，可按类别重复同一条链：
 
-```text
-DesignProteinAlpha      -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
-DesignProteinBeta       -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
-DesignProteinAlphaBeta  -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
-```
+1. DesignProteinAlpha      -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
+2. DesignProteinBeta       -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
+3. DesignProteinAlphaBeta  -> SequenceToPdb -> AnalyzeProteinStructure -> CalculateForceEnergyFromSequence -> CalculateProteinANM
 
 工程实现上有两种方式：
 
@@ -458,13 +472,13 @@ GenerateElectricalDescriptorsFromCSV
 
 | SciToolAgent 工具名 | 功能 | 推荐底层实现 | 接入状态 |
 | --- | --- | --- | --- |
-| `GenerateRDKFingerprintsFromCSV` | 从 CSV 中的 SMILES 生成 RDKit/RDK fingerprint 特征 | RDKit | 需要新增 |
-| `GenerateMorganfingerprintsFromCSV` | 生成 Morgan fingerprint 特征 | RDKit MorganGenerator | 需要新增 |
-| `GenerateElectricalDescriptorsFromCSV` | 生成电性/理化描述符 | RDKit descriptors，可扩展 Mordred | 需要新增 |
-| `MLPClassifier` | 训练/测试 MLP 分类器 | scikit-learn | 需要新增 |
-| `AdaBoostClassifier` | 训练/测试 AdaBoost 分类器 | scikit-learn | 需要新增 |
-| `RandomForestClassifier` | 训练/测试随机森林分类器 | scikit-learn | 需要新增 |
-| `RXNPredict` | 反应产物预测，retrieval 中出现但第一轮未执行 | RXNMapper/RDKit/外部模型 | Case III 也需要 |
+| \texttt{\seqsplit{GenerateRDKFingerprintsFromCSV}} | 从 CSV 中的 SMILES 生成 RDKit/RDK fingerprint 特征 | RDKit | 需要新增 |
+| \texttt{\seqsplit{GenerateMorganfingerprintsFromCSV}} | 生成 Morgan fingerprint 特征 | RDKit MorganGenerator | 需要新增 |
+| \texttt{\seqsplit{GenerateElectricalDescriptorsFromCSV}} | 生成电性/理化描述符 | RDKit descriptors，可扩展 Mordred | 需要新增 |
+| MLPClassifier | 训练/测试 MLP 分类器 | scikit-learn | 需要新增 |
+| \texttt{\seqsplit{AdaBoostClassifier}} | 训练/测试 AdaBoost 分类器 | scikit-learn | 需要新增 |
+| \texttt{\seqsplit{RandomForestClassifier}} | 训练/测试随机森林分类器 | scikit-learn | 需要新增 |
+| RXNPredict | 反应产物预测，retrieval 中出现但第一轮未执行 | RXNMapper/RDKit/外部模型 | Case III 也需要 |
 
 ### 12.2 推荐 adapter 设计
 
@@ -476,11 +490,12 @@ src/adapters/scitoolagent_chem_ml_adapter.py
 
 推荐类：
 
-| Adapter 类 | tool_id | 输入 | 输出 |
-| --- | --- | --- | --- |
-| `CSVFingerprintAdapter` | `GenerateRDKFingerprintsFromCSV`、`GenerateMorganfingerprintsFromCSV` | `csv_path`、`smiles_column` | `feature_csv_path`、`feature_type`、`result` |
-| `ElectricalDescriptorCSVAdapter` | `GenerateElectricalDescriptorsFromCSV` | `csv_path`、`smiles_column` | `feature_csv_path`、`descriptor_names`、`result` |
-| `SklearnClassifierAdapter` | `MLPClassifier`、`AdaBoostClassifier`、`RandomForestClassifier` | `feature_csv_path`、`label_column` | `train_accuracy`、`test_accuracy`、`model_name`、`result` |
+| Adapter 类                                         | tool_id                                                                                                   | 输入                              | 输出                                                 |
+|----------------------------------------------------|-----------------------------------------------------------------------------------------------------------|-----------------------------------|------------------------------------------------------|
+| \texttt{\seqsplit{CSVFingerprintAdapter}}          | \texttt{\seqsplit{GenerateRDKFingerprintsFromCSV}}、\texttt{\seqsplit{GenerateMorganfingerprintsFromCSV}} | \texttt{\seqsplit{csv\_path}}、\texttt{\seqsplit{smiles\_column}}         | \texttt{\seqsplit{feature\_csv\_path}}、\texttt{\seqsplit{feature\_type}}、result            |
+| \texttt{\seqsplit{ElectricalDescriptorCSVAdapter}} | \texttt{\seqsplit{GenerateElectricalDescriptorsFromCSV}}                                                  | \texttt{\seqsplit{csv\_path}}、\texttt{\seqsplit{smiles\_column}}         | \texttt{\seqsplit{feature\_csv\_path}}、\texttt{\seqsplit{descriptor\_names}}、result        |
+| \texttt{\seqsplit{SklearnClassifierAdapter}}       | MLPClassifier、\texttt{\seqsplit{AdaBoostClassifier}}、\texttt{\seqsplit{RandomForestClassifier}}         | \texttt{\seqsplit{feature\_csv\_path}}、\texttt{\seqsplit{label\_column}} | \texttt{\seqsplit{train\_accuracy}}、\texttt{\seqsplit{test\_accuracy}}、\texttt{\seqsplit{model\_name}}、result |
+
 
 输入 CSV 至少需要 SMILES 列和标签列，建议默认列名为 `smiles` 与 `reactivity`。特征工具输出 `feature_csv_path`，分类器工具读取该路径并输出 `train_accuracy`、`test_accuracy`。
 
@@ -534,14 +549,14 @@ retrieval 阶段还召回了 `TexToMoleculeSELFIES`、`RXNRetrosynthetic`、`Con
 
 ### 13.1 所需工具和推荐实现
 
-| SciToolAgent 工具名 | 功能 | 推荐底层实现 | 接入状态 |
-| --- | --- | --- | --- |
-| `RXNPredict` | 反应产物预测 | IBM RXN、RXNMapper + 模板、或远程服务 | 需要新增 |
-| `SMILEStoSELFIES` | SMILES 转 SELFIES | `selfies` Python 包 | 需要新增 |
-| `GenerateMoleculeDescription` | 根据 SELFIES/SMILES 生成文字描述 | LLM adapter 或规则模板 | 需要新增 |
-| `CheckPatent` | 查询分子是否已被专利覆盖 | 外部专利 API / 本地缓存 / LLM 搜索摘要 | 需要新增 |
-| `CheckExplosiveness` | 根据 CAS/SMILES 判断爆炸性 | 本地毒性/危险品数据 + PubChem/CAS 查询 | 需要新增 |
-| `SMILESToCAS` | SMILES 到 CAS | PubChem/ChemSpider/本地缓存 | Case IV 也需要 |
+| SciToolAgent 工具名                             | 功能                             | 推荐底层实现                           | 接入状态       |
+|-------------------------------------------------|----------------------------------|----------------------------------------|----------------|
+| RXNPredict                                      | 反应产物预测                     | IBM RXN、RXNMapper + 模板、或远程服务  | 需要新增       |
+| \texttt{\seqsplit{SMILEStoSELFIES}}             | SMILES 转 SELFIES                | selfies Python 包                      | 需要新增       |
+| \texttt{\seqsplit{GenerateMoleculeDescription}} | 根据 SELFIES/SMILES 生成文字描述 | LLM adapter 或规则模板                 | 需要新增       |
+| CheckPatent                                     | 查询分子是否已被专利覆盖         | 外部专利 API / 本地缓存 / LLM 搜索摘要 | 需要新增       |
+| \texttt{\seqsplit{CheckExplosiveness}}          | 根据 CAS/SMILES 判断爆炸性       | 本地毒性/危险品数据 + PubChem/CAS 查询 | 需要新增       |
+| SMILESToCAS                                     | SMILES 到 CAS                    | PubChem / ChemSpider / 本地缓存        | Case IV 也需要 |
 
 ### 13.2 推荐 adapter 设计
 
@@ -553,13 +568,14 @@ src/adapters/scitoolagent_synthesis_adapter.py
 
 推荐类：
 
-| Adapter 类 | tool_id | 输入 | 输出 |
-| --- | --- | --- | --- |
-| `ReactionPredictionAdapter` | `RXNPredict` | `reactant_smiles` 或 `reaction_smiles` | `product_smiles`、`reaction_summary`、`result` |
-| `SelfiesConversionAdapter` | `SMILEStoSELFIES`、`SELFIEStoSMILES` | `smiles` / `selfies` | `selfies` / `smiles`、`result` |
-| `MoleculeDescriptionAdapter` | `GenerateMoleculeDescription` | `smiles`、`selfies` | `description`、`result` |
-| `PatentLookupAdapter` | `CheckPatent` | `smiles`、`cas`、`name` | `patent_status`、`evidence`、`result` |
-| `ExplosivenessLookupAdapter` | `CheckExplosiveness` | `smiles`、`cas` | `explosive`、`cas`、`evidence`、`result` |
+| Adapter 类                                     | tool_id                                                                  | 输入                                                                                           | 输出                                                                                                             |
+|------------------------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------|
+| \texttt{\seqsplit{ReactionPredictionAdapter}}  | \texttt{\seqsplit{RXNPredict}}                                           | \texttt{\seqsplit{reactant\_smiles}} 或 \texttt{\seqsplit{reaction\_smiles}} | \texttt{\seqsplit{product\_smiles}}、\texttt{\seqsplit{reaction\_summary}}、\texttt{\seqsplit{result}}             |
+| \texttt{\seqsplit{SelfiesConversionAdapter}}   | \texttt{\seqsplit{SMILEStoSELFIES}}、\texttt{\seqsplit{SELFIEStoSMILES}} | \texttt{\seqsplit{smiles}},  \texttt{\seqsplit{selfies}}                                       | \texttt{\seqsplit{selfies}}, \texttt{\seqsplit{smiles}}、\texttt{\seqsplit{result}}                             |
+| \texttt{\seqsplit{MoleculeDescriptionAdapter}} | \texttt{\seqsplit{GenerateMoleculeDescription}}                          | \texttt{\seqsplit{smiles}}、\texttt{\seqsplit{selfies}}                                        | \texttt{\seqsplit{description}}、\texttt{\seqsplit{result}}                                                      |
+| \texttt{\seqsplit{PatentLookupAdapter}}        | \texttt{\seqsplit{CheckPatent}}                                          | \texttt{\seqsplit{smiles}}、\texttt{\seqsplit{cas}}、\texttt{\seqsplit{name}}                  | \texttt{\seqsplit{patent\_status}}、\texttt{\seqsplit{evidence}}、\texttt{\seqsplit{result}}                      |
+| \texttt{\seqsplit{ExplosivenessLookupAdapter}} | \texttt{\seqsplit{CheckExplosiveness}}                                   | \texttt{\seqsplit{smiles}}、\texttt{\seqsplit{cas}}                                            | \texttt{\seqsplit{explosive}}、\texttt{\seqsplit{cas}}、\texttt{\seqsplit{evidence}}、\texttt{\seqsplit{result}} |
+
 
 `RXNPredict` 输出建议统一为：
 
@@ -629,7 +645,7 @@ retrieval 阶段还召回了 `GetFloatingSolventMolecules`、`MofLattice`、`Mof
 | `SMILESToCAS` | SMILES 到 CAS | PubChem/ChemSpider/本地缓存 | 可复用 Case III 的 identifier adapter |
 | `CASToPrice` | CAS 到平均价格 | 本地缓存 / 供应商 API / web API | 需要新增 |
 | `MofLattice` | 读取晶格参数 | pymatgen | 可作为辅助工具新增 |
-| `MofFractionalCoordinates` | 读取分数坐标 | pymatgen | 可作为辅助工具新增 |
+| \texttt{\seqsplit{MofFractionalCoordinates}} | 读取分数坐标 | pymatgen | 可作为辅助工具新增 |
 
 ### 14.2 推荐 adapter 设计
 
@@ -641,14 +657,14 @@ src/adapters/scitoolagent_mof_adapter.py
 
 推荐类：
 
-| Adapter 类 | tool_id | 输入 | 输出 |
-| --- | --- | --- | --- |
-| `MOFStabilityAdapter` | `PredictStability` | `cif_path` | `thermal_stability`、`solvent_removal_stability`、`result` |
-| `MOFAdsorptionAdapter` | `PredictAdsorption` | `cif_path`、可选 gas 条件 | `co2_absolute_mg_g`、`h2_absolute_mg_g`、`result` |
-| `MOFToSmilesAdapter` | `MOFToSMILES` | `cif_path` | `smiles`、`status`、`result` |
-| `SmilesToCASAdapter` | `SMILESToCAS` | `smiles` | `cas`、`result` |
-| `CASToPriceAdapter` | `CASToPrice` | `cas` | `average_price`、`currency`、`result` |
-| `MOFStructureParserAdapter` | `MofLattice`、`MofFractionalCoordinates` 等 | `cif_path` | 晶格/坐标/邻接信息 |
+| Adapter 类                                    | tool_id                                     | 输入                      | 输出                                                       |
+|-----------------------------------------------|---------------------------------------------|---------------------------|------------------------------------------------------------|
+| \texttt{\seqsplit{MOFStabilityAdapter}}       | `PredictStability`                          | `cif_path`                | `thermal_stability`、`solvent_removal_stability`、`result` |
+| \texttt{\seqsplit{MOFAdsorptionAdapter}}      | `PredictAdsorption`                         | `cif_path`、可选 gas 条件 | `co2_absolute_mg_g`、`h2_absolute_mg_g`、`result`          |
+| \texttt{\seqsplit{MOFToSmilesAdapter}}        | `MOFToSMILES`                               | `cif_path`                | `smiles`、`status`、`result`                               |
+| \texttt{\seqsplit{SmilesToCASAdapter}}        | `SMILESToCAS`                               | `smiles`                  | `cas`、`result`                                            |
+| \texttt{\seqsplit{CASToPriceAdapter}}         | `CASToPrice`                                | `cas`                     | `average_price`、`currency`、`result`                      |
+| \texttt{\seqsplit{MOFStructureParserAdapter}} | `MofLattice`、`MofFractionalCoordinates` 等 | `cif_path`                | 晶格/坐标/邻接信息                                         |
 
 `PredictStability` 输出建议：
 
@@ -796,8 +812,7 @@ tests/integration/test_scitoolagent_case4_mof_chain.py
 
 ## 17. 参考来源
 
-- SciToolAgent paper summary and case-study description: https://www.emergentmind.com/papers/2507.20280
-- SciToolAgent GitHub local notebook: `deliverables/scitoolagent-reference-dataset/SciToolAgent/Cases.ipynb`
+- [SciToolAgent paper summary and case-study description](https://www.emergentmind.com/papers/2507.20280)
 - 本项目工具接入基类：`src/adapters/base_tool_adapter.py`
 - 本项目 adapter 注册表：`src/adapters/registry.py`
 - 本项目内置 adapter 注册：`src/adapters/builtins.py`
