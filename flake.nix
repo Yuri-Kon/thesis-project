@@ -39,6 +39,9 @@
 
             jdk21_headless
             nextflow
+
+            texlive.combined.scheme-full
+            texlab
           ];
 
           bioCliPackages =
